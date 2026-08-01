@@ -24,7 +24,9 @@ io.on('connection', (socket) => {
 
   // 1. ODAYA KATILMA / MASA OLUŞTURMA
   socket.on('joinRoom', ({ roomId, userName, maxPlayers, gameId }) => {
-    // Oda ID'sini string olarak standartlaştırıyoruz
+    if (!roomId) return;
+
+    // Oda ID'sini metin (string) olarak standartlaştırıyoruz
     const safeRoomId = roomId.toString();
     socket.join(safeRoomId);
     socket.roomId = safeRoomId;
@@ -34,7 +36,7 @@ io.on('connection', (socket) => {
     if (!rooms[safeRoomId]) {
       rooms[safeRoomId] = {
         id: safeRoomId,
-        gameId: gameId || 'satranc',
+        gameId: gameId || 'chess',
         maxPlayers: maxPlayers || 2,
         players: []
       };
@@ -48,27 +50,27 @@ io.on('connection', (socket) => {
       
       // 🎲 RASTGELE RENK ATAMA MANTIĞI
       let assignedColor;
-      
       if (room.players.length === 0) {
-        // İlk katılan oyuncuya %50 şansla Siyah veya Beyaz ata
+        // İlk katılan oyuncuya %50 şansla Beyaz veya Siyah ata
         assignedColor = Math.random() < 0.5 ? 'white' : 'black';
       } else {
-        // İkinci katılan oyuncuya, ilk oyuncunun renginin tam TERSİNİ ata
+        // İkinci katılan oyuncuya ilk oyuncunun renginin tam TERSİNİ ata
         const firstPlayerColor = room.players[0].color;
         assignedColor = firstPlayerColor === 'white' ? 'black' : 'white';
       }
 
       room.players.push({
         id: socket.id,
-        name: userName,
-        color: assignedColor,
+        name: userName || `Oyuncu ${room.players.length + 1}`,
+        color: assignedColor, // 'white' veya 'black'
+        seat: room.players.length, // 0 veya 1
         isReady: false
       });
     }
 
     // Masadaki HERKESE güncel oyuncu listesini ve renkleri gönder
     io.to(safeRoomId).emit('roomUpdated', room);
-    console.log(`[MASA GÜNCELLENDİ] Oda #${safeRoomId} -> ${userName} (${room.players[room.players.length - 1]?.color}) katıldı.`);
+    console.log(`[MASA GÜNCELLENDİ] Oda #${safeRoomId} -> ${userName} (${room.players.find(p => p.id === socket.id)?.color}) katıldı.`);
   });
 
   // 2. HAZIRIM / HAZIR DEĞİLİM BUTONU
@@ -86,16 +88,25 @@ io.on('connection', (socket) => {
 
   // 3. CANLI HAMLE İLETİMİ (Frontend'den gelen 'makeMove' eventini dinler)
   socket.on('makeMove', (data) => {
-    if (data && data.roomId) {
-      // socket.to() komutu, işlemi yapan SOKET HARİÇ o odadaki herkese veriyi yollar
-      socket.to(data.roomId.toString()).emit('moveMade', data);
+    if (!data) return;
+
+    // Frontend roomId göndermediyse soket üzerindeki mevcudu kullan
+    const roomId = (data.roomId || socket.roomId)?.toString();
+
+    if (roomId) {
+      // socket.to(...) -> Hamleyi yapan SOKET HARİÇ odadaki rakibe iletir
+      socket.to(roomId).emit('moveMade', {
+        gameId: data.gameId || 'chess',
+        moveData: data.moveData || data
+      });
+      console.log(`[HAMLE İLETİLDİ] Oda #${roomId}:`, data.moveData || data);
     }
   });
 
-  // (Opsiyonel) Diğer oyunlar için eski sendGameMove metodunu da yedek olarak tutuyoruz
+  // (Yedek/Eski Sistem Desteği)
   socket.on('sendGameMove', (moveData) => {
     if (socket.roomId) {
-      io.to(socket.roomId).emit('receiveGameMove', moveData);
+      socket.to(socket.roomId).emit('receiveGameMove', moveData);
     }
   });
 
@@ -107,11 +118,12 @@ io.on('connection', (socket) => {
       room.players = room.players.filter(p => p.id !== socket.id);
 
       if (room.players.length === 0) {
-        delete rooms[roomId]; // Masa boşaldıysa sunucudan sil
+        delete rooms[roomId]; // Masa boşaldıysa hafızadan sil
+        console.log(`[ODA SİLİNDİ] Boşalan Oda #${roomId} kaldırıldı.`);
       } else {
-        // Rakip çıktığı için frontend tarafındaki 'Hükmen Galibiyet' modülünü tetikler
+        // Kalan rakibe bildirim gönder ve sandalyeleri güncelle
         io.to(roomId).emit('playerLeft', { playerId: socket.id });
-        io.to(roomId).emit('roomUpdated', room); // Kalanlara güncel sandalyeleri yolla
+        io.to(roomId).emit('roomUpdated', room);
       }
     }
     console.log(`[AYRILDI] Soket ayrıldı: ${socket.id}`);
