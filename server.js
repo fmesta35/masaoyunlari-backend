@@ -24,21 +24,23 @@ io.on('connection', (socket) => {
 
   // 1. ODAYA KATILMA / MASA OLUŞTURMA
   socket.on('joinRoom', ({ roomId, userName, maxPlayers, gameId }) => {
-    socket.join(roomId);
-    socket.roomId = roomId;
+    // Oda ID'sini string olarak standartlaştırıyoruz
+    const safeRoomId = roomId.toString();
+    socket.join(safeRoomId);
+    socket.roomId = safeRoomId;
     socket.userName = userName;
 
     // Oda yoksa sunucu hafızasında sıfırdan kur
-    if (!rooms[roomId]) {
-      rooms[roomId] = {
-        id: roomId,
+    if (!rooms[safeRoomId]) {
+      rooms[safeRoomId] = {
+        id: safeRoomId,
         gameId: gameId || 'satranc',
         maxPlayers: maxPlayers || 2,
         players: []
       };
     }
 
-    const room = rooms[roomId];
+    const room = rooms[safeRoomId];
 
     // Kullanıcı önceden eklenmediyse ve yer varsa masaya oturt
     const exists = room.players.find(p => p.id === socket.id);
@@ -65,8 +67,8 @@ io.on('connection', (socket) => {
     }
 
     // Masadaki HERKESE güncel oyuncu listesini ve renkleri gönder
-    io.to(roomId).emit('roomUpdated', room);
-    console.log(`[MASA GÜNCELLENDİ] Oda #${roomId} -> ${userName} (${room.players[room.players.length - 1]?.color}) katıldı.`);
+    io.to(safeRoomId).emit('roomUpdated', room);
+    console.log(`[MASA GÜNCELLENDİ] Oda #${safeRoomId} -> ${userName} (${room.players[room.players.length - 1]?.color}) katıldı.`);
   });
 
   // 2. HAZIRIM / HAZIR DEĞİLİM BUTONU
@@ -82,11 +84,18 @@ io.on('connection', (socket) => {
     }
   });
 
-  // 3. CANLI HAMLE İLETİMİ (Odada bulunan HERKESE yayınlar)
+  // 3. CANLI HAMLE İLETİMİ (Frontend'den gelen 'makeMove' eventini dinler)
+  socket.on('makeMove', (data) => {
+    if (data && data.roomId) {
+      // socket.to() komutu, işlemi yapan SOKET HARİÇ o odadaki herkese veriyi yollar
+      socket.to(data.roomId.toString()).emit('moveMade', data);
+    }
+  });
+
+  // (Opsiyonel) Diğer oyunlar için eski sendGameMove metodunu da yedek olarak tutuyoruz
   socket.on('sendGameMove', (moveData) => {
     if (socket.roomId) {
       io.to(socket.roomId).emit('receiveGameMove', moveData);
-      console.log(`[HAMLE] Oda #${socket.roomId}:`, moveData);
     }
   });
 
@@ -100,7 +109,9 @@ io.on('connection', (socket) => {
       if (room.players.length === 0) {
         delete rooms[roomId]; // Masa boşaldıysa sunucudan sil
       } else {
-        io.to(roomId).emit('roomUpdated', room); // Kalanlara güncelleme yolla
+        // Rakip çıktığı için frontend tarafındaki 'Hükmen Galibiyet' modülünü tetikler
+        io.to(roomId).emit('playerLeft', { playerId: socket.id });
+        io.to(roomId).emit('roomUpdated', room); // Kalanlara güncel sandalyeleri yolla
       }
     }
     console.log(`[AYRILDI] Soket ayrıldı: ${socket.id}`);
