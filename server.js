@@ -32,7 +32,7 @@ io.on('connection', (socket) => {
     if (!rooms[roomId]) {
       rooms[roomId] = {
         id: roomId,
-        gameId: gameId || 'okey',
+        gameId: gameId || 'satranc',
         maxPlayers: maxPlayers || 2,
         players: []
       };
@@ -43,16 +43,30 @@ io.on('connection', (socket) => {
     // Kullanıcı önceden eklenmediyse ve yer varsa masaya oturt
     const exists = room.players.find(p => p.id === socket.id);
     if (!exists && room.players.length < room.maxPlayers) {
+      
+      // 🎲 RASTGELE RENK ATAMA MANTIĞI
+      let assignedColor;
+      
+      if (room.players.length === 0) {
+        // İlk katılan oyuncuya %50 şansla Siyah veya Beyaz ata
+        assignedColor = Math.random() < 0.5 ? 'white' : 'black';
+      } else {
+        // İkinci katılan oyuncuya, ilk oyuncunun renginin tam TERSİNİ ata
+        const firstPlayerColor = room.players[0].color;
+        assignedColor = firstPlayerColor === 'white' ? 'black' : 'white';
+      }
+
       room.players.push({
         id: socket.id,
         name: userName,
+        color: assignedColor,
         isReady: false
       });
     }
 
-    // Masadaki HERKESE güncel oyuncu listesini gönder
+    // Masadaki HERKESE güncel oyuncu listesini ve renkleri gönder
     io.to(roomId).emit('roomUpdated', room);
-    console.log(`[MASA GÜNCELLENDİ] Oda #${roomId} -> ${userName} katıldı (${room.players.length}/${room.maxPlayers})`);
+    console.log(`[MASA GÜNCELLENDİ] Oda #${roomId} -> ${userName} (${room.players[room.players.length - 1]?.color}) katıldı.`);
   });
 
   // 2. HAZIRIM / HAZIR DEĞİLİM BUTONU
@@ -68,11 +82,11 @@ io.on('connection', (socket) => {
     }
   });
 
-  // 3. CANLI HAMLE İLETİMİ (Bilardo Vuruşu, Okey Taş Atma, Satranç Hamlesi vs.)
+  // 3. CANLI HAMLE İLETİMİ (Odada bulunan HERKESE yayınlar)
   socket.on('sendGameMove', (moveData) => {
     if (socket.roomId) {
-      // Hamleyi yapan hariç odadaki diğer oyunculara gönder
-      socket.to(socket.roomId).emit('receiveGameMove', moveData);
+      io.to(socket.roomId).emit('receiveGameMove', moveData);
+      console.log(`[HAMLE] Oda #${socket.roomId}:`, moveData);
     }
   });
 
