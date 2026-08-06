@@ -1,0 +1,40 @@
+{
+  "name": "Masa Oyunları - Online Oyun Platformu",
+  "short_name": "MasaOyunlari",
+  "description": "8 Top Bilardo, Satranç, Tavla, Okey ve daha fazlası! Online oyna.",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0a0a1a",
+  "theme_color": "#6c5ce7",
+  "lang": "tr",
+  "icons": [
+    {
+      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%8E%B1%3C/text%3E%3C/svg%3E",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["games", "entertainment"],
+  "shortcuts": [
+    {
+      "name": "8 Top Bilardo",
+      "short_name": "Bilardo",
+      "description": "Bilardo oyna",
+      "url": "/?game=billiards"
+    },
+    {
+      "name": "Satranç",
+      "short_name": "Satranç",
+      "description": "Satranç oyna",
+      "url": "/?game=chess"
+    },
+    {
+      "name": "Tavla",
+      "short_name": "Tavla",
+      "description": "Tavla oyna",
+      "url": "/?game=tavla"
+    }
+  ]
+}
