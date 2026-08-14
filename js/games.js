@@ -196,7 +196,6 @@ const GVGames = {
         }
     },
 
-    // ==================== SOCKET.IO GERÇEK ZAMANLI SENKRONİZASYON ====================
     socket: null,
     realtimeReady: false,
     roomId: null,
@@ -289,8 +288,6 @@ const GVGames = {
     applyRemoteMove(payload) {
         const move = payload && payload.moveData !== undefined ? payload.moveData : payload;
         if (move == null) return;
-
-        // Sunucudan gelen hamleyi tekrar emit etme; sadece local state'i güncelle.
         if (!this.gameState) this.loadGameState(this.currentGame || 'chess');
         const serialized = (() => { try { return JSON.stringify(move); } catch (_) { return String(move); } })();
         const duplicate = (this.gameState.history || []).some(existing => {
@@ -303,15 +300,11 @@ const GVGames = {
             this.gameState.status = 'playing';
             this.saveGameState();
         }
-
         this.dispatchRemoteMove(move);
     },
 
     dispatchRemoteMove(move) {
-        // Oyun ekranlarının bağlanabileceği standart event.
         window.dispatchEvent(new CustomEvent('gv:remoteMove', { detail: move }));
-
-        // Var olan uygulamalarda kullanılan olası callback'leri de destekle.
         ['onRemoteMove', 'handleRemoteMove', 'applyRemoteMove', 'receiveRemoteMove'].forEach(name => {
             if (typeof window[name] === 'function' && window[name] !== this.applyRemoteMove) {
                 try { window[name](move); } catch (error) { console.error(`[Realtime] ${name} hatası:`, error); }
@@ -327,10 +320,8 @@ const GVGames = {
     }
 };
 
-// Global erişim için export
 window.GVGames = GVGames;
 
-// Oyun başlatma daha sonra gerçekleşiyorsa realtime bağlantısını da kur.
 window.addEventListener('gv:roomReady', event => {
     if (event.detail?.roomId) {
         GVGames.roomId = event.detail.roomId;
@@ -343,3 +334,130 @@ window.addEventListener('gv:roomReady', event => {
 window.addEventListener('gv:makeMove', event => {
     if (event.detail !== undefined) GVGames.makeMove(event.detail);
 });
+
+/*
+ * GERÇEK OYUNCU ODASI - BOT SİMÜLASYONU KAPALI
+ * index.html içindeki eski startRoomWaitingProcess() random bot üreticisinden
+ * bağımsız olarak burada tekrar patch edilir. Böylece static hosting'de bile
+ * botlar çalışamaz; yalnızca Socket.IO roomUpdated oyuncuları gösterilir.
+ */
+(function disableClientRoomBots() {
+    let patched = false;
+
+    function patch() {
+        if (patched || typeof window.startRoomWaitingProcess !== 'function') return;
+
+        const original = window.startRoomWaitingProcess;
+        window.__gvOriginalRoomWaitingProcess = original;
+
+        window.startRoomWaitingProcess = function(room) {
+            patched = true;
+
+            if (typeof st !== 'undefined' && st.roomWaitingInt) {
+                clearInterval(st.roomWaitingInt);
+                st.roomWaitingInt = null;
+            }
+
+            const maxPlayers = Number(room.maxPlayers || 2);
+            const seats = [];
+            seats.push({ occupied: true, name: (st && st.user ? st.user.name : 'Oyuncu') + ' (Sen)', isMe: true, isReady: false });
+            for (let i = 1; i < maxPlayers; i++) {
+                seats.push({ occupied: false, name: '', isMe: false, isReady: false });
+            }
+
+            room.players = 1;
+            if (typeof st !== 'undefined') {
+                st.roomWaitingState = { room, seats, maxPlayers };
+                st.roomWaitingInt = null;
+            }
+            if (typeof renderWaitingTableUI === 'function') renderWaitingTableUI();
+
+            const connectAndJoin = () => {
+                if (!window.io) return;
+                if (!window.__gvRoomSocket) {
+                    window.__gvRoomSocket = window.io({ transports: ['websocket', 'polling'] });
+                    window.__gvRoomSocket.on('connect', () => {
+                        joinServerRoom(room);
+                    });
+                    window.__gvRoomSocket.on('roomUpdated', updatedRoom => {
+                        if (!updatedRoom || String(updatedRoom.id) !== String(room.id)) return;
+                        room.players = updatedRoom.players || [];
+                        room.maxPlayers = updatedRoom.maxPlayers || maxPlayers;
+                        if (typeof st !== 'undefined' && st.roomWaitingState) {
+                            st.roomWaitingState.room = updatedRoom;
+                            st.roomWaitingState.maxPlayers = room.maxPlayers;
+                            st.roomWaitingState.seats = buildRealSeats(updatedRoom);
+                        }
+                        if (typeof renderWaitingTableUI === 'function') renderWaitingTableUI();
+                    });
+                    window.__gvRoomSocket.on('playerLeft', () => {
+                        if (typeof st !== 'undefined' && st.roomWaitingState) {
+                            st.roomWaitingState.seats = buildRealSeats(st.roomWaitingState.room);
+                            if (typeof renderWaitingTableUI === 'function') renderWaitingTableUI();
+                        }
+                    });
+                } else if (window.__gvRoomSocket.connected) {
+                    joinServerRoom(room);
+                }
+            };
+
+            function joinServerRoom(r) {
+                const username = (typeof st !== 'undefined' && st.user && st.user.name) ? st.user.name : 'Oyuncu';
+                window.__gvRoomSocket.emit('joinRoom', {
+                    roomId: r.id,
+                    userName: username,
+                    maxPlayers: r.maxPlayers || maxPlayers,
+                    gameId: (typeof st !== 'undefined' && st.curGame) ? st.curGame : 'chess'
+                });
+            }
+
+            function buildRealSeats(r) {
+                const players = Array.isArray(r.players) ? r.players : [];
+                const socketId = window.__gvRoomSocket ? window.__gvRoomSocket.id : null;
+                const out = [];
+                for (let i = 0; i < Number(r.maxPlayers || maxPlayers); i++) {
+                    const p = players[i];
+                    out.push(p ? {
+                        occupied: true,
+                        name: p.name || ('Oyuncu ' + (i + 1)),
+                        isMe: !!socketId && p.id === socketId,
+                        isReady: !!p.isReady,
+                        id: p.id,
+                        color: p.color
+                    } : { occupied: false, name: '', isMe: false, isReady: false });
+                }
+                return out;
+            }
+
+            connectAndJoin();
+        };
+    }
+
+    function cleanupExistingBots() {
+        if (typeof st === 'undefined' || !st.roomWaitingState) return;
+        if (st.roomWaitingInt) {
+            clearInterval(st.roomWaitingInt);
+            st.roomWaitingInt = null;
+        }
+        const state = st.roomWaitingState;
+        if (Array.isArray(state.seats)) {
+            state.seats = state.seats.filter(s => s && s.occupied && s.isMe);
+            while (state.seats.length < Number(state.maxPlayers || 2)) {
+                state.seats.push({ occupied: false, name: '', isMe: false, isReady: false });
+            }
+            state.room.players = 1;
+            if (typeof renderWaitingTableUI === 'function') renderWaitingTableUI();
+        }
+    }
+
+    function boot() {
+        patch();
+        cleanupExistingBots();
+        setTimeout(() => { patch(); cleanupExistingBots(); }, 0);
+        setTimeout(() => { patch(); cleanupExistingBots(); }, 500);
+        setTimeout(() => { patch(); cleanupExistingBots(); }, 1500);
+    }
+
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
+    else boot();
+})();
