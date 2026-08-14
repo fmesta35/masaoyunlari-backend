@@ -1,0 +1,66 @@
+name: Disable legacy room bots
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch-frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Patch index.html
+        shell: python
+        run: |
+          from pathlib import Path
+          import re
+
+          p = Path('index.html')
+          s = p.read_text(encoding='utf-8')
+
+          # Remove every legacy random-bot waiting simulator body.
+          pattern = r'function startRoomWaitingProcess\(room\)\s*\{.*?\n\}\n\s*function getChairPositionClass'
+          replacement = '''function startRoomWaitingProcess(room) {
+            if (typeof window.__gvStartRealRoomWaiting === 'function') {
+              window.__gvStartRealRoomWaiting(room);
+              return;
+            }
+            console.warn('[Rooms] Real-player waiting bridge is not loaded yet.');
+          }
+
+          function getChairPositionClass'''
+          s2, n = re.subn(pattern, replacement, s, count=1, flags=re.S)
+          if n:
+              s = s2
+
+          # Ensure the real-player bridge is loaded directly by index.html,
+          # independent of whether the site is served by server.js or static hosting.
+          tag = '<script src="/js/no-bots.js"></script>'
+          if tag not in s:
+              s = re.sub(r'</body>', tag + '</body>', s, count=1, flags=re.I)
+
+          # Remove legacy bot name declarations if they remain anywhere in index.html.
+          s = re.sub(r'\s*const botNames\s*=\s*\[[^;]*\];', '', s, count=1, flags=re.S)
+
+          p.write_text(s, encoding='utf-8')
+          print('index.html patched; bot simulator removed and no-bots bridge loaded.')
+
+      - name: Commit changes
+        shell: bash
+        run: |
+          if git diff --quiet -- index.html; then
+            echo 'No index.html changes required.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html
+          git commit -m 'Remove legacy room bot simulator [skip ci]'
+          git push
