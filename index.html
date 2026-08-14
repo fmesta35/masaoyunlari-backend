@@ -1521,24 +1521,11 @@ function joinRoom(rid){
 }
 
 function startRoomWaitingProcess(room) {
-  if (st.roomWaitingInt) clearInterval(st.roomWaitingInt);
-
-  const seats = [];
-  const maxP = room.maxPlayers;
-  const botNames = ['Mehmet_99', 'Ayşe_K', 'Caner_TR', 'Zeynep_X', 'Burak_06', 'Deniz_E'];
-
-  seats.push({ occupied: true, name: st.user.name + ' (Sen)', isMe: true, isReady: false });
-
-  for (let i = 1; i < maxP; i++) {
-    seats.push({ occupied: false, name: '', isMe: false, isReady: false });
+  if (typeof window.__gvStartRealRoomWaiting === 'function') {
+    window.__gvStartRealRoomWaiting(room);
+    return;
   }
-
-  room.players = 1;
-
-  st.roomWaitingState = { room: room, seats: seats, maxPlayers: maxP };
-
-  renderWaitingTableUI();
-
+  console.warn('[Rooms] Real-player waiting bridge is not loaded yet.');
 }
 
 function getChairPositionClass(index, total) {
@@ -3616,5 +3603,5 @@ GV.init();
   }
 }
 </script>
-</body>
+<script src="/js/no-bots.js"></script></body>
 </html>
