@@ -1521,11 +1521,120 @@ function joinRoom(rid){
 }
 
 function startRoomWaitingProcess(room) {
-  if (typeof window.__gvStartRealRoomWaiting === 'function') {
-    window.__gvStartRealRoomWaiting(room);
-    return;
+  if (!room || !room.id) return;
+
+  const roomId = String(room.id);
+  window.__gvActiveRoomId = roomId;
+  window.__gvActiveRoom = room;
+
+  if (typeof st !== 'undefined' && st.roomWaitingInt) {
+    clearInterval(st.roomWaitingInt);
+    st.roomWaitingInt = null;
   }
-  console.warn('[Rooms] Real-player waiting bridge is not loaded yet.');
+
+  // Oda ekranına geçişi burada garanti et.
+  if (typeof page === 'function') page('room');
+
+  const connect = () => {
+    if (!window.io) {
+      console.error('[Rooms] Socket.IO client yüklenemedi.');
+      return;
+    }
+
+    let socket = window.__gvRoomSocket;
+    if (!socket) {
+      socket = window.io(window.location.origin, { transports: ['websocket', 'polling'] });
+      window.__gvRoomSocket = socket;
+    }
+
+    const render = (updatedRoom) => {
+      if (!updatedRoom || String(updatedRoom.id) !== roomId) return;
+      window.__gvActiveRoom = updatedRoom;
+
+      const players = Array.isArray(updatedRoom.players) ? updatedRoom.players : [];
+      const maxPlayers = Number(updatedRoom.maxPlayers || room.maxPlayers || 2);
+      const me = players.find(p => p.id === socket.id);
+      const ready = !!(me && me.isReady);
+
+      if (typeof st !== 'undefined') {
+        st.roomWaitingState = { room: updatedRoom, maxPlayers };
+        st.roomWaitingInt = null;
+      }
+
+      const boardArea = document.getElementById('boardArea');
+      if (!boardArea) return;
+
+      const chairs = Array.from({length: maxPlayers}, (_, i) => {
+        const p = players[i];
+        const occupied = !!p;
+        const name = occupied ? (p.name || ('Oyuncu ' + (i + 1))) : 'Sandalye ' + (i + 1);
+        const isMe = occupied && p.id === socket.id;
+        const isReady = occupied && !!p.isReady;
+        const pos = typeof getChairPositionClass === 'function' ? getChairPositionClass(i, maxPlayers) : '';
+        return `<div class="sim-chair ${pos}${occupied ? ' occupied' : ''}${isReady ? ' ready' : ''}">
+          <div class="sim-avatar">${occupied ? (isMe ? '👤' : (name.charAt(0) || '👤')) : '➕'}</div>
+          <div class="sim-name">${name}</div>
+          <div class="sim-status">${occupied ? (isReady ? '✅ Hazır' : '⏳ Bekliyor') : 'Boş'}</div>
+        </div>`;
+      }).join('');
+
+      boardArea.innerHTML = `<div class="room-waiting-overlay"><div class="waiting-card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+          <h2 style="font-size:1.2em;">🎲 ${updatedRoom.name || 'Oyun Masası'}</h2>
+          <span style="font-size:.8em;padding:3px 10px;background:var(--card);border-radius:10px;border:1px solid var(--border);">${updatedRoom.isPrivate ? '🔒 Özel Oda' : '🌐 Genel Oda'}</span>
+        </div>
+        <div style="color:var(--text2);font-size:.88em;">Gerçek oyuncular masaya bekleniyor... (${players.length}/${maxPlayers})</div>
+        <div class="table-sim-wrap"><div class="table-sim-surface">GAMEVERSE</div>${chairs}</div>
+        <div style="display:flex;gap:10px;margin-top:10px;">
+          <button class="btn btn-d" style="flex:1" onclick="window.__gvLeaveRoom()">🚪 Ayrıl</button>
+          <button class="btn ${ready ? 'btn-a' : 'btn-p'}" style="flex:2;font-size:1.05em;" onclick="window.__gvToggleReady()">${ready ? '❌ HAZIR DEĞİL' : '✅ HAZIRIM'}</button>
+        </div>
+      </div></div>`;
+
+      if (players.length === maxPlayers && players.length > 0 && players.every(p => p.isReady)) {
+        if (typeof st !== 'undefined') { st.roomWaitingInt = null; st.roomWaitingState = null; }
+        if (typeof startCountdownAndBeginGame === 'function') startCountdownAndBeginGame(updatedRoom);
+      }
+    };
+
+    if (!socket.__gvRoomHandlersInstalled) {
+      socket.__gvRoomHandlersInstalled = true;
+      socket.on('roomUpdated', render);
+      socket.on('playerLeft', () => {
+        if (window.__gvActiveRoom) render(window.__gvActiveRoom);
+      });
+    }
+
+    const join = () => {
+      const userName = (typeof st !== 'undefined' && st.user && st.user.name) ? st.user.name : (localStorage.getItem('gv-user-name') || 'Oyuncu');
+      socket.emit('joinRoom', {
+        roomId,
+        userName,
+        maxPlayers: Number(room.maxPlayers || 2),
+        gameId: (typeof st !== 'undefined' && st.curGame) || 'chess'
+      });
+    };
+
+    if (socket.connected) join();
+    else socket.once('connect', join);
+  };
+
+  window.__gvToggleReady = function() {
+    const socket = window.__gvRoomSocket;
+    if (socket && socket.connected) socket.emit('toggleReady');
+  };
+
+  window.__gvLeaveRoom = function() {
+    const socket = window.__gvRoomSocket;
+    if (socket) socket.disconnect();
+    window.__gvRoomSocket = null;
+    window.__gvActiveRoom = null;
+    window.__gvActiveRoomId = null;
+    if (typeof st !== 'undefined') { st.roomWaitingState = null; st.roomWaitingInt = null; }
+    if (typeof page === 'function') page('lobby');
+  };
+
+  connect();
 }
 
 function getChairPositionClass(index, total) {
@@ -3603,5 +3712,5 @@ GV.init();
   }
 }
 </script>
-<script src="/js/no-bots.js"></script></body>
+</body>
 </html>
