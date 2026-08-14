@@ -8,15 +8,15 @@ const path = require('path');
 const app = express();
 app.use(cors());
 
-// public klasöründeki index.html ve statik dosyaları servis et
 app.use(express.static(path.join(__dirname, 'public')));
 
 const server = http.createServer(app);
 const io = new Server(server, {
-  cors: { origin: "*", methods: ["GET", "POST"] }
+  cors: { origin: '*', methods: ['GET', 'POST'] }
 });
 
-// Tüm odaları hafızada tutan ana veri yapısı
+// Oda verileri sunucu belleğinde tutulur.
+// gameState eklenmesiyle yeni bağlanan oyuncuya mevcut oyun durumu da aktarılabilir.
 const rooms = {};
 
 io.on('connection', (socket) => {
@@ -26,35 +26,33 @@ io.on('connection', (socket) => {
   socket.on('joinRoom', ({ roomId, userName, maxPlayers, gameId }) => {
     if (!roomId) return;
 
-    // Oda ID'sini metin (string) olarak standartlaştırıyoruz
     const safeRoomId = roomId.toString();
     socket.join(safeRoomId);
     socket.roomId = safeRoomId;
     socket.userName = userName;
 
-    // Oda yoksa sunucu hafızasında sıfırdan kur
     if (!rooms[safeRoomId]) {
       rooms[safeRoomId] = {
         id: safeRoomId,
         gameId: gameId || 'chess',
         maxPlayers: maxPlayers || 2,
-        players: []
+        players: [],
+        gameState: {
+          history: [],
+          currentPlayer: 0,
+          status: 'waiting'
+        }
       };
     }
 
     const room = rooms[safeRoomId];
 
-    // Kullanıcı önceden eklenmediyse ve yer varsa masaya oturt
     const exists = room.players.find(p => p.id === socket.id);
     if (!exists && room.players.length < room.maxPlayers) {
-      
-      // 🎲 RASTGELE RENK ATAMA MANTIĞI
       let assignedColor;
       if (room.players.length === 0) {
-        // İlk katılan oyuncuya %50 şansla Beyaz veya Siyah ata
         assignedColor = Math.random() < 0.5 ? 'white' : 'black';
       } else {
-        // İkinci katılan oyuncuya ilk oyuncunun renginin tam TERSİNİ ata
         const firstPlayerColor = room.players[0].color;
         assignedColor = firstPlayerColor === 'white' ? 'black' : 'white';
       }
@@ -62,18 +60,24 @@ io.on('connection', (socket) => {
       room.players.push({
         id: socket.id,
         name: userName || `Oyuncu ${room.players.length + 1}`,
-        color: assignedColor, // 'white' veya 'black'
-        seat: room.players.length, // 0 veya 1
+        color: assignedColor,
+        seat: room.players.length,
         isReady: false
       });
     }
 
-    // Masadaki HERKESE güncel oyuncu listesini ve renkleri gönder
     io.to(safeRoomId).emit('roomUpdated', room);
+
+    // Yeni katılan istemci mevcut oyun durumunu da alsın.
+    socket.emit('gameStateUpdated', {
+      gameId: room.gameId,
+      gameState: room.gameState
+    });
+
     console.log(`[MASA GÜNCELLENDİ] Oda #${safeRoomId} -> ${userName} (${room.players.find(p => p.id === socket.id)?.color}) katıldı.`);
   });
 
-  // 2. HAZIRIM / HAZIR DEĞİLİM BUTONU
+  // 2. HAZIRIM / HAZIR DEĞİLİM
   socket.on('toggleReady', () => {
     const roomId = socket.roomId;
     if (!roomId || !rooms[roomId]) return;
@@ -86,31 +90,83 @@ io.on('connection', (socket) => {
     }
   });
 
-  // 3. CANLI HAMLE İLETİMİ (Frontend'den gelen 'makeMove' eventini dinler)
+  // 3. CANLI HAMLE İLETİMİ
   socket.on('makeMove', (data) => {
     if (!data) return;
 
-    // Frontend roomId göndermediyse soket üzerindeki mevcudu kullan
     const roomId = (data.roomId || socket.roomId)?.toString();
+    if (!roomId || !rooms[roomId]) return;
 
-    if (roomId) {
-      // socket.to(...) -> Hamleyi yapan SOKET HARİÇ odadaki rakibe iletir
-      socket.to(roomId).emit('moveMade', {
-        gameId: data.gameId || 'chess',
-        moveData: data.moveData || data
-      });
-      console.log(`[HAMLE İLETİLDİ] Oda #${roomId}:`, data.moveData || data);
-    }
+    const room = rooms[roomId];
+    const moveData = data.moveData || data;
+
+    // Sunucu tarafında hamle geçmişini tut.
+    room.gameState.history.push({
+      playerId: socket.id,
+      playerName: socket.userName || null,
+      move: moveData,
+      timestamp: Date.now()
+    });
+    room.gameState.currentPlayer = room.gameState.currentPlayer === 0 ? 1 : 0;
+    room.gameState.status = 'playing';
+
+    const payload = {
+      gameId: data.gameId || room.gameId || 'chess',
+      roomId,
+      playerId: socket.id,
+      playerName: socket.userName || null,
+      moveData,
+      gameState: room.gameState
+    };
+
+    // Hamleyi yapan hariç rakibe gönder.
+    socket.to(roomId).emit('moveMade', payload);
+
+    // Eski frontend event adıyla da gönder; mevcut/legacy oyun ekranları için uyumluluk.
+    socket.to(roomId).emit('receiveGameMove', moveData);
+
+    // State tabanlı istemciler için de yayınla.
+    socket.to(roomId).emit('gameStateUpdated', {
+      gameId: payload.gameId,
+      gameState: room.gameState,
+      lastMove: payload
+    });
+
+    console.log(`[HAMLE İLETİLDİ] Oda #${roomId}:`, moveData);
   });
 
-  // (Yedek/Eski Sistem Desteği)
+  // 4. YEDEK/ESKİ HAMLE EVENTİ
   socket.on('sendGameMove', (moveData) => {
-    if (socket.roomId) {
-      socket.to(socket.roomId).emit('receiveGameMove', moveData);
-    }
+    const roomId = socket.roomId;
+    if (!roomId || !rooms[roomId]) return;
+
+    const room = rooms[roomId];
+    room.gameState.history.push({
+      playerId: socket.id,
+      playerName: socket.userName || null,
+      move: moveData,
+      timestamp: Date.now()
+    });
+    room.gameState.currentPlayer = room.gameState.currentPlayer === 0 ? 1 : 0;
+    room.gameState.status = 'playing';
+
+    socket.to(roomId).emit('receiveGameMove', moveData);
+    socket.to(roomId).emit('moveMade', {
+      gameId: room.gameId || 'chess',
+      roomId,
+      playerId: socket.id,
+      playerName: socket.userName || null,
+      moveData,
+      gameState: room.gameState
+    });
+    socket.to(roomId).emit('gameStateUpdated', {
+      gameId: room.gameId || 'chess',
+      gameState: room.gameState,
+      lastMove: moveData
+    });
   });
 
-  // 4. AYRILMA / BAĞLANTI KOPMASI
+  // 5. AYRILMA / BAĞLANTI KOPMASI
   socket.on('disconnect', () => {
     const roomId = socket.roomId;
     if (roomId && rooms[roomId]) {
@@ -118,10 +174,9 @@ io.on('connection', (socket) => {
       room.players = room.players.filter(p => p.id !== socket.id);
 
       if (room.players.length === 0) {
-        delete rooms[roomId]; // Masa boşaldıysa hafızadan sil
+        delete rooms[roomId];
         console.log(`[ODA SİLİNDİ] Boşalan Oda #${roomId} kaldırıldı.`);
       } else {
-        // Kalan rakibe bildirim gönder ve sandalyeleri güncelle
         io.to(roomId).emit('playerLeft', { playerId: socket.id });
         io.to(roomId).emit('roomUpdated', room);
       }
