@@ -10,14 +10,15 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Frontend'i aynı origin'den sun. Böylece Socket.IO istemcisi yanlış host'a bağlanmaz.
 app.use('/js', express.static(path.join(__dirname, 'js')));
+
+// Frontend'i aynı origin'den sun; Socket.IO böylece doğru sunucuya bağlanır.
 app.get('/', (req, res) => {
   const indexPath = path.join(__dirname, 'index.html');
   if (!fs.existsSync(indexPath)) return res.status(404).send('index.html bulunamadı');
   let html = fs.readFileSync(indexPath, 'utf8');
-  const bridge = '<script src="/socket.io/socket.io.js"></script><script src="/js/app.js"></script><script src="/js/games.js"></script><script src="/js/realtime.js"></script>';
   if (!html.includes('/js/realtime.js')) {
+    const bridge = '<script src="/socket.io/socket.io.js"></script><script src="/js/realtime.js"></script>';
     html = html.replace(/<\/body>/i, bridge + '</body>');
   }
   res.type('html').send(html);
@@ -54,26 +55,15 @@ function getRoom(roomId, gameId, maxPlayers) {
   return rooms[roomId];
 }
 
-function broadcastState(room, lastMove, senderId) {
-  const payload = {
-    gameId: room.gameId,
-    roomId: room.id,
-    gameState: room.gameState,
-    lastMove: lastMove || null
-  };
-  if (senderId) io.to(room.id).except(senderId).emit('gameStateUpdated', payload);
-  else io.to(room.id).emit('gameStateUpdated', payload);
-}
-
 io.on('connection', socket => {
   console.log(`[BAĞLANDI] ${socket.id}`);
 
   socket.on('joinRoom', data => {
     data = data || {};
     if (!data.roomId) return;
+
     const roomId = String(data.roomId);
     const room = getRoom(roomId, data.gameId, data.maxPlayers);
-
     socket.join(roomId);
     socket.roomId = roomId;
     socket.userName = data.userName || 'Oyuncu';
@@ -90,8 +80,11 @@ io.on('connection', socket => {
     }
 
     io.to(roomId).emit('roomUpdated', room);
-    socket.emit('gameStateUpdated', { gameId: room.gameId, roomId, gameState: room.gameState });
-    console.log(`[ODA] ${roomId}: ${socket.userName} katıldı (${room.players.length}/${room.maxPlayers})`);
+    socket.emit('gameStateUpdated', {
+      gameId: room.gameId,
+      roomId,
+      gameState: room.gameState
+    });
   });
 
   socket.on('toggleReady', () => {
@@ -132,11 +125,14 @@ io.on('connection', socket => {
       gameState: room.gameState,
       lastMove: payload
     });
-    console.log(`[HAMLE] ${roomId}`, moveData);
   });
 
   socket.on('sendGameMove', moveData => {
-    socket.emit('makeMove', { roomId: socket.roomId, gameId: rooms[socket.roomId]?.gameId, moveData });
+    socket.emit('makeMove', {
+      roomId: socket.roomId,
+      gameId: rooms[socket.roomId]?.gameId,
+      moveData
+    });
   });
 
   socket.on('disconnect', () => {
@@ -147,7 +143,6 @@ io.on('connection', socket => {
     io.to(roomId).emit('playerLeft', { playerId: socket.id });
     io.to(roomId).emit('roomUpdated', room);
     if (room.players.length === 0) delete rooms[roomId];
-    console.log(`[AYRILDI] ${socket.id}`);
   });
 });
 
