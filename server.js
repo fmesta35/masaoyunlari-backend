@@ -17,11 +17,16 @@ app.get('/', (req, res) => {
   const indexPath = path.join(__dirname, 'index.html');
   if (!fs.existsSync(indexPath)) return res.status(404).send('index.html bulunamadı');
   let html = fs.readFileSync(indexPath, 'utf8');
-  const bridge = '<script src="/socket.io/socket.io.js"></script><script src="/js/realtime.js"></script><script src="/js/no-bots.js"></script>';
+  const bridge = '<script src="/socket.io/socket.io.js"></script><script src="/js/realtime.js"></script><script src="/js/no-bots.js"></script><script src="/js/room-waiting-fix.js"></script>';
   if (!html.includes('/js/realtime.js')) {
     html = html.replace(/<\/body>/i, bridge + '</body>');
-  } else if (!html.includes('/js/no-bots.js')) {
-    html = html.replace(/<\/body>/i, '<script src="/js/no-bots.js"></script></body>');
+  } else {
+    if (!html.includes('/js/no-bots.js')) {
+      html = html.replace(/<\/body>/i, '<script src="/js/no-bots.js"></script></body>');
+    }
+    if (!html.includes('/js/room-waiting-fix.js')) {
+      html = html.replace(/<\/body>/i, '<script src="/js/room-waiting-fix.js"></script></body>');
+    }
   }
   res.type('html').send(html);
 });
