@@ -1539,45 +1539,6 @@ function startRoomWaitingProcess(room) {
 
   renderWaitingTableUI();
 
-  if (!room.isPrivate) {
-    st.roomWaitingInt = setInterval(() => {
-      if(!st.roomWaitingState) { clearInterval(st.roomWaitingInt); return; }
-      
-      const seats = st.roomWaitingState.seats;
-      const emptySeats = seats.filter(s => !s.occupied);
-      const filledOtherSeats = seats.filter(s => s.occupied && !s.isMe);
-
-      const action = Math.random();
-
-      if (action < 0.60 && emptySeats.length > 0) {
-        const emptyIndex = seats.findIndex(s => !s.occupied);
-        const randomName = botNames[Math.floor(Math.random() * botNames.length)];
-        seats[emptyIndex] = { occupied: true, name: randomName, isMe: false, isReady: false };
-        toast(`🟢 ${randomName} masaya oturdu.`, 'info');
-        
-        setTimeout(() => {
-          if(st.roomWaitingState && seats[emptyIndex] && seats[emptyIndex].occupied) {
-            seats[emptyIndex].isReady = true;
-            toast(`✅ ${seats[emptyIndex].name} hazır!`, 'info');
-            renderWaitingTableUI();
-            checkAllReady();
-          }
-        }, Math.floor(Math.random() * 2000) + 1500);
-
-      } else if (action >= 0.85 && filledOtherSeats.length > 0 && !checkIsAllReady()) {
-        const filledIndices = [];
-        seats.forEach((s, idx) => { if(s.occupied && !s.isMe) filledIndices.push(idx); });
-        const leaveIdx = filledIndices[Math.floor(Math.random() * filledIndices.length)];
-        const leftName = seats[leaveIdx].name;
-        seats[leaveIdx] = { occupied: false, name: '', isMe: false, isReady: false };
-        toast(`🔴 ${leftName} masadan kalktı.`, 'warning');
-      }
-
-      room.players = seats.filter(s => s.occupied).length;
-      renderWaitingTableUI();
-      checkAllReady();
-    }, 2500);
-  }
 }
 
 function getChairPositionClass(index, total) {
