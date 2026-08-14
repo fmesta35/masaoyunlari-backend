@@ -1,0 +1,47 @@
+name: Remove legacy room bots
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  remove-bots:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Remove legacy random bot simulator from index.html
+        shell: python
+        run: |
+          from pathlib import Path
+          import re
+          p = Path('index.html')
+          s = p.read_text(encoding='utf-8')
+          pattern = r'\n  if \(!room\.isPrivate\) \{\n    st\.roomWaitingInt = setInterval\(\(\) => \{.*?\n  \}\n\}\n\nfunction getChairPositionClass'
+          replacement = '\n}\n\nfunction getChairPositionClass'
+          new_s, n = re.subn(pattern, replacement, s, count=1, flags=re.S)
+          if n == 0:
+              print('No legacy bot block found; nothing to change.')
+          else:
+              p.write_text(new_s, encoding='utf-8')
+              print('Removed legacy bot simulator from index.html.')
+
+      - name: Commit index.html if changed
+        shell: bash
+        run: |
+          if git diff --quiet -- index.html; then
+            echo 'index.html already clean.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html
+          git commit -m 'Remove automatic bot players from rooms [skip ci]'
+          git push
