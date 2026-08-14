@@ -3,189 +3,153 @@ const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
 const cors = require('cors');
+const fs = require('fs');
 const path = require('path');
 
 const app = express();
 app.use(cors());
+app.use(express.json());
 
-app.use(express.static(path.join(__dirname, 'public')));
+// Frontend'i aynı origin'den sun. Böylece Socket.IO istemcisi yanlış host'a bağlanmaz.
+app.use('/js', express.static(path.join(__dirname, 'js')));
+app.get('/', (req, res) => {
+  const indexPath = path.join(__dirname, 'index.html');
+  if (!fs.existsSync(indexPath)) return res.status(404).send('index.html bulunamadı');
+  let html = fs.readFileSync(indexPath, 'utf8');
+  const bridge = '<script src="/socket.io/socket.io.js"></script><script src="/js/app.js"></script><script src="/js/games.js"></script><script src="/js/realtime.js"></script>';
+  if (!html.includes('/js/realtime.js')) {
+    html = html.replace(/<\/body>/i, bridge + '</body>');
+  }
+  res.type('html').send(html);
+});
 
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: { origin: '*', methods: ['GET', 'POST'] }
 });
 
-// Oda verileri sunucu belleğinde tutulur.
-// gameState eklenmesiyle yeni bağlanan oyuncuya mevcut oyun durumu da aktarılabilir.
 const rooms = {};
 
-io.on('connection', (socket) => {
-  console.log(`[BAĞLANDI] Kullanıcı soket kimliği: ${socket.id}`);
+function createGameState(gameId) {
+  return {
+    type: gameId || 'chess',
+    board: null,
+    score: {},
+    history: [],
+    currentPlayer: 0,
+    status: 'waiting'
+  };
+}
 
-  // 1. ODAYA KATILMA / MASA OLUŞTURMA
-  socket.on('joinRoom', ({ roomId, userName, maxPlayers, gameId }) => {
-    if (!roomId) return;
+function getRoom(roomId, gameId, maxPlayers) {
+  if (!rooms[roomId]) {
+    rooms[roomId] = {
+      id: roomId,
+      gameId: gameId || 'chess',
+      maxPlayers: Number(maxPlayers) || 2,
+      players: [],
+      gameState: createGameState(gameId)
+    };
+  }
+  return rooms[roomId];
+}
 
-    const safeRoomId = roomId.toString();
-    socket.join(safeRoomId);
-    socket.roomId = safeRoomId;
-    socket.userName = userName;
+function broadcastState(room, lastMove, senderId) {
+  const payload = {
+    gameId: room.gameId,
+    roomId: room.id,
+    gameState: room.gameState,
+    lastMove: lastMove || null
+  };
+  if (senderId) io.to(room.id).except(senderId).emit('gameStateUpdated', payload);
+  else io.to(room.id).emit('gameStateUpdated', payload);
+}
 
-    if (!rooms[safeRoomId]) {
-      rooms[safeRoomId] = {
-        id: safeRoomId,
-        gameId: gameId || 'chess',
-        maxPlayers: maxPlayers || 2,
-        players: [],
-        gameState: {
-          history: [],
-          currentPlayer: 0,
-          status: 'waiting'
-        }
-      };
-    }
+io.on('connection', socket => {
+  console.log(`[BAĞLANDI] ${socket.id}`);
 
-    const room = rooms[safeRoomId];
+  socket.on('joinRoom', data => {
+    data = data || {};
+    if (!data.roomId) return;
+    const roomId = String(data.roomId);
+    const room = getRoom(roomId, data.gameId, data.maxPlayers);
 
-    const exists = room.players.find(p => p.id === socket.id);
-    if (!exists && room.players.length < room.maxPlayers) {
-      let assignedColor;
-      if (room.players.length === 0) {
-        assignedColor = Math.random() < 0.5 ? 'white' : 'black';
-      } else {
-        const firstPlayerColor = room.players[0].color;
-        assignedColor = firstPlayerColor === 'white' ? 'black' : 'white';
-      }
+    socket.join(roomId);
+    socket.roomId = roomId;
+    socket.userName = data.userName || 'Oyuncu';
 
+    if (!room.players.some(p => p.id === socket.id) && room.players.length < room.maxPlayers) {
+      const color = room.players.length === 0 ? 'white' : 'black';
       room.players.push({
         id: socket.id,
-        name: userName || `Oyuncu ${room.players.length + 1}`,
-        color: assignedColor,
+        name: socket.userName,
+        color,
         seat: room.players.length,
         isReady: false
       });
     }
 
-    io.to(safeRoomId).emit('roomUpdated', room);
-
-    // Yeni katılan istemci mevcut oyun durumunu da alsın.
-    socket.emit('gameStateUpdated', {
-      gameId: room.gameId,
-      gameState: room.gameState
-    });
-
-    console.log(`[MASA GÜNCELLENDİ] Oda #${safeRoomId} -> ${userName} (${room.players.find(p => p.id === socket.id)?.color}) katıldı.`);
+    io.to(roomId).emit('roomUpdated', room);
+    socket.emit('gameStateUpdated', { gameId: room.gameId, roomId, gameState: room.gameState });
+    console.log(`[ODA] ${roomId}: ${socket.userName} katıldı (${room.players.length}/${room.maxPlayers})`);
   });
 
-  // 2. HAZIRIM / HAZIR DEĞİLİM
   socket.on('toggleReady', () => {
-    const roomId = socket.roomId;
-    if (!roomId || !rooms[roomId]) return;
-
-    const room = rooms[roomId];
+    const room = rooms[socket.roomId];
+    if (!room) return;
     const player = room.players.find(p => p.id === socket.id);
-    if (player) {
-      player.isReady = !player.isReady;
-      io.to(roomId).emit('roomUpdated', room);
-    }
+    if (player) player.isReady = !player.isReady;
+    io.to(socket.roomId).emit('roomUpdated', room);
   });
 
-  // 3. CANLI HAMLE İLETİMİ
-  socket.on('makeMove', (data) => {
+  socket.on('makeMove', data => {
     if (!data) return;
-
-    const roomId = (data.roomId || socket.roomId)?.toString();
-    if (!roomId || !rooms[roomId]) return;
-
+    const roomId = String(data.roomId || socket.roomId || '');
     const room = rooms[roomId];
-    const moveData = data.moveData || data;
+    if (!room) return;
 
-    // Sunucu tarafında hamle geçmişini tut.
-    room.gameState.history.push({
-      playerId: socket.id,
-      playerName: socket.userName || null,
-      move: moveData,
-      timestamp: Date.now()
-    });
+    const moveData = data.moveData !== undefined ? data.moveData : data;
+    room.gameId = data.gameId || room.gameId;
+    room.gameState.type = room.gameId;
+    room.gameState.history.push(moveData);
     room.gameState.currentPlayer = room.gameState.currentPlayer === 0 ? 1 : 0;
     room.gameState.status = 'playing';
 
     const payload = {
-      gameId: data.gameId || room.gameId || 'chess',
+      gameId: room.gameId,
       roomId,
       playerId: socket.id,
-      playerName: socket.userName || null,
+      playerName: socket.userName,
       moveData,
       gameState: room.gameState
     };
 
-    // Hamleyi yapan hariç rakibe gönder.
     socket.to(roomId).emit('moveMade', payload);
-
-    // Eski frontend event adıyla da gönder; mevcut/legacy oyun ekranları için uyumluluk.
     socket.to(roomId).emit('receiveGameMove', moveData);
-
-    // State tabanlı istemciler için de yayınla.
     socket.to(roomId).emit('gameStateUpdated', {
-      gameId: payload.gameId,
+      gameId: room.gameId,
+      roomId,
       gameState: room.gameState,
       lastMove: payload
     });
-
-    console.log(`[HAMLE İLETİLDİ] Oda #${roomId}:`, moveData);
+    console.log(`[HAMLE] ${roomId}`, moveData);
   });
 
-  // 4. YEDEK/ESKİ HAMLE EVENTİ
-  socket.on('sendGameMove', (moveData) => {
-    const roomId = socket.roomId;
-    if (!roomId || !rooms[roomId]) return;
-
-    const room = rooms[roomId];
-    room.gameState.history.push({
-      playerId: socket.id,
-      playerName: socket.userName || null,
-      move: moveData,
-      timestamp: Date.now()
-    });
-    room.gameState.currentPlayer = room.gameState.currentPlayer === 0 ? 1 : 0;
-    room.gameState.status = 'playing';
-
-    socket.to(roomId).emit('receiveGameMove', moveData);
-    socket.to(roomId).emit('moveMade', {
-      gameId: room.gameId || 'chess',
-      roomId,
-      playerId: socket.id,
-      playerName: socket.userName || null,
-      moveData,
-      gameState: room.gameState
-    });
-    socket.to(roomId).emit('gameStateUpdated', {
-      gameId: room.gameId || 'chess',
-      gameState: room.gameState,
-      lastMove: moveData
-    });
+  socket.on('sendGameMove', moveData => {
+    socket.emit('makeMove', { roomId: socket.roomId, gameId: rooms[socket.roomId]?.gameId, moveData });
   });
 
-  // 5. AYRILMA / BAĞLANTI KOPMASI
   socket.on('disconnect', () => {
     const roomId = socket.roomId;
-    if (roomId && rooms[roomId]) {
-      const room = rooms[roomId];
-      room.players = room.players.filter(p => p.id !== socket.id);
-
-      if (room.players.length === 0) {
-        delete rooms[roomId];
-        console.log(`[ODA SİLİNDİ] Boşalan Oda #${roomId} kaldırıldı.`);
-      } else {
-        io.to(roomId).emit('playerLeft', { playerId: socket.id });
-        io.to(roomId).emit('roomUpdated', room);
-      }
-    }
-    console.log(`[AYRILDI] Soket ayrıldı: ${socket.id}`);
+    const room = roomId && rooms[roomId];
+    if (!room) return;
+    room.players = room.players.filter(p => p.id !== socket.id);
+    io.to(roomId).emit('playerLeft', { playerId: socket.id });
+    io.to(roomId).emit('roomUpdated', room);
+    if (room.players.length === 0) delete rooms[roomId];
+    console.log(`[AYRILDI] ${socket.id}`);
   });
 });
 
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => {
-  console.log(`🚀 GameVerse Canlı Sunucu http://localhost:${PORT} adresinde hazır!`);
-});
+server.listen(PORT, () => console.log(`🚀 GameVerse Canlı Sunucu http://localhost:${PORT} adresinde hazır!`));
