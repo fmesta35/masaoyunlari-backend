@@ -17,9 +17,11 @@ app.get('/', (req, res) => {
   const indexPath = path.join(__dirname, 'index.html');
   if (!fs.existsSync(indexPath)) return res.status(404).send('index.html bulunamadı');
   let html = fs.readFileSync(indexPath, 'utf8');
+  const bridge = '<script src="/socket.io/socket.io.js"></script><script src="/js/realtime.js"></script><script src="/js/no-bots.js"></script>';
   if (!html.includes('/js/realtime.js')) {
-    const bridge = '<script src="/socket.io/socket.io.js"></script><script src="/js/realtime.js"></script>';
     html = html.replace(/<\/body>/i, bridge + '</body>');
+  } else if (!html.includes('/js/no-bots.js')) {
+    html = html.replace(/<\/body>/i, '<script src="/js/no-bots.js"></script></body>');
   }
   res.type('html').send(html);
 });
