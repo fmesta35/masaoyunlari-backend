@@ -6,10 +6,9 @@
   'use strict';
 
   let timer = null;
+  let chessLoaderStarted = false;
 
   function getState() {
-    // `st` is declared with top-level `const` in index.html, so it is a
-    // global lexical binding rather than window.st.
     try {
       return (typeof st !== 'undefined') ? st : null;
     } catch (_) {
@@ -17,14 +16,29 @@
     }
   }
 
+  function loadOnlineChess() {
+    const state = getState();
+    if (chessLoaderStarted || !state || state.curGame !== 'chess') return;
+    if (document.querySelector('script[data-gv-chess-online]')) {
+      chessLoaderStarted = true;
+      return;
+    }
+    chessLoaderStarted = true;
+    const script = document.createElement('script');
+    script.src = 'js/chess-online.js?v=20260817-2';
+    script.async = true;
+    script.dataset.gvChessOnline = '1';
+    script.onload = () => console.log('[ChessOnline] Sunucu otoriteli satranç istemcisi yüklendi.');
+    script.onerror = () => console.error('[ChessOnline] chess-online.js yüklenemedi.');
+    document.head.appendChild(script);
+  }
+
   function render() {
     const state = getState();
     if (!state || !state.roomWaitingState) return false;
     if (typeof window.renderWaitingTableUI !== 'function') return false;
-
     const room = state.roomWaitingState.room;
     if (!room || !room.id) return false;
-
     try {
       window.renderWaitingTableUI();
       return true;
@@ -38,16 +52,19 @@
     if (timer) return;
     timer = setInterval(function () {
       const state = getState();
-      if (!state || !state.roomWaitingState || state.curPage !== 'room') {
+      if (!state || state.curPage !== 'room') {
         clearInterval(timer);
         timer = null;
         return;
       }
-      render();
+      loadOnlineChess();
+      if (state.roomWaitingState) render();
     }, 400);
   }
 
   function install() {
+    loadOnlineChess();
+
     if (typeof window.page === 'function' && !window.__gvRoomPagePatched) {
       const originalPage = window.page;
       window.page = function (name) {
@@ -56,6 +73,7 @@
           setTimeout(render, 0);
           setTimeout(render, 80);
           setTimeout(render, 250);
+          setTimeout(loadOnlineChess, 0);
           startWatch();
         }
         return result;
@@ -70,6 +88,7 @@
         setTimeout(render, 0);
         setTimeout(render, 100);
         setTimeout(render, 300);
+        setTimeout(loadOnlineChess, 0);
         startWatch();
         return result;
       };
