@@ -96,16 +96,28 @@ function roomPayload(room) {
 }
 
 function startChess(room) {
-  if (room.gameId !== 'chess') return;
+  if (room.gameId !== 'chess' || room.players.length !== 2) return;
   room.gameState = createChessState(Number(room.durationMinutes) || 10);
   room.gameState.status = 'playing';
   room.gameState.turnStartedAt = Date.now();
-  io.to(room.id).emit('gameStarted', { roomId: room.id, gameId: room.gameId, players: room.players, gameState: chessStateForClient(room) });
+  io.to(room.id).emit('gameStarted', {
+    roomId: room.id,
+    gameId: room.gameId,
+    players: room.players,
+    gameState: chessStateForClient(room)
+  });
   io.to(room.id).emit('roomUpdated', roomPayload(room));
 }
 
+// Satrançta iki gerçek oyuncu odaya girdiği anda oyun başlar.
+// Ayrı bir "hazır" butonuna ihtiyaç yoktur; beyaz/siyah sunucu tarafından
+// rastgele atanır ve chess.js ilk hamleyi daima beyaza verir.
 function maybeStartRoom(room) {
-  if (room.gameId !== 'chess' || room.players.length !== 2 || !room.players.every(p => p.isReady) || room.gameState.status === 'playing') return;
+  if (room.gameId !== 'chess') return;
+  if (room.players.length !== 2) return;
+  if (room.gameState.status === 'playing') return;
+
+  room.players.forEach(p => { p.isReady = true; });
   startChess(room);
 }
 
@@ -127,8 +139,17 @@ io.on('connection', socket => {
     if (!player && room.players.length < room.maxPlayers) {
       const whiteAlready = room.players.some(p => p.color === 'white');
       const blackAlready = room.players.some(p => p.color === 'black');
-      const color = (!whiteAlready && !blackAlready) ? (Math.random() < 0.5 ? 'white' : 'black') : (whiteAlready ? 'black' : 'white');
-      player = { id: socket.id, userKey: data.userKey ? String(data.userKey) : null, name: socket.userName, color, seat: room.players.length, isReady: false };
+      const color = (!whiteAlready && !blackAlready)
+        ? (Math.random() < 0.5 ? 'white' : 'black')
+        : (whiteAlready ? 'black' : 'white');
+      player = {
+        id: socket.id,
+        userKey: data.userKey ? String(data.userKey) : null,
+        name: socket.userName,
+        color,
+        seat: room.players.length,
+        isReady: false
+      };
       room.players.push(player);
     } else if (player) {
       player.id = socket.id;
@@ -137,10 +158,25 @@ io.on('connection', socket => {
 
     socket.playerColor = player?.color || null;
     io.to(roomId).emit('roomUpdated', roomPayload(room));
-    socket.emit('gameStateUpdated', { gameId: room.gameId, roomId, playerColor: socket.playerColor, gameState: chessStateForClient(room) });
+    socket.emit('gameStateUpdated', {
+      gameId: room.gameId,
+      roomId,
+      playerColor: socket.playerColor,
+      gameState: chessStateForClient(room)
+    });
 
+    // İki oyuncu bağlandığında bekleme ekranında kalma; doğrudan ortak oyunu başlat.
+    maybeStartRoom(room);
+
+    // Oyun zaten başlamışsa yeniden bağlanan oyuncuya mevcut ortak durumu gönder.
     if (room.gameId === 'chess' && room.gameState.status === 'playing') {
-      socket.emit('gameStarted', { roomId, gameId: room.gameId, players: room.players, playerColor: socket.playerColor, gameState: chessStateForClient(room) });
+      socket.emit('gameStarted', {
+        roomId,
+        gameId: room.gameId,
+        players: room.players,
+        playerColor: socket.playerColor,
+        gameState: chessStateForClient(room)
+      });
     }
   });
 
@@ -197,7 +233,15 @@ io.on('connection', socket => {
     room.gameState.blackTimeMs = clock.blackTimeMs;
     room.gameState.fen = chess.fen();
     room.gameState.turn = chess.turn();
-    room.gameState.history.push({ ply: room.gameState.history.length + 1, from: move.from, to: move.to, san: move.san, color: move.color, captured: move.captured || null, promotion: move.promotion || null });
+    room.gameState.history.push({
+      ply: room.gameState.history.length + 1,
+      from: move.from,
+      to: move.to,
+      san: move.san,
+      color: move.color,
+      captured: move.captured || null,
+      promotion: move.promotion || null
+    });
     room.gameState.turnStartedAt = Date.now();
 
     if (chess.isCheckmate()) {
@@ -216,7 +260,14 @@ io.on('connection', socket => {
       gameId: 'chess',
       playerId: socket.id,
       playerColor: player.color,
-      move: { from: move.from, to: move.to, san: move.san, color: move.color, captured: move.captured || null, promotion: move.promotion || null },
+      move: {
+        from: move.from,
+        to: move.to,
+        san: move.san,
+        color: move.color,
+        captured: move.captured || null,
+        promotion: move.promotion || null
+      },
       gameState: chessStateForClient(room)
     };
     io.to(room.id).emit('chessMoveAccepted', payload);
