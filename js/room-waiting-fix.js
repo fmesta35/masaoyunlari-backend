@@ -1,6 +1,5 @@
-/* GameVerse - self-contained realtime waiting room
- * Real players only. No bots. This file intentionally does not depend on
- * renderWaitingTableUI() or st.roomWaitingState for the visible UI.
+/* GameVerse - independent realtime waiting room
+ * Real players only. No bots. Does not depend on the inline waiting UI.
  */
 (function () {
   'use strict';
@@ -9,40 +8,36 @@
   let socket = null;
   let room = null;
   let roomId = null;
-  let gameId = null;
+  let gameId = 'chess';
   let panel = null;
   let started = false;
-  let booted = false;
   let connectTimer = null;
+  let observerTimer = null;
 
-  function state() {
-    try { return (typeof st !== 'undefined') ? st : null; } catch (_) { return null; }
+  function getState() {
+    try { return typeof st !== 'undefined' ? st : null; } catch (_) { return null; }
   }
 
   function currentRoom() {
-    const s = state();
-    return (s && s.roomWaitingState && s.roomWaitingState.room) || room || null;
+    const s = getState();
+    return (window.__gvActiveRoom) || (s && s.roomWaitingState && s.roomWaitingState.room) || room || null;
   }
 
-  function roomElement() {
+  function roomPage() {
     return document.getElementById('pg-room') || document.getElementById('room');
   }
 
-  function getRoomId(candidate) {
-    const r = candidate || currentRoom();
-    return (r && r.id) || window.currentRoomId || window.roomId || localStorage.getItem('gv-room-id') || '';
+  function roomIdOf(r) {
+    return (r && r.id) || window.__gvActiveRoomId || window.currentRoomId || window.roomId || localStorage.getItem('gv-room-id') || '';
   }
 
-  function getGameId(candidate) {
-    const s = state();
-    return (candidate && candidate.gameId) || (rGame(candidate)) ||
-      (s && (s.curGame || s.currentGame)) || window.__gvCurrentGame || 'chess';
+  function gameIdOf(r) {
+    const s = getState();
+    return (r && (r.gameId || r.game || r.type)) || (s && (s.curGame || s.currentGame)) || 'chess';
   }
 
-  function rGame(r) { return r && (r.gameId || r.game || r.type); }
-
-  function getUserName() {
-    const s = state();
+  function userName() {
+    const s = getState();
     const u = s && s.user;
     if (u && (u.name || u.username)) return u.name || u.username;
     try {
@@ -55,22 +50,11 @@
     return localStorage.getItem('gv-user-name') || 'Oyuncu';
   }
 
-  function guestKey() {
-    let id = localStorage.getItem('gv-room-guest-key');
-    if (!id) {
-      id = (crypto && crypto.randomUUID) ? crypto.randomUUID() : 'g-' + Date.now() + '-' + Math.random().toString(36).slice(2);
-      localStorage.setItem('gv-room-guest-key', id);
-    }
-    return 'guest:' + id;
-  }
-
-  function stableUserKey() {
-    const s = state();
+  function userKey() {
+    const s = getState();
     const u = s && s.user;
-    if (u) {
-      const id = u.id || u.userId || u.username || u.email;
-      if (id) return 'user:' + id;
-    }
+    const stable = u && (u.id || u.userId || u.username || u.email);
+    if (stable) return 'user:' + stable;
     try {
       const raw = localStorage.getItem('gv-user') || localStorage.getItem('user');
       if (raw) {
@@ -79,89 +63,73 @@
         if (id) return 'user:' + id;
       }
     } catch (_) {}
-    return guestKey();
+    let guest = localStorage.getItem('gv-room-guest-key');
+    if (!guest) {
+      guest = (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : 'g-' + Date.now() + '-' + Math.random().toString(36).slice(2);
+      localStorage.setItem('gv-room-guest-key', guest);
+    }
+    return 'guest:' + guest;
   }
 
   function ensureCss() {
-    if (document.getElementById('gv-standalone-waiting-css')) return;
+    if (document.getElementById('gvStandaloneWaitingCss')) return;
     const style = document.createElement('style');
-    style.id = 'gv-standalone-waiting-css';
+    style.id = 'gvStandaloneWaitingCss';
     style.textContent = `
-      #gvStandaloneWaiting { max-width: 760px; margin: 24px auto; padding: 24px; border:1px solid rgba(255,255,255,.12); border-radius:18px; background:rgba(255,255,255,.04); color:inherit; box-shadow:0 12px 40px rgba(0,0,0,.25); }
-      #gvStandaloneWaiting h2 { margin:0 0 8px; font-size:1.35rem; }
-      #gvStandaloneWaiting .gv-sub { color:#a8a8c8; margin-bottom:18px; }
-      #gvStandaloneWaiting .gv-seat { display:flex; align-items:center; gap:12px; padding:14px 16px; margin-top:10px; border:1px solid rgba(255,255,255,.10); border-radius:14px; background:rgba(255,255,255,.03); }
-      #gvStandaloneWaiting .gv-dot { width:12px; height:12px; border-radius:50%; background:#555; flex:none; }
-      #gvStandaloneWaiting .gv-dot.on { background:#55efc4; box-shadow:0 0 10px rgba(85,239,196,.5); }
-      #gvStandaloneWaiting .gv-seat-name { font-weight:700; flex:1; }
-      #gvStandaloneWaiting .gv-state { color:#9b9bbb; font-size:.9rem; }
-      #gvStandaloneWaiting .gv-count { margin-top:18px; font-weight:700; color:#a29bfe; }
-      #gvStandaloneWaiting .gv-status { margin-top:8px; color:#b8b8d0; }
+      #gvStandaloneWaiting{position:fixed;inset:0;z-index:99999;display:flex;align-items:center;justify-content:center;background:rgba(5,5,18,.96);padding:24px;color:#f1f1ff;font-family:Segoe UI,system-ui,sans-serif}
+      #gvStandaloneWaiting .gv-card{width:min(720px,94vw);background:#111128;border:1px solid rgba(255,255,255,.12);border-radius:20px;padding:28px;box-shadow:0 20px 70px rgba(0,0,0,.55)}
+      #gvStandaloneWaiting h2{margin:0 0 8px;font-size:28px}
+      #gvStandaloneWaiting .gv-sub{color:#aaa9ca;margin-bottom:20px}
+      #gvStandaloneWaiting .gv-seat{display:flex;align-items:center;gap:12px;padding:15px 16px;margin:10px 0;border-radius:14px;background:#171738;border:1px solid rgba(255,255,255,.08)}
+      #gvStandaloneWaiting .gv-dot{width:12px;height:12px;border-radius:50%;background:#575777;flex:none}.gv-dot.on{background:#55efc4;box-shadow:0 0 12px rgba(85,239,196,.55)}
+      #gvStandaloneWaiting .gv-name{font-weight:700;flex:1}.gv-state{color:#aaa9ca;font-size:14px}.gv-count{margin-top:18px;color:#a29bfe;font-weight:800}.gv-status{margin-top:8px;color:#c9c9e4}
     `;
     document.head.appendChild(style);
   }
 
   function ensurePanel() {
-    const page = roomElement();
-    if (!page) return null;
-    page.classList.add('active');
-    page.style.display = 'block';
-    page.style.visibility = 'visible';
-    page.style.opacity = '1';
     ensureCss();
-
     panel = document.getElementById('gvStandaloneWaiting');
     if (!panel) {
       panel = document.createElement('div');
       panel.id = 'gvStandaloneWaiting';
-      page.appendChild(panel);
+      document.body.appendChild(panel);
     }
     return panel;
   }
 
-  function renderWaiting() {
+  function render() {
     const p = ensurePanel();
-    if (!p) return;
     const players = Array.isArray(room && room.players) ? room.players : [];
     const max = Number((room && room.maxPlayers) || 2);
-    const names = [];
-    for (let i = 0; i < max; i++) names.push(players[i] || null);
-
-    p.innerHTML = `
-      <h2>♟️ ${gameId === 'chess' ? 'Satranç' : 'Oyun'} Bekleme Salonu</h2>
-      <div class="gv-sub">Rakibin bağlanmasını bekliyoruz. Bot kullanılmıyor.</div>
-      ${names.map((pl, i) => `
-        <div class="gv-seat">
-          <span class="gv-dot ${pl ? 'on' : ''}"></span>
-          <span class="gv-seat-name">${pl ? (pl.name || pl.username || 'Oyuncu') : 'Rakip bekleniyor...'}</span>
-          <span class="gv-state">${pl ? 'Bağlandı' : 'Boş'}</span>
-        </div>
-      `).join('')}
-      <div class="gv-count">Oyuncular: ${players.length} / ${max}</div>
-      <div class="gv-status">${players.length >= max ? 'Rakip bulundu. Oyun hazırlanıyor…' : 'Rakip bekleniyor…'}</div>
-    `;
+    let seats = '';
+    for (let i = 0; i < max; i++) {
+      const pl = players[i];
+      seats += `<div class="gv-seat"><span class="gv-dot ${pl ? 'on' : ''}"></span><span class="gv-name">${pl ? (pl.name || pl.username || 'Oyuncu') : 'Rakip bekleniyor...'}</span><span class="gv-state">${pl ? 'Bağlandı' : 'Boş'}</span></div>`;
+    }
+    p.innerHTML = `<div class="gv-card"><h2>♟️ ${gameId === 'chess' ? 'Satranç' : 'Oyun'} Bekleme Salonu</h2><div class="gv-sub">Rakibin bağlanmasını bekliyoruz. Bot kullanılmıyor.</div>${seats}<div class="gv-count">Oyuncular: ${players.length} / ${max}</div><div class="gv-status">${players.length >= max ? 'Rakip bulundu. Oyun başlatılıyor…' : 'Rakip bekleniyor…'}</div></div>`;
+    p.style.display = 'flex';
   }
 
-  function loadChess() {
-    if (gameId !== 'chess' || started) return;
-    if (document.querySelector('script[data-gv-chess-online]')) return;
-    const script = document.createElement('script');
-    script.src = 'js/chess-online.js?v=20260817-8';
-    script.async = true;
-    script.dataset.gvChessOnline = '1';
-    document.head.appendChild(script);
-  }
-
-  function hideWaiting() {
+  function hide() {
     if (panel) panel.style.display = 'none';
   }
 
-  function joinServer() {
+  function loadChess() {
+    if (gameId !== 'chess' || document.querySelector('script[data-gv-chess-online]')) return;
+    const s = document.createElement('script');
+    s.src = 'js/chess-online.js?v=20260817-9';
+    s.async = true;
+    s.dataset.gvChessOnline = '1';
+    document.head.appendChild(s);
+  }
+
+  function join() {
     if (!socket || !socket.connected || !roomId) return;
     socket.emit('joinRoom', {
       roomId,
-      userName: getUserName(),
-      userKey: stableUserKey(),
+      userName: userName(),
+      userKey: userKey(),
       maxPlayers: Number((room && room.maxPlayers) || 2),
       durationMinutes: Number((room && room.durationMinutes) || 10),
       gameId
@@ -170,89 +138,90 @@
 
   function connect() {
     if (!roomId) return;
-    if (socket) {
-      if (socket.connected) joinServer();
-      return;
-    }
+    if (socket) { if (socket.connected) join(); return; }
     if (typeof window.io !== 'function') {
       if (connectTimer) return;
-      const s = document.createElement('script');
-      s.src = BACKEND + '/socket.io/socket.io.js';
-      s.async = true;
-      connectTimer = setTimeout(function(){ connectTimer = null; connect(); }, 1500);
-      s.onload = function(){ if (connectTimer) { clearTimeout(connectTimer); connectTimer=null; } connect(); };
-      s.onerror = function(){ if (connectTimer) { clearTimeout(connectTimer); connectTimer=null; } };
-      document.head.appendChild(s);
+      const sc = document.createElement('script');
+      sc.src = BACKEND + '/socket.io/socket.io.js';
+      sc.async = true;
+      connectTimer = setTimeout(function(){ connectTimer=null; connect(); }, 1500);
+      sc.onload = function(){ if(connectTimer){clearTimeout(connectTimer);connectTimer=null;} connect(); };
+      document.head.appendChild(sc);
       return;
     }
-
-    socket = window.io(BACKEND, { transports:['websocket','polling'], reconnection:true, reconnectionAttempts:Infinity, reconnectionDelay:1000 });
+    socket = window.io(BACKEND,{transports:['websocket','polling'],reconnection:true,reconnectionAttempts:Infinity,reconnectionDelay:500});
     window.__gvStandaloneRoomSocket = socket;
-    socket.on('connect', joinServer);
+    socket.on('connect', join);
     socket.on('roomUpdated', function(updated){
-      if (!updated || String(updated.id) !== String(roomId)) return;
+      if (!updated || String(updated.id)!==String(roomId)) return;
       room = updated;
-      renderWaiting();
-      if (Array.isArray(updated.players) && updated.players.length >= Number(updated.maxPlayers || 2)) {
+      render();
+      const max = Number(updated.maxPlayers || 2);
+      if (Array.isArray(updated.players) && updated.players.length >= max) {
         started = true;
-        hideWaiting();
-        if (state()) state().roomWaitingState = { room: updated };
-        window.dispatchEvent(new CustomEvent('gv:roomReady', { detail:{ roomId:roomId, gameId:gameId } }));
+        hide();
+        window.dispatchEvent(new CustomEvent('gv:roomReady',{detail:{roomId:roomId,gameId:gameId}}));
         loadChess();
       }
     });
     socket.on('gameStarted', function(payload){
-      if (!payload || String(payload.roomId) !== String(roomId)) return;
+      if (!payload || String(payload.roomId)!==String(roomId)) return;
       started = true;
-      hideWaiting();
-      window.dispatchEvent(new CustomEvent('gv:roomReady', { detail:{ roomId:roomId, gameId:gameId, playerColor:payload.playerColor } }));
+      hide();
+      window.dispatchEvent(new CustomEvent('gv:roomReady',{detail:{roomId:roomId,gameId:gameId,playerColor:payload.playerColor}}));
       loadChess();
     });
-    socket.on('disconnect', function(){
-      if (!started) renderWaiting();
-    });
+    socket.on('disconnect', function(){ if(!started) render(); });
   }
 
-  function start(roomArg) {
-    room = roomArg || currentRoom() || {};
-    roomId = getRoomId(room);
-    gameId = getGameId(room);
-    if (!roomId) return;
-    booted = true;
+  function start(r) {
+    if (!r || !r.id) return false;
+    room = r;
+    roomId = roomIdOf(r);
+    gameId = gameIdOf(r);
     started = false;
-    renderWaiting();
+    render();
     connect();
+    return true;
   }
 
-  function patch() {
-    if (!window.__gvStandaloneWaitingPatched && typeof window.startRoomWaitingProcess === 'function') {
-      const original = window.startRoomWaitingProcess;
-      window.startRoomWaitingProcess = function (r) {
-        start(r);
-        try { return original.apply(this, arguments); } catch (_) { return null; }
+  function hook() {
+    if (!window.__gvStandalonePageHook && typeof window.page === 'function') {
+      const originalPage = window.page;
+      window.page = function(name){
+        const result = originalPage.apply(this,arguments);
+        if (name === 'room') {
+          const r = window.__gvActiveRoom || currentRoom();
+          if (r) setTimeout(function(){ start(r); }, 0);
+        }
+        return result;
       };
-      window.__gvStandaloneWaitingPatched = true;
+      window.__gvStandalonePageHook = true;
     }
+    if (!window.__gvStandaloneStartHook && typeof window.startRoomWaitingProcess === 'function') {
+      const originalStart = window.startRoomWaitingProcess;
+      window.startRoomWaitingProcess = function(r){
+        if (r) start(r);
+        const result = originalStart.apply(this,arguments);
+        if (r) { setTimeout(function(){ start(r); },0); setTimeout(function(){ start(r); },150); }
+        return result;
+      };
+      window.__gvStandaloneStartHook = true;
+    }
+  }
+
+  function observe() {
+    const r = window.__gvActiveRoom || currentRoom();
+    const s = getState();
+    if (r && s && s.curPage === 'room') start(r);
   }
 
   function boot() {
-    patch();
-    const r = currentRoom();
-    if (r && !booted) start(r);
-    setTimeout(patch, 100);
-    setTimeout(patch, 500);
-    setTimeout(patch, 1200);
-    setTimeout(patch, 2500);
+    hook();
+    observe();
+    if (observerTimer) clearInterval(observerTimer);
+    observerTimer = setInterval(function(){ hook(); observe(); }, 400);
   }
 
-  window.addEventListener('gv:roomReady', function(e){
-    if (e.detail && e.detail.roomId) {
-      roomId = e.detail.roomId;
-      gameId = e.detail.gameId || gameId || 'chess';
-      loadChess();
-    }
-  });
-
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot, { once:true });
-  else boot();
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded',boot,{once:true}); else boot();
 })();
