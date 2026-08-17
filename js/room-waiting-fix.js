@@ -1,11 +1,14 @@
 /* GameVerse - Realtime room waiting UI fix
  * Keeps the real-player waiting table visible after navigation/rendering.
  * No bots are created here.
+ *
+ * IMPORTANT: chess-online.js owns the realtime socket for chess rooms.
+ * Creating a second waiting socket for chess caused the same browser/user
+ * to occupy or replace a player seat and made the two chess clients drift.
  */
 (function () {
   'use strict';
 
-  const BACKEND = 'https://masaoyunlari-backend.onrender.com';
   let timer = null;
   let chessLoaderStarted = false;
 
@@ -14,16 +17,6 @@
       return (typeof st !== 'undefined') ? st : null;
     } catch (_) {
       return null;
-    }
-  }
-
-  function getUserKey() {
-    try {
-      const raw = localStorage.getItem('gv-user') || localStorage.getItem('user');
-      const u = raw ? JSON.parse(raw) : null;
-      return String((u && (u.id || u.userId || u.username || u.email)) || localStorage.getItem('gv-user-id') || localStorage.getItem('gv-user-name') || 'guest');
-    } catch (_) {
-      return String(localStorage.getItem('gv-user-id') || localStorage.getItem('gv-user-name') || 'guest');
     }
   }
 
@@ -36,7 +29,7 @@
     }
     chessLoaderStarted = true;
     const script = document.createElement('script');
-    script.src = 'js/chess-online.js?v=20260817-3';
+    script.src = 'js/chess-online.js?v=20260817-4';
     script.async = true;
     script.dataset.gvChessOnline = '1';
     script.onload = () => console.log('[ChessOnline] Sunucu otoriteli satranç istemcisi yüklendi.');
@@ -112,41 +105,15 @@
     }
   }
 
-  // The waiting UI and the authoritative chess client may use two Socket.IO
-  // connections in the same browser. userKey makes them represent one player
-  // on the server instead of consuming two seats.
+  /*
+   * Do NOT open a second Socket.IO connection for chess.
+   * chess-online.js is the single authoritative chess connection.
+   * Other games can keep their existing room socket behavior here later.
+   */
   function ensureWaitingSocket() {
     const state = getState();
-    const room = state?.roomWaitingState?.room;
-    if (!room?.id || !window.io) return;
-
-    if (!window.__gvRoomSocket) {
-      window.__gvRoomSocket = window.io(BACKEND, {
-        transports: ['websocket', 'polling'],
-        reconnection: true,
-        reconnectionAttempts: Infinity
-      });
-
-      window.__gvRoomSocket.on('connect', function () {
-        window.__gvRoomSocket.emit('joinRoom', {
-          roomId: room.id,
-          userName: (state.user && (state.user.name || state.user.username)) || localStorage.getItem('gv-user-name') || 'Oyuncu',
-          userKey: getUserKey(),
-          maxPlayers: Number(room.maxPlayers || 2),
-          durationMinutes: 10,
-          gameId: state.curGame || 'chess'
-        });
-      });
-
-      window.__gvRoomSocket.on('roomUpdated', function (updatedRoom) {
-        if (!updatedRoom || String(updatedRoom.id) !== String(room.id)) return;
-        if (state.roomWaitingState) {
-          state.roomWaitingState.room = updatedRoom;
-          state.roomWaitingState.maxPlayers = Number(updatedRoom.maxPlayers || 2);
-        }
-        render();
-      });
-    }
+    if (state?.curGame === 'chess') return;
+    // Intentionally left without a socket for now. Chess is handled above.
   }
 
   function boot() {
