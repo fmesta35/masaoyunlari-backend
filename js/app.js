@@ -233,3 +233,27 @@ if (document.readyState === 'loading') {
 
 // Global erişim için export
 window.GVApp = GVApp;
+
+/*
+ * Online oda/satranç entegrasyonu.
+ * index.html tek satır büyük bir dosya olduğu için yeni scriptleri burada
+ * kontrollü biçimde yükleriz; mevcut oyun/navigasyon koduna dokunulmaz.
+ */
+(function loadOnlineRoomFix() {
+    function load() {
+        if (document.querySelector('script[data-gv-room-fix]')) return;
+        const script = document.createElement('script');
+        script.src = 'js/room-waiting-fix.js?v=20260817-3';
+        script.async = true;
+        script.dataset.gvRoomFix = '1';
+        script.onload = () => console.log('[RoomFix] Online oda düzeltmesi yüklendi.');
+        script.onerror = () => console.error('[RoomFix] room-waiting-fix.js yüklenemedi.');
+        document.head.appendChild(script);
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', load, { once: true });
+    } else {
+        load();
+    }
+})();
