@@ -17,7 +17,6 @@ app.get('/', (req, res) => {
   if (!fs.existsSync(indexPath)) return res.status(404).send('index.html bulunamadı');
   res.type('html').send(fs.readFileSync(indexPath, 'utf8'));
 });
-
 app.get('/health', (req, res) => res.json({ ok: true, service: 'GameVerse', time: Date.now() }));
 
 const server = http.createServer(app);
@@ -29,12 +28,10 @@ function createChessState(durationMinutes = 10) {
   const ms = Math.max(0, Number(durationMinutes) || 10) * 60 * 1000;
   return { fen: chess.fen(), turn: 'w', history: [], status: 'waiting', whiteTimeMs: ms, blackTimeMs: ms, turnStartedAt: null, durationMinutes: Math.max(0, Number(durationMinutes) || 10), result: null };
 }
-
 function createGameState(gameId, durationMinutes) {
   if ((gameId || 'chess') === 'chess') return createChessState(durationMinutes);
   return { type: gameId || 'chess', board: null, score: {}, history: [], currentPlayer: 0, status: 'waiting' };
 }
-
 function getRoom(roomId, gameId, maxPlayers, durationMinutes) {
   if (!rooms[roomId]) {
     rooms[roomId] = {
@@ -48,17 +45,14 @@ function getRoom(roomId, gameId, maxPlayers, durationMinutes) {
   }
   return rooms[roomId];
 }
-
 function getChess(room) {
   const chess = new Chess();
   if (room.gameState?.fen) { try { chess.load(room.gameState.fen); } catch (_) {} }
   return chess;
 }
-
 function chessBoardArray(chess) {
   return chess.board().map(row => row.map(p => p ? (p.color === 'w' ? p.type.toUpperCase() : p.type.toLowerCase()) : ''));
 }
-
 function chessStateForClient(room) {
   const gs = room.gameState;
   if (room.gameId !== 'chess') return gs;
@@ -72,7 +66,6 @@ function chessStateForClient(room) {
     legalMoves: chess.moves({ verbose: true }).map(m => ({ from: m.from, to: m.to, san: m.san, promotion: m.promotion || null, captured: m.captured || null }))
   };
 }
-
 function effectiveClock(room) {
   const gs = room.gameState;
   if (room.gameId !== 'chess') return gs;
@@ -83,7 +76,6 @@ function effectiveClock(room) {
   }
   return { whiteTimeMs: white, blackTimeMs: black };
 }
-
 function roomPayload(room) {
   const gs = chessStateForClient(room);
   if (room.gameId === 'chess') {
@@ -94,31 +86,28 @@ function roomPayload(room) {
   }
   return { ...room, gameState: gs };
 }
-
 function startChess(room) {
   if (room.gameId !== 'chess' || room.players.length !== 2) return;
   room.gameState = createChessState(Number(room.durationMinutes) || 10);
   room.gameState.status = 'playing';
   room.gameState.turnStartedAt = Date.now();
-  io.to(room.id).emit('gameStarted', {
-    roomId: room.id,
-    gameId: room.gameId,
-    players: room.players,
-    gameState: chessStateForClient(room)
-  });
+  io.to(room.id).emit('gameStarted', { roomId: room.id, gameId: room.gameId, players: room.players, gameState: chessStateForClient(room) });
   io.to(room.id).emit('roomUpdated', roomPayload(room));
 }
-
-// Satrançta iki gerçek oyuncu odaya girdiği anda oyun başlar.
-// Ayrı bir "hazır" butonuna ihtiyaç yoktur; beyaz/siyah sunucu tarafından
-// rastgele atanır ve chess.js ilk hamleyi daima beyaza verir.
 function maybeStartRoom(room) {
   if (room.gameId !== 'chess') return;
   if (room.players.length !== 2) return;
   if (room.gameState.status === 'playing') return;
-
   room.players.forEach(p => { p.isReady = true; });
   startChess(room);
+}
+
+// Generic guest labels must never be used as a shared identity. Each anonymous
+// browser now sends a unique guest key from chess-online.js.
+function normalizedUserKey(value) {
+  const key = String(value || '').trim();
+  if (!key || /^(guest|oyuncu)$/i.test(key)) return null;
+  return key;
 }
 
 io.on('connection', socket => {
@@ -133,7 +122,8 @@ io.on('connection', socket => {
     socket.roomId = roomId;
     socket.userName = data.userName || 'Oyuncu';
 
-    let player = data.userKey ? room.players.find(p => p.userKey === String(data.userKey)) : null;
+    const userKey = normalizedUserKey(data.userKey);
+    let player = userKey ? room.players.find(p => p.userKey === userKey) : null;
     if (!player) player = room.players.find(p => p.id === socket.id);
 
     if (!player && room.players.length < room.maxPlayers) {
@@ -144,7 +134,7 @@ io.on('connection', socket => {
         : (whiteAlready ? 'black' : 'white');
       player = {
         id: socket.id,
-        userKey: data.userKey ? String(data.userKey) : null,
+        userKey,
         name: socket.userName,
         color,
         seat: room.players.length,
@@ -152,6 +142,7 @@ io.on('connection', socket => {
       };
       room.players.push(player);
     } else if (player) {
+      // Reconnect: transfer the authoritative player seat to the new socket.
       player.id = socket.id;
       player.name = socket.userName || player.name;
     }
@@ -165,10 +156,9 @@ io.on('connection', socket => {
       gameState: chessStateForClient(room)
     });
 
-    // İki oyuncu bağlandığında bekleme ekranında kalma; doğrudan ortak oyunu başlat.
+    // Exactly two real players start one shared authoritative game.
     maybeStartRoom(room);
 
-    // Oyun zaten başlamışsa yeniden bağlanan oyuncuya mevcut ortak durumu gönder.
     if (room.gameId === 'chess' && room.gameState.status === 'playing') {
       socket.emit('gameStarted', {
         roomId,
@@ -260,14 +250,7 @@ io.on('connection', socket => {
       gameId: 'chess',
       playerId: socket.id,
       playerColor: player.color,
-      move: {
-        from: move.from,
-        to: move.to,
-        san: move.san,
-        color: move.color,
-        captured: move.captured || null,
-        promotion: move.promotion || null
-      },
+      move: { from: move.from, to: move.to, san: move.san, color: move.color, captured: move.captured || null, promotion: move.promotion || null },
       gameState: chessStateForClient(room)
     };
     io.to(room.id).emit('chessMoveAccepted', payload);
@@ -278,6 +261,10 @@ io.on('connection', socket => {
     const roomId = socket.roomId;
     const room = roomId && rooms[roomId];
     if (!room) return;
+    // If a reconnect already transferred the seat to a newer socket, do not
+    // remove that player when the older socket finally disconnects.
+    const stillOwnsSeat = room.players.some(p => p.id === socket.id);
+    if (!stillOwnsSeat) return;
     room.players = room.players.filter(p => p.id !== socket.id);
     io.to(roomId).emit('playerLeft', { playerId: socket.id });
     io.to(roomId).emit('roomUpdated', roomPayload(room));
