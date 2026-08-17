@@ -1,261 +1,189 @@
-/* GameVerse - self-contained realtime waiting room
- * Real players only. No bots.
- * This module does not depend on legacy renderWaitingTableUI/st.roomWaitingState.
- * It also recovers when the legacy room flow already ran before this file loaded.
+/* GameVerse - authoritative online room bridge
+ * Keeps the existing GameVerse UI. No bots. One Socket.IO connection for the room.
+ * Chess state is owned by server.js; this file only handles room presence/waiting.
  */
 (function () {
   'use strict';
 
   const BACKEND = 'https://masaoyunlari-backend.onrender.com';
   let socket = null;
-  let room = null;
-  let roomId = null;
-  let gameId = null;
-  let panel = null;
+  let activeRoom = null;
+  let activeRoomId = null;
   let started = false;
-  let connectedOnce = false;
-  let observer = null;
+  let patched = false;
 
-  function getState() {
-    try { return (typeof st !== 'undefined') ? st : null; } catch (_) { return null; }
-  }
+  function state() { try { return typeof st !== 'undefined' ? st : null; } catch (_) { return null; } }
 
-  function getActiveRoom() {
-    const s = getState();
-    return window.__gvActiveRoom ||
-      (s && s.roomWaitingState && s.roomWaitingState.room) ||
-      room || null;
-  }
-
-  function getRoomId(candidate) {
-    const r = candidate || getActiveRoom();
-    return String((r && r.id) || window.__gvActiveRoomId || window.currentRoomId || window.roomId || localStorage.getItem('gv-room-id') || '');
-  }
-
-  function getGameId(candidate) {
-    const s = getState();
-    return (candidate && (candidate.gameId || candidate.game || candidate.type)) ||
-      (s && (s.curGame || s.currentGame)) || window.__gvCurrentGame || 'chess';
-  }
-
-  function getUserName() {
-    const s = getState();
-    const u = s && s.user;
-    if (u && (u.name || u.username)) return u.name || u.username;
+  function name() {
+    const s = state();
+    if (s?.user?.name) return s.user.name;
     try {
-      const raw = localStorage.getItem('gv-user') || localStorage.getItem('user');
-      if (raw) {
-        const v = JSON.parse(raw);
-        return v.name || v.username || 'Oyuncu';
-      }
+      const u = JSON.parse(localStorage.getItem('gv-user') || localStorage.getItem('user') || 'null');
+      if (u?.name || u?.username) return u.name || u.username;
     } catch (_) {}
     return localStorage.getItem('gv-user-name') || 'Oyuncu';
   }
 
-  function guestKey() {
+  function userKey() {
+    const s = state();
+    const u = s?.user;
+    const stable = u && (u.id || u.userId || u.username || u.email);
+    if (stable) return 'user:' + stable;
+    try {
+      const v = JSON.parse(localStorage.getItem('gv-user') || localStorage.getItem('user') || 'null');
+      const id = v && (v.id || v.userId || v.username || v.email);
+      if (id) return 'user:' + id;
+    } catch (_) {}
     let id = localStorage.getItem('gv-room-guest-key');
     if (!id) {
-      id = (window.crypto && typeof window.crypto.randomUUID === 'function')
-        ? window.crypto.randomUUID()
-        : 'g-' + Date.now() + '-' + Math.random().toString(36).slice(2);
+      id = crypto?.randomUUID ? crypto.randomUUID() : 'guest-' + Date.now() + '-' + Math.random().toString(36).slice(2);
       localStorage.setItem('gv-room-guest-key', id);
     }
     return 'guest:' + id;
   }
 
-  function userKey() {
-    const s = getState();
-    const u = s && s.user;
-    const stable = u && (u.id || u.userId || u.username || u.email);
-    if (stable) return 'user:' + String(stable);
-    try {
-      const raw = localStorage.getItem('gv-user') || localStorage.getItem('user');
-      if (raw) {
-        const v = JSON.parse(raw);
-        const id = v.id || v.userId || v.username || v.email;
-        if (id) return 'user:' + String(id);
-      }
-    } catch (_) {}
-    return guestKey();
+  function roomFromArg(room) {
+    if (room && room.id) return room;
+    const s = state();
+    return window.__gvActiveRoom || s?.roomWaitingState?.room || null;
   }
 
-  function isRoomPage() {
-    const s = getState();
-    const hash = (location.hash || '').replace('#', '').toLowerCase();
-    return !!(
-      (s && s.curPage === 'room') ||
-      hash === 'room' ||
-      window.__gvActiveRoomId ||
-      document.getElementById('pg-room')?.classList.contains('active') ||
-      document.getElementById('room')?.classList.contains('active')
-    );
+  function isChess(room) {
+    const s = state();
+    return String(room?.gameId || room?.game || s?.curGame || window.__gvCurrentGame || '').toLowerCase() === 'chess' ||
+      /satranç|chess/i.test(document.getElementById('grTitle')?.textContent || '');
   }
 
   function ensureCss() {
-    if (document.getElementById('gv-standalone-waiting-css')) return;
+    if (document.getElementById('gv-room-wait-css')) return;
     const style = document.createElement('style');
-    style.id = 'gv-standalone-waiting-css';
+    style.id = 'gv-room-wait-css';
     style.textContent = `
-      #gvStandaloneWaiting {
-        position: relative; z-index: 99999; max-width: 760px; margin: 28px auto;
-        padding: 26px; border: 1px solid rgba(255,255,255,.14); border-radius: 18px;
-        background: #111128; color: #e8e8ff; box-shadow: 0 20px 60px rgba(0,0,0,.45);
-      }
-      #gvStandaloneWaiting h2 { margin:0 0 8px; font-size:1.35rem; }
-      #gvStandaloneWaiting .gv-sub { color:#b1b1d0; margin-bottom:18px; }
-      #gvStandaloneWaiting .gv-seat { display:flex; align-items:center; gap:12px; padding:15px 16px; margin-top:10px; border:1px solid rgba(255,255,255,.10); border-radius:14px; background:rgba(255,255,255,.04); }
-      #gvStandaloneWaiting .gv-dot { width:12px; height:12px; border-radius:50%; background:#555; flex:none; }
-      #gvStandaloneWaiting .gv-dot.on { background:#55efc4; box-shadow:0 0 10px rgba(85,239,196,.55); }
-      #gvStandaloneWaiting .gv-seat-name { font-weight:700; flex:1; }
-      #gvStandaloneWaiting .gv-state { color:#a7a7c7; font-size:.9rem; }
-      #gvStandaloneWaiting .gv-count { margin-top:18px; font-weight:800; color:#a29bfe; }
-      #gvStandaloneWaiting .gv-status { margin-top:8px; color:#c2c2d8; }
+      #gv-room-waiting-online{margin:18px auto;padding:18px 20px;max-width:720px;border-radius:16px;background:rgba(20,20,45,.96);border:1px solid rgba(255,255,255,.12);color:#eee;box-shadow:0 12px 40px rgba(0,0,0,.35);position:relative;z-index:1000}
+      #gv-room-waiting-online h3{margin:0 0 8px;font-size:18px}
+      #gv-room-waiting-online .count{font-weight:800;margin:12px 0;color:#a9a1ff}
+      #gv-room-waiting-online .seat{display:flex;align-items:center;gap:10px;padding:10px 12px;margin:7px 0;border-radius:10px;background:rgba(255,255,255,.045)}
+      #gv-room-waiting-online .dot{width:10px;height:10px;border-radius:50%;background:#666}.dot.on{background:#49e6ad}
     `;
     document.head.appendChild(style);
   }
 
-  function ensurePanel() {
+  function renderWaiting(room) {
+    if (started) return;
     ensureCss();
-    panel = document.getElementById('gvStandaloneWaiting');
-    if (panel) return panel;
-
-    panel = document.createElement('section');
-    panel.id = 'gvStandaloneWaiting';
-    panel.setAttribute('aria-live', 'polite');
-
-    const board = document.getElementById('boardArea');
+    let el = document.getElementById('gv-room-waiting-online');
     const page = document.getElementById('pg-room') || document.getElementById('room');
-    if (board) board.prepend(panel);
-    else if (page) page.prepend(panel);
-    else document.body.prepend(panel);
-    return panel;
-  }
-
-  function syncRoomFromGlobals() {
-    const active = getActiveRoom();
-    if (active && active.id) {
-      room = active;
-      roomId = getRoomId(active);
-      gameId = getGameId(active);
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'gv-room-waiting-online';
+      if (page) page.prepend(el); else document.body.prepend(el);
     }
-    return !!roomId;
-  }
-
-  function render() {
-    if (!syncRoomFromGlobals()) return;
-    const p = ensurePanel();
-    if (!p) return;
-    const players = Array.isArray(room.players) ? room.players : [];
-    const max = Math.max(2, Number(room.maxPlayers || 2));
-    let slots = '';
-    for (let i = 0; i < max; i++) {
-      const pl = players[i] || null;
-      slots += `<div class="gv-seat"><span class="gv-dot ${pl ? 'on' : ''}"></span><span class="gv-seat-name">${pl ? (pl.name || pl.username || 'Oyuncu') : 'Rakip bekleniyor...'}</span><span class="gv-state">${pl ? 'Bağlandı' : 'Boş'}</span></div>`;
-    }
-    p.innerHTML = `<h2>♟️ ${gameId === 'chess' ? 'Satranç' : 'Oyun'} Bekleme Salonu</h2><div class="gv-sub">Rakibin bağlanmasını bekliyoruz. Bot kullanılmıyor.</div>${slots}<div class="gv-count">Oyuncular: ${players.length} / ${max}</div><div class="gv-status">${players.length >= max ? 'Rakip bulundu. Oyun hazırlanıyor…' : 'Rakip bekleniyor…'}</div>`;
-    p.style.display = started ? 'none' : 'block';
+    const players = Array.isArray(room?.players) ? room.players : [];
+    const max = 2;
+    el.innerHTML = '<h3>♟️ Satranç Bekleme Salonu</h3>' +
+      '<div>Gerçek oyuncularla eşleşme bekleniyor. Bot kullanılmıyor.</div>' +
+      players.slice(0, 2).map(p => `<div class="seat"><span class="dot on"></span><strong>${String(p.name || 'Oyuncu')}</strong><span>Bağlandı</span></div>`).join('') +
+      (players.length < max ? '<div class="seat"><span class="dot"></span><span>Rakip bekleniyor...</span></div>' : '') +
+      `<div class="count">Oyuncular: ${Math.min(players.length,2)} / 2</div>`;
+    el.style.display = started ? 'none' : 'block';
   }
 
   function loadChess() {
-    if (gameId !== 'chess' || !started) return;
+    if (!isChess(activeRoom) || !started) return;
     if (document.querySelector('script[data-gv-chess-online]')) return;
-    const script = document.createElement('script');
-    script.src = 'js/chess-online.js?v=20260817-9';
-    script.async = true;
-    script.dataset.gvChessOnline = '1';
-    script.onload = () => console.log('[ChessOnline] Sunucu otoriteli satranç istemcisi yüklendi.');
-    script.onerror = () => console.error('[ChessOnline] chess-online.js yüklenemedi.');
-    document.head.appendChild(script);
+    const s = document.createElement('script');
+    s.src = 'js/chess-online.js?v=20260817-10';
+    s.async = false;
+    s.dataset.gvChessOnline = '1';
+    s.onload = () => {
+      window.dispatchEvent(new CustomEvent('gv:roomReady', { detail: { roomId: activeRoomId, gameId:'chess' } }));
+    };
+    document.head.appendChild(s);
   }
 
-  function joinServer() {
-    if (!socket || !socket.connected || !roomId) return;
+  function join() {
+    if (!socket?.connected || !activeRoomId) return;
     socket.emit('joinRoom', {
-      roomId,
-      userName: getUserName(),
-      userKey: userKey(),
-      maxPlayers: Number((room && room.maxPlayers) || 2),
-      durationMinutes: Number((room && room.durationMinutes) || 10),
-      gameId
+      roomId: activeRoomId,
+      gameId: isChess(activeRoom) ? 'chess' : (activeRoom?.gameId || state()?.curGame || 'chess'),
+      maxPlayers: 2,
+      durationMinutes: Number(activeRoom?.durationMinutes || 10),
+      userName: name(),
+      userKey: userKey()
     });
   }
 
   function connect() {
-    if (!roomId || socket) return;
-    if (typeof window.io !== 'function') {
+    if (socket || !activeRoomId) return;
+    const make = () => {
+      if (typeof window.io !== 'function') return;
+      socket = window.io(BACKEND, { transports:['websocket','polling'], reconnection:true, reconnectionAttempts:Infinity, reconnectionDelay:1000 });
+      window.__gvRoomSocket = socket;
+      socket.on('connect', join);
+      socket.on('roomUpdated', updated => {
+        if (!updated || String(updated.id) !== String(activeRoomId)) return;
+        activeRoom = updated;
+        renderWaiting(updated);
+        if (updated.players.length >= 2) {
+          started = true;
+          const el = document.getElementById('gv-room-waiting-online');
+          if (el) el.style.display = 'none';
+          loadChess();
+        }
+      });
+      socket.on('gameStarted', payload => {
+        if (!payload || String(payload.roomId) !== String(activeRoomId)) return;
+        started = true;
+        const el = document.getElementById('gv-room-waiting-online');
+        if (el) el.style.display = 'none';
+        loadChess();
+      });
+      socket.on('playerLeft', () => {
+        if (!started && activeRoom) renderWaiting(activeRoom);
+      });
+    };
+    if (window.io) make();
+    else {
       const s = document.createElement('script');
       s.src = BACKEND + '/socket.io/socket.io.js';
-      s.async = true;
-      s.onload = connect;
-      s.onerror = () => console.error('[RoomWaitingFix] Socket.IO client yüklenemedi.');
+      s.onload = make;
+      s.onerror = () => console.error('[RoomFix] Socket.IO yüklenemedi.');
       document.head.appendChild(s);
-      return;
     }
-    socket = window.io(BACKEND, { transports:['websocket','polling'], reconnection:true, reconnectionAttempts:Infinity, reconnectionDelay:1000 });
-    window.__gvStandaloneRoomSocket = socket;
-    socket.on('connect', joinServer);
-    socket.on('roomUpdated', updated => {
-      if (!updated || String(updated.id) !== String(roomId)) return;
-      room = updated;
-      render();
-      if (Array.isArray(updated.players) && updated.players.length >= Number(updated.maxPlayers || 2)) {
-        started = true;
-        render();
-        window.dispatchEvent(new CustomEvent('gv:roomReady', { detail:{ roomId, gameId } }));
-        loadChess();
-      }
-    });
-    socket.on('gameStarted', payload => {
-      if (!payload || String(payload.roomId) !== String(roomId)) return;
-      started = true;
-      render();
-      window.dispatchEvent(new CustomEvent('gv:roomReady', { detail:{ roomId, gameId, playerColor:payload.playerColor } }));
-      loadChess();
-    });
-    socket.on('disconnect', () => { if (!started) render(); });
   }
 
-  function bootstrapFromGlobals() {
-    syncRoomFromGlobals();
-    if (!roomId) return;
-    if (!started && isRoomPage()) {
-      render();
-      connect();
-    }
+  function activate(room) {
+    activeRoom = roomFromArg(room);
+    if (!activeRoom?.id) return;
+    activeRoomId = String(activeRoom.id);
+    window.__gvActiveRoom = activeRoom;
+    window.__gvActiveRoomId = activeRoomId;
+    started = false;
+    renderWaiting(activeRoom);
+    connect();
   }
 
   function patchLegacy() {
-    if (typeof window.startRoomWaitingProcess === 'function' && !window.__gvStandaloneWaitingPatched4) {
-      const original = window.startRoomWaitingProcess;
-      window.startRoomWaitingProcess = function (r) {
-        room = r || room || getActiveRoom();
-        roomId = getRoomId(room);
-        gameId = getGameId(room);
-        started = false;
-        render();
-        connect();
-        try { return original.apply(this, arguments); } catch (_) { return null; }
-      };
-      window.__gvStandaloneWaitingPatched4 = true;
-    }
-  }
-
-  function watch() {
-    patchLegacy();
-    bootstrapFromGlobals();
-    if (isRoomPage() && !started) render();
+    if (patched || typeof window.startRoomWaitingProcess !== 'function') return;
+    const legacy = window.startRoomWaitingProcess;
+    window.startRoomWaitingProcess = function (room) {
+      // Do not call the old implementation: it creates simulated players.
+      activate(room);
+      return null;
+    };
+    window.__gvOriginalRoomWaitingProcess = legacy;
+    patched = true;
   }
 
   function boot() {
-    watch();
-    [100, 300, 700, 1500, 3000].forEach(ms => setTimeout(watch, ms));
-    if (!observer) {
-      observer = new MutationObserver(() => { if (isRoomPage() && !started) render(); });
-      observer.observe(document.body, { childList:true, subtree:true, attributes:true, attributeFilter:['class','style'] });
-    }
-    setInterval(watch, 1000);
+    patchLegacy();
+    const r = roomFromArg();
+    if (r?.id) activate(r);
+    setTimeout(patchLegacy, 100);
+    setTimeout(patchLegacy, 500);
+    setTimeout(patchLegacy, 1500);
   }
 
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot, { once:true });
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot, {once:true});
   else boot();
 })();
