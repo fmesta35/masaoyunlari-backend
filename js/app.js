@@ -4,7 +4,7 @@
 'use strict';
 
 const GVApp = {
-    version: '1.0.1',
+    version: '1.0.2',
     state: { currentUser: null, currentGame: null, activeRooms: [], notifications: [] },
 
     init() {
@@ -12,7 +12,7 @@ const GVApp = {
         this.setupEventListeners();
         this.loadUserPreferences();
         this.checkConnection();
-        this.loadOnlineRoomFix();
+        this.loadOnlineModules();
     },
 
     setupEventListeners() {
@@ -39,8 +39,7 @@ const GVApp = {
     },
 
     navigateTo(pageId) {
-        const pages = document.querySelectorAll('.page');
-        pages.forEach(page => page.classList.remove('active'));
+        document.querySelectorAll('.page').forEach(page => page.classList.remove('active'));
         const targetPage = document.getElementById('pg-' + pageId) || document.getElementById(pageId);
         if (targetPage) {
             targetPage.classList.add('active');
@@ -99,19 +98,22 @@ const GVApp = {
         catch (error) { console.error('Storage okuma hatası:', error); return null; }
     },
 
-    loadOnlineRoomFix() {
-        const load = () => {
-            if (document.querySelector('script[data-gv-room-fix]')) return;
-            const script = document.createElement('script');
-            script.src = 'js/room-waiting-fix.js?v=20260817-5';
-            script.async = false;
-            script.dataset.gvRoomFix = '1';
-            script.onload = () => console.log('[RoomFix] Online oda düzeltmesi yüklendi.');
-            script.onerror = () => console.error('[RoomFix] room-waiting-fix.js yüklenemedi:', script.src);
-            (document.head || document.documentElement).appendChild(script);
+    loadOnlineModules() {
+        const load = (src, attr) => {
+            if (document.querySelector('script[' + attr + ']')) return Promise.resolve();
+            return new Promise(resolve => {
+                const script = document.createElement('script');
+                script.src = src;
+                script.async = false;
+                script.setAttribute(attr, '1');
+                script.onload = () => { console.log('[Online] yüklendi:', src); resolve(); };
+                script.onerror = () => { console.error('[Online] yüklenemedi:', src); resolve(); };
+                (document.head || document.documentElement).appendChild(script);
+            });
         };
-        if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', load, { once: true });
-        else load();
+
+        load('js/room-waiting-fix.js?v=20260817-5', 'data-gv-room-fix')
+            .then(() => load('js/online-compat.js?v=20260817-1', 'data-gv-online-compat'));
     }
 };
 
