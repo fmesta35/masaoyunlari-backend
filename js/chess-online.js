@@ -289,4 +289,244 @@
 
         const last = gameState.history?.[gameState.history.length - 1];
         if (last?.from === square(r, c)) cls += ' last-from';
-        if (last?.to === square(r, c)) 
+        if (last?.to === square(r, c)) cls += ' last-to';
+
+        if (selected) {
+          const from = square(selected[0], selected[1]);
+          if (moves.some(m => m.from === from && m.to === square(r, c))) {
+            cls += p ? ' valid-capture' : ' valid-move';
+          }
+        }
+
+        const sym = { K: '♔', Q: '♕', R: '♖', B: '♗', N: '♘', P: '♙', k: '♚', q: '♛', r: '♜', b: '♝', n: '♞', p: '♟' }[p] || '';
+        const canDrag = (p && pc === mine && gameState.turn === mine);
+
+        html += `<div class="${cls}" data-r="${r}" data-c="${c}" 
+            onclick="window.GV._cc(${r},${c})"
+            ondragover="event.preventDefault()"
+            ondrop="window.__gvOnlineChessDrop(event,${r},${c})"
+            ${canDrag ? `draggable="true" ondragstart="window.__gvOnlineChessDragStart(event,${r},${c})"` : ''}>
+            ${p ? `<span class="chess-p ${pc}">${sym}</span>` : ''}
+          </div>`;
+      }
+    }
+    html += '</div>';
+
+    // Promotion Modal
+    if (gameState.promotionPending) {
+      html += '<div class="promo-overlay"><div class="promo-modal"><h3>♟️ Piyon Terfisi</h3><p style="margin-bottom:10px;font-size:0.9em;color:#aaa;">Dönüştürmek istediğiniz taşı seçin:</p><div class="promo-options">' +
+        '<div class="promo-piece" onclick="window.__gvOnlineChessPromote(\'q\')">♛</div>' +
+        '<div class="promo-piece" onclick="window.__gvOnlineChessPromote(\'r\')">♜</div>' +
+        '<div class="promo-piece" onclick="window.__gvOnlineChessPromote(\'b\')">♝</div>' +
+        '<div class="promo-piece" onclick="window.__gvOnlineChessPromote(\'n\')">♞</div></div></div></div>';
+    }
+
+    // Game End Overlay Modal
+    if (gameState.status === 'finished' || gameState.status === 'aborted') {
+      const result = gameState.result || {};
+      let title = '🏁 Oyun Bitti';
+      let desc = '';
+      if (result.reason === 'checkmate') {
+        title = '♟️ ŞAH MAT!';
+        desc = result.winner === playerColor ? '🏆 Tebrikler, Kazandınız!' : '💔 Rakip kazandı.';
+      } else if (result.reason === 'stalemate') {
+        title = '🤝 PAT!';
+        desc = 'Oyun berabere bitti.';
+      } else if (result.reason === 'timeout') {
+        title = '⏰ SÜRE BİTTİ';
+        desc = result.winner === playerColor ? '🏆 Zaman bitti, Kazandınız!' : '💔 Süreniz doldu.';
+      } else if (result.reason === 'threefold_repetition') {
+        title = '🤝 ÜÇLÜ TEKRAR';
+        desc = 'Oyun berabere bitti.';
+      } else if (result.reason === 'insufficient_material') {
+        title = '🤝 YETERSİZ MATERYAL';
+        desc = 'Oyun berabere bitti.';
+      } else if (result.reason === 'fifty_move') {
+        title = '🤝 50 HAMLE KURALI';
+        desc = 'Oyun berabere bitti.';
+      } else if (result.reason === 'player_left') {
+        title = '🚪 OYUNCU AYRILDI';
+        desc = 'Rakip oyundan ayrıldı.';
+      } else {
+        title = '🤝 BERABERE';
+        desc = 'Oyun berabere bitti.';
+      }
+      html += `<div class="chess-end-overlay"><div class="chess-end-modal"><div class="end-icon">🏁</div><h2>${title}</h2><p>${desc}</p><button class="btn btn-p" style="margin-top:15px;padding:10px 20px;cursor:pointer;" onclick="window.__gvRealChessLeave()">🚪 Odadan Ayrıl ve Lobiye Dön</button></div></div>`;
+    }
+
+    html += '</div>';
+    area.innerHTML = html;
+
+    attachBoardDelegation(area);
+  }
+
+  let delegationAttached = false;
+  function attachBoardDelegation(area) {
+    if (delegationAttached || !area) return;
+    delegationAttached = true;
+
+    area.addEventListener('click', function (ev) {
+      const cell = ev.target.closest('.chess-c');
+      if (cell && cell.dataset) {
+        const r = parseInt(cell.dataset.r, 10);
+        const c = parseInt(cell.dataset.c, 10);
+        if (!isNaN(r) && !isNaN(c)) {
+          click(r, c);
+        }
+      }
+    });
+  }
+
+  function click(r, c) {
+    if (!active || !gameState || gameState.status !== 'playing' || pending) return;
+    const mine = colorCode();
+    if (!mine) return toast('⏳ Oyuncu rengi bekleniyor.', 'info');
+    if (gameState.turn !== mine) return toast('⏳ Sıra sizde değil! Rakibin hamlesi bekleniyor.', 'warning');
+
+    const piece = gameState.board[r][c] || '';
+    const pc = piece ? (piece === piece.toUpperCase() ? 'w' : 'b') : null;
+
+    if (!selected) {
+      if (piece && pc === mine) {
+        selected = [r, c];
+        render();
+        toast(`♟️ Seçildi: ${square(r, c)}. Lütfen hedef kareye tıklayın.`, 'info');
+      } else if (piece) {
+        toast('⚠️ Bu taş size ait değil.', 'warning');
+      }
+      return;
+    }
+
+    if (selected[0] === r && selected[1] === c) {
+      selected = null;
+      render();
+      return;
+    }
+
+    if (piece && pc === mine) {
+      selected = [r, c];
+      render();
+      toast(`♟️ Seçildi: ${square(r, c)}. Lütfen hedef kareye tıklayın.`, 'info');
+      return;
+    }
+
+    const from = square(selected[0], selected[1]);
+    const to = square(r, c);
+    const candidates = (gameState.legalMoves || []).filter(m => m.from === from && m.to === to);
+
+    if (!candidates.length) return toast('⚠️ Bu hamle satranç kurallarına göre geçersiz.', 'warning');
+
+    if (candidates.some(m => m.promotion)) {
+      gameState.promotionPending = { from, to };
+      render();
+      return;
+    }
+
+    send(from, to, null);
+  }
+
+  function dragStart(ev, r, c) {
+    if (!active || !gameState || gameState.status !== 'playing' || pending) return;
+    const mine = colorCode();
+    if (gameState.turn !== mine) return;
+    selected = [r, c];
+    if (ev.dataTransfer) {
+      ev.dataTransfer.setData('text/plain', JSON.stringify({ r, c }));
+    }
+    render();
+  }
+
+  function drop(ev, tr, tc) {
+    ev.preventDefault();
+    if (!selected) return;
+    const from = square(selected[0], selected[1]);
+    const to = square(tr, tc);
+    const candidates = (gameState.legalMoves || []).filter(m => m.from === from && m.to === to);
+
+    if (!candidates.length) return toast('⚠️ Bu hamle satranç kurallarına göre geçersiz.', 'warning');
+
+    if (candidates.some(m => m.promotion)) {
+      gameState.promotionPending = { from, to };
+      render();
+      return;
+    }
+
+    send(from, to, null);
+  }
+
+  function promote(piece) {
+    if (!gameState?.promotionPending) return;
+    const pendingMove = gameState.promotionPending;
+    gameState.promotionPending = null;
+    render();
+    send(pendingMove.from, pendingMove.to, piece);
+  }
+
+  function send(from, to, promotion) {
+    if (!socket?.connected) return toast('🔌 Sunucu bağlantısı yok.', 'error');
+    pending = true;
+    socket.emit('chessMove', { roomId, from, to, promotion, userKey: userKey() });
+  }
+
+  function updateClock() {
+    if (!gameState) return;
+    const t1 = document.getElementById('t1');
+    const t2 = document.getElementById('t2');
+    const names = document.querySelectorAll('#topTimers .timer-name');
+    const mine = colorCode();
+
+    let white = Number(gameState.whiteTimeMs || 0);
+    let black = Number(gameState.blackTimeMs || 0);
+
+    if (gameState.status === 'playing' && gameState.serverNow) {
+      const elapsed = Math.max(0, Date.now() - Number(gameState.serverNow));
+      if (gameState.turn === 'w') white = Math.max(0, white - elapsed);
+      else black = Math.max(0, black - elapsed);
+    }
+
+    if (names.length >= 2) {
+      names[0].textContent = mine === 'w' ? '⚪ Beyaz (Siz)' : '🔴 Siyah (Siz)';
+      names[1].textContent = mine === 'w' ? '🔴 Siyah (Rakip)' : '⚪ Beyaz (Rakip)';
+    }
+
+    if (t1) t1.textContent = format(mine === 'w' ? white : black);
+    if (t2) t2.textContent = format(mine === 'w' ? black : white);
+
+    document.querySelectorAll('#topTimers .timer').forEach((el, i) => {
+      const color = i === 0 ? mine : (mine === 'w' ? 'b' : 'w');
+      el.classList.toggle('active', color === gameState.turn && gameState.status === 'playing');
+    });
+  }
+
+  function startClock() {
+    if (clockInt) clearInterval(clockInt);
+    clockInt = setInterval(updateClock, 250);
+    updateClock();
+  }
+
+  if (!window.GV) window.GV = {};
+  window.GV._cc = click;
+  window._cc = click;
+  window.__gvOnlineChessClick = click;
+  window.__gvOnlineChessDragStart = dragStart;
+  window.__gvOnlineChessDrop = drop;
+  window.__gvOnlineChessPromote = promote;
+
+  function boot() {
+    if (!isChessRoom()) return;
+    roomId = getRoomId();
+    if (roomId) connect();
+  }
+
+  window.addEventListener('gv:roomGameStarted', boot);
+  window.addEventListener('gv:roomReady', event => {
+    if (event.detail?.gameId === 'chess' || event.detail?.roomId) {
+      window.__gvChessOnlineRequested = true;
+      if (event.detail?.roomId) roomId = String(event.detail.roomId);
+      boot();
+    }
+  });
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot, { once: true });
+  else boot();
+})();
