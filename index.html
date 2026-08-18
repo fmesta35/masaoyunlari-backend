@@ -220,8 +220,9 @@ button,input,select{font-family:var(--font)}
 .chess-c.sel{background:rgba(108,92,231,.55)!important}
 .chess-c.last-from{background:rgba(249,202,36,.35)!important}
 .chess-c.last-to{background:rgba(85,239,196,.45)!important}
-.chess-c.valid-move::after{content:'';position:absolute;width:30%;height:30%;background:rgba(85,239,196,.6);border-radius:50%}
-.chess-c.valid-capture{outline:3px solid var(--danger) inset}
+.chess-c.valid-move::after{content:'';position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:30%;height:30%;background:#f1c40f;box-shadow:0 0 10px rgba(241,196,15,.9);border-radius:50%;pointer-events:none}
+.chess-c.valid-capture{position:relative}
+.chess-c.valid-capture::after{content:'';position:absolute;inset:5%;border:4px solid #f1c40f;border-radius:50%;box-shadow:0 0 10px rgba(241,196,15,.8),inset 0 0 8px rgba(241,196,15,.5);background:rgba(241,196,15,.12);pointer-events:none}
 .chess-c.in-check{background:radial-gradient(circle,rgba(255,107,107,.7),rgba(255,107,107,.3))!important;animation:cPulse 1s infinite}
 @keyframes cPulse{0%,100%{box-shadow:inset 0 0 20px rgba(255,0,0,.8)}50%{box-shadow:inset 0 0 30px rgba(255,0,0,1)}}
 .chess-p{line-height:1;text-shadow:0 2px 4px rgba(0,0,0,.4)}
@@ -3584,13 +3585,13 @@ GV.init();
 </script>
 
 <!-- External JavaScript Files -->
-<script src="js/config.js"></script>
-<script src="js/socket.io.min.js"></script>
-<script src="js/app.js" defer></script>
-<script src="js/games.js" defer></script>
-<script src="js/utils.js" defer></script>
-<script src="js/room-waiting-fix.js" defer></script>
-<script src="js/chess-online.js" defer></script>
+<script src="js/config.js?v=20260818fix"></script>
+<script src="js/socket.io.min.js?v=20260818fix"></script>
+<script src="js/app.js?v=20260818fix" defer></script>
+<script src="js/games.js?v=20260818fix" defer></script>
+<script src="js/utils.js?v=20260818fix" defer></script>
+<script src="js/room-waiting-fix.js?v=20260818fix" defer></script>
+<script src="js/chess-online.js?v=20260818fix" defer></script>
 
 <!-- Structured Data for SEO -->
 <script type="application/ld+json">

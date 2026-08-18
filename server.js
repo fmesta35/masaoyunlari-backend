@@ -18,8 +18,24 @@ const io = new Server(server, {
 
 const rooms = new Map();
 const MAX_ROOM_PLAYERS = 2;
+// Oyun sırasında kopan oyuncuya yeniden bağlanması için tanınan süre (ms).
+const RECONNECT_GRACE_MS = 30000;
+const disconnectTimers = new Map();
 
 function now() { return Date.now(); }
+
+function playerKey(roomId, player) {
+  return roomId + ':' + (player.userKey || player.id);
+}
+
+function cancelDisconnectTimer(roomId, player) {
+  const key = playerKey(roomId, player);
+  const t = disconnectTimers.get(key);
+  if (t) {
+    clearTimeout(t);
+    disconnectTimers.delete(key);
+  }
+}
 
 function createRoom(id, gameId, maxPlayers, durationMinutes) {
   const duration = Math.max(1, Number(durationMinutes) || 10);
@@ -198,6 +214,25 @@ function startChess(room) {
   emitGameState(room);
 }
 
+function removePlayerFromRoom(room, player, message) {
+  if (!room || !player) return;
+  cancelDisconnectTimer(room.id, player);
+  room.players = room.players.filter(p => p !== player);
+
+  if (room.players.length === 0) {
+    rooms.delete(room.id);
+    console.log(`[ODA #${room.id}] boşaldı ve silindi.`);
+    return;
+  }
+
+  const wasPlaying = room.status === 'playing';
+  resetRoomToWaiting(room);
+  emitRoom(room);
+  if (wasPlaying) {
+    io.to(room.id).emit('playerLeft', { roomId: room.id, message: message || 'Rakip oyundan ayrıldı.' });
+  }
+}
+
 function findExistingPlayer(room, socket, userKey) {
   if (!room || !Array.isArray(room.players)) return null;
   return room.players.find(p => p.id === socket.id) ||
@@ -239,6 +274,8 @@ io.on('connection', socket => {
       player.id = socket.id;
       player.name = name || player.name;
       player.userKey = userKey || player.userKey;
+      player.disconnectedAt = null;
+      cancelDisconnectTimer(roomId, player);
     } else {
       const color = room.players.length === 0 ? 'white' : 'black';
       player = {
@@ -357,18 +394,10 @@ io.on('connection', socket => {
     const room = rooms.get(roomId);
     if (!room) return;
 
-    room.players = room.players.filter(p => p.id !== socket.id && p.userKey !== socket.userKey);
+    const player = findExistingPlayer(room, socket, socket.userKey);
     socket.leave(roomId);
     socket.roomId = null;
-
-    if (room.players.length === 0) {
-      rooms.delete(roomId);
-      console.log(`[ODA #${roomId}] boşaldı ve silindi.`);
-    } else {
-      resetRoomToWaiting(room);
-      emitRoom(room);
-      io.to(roomId).emit('playerLeft', { roomId, message: 'Rakip oyundan ayrıldı.' });
-    }
+    if (player) removePlayerFromRoom(room, player, 'Rakip oyundan ayrıldı.');
   });
 
   socket.on('disconnect', () => {
@@ -377,19 +406,29 @@ io.on('connection', socket => {
     const room = rooms.get(roomId);
     if (!room) return;
 
-    room.players = room.players.filter(p => p.id !== socket.id && p.userKey !== socket.userKey);
+    const player = room.players.find(p => p.id === socket.id);
+    if (!player) return;
 
-    if (room.players.length === 0) {
-      rooms.delete(roomId);
-      console.log(`[ODA #${roomId}] boşaldı ve silindi.`);
+    console.log(`[AYRILDI] ${socket.id}`);
+
+    // Oyun devam ediyorsa oyuncuya yeniden bağlanma süresi tanı (sayfa
+    // yenileme, mobil ağ kopması, Render uyku/uyanma vb. durumlar için).
+    if (room.status === 'playing') {
+      player.disconnectedAt = now();
+      const key = playerKey(roomId, player);
+      cancelDisconnectTimer(roomId, player);
+      const timer = setTimeout(() => {
+        disconnectTimers.delete(key);
+        const currentRoom = rooms.get(roomId);
+        if (!currentRoom) return;
+        const stillGone = currentRoom.players.find(p => p === player && p.disconnectedAt);
+        if (stillGone) removePlayerFromRoom(currentRoom, player, 'Rakip bağlantısı koptu ve geri dönmedi.');
+      }, RECONNECT_GRACE_MS);
+      disconnectTimers.set(key, timer);
       return;
     }
 
-    resetRoomToWaiting(room);
-    emitRoom(room);
-    io.to(roomId).emit('playerLeft', { roomId, message: 'Rakip oyundan ayrıldı.' });
-
-    console.log(`[AYRILDI] ${socket.id}`);
+    removePlayerFromRoom(room, player, 'Rakip odadan ayrıldı.');
   });
 });
 

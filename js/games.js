@@ -225,7 +225,7 @@ const GVGames = {
             }
             if (this.socket) return;
 
-            this.socket = window.io({ transports: ['websocket', 'polling'] });
+            this.socket = window.io(window.GV_BACKEND_URL || 'https://masaoyunlari-backend.onrender.com', { transports: ['websocket', 'polling'] });
             this.playerId = this.socket.id;
             this.realtimeReady = true;
 
@@ -243,7 +243,7 @@ const GVGames = {
         if (window.io) connect();
         else {
             const script = document.createElement('script');
-            script.src = '/socket.io/socket.io.js';
+            script.src = 'js/socket.io.min.js';
             script.onload = connect;
             script.onerror = () => console.error('[Realtime] Socket.IO client script yüklenemedi.');
             document.head.appendChild(script);
@@ -375,7 +375,7 @@ window.addEventListener('gv:makeMove', event => {
             const connectAndJoin = () => {
                 if (!window.io) return;
                 if (!window.__gvRoomSocket) {
-                    window.__gvRoomSocket = window.io({ transports: ['websocket', 'polling'] });
+                    window.__gvRoomSocket = window.io(window.GV_BACKEND_URL || 'https://masaoyunlari-backend.onrender.com', { transports: ['websocket', 'polling'] });
                     window.__gvRoomSocket.on('connect', () => {
                         joinServerRoom(room);
                     });
