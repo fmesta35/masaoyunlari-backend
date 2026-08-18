@@ -17,7 +17,13 @@
   let myMatchScore = 0;
   let oppMatchScore = 0;
 
+  function clearDuplicateToasts() {
+    const wrap = document.getElementById('toastWrap');
+    if (wrap) wrap.innerHTML = '';
+  }
+
   function toast(message, type) {
+    clearDuplicateToasts();
     if (window.GV && typeof window.GV.toast === 'function') {
       try { window.GV.toast(message, type || 'info'); return; } catch (_) {}
     }
@@ -254,8 +260,8 @@
     style.id = 'gv-chess-piece-style';
     style.textContent = `
       .chess-p { pointer-events: none !important; user-select: none !important; -webkit-user-select: none !important; }
-      .chess-c { cursor: pointer !important; touch-action: manipulation; }
-      .chess-c.sel { background: rgba(108, 92, 231, 0.65) !important; box-shadow: inset 0 0 10px #6c5ce7; }
+      .chess-c { cursor: pointer !important; touch-action: manipulation; transition: all 0.15s ease; }
+      .chess-c.sel { outline: 4px solid #f59e0b !important; outline-offset: -4px; background: rgba(245, 158, 11, 0.45) !important; box-shadow: inset 0 0 15px rgba(245, 158, 11, 0.8) !important; z-index: 5 !important; }
       .chess-c.valid-move::after { content: ''; position: absolute; width: 28%; height: 28%; background: rgba(0, 184, 148, 0.85); border-radius: 50%; pointer-events: none; }
       .chess-c.valid-capture { outline: 3px solid #ff7675 inset !important; }
     `;
@@ -386,35 +392,46 @@
     const piece = gameState.board[r][c] || '';
     const pc = piece ? (piece === piece.toUpperCase() ? 'w' : 'b') : null;
 
+    // 1. No piece selected yet
     if (!selected) {
       if (piece && pc === mine) {
         selected = [r, c];
         render();
-        toast(`♟️ Seçildi: ${square(r, c)}. Lütfen hedef kareye tıklayın.`, 'info');
+        toast(`♟️ Seçildi: ${square(r, c)}. Hedef kareye tıklayın.`, 'info');
       } else if (piece) {
         toast('⚠️ Bu taş size ait değil.', 'warning');
       }
       return;
     }
 
+    // 2. Re-clicking the SAME selected piece -> DESELECT!
     if (selected[0] === r && selected[1] === c) {
       selected = null;
       render();
+      toast('↩️ Seçim iptal edildi.', 'info');
       return;
     }
 
+    // 3. Clicking another piece of OWN color -> SWITCH SELECTION!
     if (piece && pc === mine) {
       selected = [r, c];
       render();
-      toast(`♟️ Seçildi: ${square(r, c)}. Lütfen hedef kareye tıklayın.`, 'info');
+      toast(`♟️ Seçildi: ${square(r, c)}. Hedef kareye tıklayın.`, 'info');
       return;
     }
 
+    // 4. Attempting move to destination square (r, c)
     const from = square(selected[0], selected[1]);
     const to = square(r, c);
     const candidates = (gameState.legalMoves || []).filter(m => m.from === from && m.to === to);
 
-    if (!candidates.length) return toast('⚠️ Bu hamle satranç kurallarına göre geçersiz.', 'warning');
+    if (!candidates.length) {
+      // Invalid destination clicked -> DESELECT piece
+      selected = null;
+      render();
+      toast('⚠️ Geçersiz kare. Seçim iptal edildi.', 'warning');
+      return;
+    }
 
     if (candidates.some(m => m.promotion)) {
       gameState.promotionPending = { from, to };
@@ -443,7 +460,12 @@
     const to = square(tr, tc);
     const candidates = (gameState.legalMoves || []).filter(m => m.from === from && m.to === to);
 
-    if (!candidates.length) return toast('⚠️ Bu hamle satranç kurallarına göre geçersiz.', 'warning');
+    if (!candidates.length) {
+      selected = null;
+      render();
+      toast('⚠️ Geçersiz kare. Seçim iptal edildi.', 'warning');
+      return;
+    }
 
     if (candidates.some(m => m.promotion)) {
       gameState.promotionPending = { from, to };
