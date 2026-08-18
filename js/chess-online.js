@@ -184,10 +184,26 @@
     return String(value).replace(/[&<>'"]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[ch]));
   }
 
+  function injectPieceStyle() {
+    if (document.getElementById('gv-chess-piece-style')) return;
+    const style = document.createElement('style');
+    style.id = 'gv-chess-piece-style';
+    style.textContent = `
+      .chess-p { pointer-events: none !important; user-select: none !important; -webkit-user-select: none !important; }
+      .chess-c { cursor: pointer !important; touch-action: manipulation; }
+      .chess-c.sel { background: rgba(108, 92, 231, 0.65) !important; box-shadow: inset 0 0 10px #6c5ce7; }
+      .chess-c.valid-move::after { content: ''; position: absolute; width: 28%; height: 28%; background: rgba(0, 184, 148, 0.85); border-radius: 50%; pointer-events: none; }
+      .chess-c.valid-capture { outline: 3px solid #ff7675 inset !important; }
+    `;
+    document.head.appendChild(style);
+  }
+
   function render() {
     if (!active || !gameState) return;
     const area = document.getElementById('boardArea');
     if (!area) return;
+
+    injectPieceStyle();
 
     const board = gameState.board;
     const moves = gameState.legalMoves || [];
@@ -219,7 +235,15 @@
         }
 
         const sym = { K: '♔', Q: '♕', R: '♖', B: '♗', N: '♘', P: '♙', k: '♚', q: '♛', r: '♜', b: '♝', n: '♞', p: '♟' }[p] || '';
-        html += `<div class="${cls}" data-r="${r}" data-c="${c}" onclick="window.__gvOnlineChessClick(${r},${c})">${p ? `<span class="chess-p ${pc}">${sym}</span>` : ''}</div>`;
+        const canDrag = (p && pc === mine && gameState.turn === mine);
+
+        html += `<div class="${cls}" data-r="${r}" data-c="${c}" 
+            onclick="window.__gvOnlineChessClick(${r},${c})"
+            ondragover="event.preventDefault()"
+            ondrop="window.__gvOnlineChessDrop(event,${r},${c})"
+            ${canDrag ? `draggable="true" ondragstart="window.__gvOnlineChessDragStart(event,${r},${c})"` : ''}>
+            ${p ? `<span class="chess-p ${pc}">${sym}</span>` : ''}
+          </div>`;
       }
     }
     html += '</div>';
@@ -283,6 +307,9 @@
       if (piece && pc === mine) {
         selected = [r, c];
         render();
+        toast(`♟️ Seçildi: ${square(r, c)}. Lütfen hedef kareye tıklayın.`, 'info');
+      } else if (piece) {
+        toast('⚠️ Bu taş size ait değil.', 'warning');
       }
       return;
     }
@@ -296,11 +323,41 @@
     if (piece && pc === mine) {
       selected = [r, c];
       render();
+      toast(`♟️ Seçildi: ${square(r, c)}. Lütfen hedef kareye tıklayın.`, 'info');
       return;
     }
 
     const from = square(selected[0], selected[1]);
     const to = square(r, c);
+    const candidates = (gameState.legalMoves || []).filter(m => m.from === from && m.to === to);
+
+    if (!candidates.length) return toast('⚠️ Bu hamle satranç kurallarına göre geçersiz.', 'warning');
+
+    if (candidates.some(m => m.promotion)) {
+      gameState.promotionPending = { from, to };
+      render();
+      return;
+    }
+
+    send(from, to, null);
+  }
+
+  function dragStart(ev, r, c) {
+    if (!active || !gameState || gameState.status !== 'playing' || pending) return;
+    const mine = colorCode();
+    if (gameState.turn !== mine) return;
+    selected = [r, c];
+    if (ev.dataTransfer) {
+      ev.dataTransfer.setData('text/plain', JSON.stringify({ r, c }));
+    }
+    render();
+  }
+
+  function drop(ev, tr, tc) {
+    ev.preventDefault();
+    if (!selected) return;
+    const from = square(selected[0], selected[1]);
+    const to = square(tr, tc);
     const candidates = (gameState.legalMoves || []).filter(m => m.from === from && m.to === to);
 
     if (!candidates.length) return toast('⚠️ Bu hamle satranç kurallarına göre geçersiz.', 'warning');
@@ -365,6 +422,8 @@
   }
 
   window.__gvOnlineChessClick = click;
+  window.__gvOnlineChessDragStart = dragStart;
+  window.__gvOnlineChessDrop = drop;
   window.__gvOnlineChessPromote = promote;
 
   function boot() {
