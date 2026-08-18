@@ -10,6 +10,21 @@
 
   function gv() { return window.GVGames || null; }
 
+  function isChess() {
+    const s = (typeof st !== 'undefined' ? st : null);
+    let g = s?.curGame || window.__gvCurrentGame || window.currentGame || '';
+    if (g === null || g === undefined || g === 'null' || g === 'undefined') g = '';
+    g = String(g).toLowerCase().trim();
+
+    if (g && g !== 'chess' && g !== 'satranc' && g !== 'satranç') return false;
+    if (g === 'chess' || g === 'satranç' || g === 'satranc') return true;
+
+    const title = (document.getElementById('grTitle')?.textContent || '').toLowerCase();
+    if (/satranç|satranc/i.test(title)) return true;
+
+    return !!window.__gvChessOnlineRequested;
+  }
+
   function ensureSocket(done) {
     if (socket && socket.connected) return done(socket);
     const g = gv();
@@ -38,7 +53,7 @@
   }
 
   function renderRoom(room, sock) {
-    if (!room) return;
+    if (!room || isChess()) return; // DO NOT TOUCH BOARD AREA FOR CHESS!
     const boardArea = document.getElementById('boardArea');
     if (!boardArea) return;
 
@@ -97,6 +112,7 @@
     window.__gvSocket = sock;
 
     sock.on('roomUpdated', room => {
+      if (isChess()) return; // DO NOT TOUCH BOARD AREA FOR CHESS!
       if (!window.__gvActiveRoomId || String(room.id) !== String(window.__gvActiveRoomId)) return;
       window.__gvActiveRoom = room;
       renderRoom(room, sock);
@@ -107,6 +123,7 @@
     });
 
     sock.on('playerLeft', () => {
+      if (isChess()) return;
       if (window.__gvActiveRoom) renderRoom(window.__gvActiveRoom, sock);
     });
   }
@@ -114,7 +131,7 @@
   function patch() {
     window.startRoomWaitingProcess = function (room) {
       if (!room || !room.id) return;
-      if (typeof window.__gvStartRealRoomWaiting === 'function') {
+      if (typeof window.__gvStartRealRoomWaiting === 'function' && isChess()) {
         window.__gvStartRealRoomWaiting(room);
         return;
       }
