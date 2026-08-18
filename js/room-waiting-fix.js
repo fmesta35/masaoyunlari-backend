@@ -162,6 +162,12 @@
     if (!isChess()) return;
     window.__gvChessGameStarted = true;
     window.__gvChessOnlineRequested = true;
+    // chess-online.js index.html içinde statik olarak da yüklüdür; yüklüyse
+    // yeniden enjekte etme, sadece boot etmesi için olayı tetikle.
+    if (window.__gvChessOnlineLoaded) {
+      window.dispatchEvent(new CustomEvent('gv:roomGameStarted', { detail: { roomId } }));
+      return;
+    }
     if (document.querySelector('script[data-gv-chess-online]')) return;
     const s = document.createElement('script');
     s.src = 'js/chess-online.js?v=' + Date.now();
@@ -173,11 +179,15 @@
   function connect() {
     if (!roomId || !isChess()) return;
     if (!window.io) {
-      const s = document.createElement('script');
-      s.src = 'js/socket.io.min.js';
-      s.onload = connect;
-      s.onerror = () => console.error('[RoomFix] Socket.IO yüklenemedi');
-      document.head.appendChild(s);
+      const sources = ['js/socket.io.min.js', 'socket.io.min.js', 'https://cdn.socket.io/4.7.5/socket.io.min.js'];
+      (function tryNext(i) {
+        if (i >= sources.length) return console.error('[RoomFix] Socket.IO yüklenemedi');
+        const s = document.createElement('script');
+        s.src = sources[i];
+        s.onload = connect;
+        s.onerror = () => tryNext(i + 1);
+        document.head.appendChild(s);
+      })(0);
       return;
     }
 
@@ -249,12 +259,26 @@
       }
     } catch (_) {}
     socket = null;
+    room = null;
+    started = false;
+    roomId = null;
     window.__gvRoomSocket = null;
     window.__gvChessSocket = null;
     window.__gvActiveRoom = null;
     window.__gvActiveRoomId = null;
     window.__gvChessGameStarted = false;
+    try { localStorage.removeItem('gv-room-id'); } catch (_) {}
     hide();
+
+    // Online satranç istemcisinin durumunu sıfırla (chess-online.js hook'u)
+    if (typeof window.__gvChessOnlineReset === 'function') {
+      try { window.__gvChessOnlineReset(); } catch (_) {}
+    }
+
+    // Tahta alanını ve oyun sonu overlay'ini temizle
+    const boardArea = document.getElementById('boardArea');
+    if (boardArea) boardArea.innerHTML = '';
+    document.querySelectorAll('.chess-end-overlay, .promo-overlay').forEach(el => el.remove());
 
     // Reset clocks on UI to 10:00
     const t1 = document.getElementById('t1');
@@ -266,8 +290,27 @@
     if (s) {
       s.roomWaitingState = null;
       s.roomWaitingInt = null;
+      s.curRoom = null;
     }
-    if (s && typeof page === 'function') page('lobby');
+
+    goLobby();
+  }
+
+  // Lobiye güvenli dönüş: GV inline script'te "const GV" olarak tanımlı olduğu
+  // için window.GV üzerinde DEĞİL, global sözcüksel kapsamda erişilebilir.
+  // (Eski kod "typeof page === 'function'" kontrolü yapıyordu; page fonksiyonu
+  // IIFE içinde kaldığından bu her zaman false oluyor ve buton çalışmıyordu.)
+  function goLobby() {
+    try {
+      if (typeof GV !== 'undefined' && GV) {
+        if (typeof GV.openLobby === 'function') { GV.openLobby('chess'); return true; }
+        if (typeof GV.page === 'function') { GV.page('games'); return true; }
+      }
+    } catch (_) {}
+    const btn = document.querySelector('.nav-btn[data-p="games"]');
+    if (btn) { btn.click(); return true; }
+    try { window.location.reload(); } catch (_) {}
+    return false;
   }
 
   function startRealRoomWaiting(r) {
