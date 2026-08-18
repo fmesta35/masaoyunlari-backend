@@ -41,6 +41,25 @@ function createRoom(id, gameId, maxPlayers, durationMinutes) {
   return room;
 }
 
+function resetRoomToWaiting(room) {
+  if (!room) return;
+  room.status = 'waiting';
+  room.chess = null;
+  room.result = null;
+  room.lastMove = null;
+  room.turnStartedAt = null;
+  const duration = Math.max(1, Number(room.durationMinutes) || 10);
+  room.whiteTimeMs = duration * 60 * 1000;
+  room.blackTimeMs = duration * 60 * 1000;
+  if (Array.isArray(room.players)) {
+    room.players.forEach((p, idx) => {
+      p.isReady = false;
+      p.color = idx === 0 ? 'white' : 'black';
+      p.seat = idx;
+    });
+  }
+}
+
 function publicRoom(room) {
   return {
     id: room.id,
@@ -154,7 +173,7 @@ function emitGameState(room) {
 }
 
 function startChess(room) {
-  if (room.status === 'playing' || room.status === 'finished') return;
+  if (room.status === 'playing') return;
   if (room.players.length !== 2 || !room.players.every(p => p.isReady)) return;
 
   room.chess = new Chess();
@@ -195,6 +214,11 @@ io.on('connection', socket => {
     let room = rooms.get(roomId);
     if (!room) room = createRoom(roomId, gameId, data.maxPlayers, data.durationMinutes);
 
+    // If room is finished/aborted or empty, reset to fresh waiting state
+    if ((room.status === 'finished' || room.status === 'aborted') && room.players.length < 2) {
+      resetRoomToWaiting(room);
+    }
+
     const userKey = data.userKey ? String(data.userKey) : null;
     const name = String(data.userName || 'Oyuncu').slice(0, 40);
     let player = findExistingPlayer(room, socket, userKey);
@@ -226,7 +250,7 @@ io.on('connection', socket => {
     socket.join(roomId);
     emitRoom(room);
 
-    if (room.status === 'playing' || room.status === 'finished' || room.status === 'aborted') {
+    if (room.status === 'playing') {
       io.to(socket.id).emit('gameStarted', {
         roomId,
         playerColor: player.color,
@@ -319,39 +343,42 @@ io.on('connection', socket => {
     }
   });
 
-  // Legacy non-chess games remain relayed; chess is server-authoritative.
-  socket.on('makeMove', data => {
-    if (!data) return;
-    const room = rooms.get(socket.roomId || String(data.roomId || ''));
-    if (!room || room.gameId === 'chess') return;
-    socket.to(room.id).emit('moveMade', {
-      gameId: data.gameId || room.gameId,
-      moveData: data.moveData !== undefined ? data.moveData : data
-    });
+  socket.on('leaveRoom', () => {
+    const roomId = socket.roomId;
+    if (!roomId) return;
+    const room = rooms.get(roomId);
+    if (!room) return;
+
+    room.players = room.players.filter(p => p.id !== socket.id);
+    socket.leave(roomId);
+    socket.roomId = null;
+
+    if (room.players.length === 0) {
+      rooms.delete(roomId);
+      console.log(`[ODA #${roomId}] boşaldı ve silindi.`);
+    } else {
+      resetRoomToWaiting(room);
+      emitRoom(room);
+    }
   });
 
   socket.on('disconnect', () => {
-    const room = rooms.get(socket.roomId);
+    const roomId = socket.roomId;
+    if (!roomId) return;
+    const room = rooms.get(roomId);
     if (!room) return;
 
     room.players = room.players.filter(p => p.id !== socket.id);
 
     if (room.players.length === 0) {
-      rooms.delete(room.id);
-      console.log(`[ODA #${room.id}] boşaldı.`);
+      rooms.delete(roomId);
+      console.log(`[ODA #${roomId}] boşaldı ve silindi.`);
       return;
     }
 
-    if (room.status === 'waiting') {
-      room.players.forEach(p => { p.isReady = false; });
-      emitRoom(room);
-    } else if (room.status === 'playing') {
-      room.status = 'aborted';
-      room.result = { reason: 'player_left' };
-      const state = buildChessState(room);
-      io.to(room.id).emit('gameEnded', { roomId: room.id, reason: 'player_left', gameState: state });
-      emitRoom(room);
-    }
+    resetRoomToWaiting(room);
+    emitRoom(room);
+    io.to(roomId).emit('playerLeft', { roomId });
 
     console.log(`[AYRILDI] ${socket.id}`);
   });
