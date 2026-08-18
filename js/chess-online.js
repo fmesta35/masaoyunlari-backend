@@ -58,7 +58,7 @@
   }
 
   function userKey() {
-    const s = getState();
+    const s = state();
     const u = s?.user;
     const stable = u && (u.id || u.userId || u.username || u.email);
     if (stable) return 'user:' + String(stable);
@@ -302,7 +302,7 @@
         const canDrag = (p && pc === mine && gameState.turn === mine);
 
         html += `<div class="${cls}" data-r="${r}" data-c="${c}" 
-            onclick="window.__gvOnlineChessClick(${r},${c})"
+            onclick="window.GV._cc(${r},${c})"
             ondragover="event.preventDefault()"
             ondrop="window.__gvOnlineChessDrop(event,${r},${c})"
             ${canDrag ? `draggable="true" ondragstart="window.__gvOnlineChessDragStart(event,${r},${c})"` : ''}>
@@ -485,6 +485,10 @@
     updateClock();
   }
 
+  // OVERRIDE ALL CLICK HANDLERS SO CLICKING A SQUARE ALWAYS EXECUTES ONLINE CHESS CLICK!
+  if (!window.GV) window.GV = {};
+  window.GV._cc = click;
+  window._cc = click;
   window.__gvOnlineChessClick = click;
   window.__gvOnlineChessDragStart = dragStart;
   window.__gvOnlineChessDrop = drop;
