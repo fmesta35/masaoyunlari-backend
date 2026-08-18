@@ -69,6 +69,7 @@ function publicRoom(room) {
     status: room.status,
     players: room.players.map(p => ({
       id: p.id,
+      userKey: p.userKey,
       name: p.name,
       color: p.color,
       seat: p.seat,
@@ -198,8 +199,10 @@ function startChess(room) {
 }
 
 function findExistingPlayer(room, socket, userKey) {
+  if (!room || !Array.isArray(room.players)) return null;
   return room.players.find(p => p.id === socket.id) ||
-    (userKey ? room.players.find(p => p.userKey && p.userKey === userKey) : null);
+    (userKey ? room.players.find(p => p.userKey && p.userKey === userKey) : null) ||
+    (socket.userKey ? room.players.find(p => p.userKey && p.userKey === socket.userKey) : null);
 }
 
 io.on('connection', socket => {
@@ -214,13 +217,17 @@ io.on('connection', socket => {
     let room = rooms.get(roomId);
     if (!room) room = createRoom(roomId, gameId, data.maxPlayers, data.durationMinutes);
 
-    // If room is finished/aborted or empty, reset to fresh waiting state
     if ((room.status === 'finished' || room.status === 'aborted') && room.players.length < 2) {
       resetRoomToWaiting(room);
     }
 
     const userKey = data.userKey ? String(data.userKey) : null;
     const name = String(data.userName || 'Oyuncu').slice(0, 40);
+    
+    socket.userKey = userKey;
+    socket.roomId = roomId;
+    socket.join(roomId);
+
     let player = findExistingPlayer(room, socket, userKey);
 
     if (!player && room.players.length >= room.maxPlayers) {
@@ -245,9 +252,6 @@ io.on('connection', socket => {
       room.players.push(player);
     }
 
-    socket.roomId = roomId;
-    socket.userKey = userKey;
-    socket.join(roomId);
     emitRoom(room);
 
     if (room.status === 'playing') {
@@ -264,8 +268,9 @@ io.on('connection', socket => {
   socket.on('setReady', ({ ready } = {}) => {
     const room = rooms.get(socket.roomId);
     if (!room || room.status !== 'waiting') return;
-    const player = room.players.find(p => p.id === socket.id);
+    const player = findExistingPlayer(room, socket, socket.userKey);
     if (!player) return;
+    player.id = socket.id;
     player.isReady = !!ready;
     emitRoom(room);
     startChess(room);
@@ -274,8 +279,9 @@ io.on('connection', socket => {
   socket.on('toggleReady', () => {
     const room = rooms.get(socket.roomId);
     if (!room || room.status !== 'waiting') return;
-    const player = room.players.find(p => p.id === socket.id);
+    const player = findExistingPlayer(room, socket, socket.userKey);
     if (!player) return;
+    player.id = socket.id;
     player.isReady = !player.isReady;
     emitRoom(room);
     startChess(room);
@@ -286,8 +292,10 @@ io.on('connection', socket => {
     const room = rooms.get(roomId);
     if (!room || room.gameId !== 'chess' || room.status !== 'playing' || !room.chess) return;
 
-    const player = room.players.find(p => p.id === socket.id);
+    const player = findExistingPlayer(room, socket, socket.userKey || (data && data.userKey));
     if (!player) return socket.emit('chessMoveRejected', { roomId, reason: 'not_in_room' });
+
+    player.id = socket.id;
 
     updateClock(room);
     if (room.status !== 'playing') {
@@ -349,7 +357,7 @@ io.on('connection', socket => {
     const room = rooms.get(roomId);
     if (!room) return;
 
-    room.players = room.players.filter(p => p.id !== socket.id);
+    room.players = room.players.filter(p => p.id !== socket.id && p.userKey !== socket.userKey);
     socket.leave(roomId);
     socket.roomId = null;
 
@@ -359,6 +367,7 @@ io.on('connection', socket => {
     } else {
       resetRoomToWaiting(room);
       emitRoom(room);
+      io.to(roomId).emit('playerLeft', { roomId, message: 'Rakip oyundan ayrıldı.' });
     }
   });
 
@@ -368,7 +377,7 @@ io.on('connection', socket => {
     const room = rooms.get(roomId);
     if (!room) return;
 
-    room.players = room.players.filter(p => p.id !== socket.id);
+    room.players = room.players.filter(p => p.id !== socket.id && p.userKey !== socket.userKey);
 
     if (room.players.length === 0) {
       rooms.delete(roomId);
@@ -378,7 +387,7 @@ io.on('connection', socket => {
 
     resetRoomToWaiting(room);
     emitRoom(room);
-    io.to(roomId).emit('playerLeft', { roomId });
+    io.to(roomId).emit('playerLeft', { roomId, message: 'Rakip oyundan ayrıldı.' });
 
     console.log(`[AYRILDI] ${socket.id}`);
   });
