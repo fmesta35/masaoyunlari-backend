@@ -3,11 +3,6 @@
  */
 (function () {
   'use strict';
-  // Bu dosya hem index.html'den statik olarak hem de room-waiting-fix.js
-  // tarafından dinamik olarak yüklenebilir; iki kez çalışmasını engelle.
-  if (window.__gvChessOnlineLoaded) return;
-  window.__gvChessOnlineLoaded = true;
-
   const BACKEND = window.GV_BACKEND_URL || 'https://masaoyunlari-backend.onrender.com';
   let socket = null;
   let roomId = null;
@@ -17,9 +12,6 @@
   let pending = false;
   let active = false;
   let clockInt = null;
-
-  // Global click lock to prevent duplicate execution within 200ms
-  let lastExecTime = 0;
 
   // Score tracking per session (Starts 0 - 0)
   let myMatchScore = 0;
@@ -76,27 +68,21 @@
     const u = s?.user;
     const stable = u && (u.id || u.userId || u.username || u.email);
     if (stable) return 'user:' + String(stable);
-    // room-waiting-fix.js ile AYNI anahtar kullanılmalı; aksi halde sunucu
-    // yeniden bağlanan oyuncuyu koltuğuyla eşleştiremez.
-    let id = localStorage.getItem('gv-chess-guest-id') || localStorage.getItem('gv-room-guest-key');
+    let id = localStorage.getItem('gv-room-guest-key');
     if (!id) {
       id = (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : 'guest-' + Date.now() + '-' + Math.random().toString(36).slice(2);
+      localStorage.setItem('gv-room-guest-key', id);
     }
-    localStorage.setItem('gv-chess-guest-id', id);
     return 'guest:' + id;
   }
 
   function loadSocketClient(done) {
     if (window.io) return done();
-    const sources = ['js/socket.io.min.js', 'socket.io.min.js', 'https://cdn.socket.io/4.7.5/socket.io.min.js'];
-    (function tryNext(i) {
-      if (i >= sources.length) return toast('🔌 Socket.IO istemcisi yüklenemedi.', 'error');
-      const s = document.createElement('script');
-      s.src = sources[i];
-      s.onload = done;
-      s.onerror = () => tryNext(i + 1);
-      document.head.appendChild(s);
-    })(0);
+    const s = document.createElement('script');
+    s.src = 'js/socket.io.min.js';
+    s.onload = done;
+    s.onerror = () => toast('🔌 Socket.IO istemcisi yüklenemedi.', 'error');
+    document.head.appendChild(s);
   }
 
   function join() {
@@ -124,7 +110,7 @@
   function handlePlayerLeft() {
     active = false;
     pending = false;
-    toast('🚪 Rakip oyundan ayrıldı. Lobiye yönlendiriliyorsunuz...', 'warning');
+    toast('🚪 Rakip oyundan ayrıldı. 2 saniye içinde lobiye yönlendiriliyorsunuz...', 'warning');
     setTimeout(() => {
       if (typeof window.__gvRealChessLeave === 'function') {
         window.__gvRealChessLeave();
@@ -138,12 +124,6 @@
     roomId = getRoomId();
     if (!roomId || !isChessRoom()) return;
     loadSocketClient(() => {
-      // Bekleme odası (room-waiting-fix) yeni bir soket oluşturduysa eski
-      // soketi bırak ve güncel olanı devral.
-      if (socket && window.__gvRoomSocket && socket !== window.__gvRoomSocket) {
-        try { socket.off && socket.off(); } catch (_) {}
-        socket = null;
-      }
       if (socket) {
         if (socket.connected) join();
         return;
@@ -220,13 +200,6 @@
       socket.on('playerLeft', () => {
         handlePlayerLeft();
       });
-
-      // KRİTİK: Bu script çoğu zaman oyun başladıktan SONRA, bekleme odasının
-      // zaten bağlanmış olan soketini devralarak çalışır. Soket bağlı olduğu
-      // için 'connect' olayı bir daha tetiklenmez ve 'gameStarted' çoktan
-      // kaçırılmıştır. Hemen joinRoom göndererek sunucudan güncel oyun
-      // durumunu (gameStarted + gameState) yeniden isteriz.
-      if (socket.connected) join();
     });
   }
 
@@ -287,19 +260,10 @@
     style.id = 'gv-chess-piece-style';
     style.textContent = `
       .chess-p { pointer-events: none !important; user-select: none !important; -webkit-user-select: none !important; }
-      .chess-c { cursor: pointer !important; touch-action: manipulation; transition: all 0.15s ease; position: relative; }
-      .chess-c.sel { outline: 4px solid #f1c40f !important; outline-offset: -4px; background: rgba(241, 196, 15, 0.45) !important; box-shadow: inset 0 0 15px rgba(241, 196, 15, 0.7) !important; z-index: 5 !important; }
-      /* Oynanabilir TÜM hamleler sarı işaretle gösterilir:
-         boş kare -> dolu sarı nokta, rakip taşı -> sarı halka */
-      .chess-c.valid-move::after { content: ''; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 30%; height: 30%; background: #f1c40f !important; box-shadow: 0 0 10px rgba(241, 196, 15, 0.9); border-radius: 50%; pointer-events: none; z-index: 6; animation: gvDotPulse 1.2s ease-in-out infinite; }
-      .chess-c.valid-capture { outline: none !important; }
-      .chess-c.valid-capture::after { content: ''; position: absolute; inset: 5%; border: 4px solid #f1c40f; border-radius: 50%; box-shadow: 0 0 10px rgba(241, 196, 15, 0.8), inset 0 0 8px rgba(241, 196, 15, 0.5); background: rgba(241, 196, 15, 0.12); pointer-events: none; z-index: 6; }
-      @keyframes gvDotPulse { 0%, 100% { opacity: .85; } 50% { opacity: .5; } }
-      .chess-end-overlay { position: fixed; inset: 0; z-index: 2147483000; display: flex; align-items: center; justify-content: center; background: rgba(6,7,20,0.88); backdrop-filter: blur(12px); }
-      .chess-end-modal { background: #111128; border: 1px solid rgba(255,255,255,0.15); padding: 28px; border-radius: 18px; text-align: center; color: #fff; box-shadow: 0 20px 60px rgba(0,0,0,0.7); max-width: 420px; width: 90%; }
-      .chess-end-modal h2 { margin: 12px 0 8px; font-size: 1.5rem; color: #6c5ce7; }
-      .chess-end-modal p { color: #aaa; margin-bottom: 20px; font-size: 1rem; }
-      .end-icon { font-size: 3rem; }
+      .chess-c { cursor: pointer !important; touch-action: manipulation; transition: all 0.15s ease; }
+      .chess-c.sel { outline: 4px solid #f59e0b !important; outline-offset: -4px; background: rgba(245, 158, 11, 0.45) !important; box-shadow: inset 0 0 15px rgba(245, 158, 11, 0.8) !important; z-index: 5 !important; }
+      .chess-c.valid-move::after { content: ''; position: absolute; width: 28%; height: 28%; background: rgba(0, 184, 148, 0.85); border-radius: 50%; pointer-events: none; }
+      .chess-c.valid-capture { outline: 3px solid #ff7675 inset !important; }
     `;
     document.head.appendChild(style);
   }
@@ -344,6 +308,7 @@
         const canDrag = (p && pc === mine && gameState.turn === mine);
 
         html += `<div class="${cls}" data-r="${r}" data-c="${c}" 
+            onclick="window.GV._cc(${r},${c})"
             ondragover="event.preventDefault()"
             ondrop="window.__gvOnlineChessDrop(event,${r},${c})"
             ${canDrag ? `draggable="true" ondragstart="window.__gvOnlineChessDragStart(event,${r},${c})"` : ''}>
@@ -397,36 +362,29 @@
 
     html += '</div>';
     area.innerHTML = html;
+
     attachBoardDelegation(area);
   }
 
-  // Tıklamalar tek bir delege dinleyiciyle yakalanır (inline onclick yok);
-  // böylece her tıklama yalnızca BİR kez işlenir ve window.GV._cc başka bir
-  // script tarafından ezilse bile tahta çalışmaya devam eder.
   let delegationAttached = false;
   function attachBoardDelegation(area) {
     if (delegationAttached || !area) return;
     delegationAttached = true;
+
     area.addEventListener('click', function (ev) {
-      if (!active || !gameState) return; // sadece online satranç aktifken
       const cell = ev.target.closest('.chess-c');
-      if (!cell || !area.contains(cell) || cell.dataset.r === undefined) return;
-      const r = parseInt(cell.dataset.r, 10);
-      const c = parseInt(cell.dataset.c, 10);
-      if (!isNaN(r) && !isNaN(c)) click(r, c);
+      if (cell && cell.dataset) {
+        const r = parseInt(cell.dataset.r, 10);
+        const c = parseInt(cell.dataset.c, 10);
+        if (!isNaN(r) && !isNaN(c)) {
+          click(r, c);
+        }
+      }
     });
   }
 
   function click(r, c) {
     if (!active || !gameState || gameState.status !== 'playing' || pending) return;
-
-    // Çift tetiklenmeye karşı kilit (aynı tıklamanın mükerrer işlenmesini önler)
-    const now = Date.now();
-    if (now - lastExecTime < 100) {
-      return;
-    }
-    lastExecTime = now;
-
     const mine = colorCode();
     if (!mine) return toast('⏳ Oyuncu rengi bekleniyor.', 'info');
     if (gameState.turn !== mine) return toast('⏳ Sıra sizde değil! Rakibin hamlesi bekleniyor.', 'warning');
@@ -439,7 +397,7 @@
       if (piece && pc === mine) {
         selected = [r, c];
         render();
-        toast(`♟️ Seçildi: ${square(r, c)}. Lütfen hedef kareye tıklayın.`, 'info');
+        toast(`♟️ Seçildi: ${square(r, c)}. Hedef kareye tıklayın.`, 'info');
       } else if (piece) {
         toast('⚠️ Bu taş size ait değil.', 'warning');
       }
@@ -458,7 +416,7 @@
     if (piece && pc === mine) {
       selected = [r, c];
       render();
-      toast(`♟️ Seçildi: ${square(r, c)}. Lütfen hedef kareye tıklayın.`, 'info');
+      toast(`♟️ Seçildi: ${square(r, c)}. Hedef kareye tıklayın.`, 'info');
       return;
     }
 
