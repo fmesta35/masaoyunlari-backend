@@ -407,17 +407,35 @@
   // Tıklamalar tek bir delege dinleyiciyle yakalanır (inline onclick yok);
   // böylece her tıklama yalnızca BİR kez işlenir ve window.GV._cc başka bir
   // script tarafından ezilse bile tahta çalışmaya devam eder.
+   // Farede 'pointerdown' (basıldığı an) kullanılır: draggable kareler ufak fare
+  // kaymasında click olayını yutabildiği için "birkaç kez tıklayınca çalışıyor"
+  // hissi oluşuyordu. pointerdown İLK dokunuşta anında tepki verir.
   let delegationAttached = false;
+  let suppressClickUntil = 0;
   function attachBoardDelegation(area) {
     if (delegationAttached || !area) return;
     delegationAttached = true;
-    area.addEventListener('click', function (ev) {
+
+    const handleBoardEvent = function (ev) {
       if (!active || !gameState) return; // sadece online satranç aktifken
       const cell = ev.target.closest('.chess-c');
       if (!cell || !area.contains(cell) || cell.dataset.r === undefined) return;
       const r = parseInt(cell.dataset.r, 10);
       const c = parseInt(cell.dataset.c, 10);
       if (!isNaN(r) && !isNaN(c)) click(r, c);
+    };
+
+    if (window.PointerEvent) {
+      area.addEventListener('pointerdown', function (ev) {
+        if (ev.pointerType !== 'mouse' || ev.button !== 0) return;
+        suppressClickUntil = Date.now() + 500; // ardından gelen click'i yut
+        handleBoardEvent(ev);
+      });
+    }
+    // Dokunmatik ekran / kalem / eski tarayıcılar için click yedeği
+    area.addEventListener('click', function (ev) {
+      if (Date.now() < suppressClickUntil) return; // fare: pointerdown'da işlendi
+      handleBoardEvent(ev);
     });
   }
 
