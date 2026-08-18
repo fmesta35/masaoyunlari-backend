@@ -12,15 +12,21 @@
 
   function isChess() {
     const s = state();
-    const g = String(s?.curGame || window.__gvCurrentGame || window.currentGame || '').toLowerCase().trim();
-    if (g === 'chess' || g === 'satranç' || g === 'satranc') return true;
-    
+    let g = s?.curGame || window.__gvCurrentGame || window.currentGame || '';
+    if (g === null || g === undefined || g === 'null' || g === 'undefined') g = '';
+    g = String(g).toLowerCase().trim();
+
     // If curGame is explicitly another game (Pişti, Tavla, Okey etc.), it is NOT chess!
-    if (g && g !== 'chess' && g !== 'satranc' && g !== 'satranç') return false;
+    if (g && g !== 'chess' && g !== 'satranc' && g !== 'satranç') {
+      return false;
+    }
+
+    if (g === 'chess' || g === 'satranç' || g === 'satranc') return true;
 
     const title = (document.getElementById('grTitle')?.textContent || '').toLowerCase();
     if (/satranç|satranc/i.test(title)) return true;
-    return false;
+
+    return !!window.__gvChessOnlineRequested;
   }
 
   function isRoomPage() {
