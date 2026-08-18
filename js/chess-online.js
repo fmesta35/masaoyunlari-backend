@@ -13,6 +13,10 @@
   let active = false;
   let clockInt = null;
 
+  // Debounce duplicate click events
+  let lastClickTime = 0;
+  let lastClickSquare = null;
+
   // Score tracking per session (Starts 0 - 0)
   let myMatchScore = 0;
   let oppMatchScore = 0;
@@ -110,7 +114,7 @@
   function handlePlayerLeft() {
     active = false;
     pending = false;
-    toast('🚪 Rakip oyundan ayrıldı. 2 saniye içinde lobiye yönlendiriliyorsunuz...', 'warning');
+    toast('🚪 Rakip oyundan ayrıldı. Lobiye yönlendiriliyorsunuz...', 'warning');
     setTimeout(() => {
       if (typeof window.__gvRealChessLeave === 'function') {
         window.__gvRealChessLeave();
@@ -260,9 +264,9 @@
     style.id = 'gv-chess-piece-style';
     style.textContent = `
       .chess-p { pointer-events: none !important; user-select: none !important; -webkit-user-select: none !important; }
-      .chess-c { cursor: pointer !important; touch-action: manipulation; transition: all 0.15s ease; }
-      .chess-c.sel { outline: 4px solid #f59e0b !important; outline-offset: -4px; background: rgba(245, 158, 11, 0.45) !important; box-shadow: inset 0 0 15px rgba(245, 158, 11, 0.8) !important; z-index: 5 !important; }
-      .chess-c.valid-move::after { content: ''; position: absolute; width: 28%; height: 28%; background: rgba(0, 184, 148, 0.85); border-radius: 50%; pointer-events: none; }
+      .chess-c { cursor: pointer !important; touch-action: manipulation; transition: all 0.15s ease; position: relative; }
+      .chess-c.sel { outline: 4px solid #f1c40f !important; outline-offset: -4px; background: rgba(241, 196, 15, 0.45) !important; box-shadow: inset 0 0 15px rgba(241, 196, 15, 0.7) !important; z-index: 5 !important; }
+      .chess-c.valid-move::after { content: ''; position: absolute; width: 28%; height: 28%; background: #f1c40f !important; box-shadow: 0 0 8px #f1c40f; border-radius: 50%; pointer-events: none; z-index: 6; }
       .chess-c.valid-capture { outline: 3px solid #ff7675 inset !important; }
     `;
     document.head.appendChild(style);
@@ -362,29 +366,19 @@
 
     html += '</div>';
     area.innerHTML = html;
-
-    attachBoardDelegation(area);
-  }
-
-  let delegationAttached = false;
-  function attachBoardDelegation(area) {
-    if (delegationAttached || !area) return;
-    delegationAttached = true;
-
-    area.addEventListener('click', function (ev) {
-      const cell = ev.target.closest('.chess-c');
-      if (cell && cell.dataset) {
-        const r = parseInt(cell.dataset.r, 10);
-        const c = parseInt(cell.dataset.c, 10);
-        if (!isNaN(r) && !isNaN(c)) {
-          click(r, c);
-        }
-      }
-    });
   }
 
   function click(r, c) {
     if (!active || !gameState || gameState.status !== 'playing' || pending) return;
+
+    // Debounce duplicate click calls within 150ms on same cell
+    const now = Date.now();
+    if (now - lastClickTime < 150 && lastClickSquare === `${r},${c}`) {
+      return;
+    }
+    lastClickTime = now;
+    lastClickSquare = `${r},${c}`;
+
     const mine = colorCode();
     if (!mine) return toast('⏳ Oyuncu rengi bekleniyor.', 'info');
     if (gameState.turn !== mine) return toast('⏳ Sıra sizde değil! Rakibin hamlesi bekleniyor.', 'warning');
