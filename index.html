@@ -702,9 +702,9 @@ button,input,select{font-family:var(--font)}
         <div class="game-board-area" id="boardArea"></div>
         <div class="game-side">
           <div class="score-panel">
-            <div><div class="sc-val" style="color:var(--accent)">3</div><div class="sc-name">Sen</div></div>
-            <div style="color:var(--text3)">vs</div>
-            <div><div class="sc-val" style="color:var(--danger)">2</div><div class="sc-name">Rakip</div></div>
+            <div><div class="sc-val" id="myScoreVal" style="color:var(--accent)">0</div><div class="sc-name">Sen</div></div>
+            <div style="color:var(--text3); font-weight:bold; align-self:center;">VS</div>
+            <div><div class="sc-val" id="oppScoreVal" style="color:var(--danger)">0</div><div class="sc-name">Rakip</div></div>
           </div>
           <div class="card" style="padding:10px"><h4 style="margin-bottom:6px;font-size:.88em">📝 Hamleler</h4><div class="moves" id="moveHist"></div></div>
           <div class="chat" style="height:280px">
@@ -1943,7 +1943,7 @@ function dChess(el) {
       scPanel.style.border = 'none';
       scPanel.style.background = 'transparent';
     } else {
-      scPanel.innerHTML = `<div><div class="sc-val" style="color:var(--accent)">3</div><div class="sc-name">Sen</div></div><div style="color:var(--text3)">vs</div><div><div class="sc-val" style="color:var(--danger)">2</div><div class="sc-name">Rakip</div></div>`;
+      if(scPanel) scPanel.innerHTML = `<div><div class="sc-val" id="myScoreVal" style="color:var(--accent)">0</div><div class="sc-name">Sen</div></div><div style="color:var(--text3)">vs</div><div><div class="sc-val" id="oppScoreVal" style="color:var(--danger)">0</div><div class="sc-name">Rakip</div></div>`;
       scPanel.style.padding = '12px';
       scPanel.style.border = '1px solid var(--border)';
       scPanel.style.background = 'var(--card)';
