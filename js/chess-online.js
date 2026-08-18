@@ -58,7 +58,7 @@
   }
 
   function userKey() {
-    const s = state();
+    const s = getState();
     const u = s?.user;
     const stable = u && (u.id || u.userId || u.username || u.email);
     if (stable) return 'user:' + String(stable);
@@ -135,10 +135,9 @@
       socket.on('disconnect', () => { pending = false; });
       socket.on('roomUpdated', room => {
         if (!room || String(room.id) !== String(roomId) || !isChessRoom()) return;
-        const me = (room.players || []).find(p => p.id === socket.id);
+        const me = (room.players || []).find(p => p.id === socket.id || (p.userKey && p.userKey === userKey()));
         if (me) playerColor = me.color;
         
-        // If room was playing but player left
         if (active && room.players.length < 2) {
           handlePlayerLeft();
         }
@@ -199,7 +198,7 @@
   }
 
   function findMyColor(players) {
-    return (players || []).find(p => p.id === socket?.id)?.color || null;
+    return (players || []).find(p => p.id === socket?.id || (p.userKey && p.userKey === userKey()))?.color || null;
   }
 
   function colorCode() {
@@ -221,7 +220,6 @@
     selected = null;
     pending = false;
     
-    // Handle Game Winner score updates
     if (gameState.status === 'finished' && gameState.result) {
       if (gameState.result.winner === playerColor && !gameState._scoreCounted) {
         gameState._scoreCounted = true;
@@ -247,7 +245,7 @@
   }
 
   function escapeHtml(value) {
-    return String(value).replace(/[&<>'"]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[c]));
+    return String(value).replace(/[&<>'"]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[ch]));
   }
 
   function injectPieceStyle() {
@@ -448,7 +446,7 @@
   function send(from, to, promotion) {
     if (!socket?.connected) return toast('🔌 Sunucu bağlantısı yok.', 'error');
     pending = true;
-    socket.emit('chessMove', { roomId, from, to, promotion });
+    socket.emit('chessMove', { roomId, from, to, promotion, userKey: userKey() });
   }
 
   function updateClock() {
