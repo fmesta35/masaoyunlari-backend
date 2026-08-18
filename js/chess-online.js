@@ -267,6 +267,11 @@
       .chess-c.sel { outline: 4px solid #f1c40f !important; outline-offset: -4px; background: rgba(241, 196, 15, 0.45) !important; box-shadow: inset 0 0 15px rgba(241, 196, 15, 0.7) !important; z-index: 5 !important; }
       .chess-c.valid-move::after { content: ''; position: absolute; width: 28%; height: 28%; background: #f1c40f !important; box-shadow: 0 0 8px #f1c40f; border-radius: 50%; pointer-events: none; z-index: 6; }
       .chess-c.valid-capture { outline: 3px solid #ff7675 inset !important; }
+      .chess-end-overlay { position: fixed; inset: 0; z-index: 2147483000; display: flex; align-items: center; justify-content: center; background: rgba(6,7,20,0.88); backdrop-filter: blur(12px); }
+      .chess-end-modal { background: #111128; border: 1px solid rgba(255,255,255,0.15); padding: 28px; border-radius: 18px; text-align: center; color: #fff; box-shadow: 0 20px 60px rgba(0,0,0,0.7); max-width: 420px; width: 90%; }
+      .chess-end-modal h2 { margin: 12px 0 8px; font-size: 1.5rem; color: #6c5ce7; }
+      .chess-end-modal p { color: #aaa; margin-bottom: 20px; font-size: 1rem; }
+      .end-icon { font-size: 3rem; }
     `;
     document.head.appendChild(style);
   }
