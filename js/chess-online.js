@@ -13,9 +13,6 @@
   let active = false;
   let clockInt = null;
 
-  // Global click lock to prevent duplicate execution within 200ms
-  let lastExecTime = 0;
-
   // Score tracking per session (Starts 0 - 0)
   let myMatchScore = 0;
   let oppMatchScore = 0;
@@ -113,7 +110,7 @@
   function handlePlayerLeft() {
     active = false;
     pending = false;
-    toast('🚪 Rakip oyundan ayrıldı. Lobiye yönlendiriliyorsunuz...', 'warning');
+    toast('🚪 Rakip oyundan ayrıldı. 2 saniye içinde lobiye yönlendiriliyorsunuz...', 'warning');
     setTimeout(() => {
       if (typeof window.__gvRealChessLeave === 'function') {
         window.__gvRealChessLeave();
@@ -263,15 +260,10 @@
     style.id = 'gv-chess-piece-style';
     style.textContent = `
       .chess-p { pointer-events: none !important; user-select: none !important; -webkit-user-select: none !important; }
-      .chess-c { cursor: pointer !important; touch-action: manipulation; transition: all 0.15s ease; position: relative; }
-      .chess-c.sel { outline: 4px solid #f1c40f !important; outline-offset: -4px; background: rgba(241, 196, 15, 0.45) !important; box-shadow: inset 0 0 15px rgba(241, 196, 15, 0.7) !important; z-index: 5 !important; }
-      .chess-c.valid-move::after { content: ''; position: absolute; width: 28%; height: 28%; background: #f1c40f !important; box-shadow: 0 0 8px #f1c40f; border-radius: 50%; pointer-events: none; z-index: 6; }
+      .chess-c { cursor: pointer !important; touch-action: manipulation; transition: all 0.15s ease; }
+      .chess-c.sel { outline: 4px solid #f59e0b !important; outline-offset: -4px; background: rgba(245, 158, 11, 0.45) !important; box-shadow: inset 0 0 15px rgba(245, 158, 11, 0.8) !important; z-index: 5 !important; }
+      .chess-c.valid-move::after { content: ''; position: absolute; width: 28%; height: 28%; background: rgba(0, 184, 148, 0.85); border-radius: 50%; pointer-events: none; }
       .chess-c.valid-capture { outline: 3px solid #ff7675 inset !important; }
-      .chess-end-overlay { position: fixed; inset: 0; z-index: 2147483000; display: flex; align-items: center; justify-content: center; background: rgba(6,7,20,0.88); backdrop-filter: blur(12px); }
-      .chess-end-modal { background: #111128; border: 1px solid rgba(255,255,255,0.15); padding: 28px; border-radius: 18px; text-align: center; color: #fff; box-shadow: 0 20px 60px rgba(0,0,0,0.7); max-width: 420px; width: 90%; }
-      .chess-end-modal h2 { margin: 12px 0 8px; font-size: 1.5rem; color: #6c5ce7; }
-      .chess-end-modal p { color: #aaa; margin-bottom: 20px; font-size: 1rem; }
-      .end-icon { font-size: 3rem; }
     `;
     document.head.appendChild(style);
   }
@@ -370,18 +362,29 @@
 
     html += '</div>';
     area.innerHTML = html;
+
+    attachBoardDelegation(area);
+  }
+
+  let delegationAttached = false;
+  function attachBoardDelegation(area) {
+    if (delegationAttached || !area) return;
+    delegationAttached = true;
+
+    area.addEventListener('click', function (ev) {
+      const cell = ev.target.closest('.chess-c');
+      if (cell && cell.dataset) {
+        const r = parseInt(cell.dataset.r, 10);
+        const c = parseInt(cell.dataset.c, 10);
+        if (!isNaN(r) && !isNaN(c)) {
+          click(r, c);
+        }
+      }
+    });
   }
 
   function click(r, c) {
     if (!active || !gameState || gameState.status !== 'playing' || pending) return;
-
-    // Global click lock to prevent duplicate execution within 200ms
-    const now = Date.now();
-    if (now - lastExecTime < 200) {
-      return;
-    }
-    lastExecTime = now;
-
     const mine = colorCode();
     if (!mine) return toast('⏳ Oyuncu rengi bekleniyor.', 'info');
     if (gameState.turn !== mine) return toast('⏳ Sıra sizde değil! Rakibin hamlesi bekleniyor.', 'warning');
@@ -394,7 +397,7 @@
       if (piece && pc === mine) {
         selected = [r, c];
         render();
-        toast(`♟️ Seçildi: ${square(r, c)}. Lütfen hedef kareye tıklayın.`, 'info');
+        toast(`♟️ Seçildi: ${square(r, c)}. Hedef kareye tıklayın.`, 'info');
       } else if (piece) {
         toast('⚠️ Bu taş size ait değil.', 'warning');
       }
@@ -413,7 +416,7 @@
     if (piece && pc === mine) {
       selected = [r, c];
       render();
-      toast(`♟️ Seçildi: ${square(r, c)}. Lütfen hedef kareye tıklayın.`, 'info');
+      toast(`♟️ Seçildi: ${square(r, c)}. Hedef kareye tıklayın.`, 'info');
       return;
     }
 
