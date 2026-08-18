@@ -1,193 +1,307 @@
-/* GameVerse - standalone authoritative online chess client */
+/* GameVerse - sunucu otoriteli çevrim içi satranç istemcisi */
 (function () {
   'use strict';
-  const BACKEND = 'https://masaoyunlari-backend.onrender.com';
-  let socket = null, roomId = null, playerColor = null, gameState = null;
-  let selected = null, pending = false, active = false, internalRender = false;
-  let clockInt = null, rejoinInt = null;
+  const BACKEND = window.GV_BACKEND_URL || 'https://masaoyunlari-backend.onrender.com';
+  let socket = null;
+  let roomId = null;
+  let playerColor = null;
+  let gameState = null;
+  let selected = null;
+  let pending = false;
+  let active = false;
+  let clockInt = null;
 
   function toast(message, type) {
     if (window.GV && typeof window.GV.toast === 'function') {
-      try { window.GV.toast(message, type || 'info'); } catch (_) {}
+      try { window.GV.toast(message, type || 'info'); return; } catch (_) {}
+    }
+    if (window.GVApp && typeof window.GVApp.showToast === 'function') {
+      try { window.GVApp.showToast(message, type || 'info'); } catch (_) {}
     }
   }
+
+  function getState() {
+    try { return typeof st !== 'undefined' ? st : null; } catch (_) { return null; }
+  }
+
   function isChessRoom() {
-    const title = document.getElementById('grTitle');
-    return /satranç|chess/i.test(title ? title.textContent : '') || !!window.__gvChessOnlineRequested;
+    const s = getState();
+    const title = document.getElementById('grTitle')?.textContent || '';
+    return !!window.__gvChessOnlineRequested || /chess|satranç|satranc/i.test(String(s?.curGame || '')) || /chess|satranç|satranc/i.test(title);
   }
+
   function getRoomId() {
-    try {
-      const state = (typeof st !== 'undefined') ? st : null;
-      return window.currentRoomId || window.roomId || state?.roomWaitingState?.room?.id ||
-        localStorage.getItem('gv-room-id') || new URLSearchParams(location.search).get('roomId') ||
-        new URLSearchParams(location.search).get('room');
-    } catch (_) { return localStorage.getItem('gv-room-id'); }
+    const s = getState();
+    const values = [roomId, window.__gvActiveRoomId, window.__gvActiveRoom?.id, window.currentRoomId, window.roomId, s?.roomWaitingState?.room?.id, localStorage.getItem('gv-room-id'), new URLSearchParams(location.search).get('roomId'), new URLSearchParams(location.search).get('room')];
+    return values.find(v => v !== undefined && v !== null && String(v) !== '')?.toString() || null;
   }
-  function getUser() {
-    try {
-      const raw = localStorage.getItem('gv-user') || localStorage.getItem('user');
-      return raw ? JSON.parse(raw) : null;
-    } catch (_) { return null; }
+
+  function getUserName() {
+    const s = getState();
+    return s?.user?.name || s?.user?.username || localStorage.getItem('gv-user-name') || 'Oyuncu';
   }
-  function userName() {
-    const u = getUser();
-    return (u && (u.name || u.username)) || localStorage.getItem('gv-user-name') || 'Oyuncu';
-  }
-  function guestId() {
-    let id = localStorage.getItem('gv-chess-guest-id');
-    if (!id) {
-      id = window.crypto && typeof window.crypto.randomUUID === 'function'
-        ? window.crypto.randomUUID() : 'guest-' + Date.now() + '-' + Math.random().toString(36).slice(2);
-      localStorage.setItem('gv-chess-guest-id', id);
-    }
-    return id;
-  }
+
   function userKey() {
-    const u = getUser(), stable = u && (u.id || u.userId || u.username || u.email);
-    return stable ? 'user:' + String(stable) : 'guest:' + guestId();
+    const s = getState();
+    const u = s?.user;
+    const stable = u && (u.id || u.userId || u.username || u.email);
+    if (stable) return 'user:' + String(stable);
+    let id = localStorage.getItem('gv-room-guest-key');
+    if (!id) { id = (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : 'guest-' + Date.now() + '-' + Math.random().toString(36).slice(2); localStorage.setItem('gv-room-guest-key', id); }
+    return 'guest:' + id;
   }
-  function colorCode() { return playerColor === 'white' ? 'w' : playerColor === 'black' ? 'b' : null; }
-  function square(r, c) { return 'abcdefgh'[c] + String(8 - r); }
-  function format(ms) {
-    const sec = Math.ceil(Math.max(0, Number(ms) || 0) / 1000);
-    return String(Math.floor(sec / 60)).padStart(2, '0') + ':' + String(sec % 60).padStart(2, '0');
-  }
-  function ensureSocketClient(done) {
+
+  function loadSocketClient(done) {
     if (window.io) return done();
     const s = document.createElement('script');
-    s.src = BACKEND + '/socket.io/socket.io.js'; s.onload = done;
+    s.src = BACKEND + '/socket.io/socket.io.js';
+    s.onload = done;
     s.onerror = () => toast('🔌 Socket.IO istemcisi yüklenemedi.', 'error');
     document.head.appendChild(s);
   }
+
+  function join() {
+    if (!socket?.connected) return;
+    roomId = getRoomId();
+    if (!roomId) return;
+    localStorage.setItem('gv-room-id', roomId);
+    socket.emit('joinRoom', { roomId, userName: getUserName(), userKey: userKey(), maxPlayers: 2, durationMinutes: 10, gameId: 'chess' });
+  }
+
   function connect() {
-    if (socket || !roomId || !isChessRoom()) return;
-    ensureSocketClient(() => {
-      if (socket) return;
-      socket = window.io(BACKEND, { transports: ['websocket', 'polling'], reconnection: true, reconnectionAttempts: Infinity, reconnectionDelay: 1000 });
+    roomId = getRoomId();
+    if (!roomId || !isChessRoom()) return;
+    loadSocketClient(() => {
+      if (socket) { if (socket.connected) join(); return; }
+      socket = window.__gvRoomSocket || window.__gvChessSocket || window.io(BACKEND, {
+        transports: ['websocket', 'polling'],
+        reconnection: true,
+        reconnectionAttempts: Infinity,
+        reconnectionDelay: 800
+      });
+      window.__gvRoomSocket = socket;
       window.__gvChessSocket = socket;
+
       socket.on('connect', join);
       socket.on('disconnect', () => { pending = false; });
       socket.on('roomUpdated', room => {
-        if (String(room.id) !== String(roomId)) return;
+        if (!room || String(room.id) !== String(roomId)) return;
         const me = (room.players || []).find(p => p.id === socket.id);
-        if (me) { playerColor = me.color; updateClock(); }
+        if (me) playerColor = me.color;
       });
       socket.on('gameStarted', payload => {
-        if (String(payload.roomId) !== String(roomId)) return;
-        active = true; playerColor = payload.playerColor || playerColor || findMyColor(payload.players);
-        apply(payload.gameState); startClock();
+        if (!payload || String(payload.roomId) !== String(roomId)) return;
+        active = true;
+        playerColor = payload.playerColor || playerColor || findMyColor(payload.players);
+        apply(payload.gameState);
+        startClock();
       });
       socket.on('gameStateUpdated', payload => {
-        if (String(payload.roomId) !== String(roomId)) return;
+        if (!payload || String(payload.roomId) !== String(roomId)) return;
         if (payload.playerColor) playerColor = payload.playerColor;
-        if (payload.gameState && Array.isArray(payload.gameState.board)) {
+        if (payload.gameState) {
           active = payload.gameState.status === 'playing' || payload.gameState.status === 'finished';
-          apply(payload.gameState); if (active) startClock();
+          apply(payload.gameState);
+          if (active) startClock();
         }
       });
       socket.on('chessMoveAccepted', payload => {
-        if (String(payload.roomId) !== String(roomId)) return;
-        pending = false; if (payload.playerColor) playerColor = payload.playerColor;
-        active = true; apply(payload.gameState);
+        if (!payload || String(payload.roomId) !== String(roomId)) return;
+        if (payload.playerColor) playerColor = payload.playerColor;
+        pending = false;
+        active = true;
+        apply(payload.gameState);
       });
       socket.on('chessMoveRejected', payload => {
-        pending = false; if (payload.gameState) apply(payload.gameState);
-        const msg = { not_your_turn: '⏳ Sıra rakipte.', illegal_move: '⚠️ Geçersiz satranç hamlesi.' }[payload.reason] || '⚠️ Hamle reddedildi.';
-        toast(msg, 'warning');
+        pending = false;
+        if (payload?.gameState) apply(payload.gameState);
+        const messages = {
+          not_your_turn: '⏳ Sıra rakipte.',
+          illegal_move: '⚠️ Satranç kurallarına göre geçersiz hamle.',
+          not_in_room: '⚠️ Oyuncu koltuğu bulunamadı.',
+          time_expired: '⏰ Süren doldu.'
+        };
+        toast(messages[payload?.reason] || '⚠️ Hamle reddedildi.', 'warning');
       });
-      socket.on('gameEnded', payload => { pending = false; active = true; if (payload.gameState) apply(payload.gameState); });
-      socket.on('playerLeft', () => { active = false; pending = false; });
+      socket.on('gameEnded', payload => {
+        pending = false;
+        active = true;
+        if (payload?.gameState) apply(payload.gameState);
+      });
+      socket.on('playerLeft', () => { pending = false; active = false; });
     });
   }
-  function join() {
-    if (!socket?.connected) return;
-    roomId = getRoomId(); if (!roomId) return;
-    localStorage.setItem('gv-room-id', roomId);
-    socket.emit('joinRoom', { roomId, userName: userName(), userKey: userKey(), maxPlayers: 2, durationMinutes: 10, gameId: 'chess' });
-  }
+
   function findMyColor(players) { return (players || []).find(p => p.id === socket?.id)?.color || null; }
+  function colorCode() { return playerColor === 'white' ? 'w' : playerColor === 'black' ? 'b' : null; }
+  function square(r, c) { return 'abcdefgh'[c] + String(8 - r); }
+  function format(ms) { const sec = Math.ceil(Math.max(0, Number(ms) || 0) / 1000); return String(Math.floor(sec / 60)).padStart(2, '0') + ':' + String(sec % 60).padStart(2, '0'); }
+
   function apply(gs) {
     if (!gs || !Array.isArray(gs.board)) return;
-    gameState = gs; selected = null; pending = false; render(); updateClock(); renderHistory();
+    gameState = gs;
+    selected = null;
+    pending = false;
+    render();
+    updateClock();
+    renderHistory();
   }
+
   function renderHistory() {
-    const el = document.getElementById('moveHist'); if (!el || !gameState) return;
+    const el = document.getElementById('moveHist');
+    if (!el || !gameState) return;
     const h = gameState.history || [];
-    el.innerHTML = h.map((m, i) => `<div class="mv"><span>${Math.floor(i / 2) + 1}${m.color === 'w' ? '.' : '...'}</span><span>${m.san || ''}</span></div>`).join('');
+    el.innerHTML = h.map((m, i) => `<div class="mv"><span>${Math.floor(i / 2) + 1}${m.color === 'w' ? '.' : '...'}</span><span>${escapeHtml(m.san || '')}</span></div>`).join('');
     el.scrollTop = el.scrollHeight;
   }
+
+  function escapeHtml(value) { return String(value).replace(/[&<>'"]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[ch])); }
+
   function render() {
-    if (!active || !gameState || internalRender) return;
-    const area = document.getElementById('boardArea'); if (!area) return;
-    internalRender = true;
-    const board = gameState.board, moves = gameState.legalMoves || [], my = colorCode();
-    let h = '<div class="chess-wrapper"><div class="chess">';
-    for (let r = 0; r < 8; r++) for (let c = 0; c < 8; c++) {
-      const p = board[r][c] || '', pc = p ? (p === p.toUpperCase() ? 'w' : 'b') : null;
-      let cls = 'chess-c ' + (((r + c) % 2 === 0) ? 'l' : 'd');
-      if (selected && selected[0] === r && selected[1] === c) cls += ' sel';
-      const lm = gameState.history?.[gameState.history.length - 1];
-      if (lm?.from === square(r,c)) cls += ' last-from'; if (lm?.to === square(r,c)) cls += ' last-to';
-      if (selected) {
-        const from = square(selected[0], selected[1]);
-        if (moves.some(m => m.from === from && m.to === square(r,c))) cls += p ? ' valid-capture' : ' valid-move';
+    if (!active || !gameState) return;
+    const area = document.getElementById('boardArea');
+    if (!area) return;
+    const board = gameState.board;
+    const moves = gameState.legalMoves || [];
+    const mine = colorCode();
+    let html = '<div class="chess-wrapper"><div class="chess">';
+
+    for (let r = 0; r < 8; r++) {
+      for (let c = 0; c < 8; c++) {
+        const p = board[r][c] || '';
+        const pc = p ? (p === p.toUpperCase() ? 'w' : 'b') : null;
+        let cls = 'chess-c ' + (((r + c) % 2 === 0) ? 'l' : 'd');
+        if (selected && selected[0] === r && selected[1] === c) cls += ' sel';
+        const last = gameState.history?.[gameState.history.length - 1];
+        if (last?.from === square(r, c)) cls += ' last-from';
+        if (last?.to === square(r, c)) cls += ' last-to';
+        if (selected) {
+          const from = square(selected[0], selected[1]);
+          if (moves.some(m => m.from === from && m.to === square(r, c))) cls += p ? ' valid-capture' : ' valid-move';
+        }
+        const sym = { K:'♔', Q:'♕', R:'♖', B:'♗', N:'♘', P:'♙', k:'♚', q:'♛', r:'♜', b:'♝', n:'♞', p:'♟' }[p] || '';
+        html += `<div class="${cls}" data-r="${r}" data-c="${c}" onclick="window.__gvOnlineChessClick(${r},${c})">${p ? `<span class="chess-p ${pc}">${sym}</span>` : ''}</div>`;
       }
-      const sym = { K:'♚',Q:'♛',R:'♜',B:'♝',N:'♞',P:'♟',k:'♚',q:'♛',r:'♜',b:'♝',n:'♞',p:'♟' }[p] || '';
-      h += `<div class="${cls}" data-r="${r}" data-c="${c}" onclick="window.__gvOnlineChessClick(${r},${c})">${p ? `<span class="chess-p ${pc}">${sym}</span>` : ''}</div>`;
     }
-    h += '</div>';
-    if (gameState.promotionPending) h += '<div class="promo-overlay"><div class="promo-modal"><h3>♟️ Terfi</h3><div class="promo-options">' +
-      '<div class="promo-piece" onclick="window.__gvOnlineChessPromote(\'q\')">♛</div>' +
-      '<div class="promo-piece" onclick="window.__gvOnlineChessPromote(\'r\')">♜</div>' +
-      '<div class="promo-piece" onclick="window.__gvOnlineChessPromote(\'b\')">♝</div>' +
-      '<div class="promo-piece" onclick="window.__gvOnlineChessPromote(\'n\')">♞</div></div></div></div>';
+    html += '</div>';
+
+    if (gameState.promotionPending) {
+      html += '<div class="promo-overlay"><div class="promo-modal"><h3>♟️ Terfi</h3><div class="promo-options">' +
+        '<div class="promo-piece" onclick="window.__gvOnlineChessPromote(\'q\')">♛</div>' +
+        '<div class="promo-piece" onclick="window.__gvOnlineChessPromote(\'r\')">♜</div>' +
+        '<div class="promo-piece" onclick="window.__gvOnlineChessPromote(\'b\')">♝</div>' +
+        '<div class="promo-piece" onclick="window.__gvOnlineChessPromote(\'n\')">♞</div></div></div></div>';
+    }
+
     if (gameState.status === 'finished' || gameState.status === 'aborted') {
-      const result = gameState.result || {}; let title = '🏁 Oyun Bitti', desc = '';
+      const result = gameState.result || {};
+      let title = '🏁 Oyun Bitti';
+      let desc = '';
       if (result.reason === 'checkmate') { title = '♟️ ŞAH MAT!'; desc = result.winner === playerColor ? 'Kazandın!' : 'Rakip kazandı.'; }
-      if (result.reason === 'stalemate') { title = '🤝 PAT!'; desc = 'Berabere.'; }
-      if (result.reason === 'draw') { title = '🤝 BERABERE'; desc = 'Oyun berabere bitti.'; }
-      if (result.reason === 'timeout') { title = '⏰ SÜRE BİTTİ'; desc = result.winner === playerColor ? 'Kazandın!' : 'Süren bitti.'; }
-      h += `<div class="chess-end-overlay"><div class="chess-end-modal"><div class="end-icon">🏁</div><h2>${title}</h2><p>${desc}</p></div></div>`;
+      else if (result.reason === 'stalemate') { title = '🤝 PAT!'; desc = 'Berabere.'; }
+      else if (result.reason === 'timeout') { title = '⏰ SÜRE BİTTİ'; desc = result.winner === playerColor ? 'Kazandın!' : 'Süren bitti.'; }
+      else if (result.reason === 'threefold_repetition') { title = '🤝 ÜÇLÜ TEKRAR'; desc = 'Oyun berabere bitti.'; }
+      else if (result.reason === 'insufficient_material') { title = '🤝 YETERSİZ MATERYAL'; desc = 'Oyun berabere bitti.'; }
+      else if (result.reason === 'fifty_move') { title = '🤝 50 HAMLE KURALI'; desc = 'Oyun berabere bitti.'; }
+      else if (result.reason === 'player_left') { title = '🚪 OYUNCU AYRILDI'; desc = 'Oyun sonlandırıldı.'; }
+      else { title = '🤝 BERABERE'; desc = 'Oyun berabere bitti.'; }
+      html += `<div class="chess-end-overlay"><div class="chess-end-modal"><div class="end-icon">🏁</div><h2>${title}</h2><p>${desc}</p></div></div>`;
     }
-    h += '</div>'; area.innerHTML = h; internalRender = false;
+
+    html += '</div>';
+    area.innerHTML = html;
   }
+
   function click(r, c) {
     if (!active || !gameState || gameState.status !== 'playing' || pending) return;
-    const my = colorCode(); if (!my) return toast('⏳ Oyuncu rengi bekleniyor.', 'info');
-    if (gameState.turn !== my) return toast('⏳ Sıra rakipte.', 'warning');
-    const piece = gameState.board[r][c] || '', pc = piece ? (piece === piece.toUpperCase() ? 'w' : 'b') : null;
-    if (!selected) { if (piece && pc === my) { selected = [r, c]; render(); } return; }
+    const mine = colorCode();
+    if (!mine) return toast('⏳ Oyuncu rengi bekleniyor.', 'info');
+    if (gameState.turn !== mine) return toast('⏳ Sıra rakipte.', 'warning');
+
+    const piece = gameState.board[r][c] || '';
+    const pc = piece ? (piece === piece.toUpperCase() ? 'w' : 'b') : null;
+    if (!selected) {
+      if (piece && pc === mine) { selected = [r, c]; render(); }
+      return;
+    }
     if (selected[0] === r && selected[1] === c) { selected = null; render(); return; }
-    if (piece && pc === my) { selected = [r,c]; render(); return; }
-    const from = square(selected[0], selected[1]), to = square(r, c);
+    if (piece && pc === mine) { selected = [r, c]; render(); return; }
+
+    const from = square(selected[0], selected[1]);
+    const to = square(r, c);
     const candidates = (gameState.legalMoves || []).filter(m => m.from === from && m.to === to);
     if (!candidates.length) return toast('⚠️ Bu hamle satranç kurallarına göre geçersiz.', 'warning');
-    if (candidates.some(m => m.promotion)) { gameState.promotionPending = { from, to }; render(); return; }
+
+    if (candidates.some(m => m.promotion)) {
+      gameState.promotionPending = { from, to };
+      render();
+      return;
+    }
     send(from, to, null);
   }
-  function promote(p) {
+
+  function promote(piece) {
     if (!gameState?.promotionPending) return;
-    const { from, to } = gameState.promotionPending; gameState.promotionPending = null; send(from, to, p);
+    const pendingMove = gameState.promotionPending;
+    gameState.promotionPending = null;
+    render();
+    send(pendingMove.from, pendingMove.to, piece);
   }
+
   function send(from, to, promotion) {
     if (!socket?.connected) return toast('🔌 Sunucu bağlantısı yok.', 'error');
-    pending = true; socket.emit('chessMove', { roomId, from, to, promotion });
+    pending = true;
+    socket.emit('chessMove', { roomId, from, to, promotion });
   }
+
   function updateClock() {
     if (!gameState) return;
-    const t1 = document.getElementById('t1'), t2 = document.getElementById('t2'), names = document.querySelectorAll('#topTimers .timer-name'), my = colorCode();
-    let w = Number(gameState.whiteTimeMs || 0), b = Number(gameState.blackTimeMs || 0);
+    const t1 = document.getElementById('t1');
+    const t2 = document.getElementById('t2');
+    const names = document.querySelectorAll('#topTimers .timer-name');
+    const mine = colorCode();
+    let white = Number(gameState.whiteTimeMs || 0);
+    let black = Number(gameState.blackTimeMs || 0);
     if (gameState.status === 'playing' && gameState.serverNow) {
       const elapsed = Math.max(0, Date.now() - Number(gameState.serverNow));
-      if (gameState.turn === 'w') w = Math.max(0, w - elapsed); else b = Math.max(0, b - elapsed);
+      if (gameState.turn === 'w') white = Math.max(0, white - elapsed); else black = Math.max(0, black - elapsed);
     }
-    if (names.length >= 2) { names[0].textContent = my === 'w' ? '♙ Beyaz (Sen)' : '♟ Siyah (Sen)'; names[1].textContent = my === 'w' ? '♟ Siyah (Rakip)' : '♙ Beyaz (Rakip)'; }
-    if (t1) t1.textContent = format(my === 'w' ? w : b); if (t2) t2.textContent = format(my === 'w' ? b : w);
-    document.querySelectorAll('#topTimers .timer').forEach((el, i) => { const c = i === 0 ? my : (my === 'w' ? 'b' : 'w'); el.classList.toggle('active', c === gameState.turn && gameState.status === 'playing'); });
+    if (names.length >= 2) {
+      names[0].textContent = mine === 'w' ? '♙ Beyaz (Sen)' : '♟ Siyah (Sen)';
+      names[1].textContent = mine === 'w' ? '♟ Siyah (Rakip)' : '♙ Beyaz (Rakip)';
+    }
+    if (t1) t1.textContent = format(mine === 'w' ? white : black);
+    if (t2) t2.textContent = format(mine === 'w' ? black : white);
+    document.querySelectorAll('#topTimers .timer').forEach((el, i) => {
+      const color = i === 0 ? mine : (mine === 'w' ? 'b' : 'w');
+      el.classList.toggle('active', color === gameState.turn && gameState.status === 'playing');
+    });
   }
-  function startClock() { if (clockInt) clearInterval(clockInt); clockInt = setInterval(updateClock, 250); updateClock(); }
-  window.__gvOnlineChessClick = click; window.__gvOnlineChessPromote = promote;
-  function boot() { roomId = getRoomId(); if (!roomId || !isChessRoom()) return; connect(); }
-  window.addEventListener('gv:roomReady', e => { if (e.detail?.roomId) { localStorage.setItem('gv-room-id', e.detail.roomId); roomId = e.detail.roomId; window.__gvChessOnlineRequested = true; boot(); } });
-  rejoinInt = setInterval(() => { if (!active) boot(); else updateClock(); }, 750);
+
+  function startClock() {
+    if (clockInt) clearInterval(clockInt);
+    clockInt = setInterval(updateClock, 250);
+    updateClock();
+  }
+
+  window.__gvOnlineChessClick = click;
+  window.__gvOnlineChessPromote = promote;
+
+  function boot() {
+    if (!window.__gvChessOnlineRequested && !isChessRoom()) return;
+    roomId = getRoomId();
+    if (roomId) connect();
+  }
+
+  window.addEventListener('gv:roomGameStarted', boot);
+  window.addEventListener('gv:roomReady', event => {
+    if (event.detail?.gameId === 'chess' || event.detail?.roomId) {
+      window.__gvChessOnlineRequested = true;
+      if (event.detail?.roomId) roomId = String(event.detail.roomId);
+      boot();
+    }
+  });
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot, { once: true });
+  else boot();
 })();
