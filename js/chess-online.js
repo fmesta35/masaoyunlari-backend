@@ -1,4 +1,6 @@
-/* GameVerse - sunucu otoriteli çevrim içi satranç istemcisi */
+/* GameVerse - Authoritative Online Chess Client
+ * Frontend on Yöncü Shared Hosting; Socket.IO backend on Render.com.
+ */
 (function () {
   'use strict';
   const BACKEND = window.GV_BACKEND_URL || 'https://masaoyunlari-backend.onrender.com';
@@ -18,6 +20,7 @@
     if (window.GVApp && typeof window.GVApp.showToast === 'function') {
       try { window.GVApp.showToast(message, type || 'info'); } catch (_) {}
     }
+    console.log(`[Toast] (${type}): ${message}`);
   }
 
   function getState() {
@@ -47,14 +50,17 @@
     const stable = u && (u.id || u.userId || u.username || u.email);
     if (stable) return 'user:' + String(stable);
     let id = localStorage.getItem('gv-room-guest-key');
-    if (!id) { id = (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : 'guest-' + Date.now() + '-' + Math.random().toString(36).slice(2); localStorage.setItem('gv-room-guest-key', id); }
+    if (!id) {
+      id = (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : 'guest-' + Date.now() + '-' + Math.random().toString(36).slice(2);
+      localStorage.setItem('gv-room-guest-key', id);
+    }
     return 'guest:' + id;
   }
 
   function loadSocketClient(done) {
     if (window.io) return done();
     const s = document.createElement('script');
-    s.src = BACKEND + '/socket.io/socket.io.js';
+    s.src = 'js/socket.io.min.js';
     s.onload = done;
     s.onerror = () => toast('🔌 Socket.IO istemcisi yüklenemedi.', 'error');
     document.head.appendChild(s);
@@ -65,14 +71,24 @@
     roomId = getRoomId();
     if (!roomId) return;
     localStorage.setItem('gv-room-id', roomId);
-    socket.emit('joinRoom', { roomId, userName: getUserName(), userKey: userKey(), maxPlayers: 2, durationMinutes: 10, gameId: 'chess' });
+    socket.emit('joinRoom', {
+      roomId,
+      userName: getUserName(),
+      userKey: userKey(),
+      maxPlayers: 2,
+      durationMinutes: 10,
+      gameId: 'chess'
+    });
   }
 
   function connect() {
     roomId = getRoomId();
     if (!roomId || !isChessRoom()) return;
     loadSocketClient(() => {
-      if (socket) { if (socket.connected) join(); return; }
+      if (socket) {
+        if (socket.connected) join();
+        return;
+      }
       socket = window.__gvRoomSocket || window.__gvChessSocket || window.io(BACKEND, {
         transports: ['websocket', 'polling'],
         reconnection: true,
@@ -116,10 +132,10 @@
         pending = false;
         if (payload?.gameState) apply(payload.gameState);
         const messages = {
-          not_your_turn: '⏳ Sıra rakipte.',
+          not_your_turn: '⏳ Sıra sizde değil! Rakibin hamlesi bekleniyor.',
           illegal_move: '⚠️ Satranç kurallarına göre geçersiz hamle.',
           not_in_room: '⚠️ Oyuncu koltuğu bulunamadı.',
-          time_expired: '⏰ Süren doldu.'
+          time_expired: '⏰ Süreniz doldu.'
         };
         toast(messages[payload?.reason] || '⚠️ Hamle reddedildi.', 'warning');
       });
@@ -132,10 +148,19 @@
     });
   }
 
-  function findMyColor(players) { return (players || []).find(p => p.id === socket?.id)?.color || null; }
-  function colorCode() { return playerColor === 'white' ? 'w' : playerColor === 'black' ? 'b' : null; }
-  function square(r, c) { return 'abcdefgh'[c] + String(8 - r); }
-  function format(ms) { const sec = Math.ceil(Math.max(0, Number(ms) || 0) / 1000); return String(Math.floor(sec / 60)).padStart(2, '0') + ':' + String(sec % 60).padStart(2, '0'); }
+  function findMyColor(players) {
+    return (players || []).find(p => p.id === socket?.id)?.color || null;
+  }
+  function colorCode() {
+    return playerColor === 'white' ? 'w' : playerColor === 'black' ? 'b' : null;
+  }
+  function square(r, c) {
+    return 'abcdefgh'[c] + String(8 - r);
+  }
+  function format(ms) {
+    const sec = Math.ceil(Math.max(0, Number(ms) || 0) / 1000);
+    return String(Math.floor(sec / 60)).padStart(2, '0') + ':' + String(sec % 60).padStart(2, '0');
+  }
 
   function apply(gs) {
     if (!gs || !Array.isArray(gs.board)) return;
@@ -155,56 +180,89 @@
     el.scrollTop = el.scrollHeight;
   }
 
-  function escapeHtml(value) { return String(value).replace(/[&<>'"]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[ch])); }
+  function escapeHtml(value) {
+    return String(value).replace(/[&<>'"]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[ch]));
+  }
 
   function render() {
     if (!active || !gameState) return;
     const area = document.getElementById('boardArea');
     if (!area) return;
+
     const board = gameState.board;
     const moves = gameState.legalMoves || [];
     const mine = colorCode();
+    const isFlipped = (mine === 'b');
+
     let html = '<div class="chess-wrapper"><div class="chess">';
 
-    for (let r = 0; r < 8; r++) {
-      for (let c = 0; c < 8; c++) {
+    // Determine row & col iteration order based on board orientation
+    const rowRange = isFlipped ? [7, 6, 5, 4, 3, 2, 1, 0] : [0, 1, 2, 3, 4, 5, 6, 7];
+    const colRange = isFlipped ? [7, 6, 5, 4, 3, 2, 1, 0] : [0, 1, 2, 3, 4, 5, 6, 7];
+
+    for (const r of rowRange) {
+      for (const c of colRange) {
         const p = board[r][c] || '';
         const pc = p ? (p === p.toUpperCase() ? 'w' : 'b') : null;
         let cls = 'chess-c ' + (((r + c) % 2 === 0) ? 'l' : 'd');
         if (selected && selected[0] === r && selected[1] === c) cls += ' sel';
+
         const last = gameState.history?.[gameState.history.length - 1];
         if (last?.from === square(r, c)) cls += ' last-from';
         if (last?.to === square(r, c)) cls += ' last-to';
+
         if (selected) {
           const from = square(selected[0], selected[1]);
-          if (moves.some(m => m.from === from && m.to === square(r, c))) cls += p ? ' valid-capture' : ' valid-move';
+          if (moves.some(m => m.from === from && m.to === square(r, c))) {
+            cls += p ? ' valid-capture' : ' valid-move';
+          }
         }
-        const sym = { K:'♔', Q:'♕', R:'♖', B:'♗', N:'♘', P:'♙', k:'♚', q:'♛', r:'♜', b:'♝', n:'♞', p:'♟' }[p] || '';
+
+        const sym = { K: '♔', Q: '♕', R: '♖', B: '♗', N: '♘', P: '♙', k: '♚', q: '♛', r: '♜', b: '♝', n: '♞', p: '♟' }[p] || '';
         html += `<div class="${cls}" data-r="${r}" data-c="${c}" onclick="window.__gvOnlineChessClick(${r},${c})">${p ? `<span class="chess-p ${pc}">${sym}</span>` : ''}</div>`;
       }
     }
     html += '</div>';
 
+    // Promotion Modal
     if (gameState.promotionPending) {
-      html += '<div class="promo-overlay"><div class="promo-modal"><h3>♟️ Terfi</h3><div class="promo-options">' +
+      html += '<div class="promo-overlay"><div class="promo-modal"><h3>♟️ Piyon Terfisi</h3><p style="margin-bottom:10px;font-size:0.9em;color:#aaa;">Dönüştürmek istediğiniz taşı seçin:</p><div class="promo-options">' +
         '<div class="promo-piece" onclick="window.__gvOnlineChessPromote(\'q\')">♛</div>' +
         '<div class="promo-piece" onclick="window.__gvOnlineChessPromote(\'r\')">♜</div>' +
         '<div class="promo-piece" onclick="window.__gvOnlineChessPromote(\'b\')">♝</div>' +
         '<div class="promo-piece" onclick="window.__gvOnlineChessPromote(\'n\')">♞</div></div></div></div>';
     }
 
+    // Game End Overlay Modal
     if (gameState.status === 'finished' || gameState.status === 'aborted') {
       const result = gameState.result || {};
       let title = '🏁 Oyun Bitti';
       let desc = '';
-      if (result.reason === 'checkmate') { title = '♟️ ŞAH MAT!'; desc = result.winner === playerColor ? 'Kazandın!' : 'Rakip kazandı.'; }
-      else if (result.reason === 'stalemate') { title = '🤝 PAT!'; desc = 'Berabere.'; }
-      else if (result.reason === 'timeout') { title = '⏰ SÜRE BİTTİ'; desc = result.winner === playerColor ? 'Kazandın!' : 'Süren bitti.'; }
-      else if (result.reason === 'threefold_repetition') { title = '🤝 ÜÇLÜ TEKRAR'; desc = 'Oyun berabere bitti.'; }
-      else if (result.reason === 'insufficient_material') { title = '🤝 YETERSİZ MATERYAL'; desc = 'Oyun berabere bitti.'; }
-      else if (result.reason === 'fifty_move') { title = '🤝 50 HAMLE KURALI'; desc = 'Oyun berabere bitti.'; }
-      else if (result.reason === 'player_left') { title = '🚪 OYUNCU AYRILDI'; desc = 'Oyun sonlandırıldı.'; }
-      else { title = '🤝 BERABERE'; desc = 'Oyun berabere bitti.'; }
+      if (result.reason === 'checkmate') {
+        title = '♟️ ŞAH MAT!';
+        desc = result.winner === playerColor ? '🏆 Tebrikler, Kazandınız!' : '💔 Rakip kazandı.';
+      } else if (result.reason === 'stalemate') {
+        title = '🤝 PAT!';
+        desc = 'Oyun berabere bitti.';
+      } else if (result.reason === 'timeout') {
+        title = '⏰ SÜRE BİTTİ';
+        desc = result.winner === playerColor ? '🏆 Zaman bitti, Kazandınız!' : '💔 Süreniz doldu.';
+      } else if (result.reason === 'threefold_repetition') {
+        title = '🤝 ÜÇLÜ TEKRAR';
+        desc = 'Oyun berabere bitti.';
+      } else if (result.reason === 'insufficient_material') {
+        title = '🤝 YETERSİZ MATERYAL';
+        desc = 'Oyun berabere bitti.';
+      } else if (result.reason === 'fifty_move') {
+        title = '🤝 50 HAMLE KURALI';
+        desc = 'Oyun berabere bitti.';
+      } else if (result.reason === 'player_left') {
+        title = '🚪 OYUNCU AYRILDI';
+        desc = 'Rakip oyundan ayrıldı.';
+      } else {
+        title = '🤝 BERABERE';
+        desc = 'Oyun berabere bitti.';
+      }
       html += `<div class="chess-end-overlay"><div class="chess-end-modal"><div class="end-icon">🏁</div><h2>${title}</h2><p>${desc}</p></div></div>`;
     }
 
@@ -216,20 +274,35 @@
     if (!active || !gameState || gameState.status !== 'playing' || pending) return;
     const mine = colorCode();
     if (!mine) return toast('⏳ Oyuncu rengi bekleniyor.', 'info');
-    if (gameState.turn !== mine) return toast('⏳ Sıra rakipte.', 'warning');
+    if (gameState.turn !== mine) return toast('⏳ Sıra sizde değil! Rakibin hamlesi bekleniyor.', 'warning');
 
     const piece = gameState.board[r][c] || '';
     const pc = piece ? (piece === piece.toUpperCase() ? 'w' : 'b') : null;
+
     if (!selected) {
-      if (piece && pc === mine) { selected = [r, c]; render(); }
+      if (piece && pc === mine) {
+        selected = [r, c];
+        render();
+      }
       return;
     }
-    if (selected[0] === r && selected[1] === c) { selected = null; render(); return; }
-    if (piece && pc === mine) { selected = [r, c]; render(); return; }
+
+    if (selected[0] === r && selected[1] === c) {
+      selected = null;
+      render();
+      return;
+    }
+
+    if (piece && pc === mine) {
+      selected = [r, c];
+      render();
+      return;
+    }
 
     const from = square(selected[0], selected[1]);
     const to = square(r, c);
     const candidates = (gameState.legalMoves || []).filter(m => m.from === from && m.to === to);
+
     if (!candidates.length) return toast('⚠️ Bu hamle satranç kurallarına göre geçersiz.', 'warning');
 
     if (candidates.some(m => m.promotion)) {
@@ -237,6 +310,7 @@
       render();
       return;
     }
+
     send(from, to, null);
   }
 
@@ -260,18 +334,24 @@
     const t2 = document.getElementById('t2');
     const names = document.querySelectorAll('#topTimers .timer-name');
     const mine = colorCode();
+
     let white = Number(gameState.whiteTimeMs || 0);
     let black = Number(gameState.blackTimeMs || 0);
+
     if (gameState.status === 'playing' && gameState.serverNow) {
       const elapsed = Math.max(0, Date.now() - Number(gameState.serverNow));
-      if (gameState.turn === 'w') white = Math.max(0, white - elapsed); else black = Math.max(0, black - elapsed);
+      if (gameState.turn === 'w') white = Math.max(0, white - elapsed);
+      else black = Math.max(0, black - elapsed);
     }
+
     if (names.length >= 2) {
-      names[0].textContent = mine === 'w' ? '♙ Beyaz (Sen)' : '♟ Siyah (Sen)';
-      names[1].textContent = mine === 'w' ? '♟ Siyah (Rakip)' : '♙ Beyaz (Rakip)';
+      names[0].textContent = mine === 'w' ? '⚪ Beyaz (Siz)' : '🔴 Siyah (Siz)';
+      names[1].textContent = mine === 'w' ? '🔴 Siyah (Rakip)' : '⚪ Beyaz (Rakip)';
     }
+
     if (t1) t1.textContent = format(mine === 'w' ? white : black);
     if (t2) t2.textContent = format(mine === 'w' ? black : white);
+
     document.querySelectorAll('#topTimers .timer').forEach((el, i) => {
       const color = i === 0 ? mine : (mine === 'w' ? 'b' : 'w');
       el.classList.toggle('active', color === gameState.turn && gameState.status === 'playing');
