@@ -1,7 +1,4 @@
-/* GameVerse online compatibility layer
- * Loaded by app.js so the static frontend does not need a large index.html edit.
- * It never replaces the main game UI.
- */
+/* GameVerse online compatibility layer */
 (function () {
   'use strict';
   const BACKEND = 'https://masaoyunlari-backend.onrender.com';
@@ -17,11 +14,14 @@
     (document.head || document.documentElement).appendChild(s);
   }
 
-  load('js/room-waiting-fix.js?v=20260818-1', 'data-gv-room-fix');
+  // Shared-hosting frontend; Render owns the real-time chess connection.
+  // The waiting-room socket remains the only socket until gameStarted.
+  load('js/room-waiting-fix.js?v=20260818-2', 'data-gv-room-fix');
 
   window.__gvEnsureChessOnline = function () {
+    if (!window.__gvChessGameStarted) return;
     if (document.querySelector('script[data-gv-chess-online]')) return;
-    load('js/chess-online.js?v=20260818-1', 'data-gv-chess-online');
+    load('js/chess-online.js?v=20260818-2', 'data-gv-chess-online');
   };
 
   window.GV_BACKEND_URL = BACKEND;
@@ -30,16 +30,15 @@
   if (window.GVGames && typeof oldInitRealtime === 'function') {
     window.GVGames.initRealtime = function () {
       if (this.currentGame === 'chess') {
-        console.log('[OnlineCompat] Chess generic realtime devre dışı; authoritative client kullanılıyor.');
+        console.log('[OnlineCompat] Chess generic realtime devre dışı; authoritative waiting/game client kullanılıyor.');
         return;
       }
       return oldInitRealtime.apply(this, arguments);
     };
   }
 
-  window.addEventListener('gv:roomReady', function (event) {
-    if (event.detail && event.detail.gameId === 'chess' && typeof window.__gvEnsureChessOnline === 'function') {
-      window.__gvEnsureChessOnline();
-    }
+  window.addEventListener('gv:roomGameStarted', function () {
+    window.__gvChessGameStarted = true;
+    window.__gvEnsureChessOnline();
   });
 })();
