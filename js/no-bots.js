@@ -4,6 +4,7 @@
 (function () {
   'use strict';
 
+  const BACKEND = window.GV_BACKEND_URL || 'https://masaoyunlari-backend.onrender.com';
   let installed = false;
   let socket = null;
 
@@ -21,7 +22,7 @@
 
     const connect = () => {
       if (!window.io) return;
-      socket = window.io(window.location.origin, { transports: ['websocket', 'polling'] });
+      socket = window.io(BACKEND, { transports: ['websocket', 'polling'] });
       window.__gvSocket = socket;
       socket.once('connect', () => done(socket));
     };
@@ -29,7 +30,7 @@
     if (window.io) connect();
     else {
       const s = document.createElement('script');
-      s.src = '/socket.io/socket.io.js';
+      s.src = 'js/socket.io.min.js';
       s.onload = connect;
       s.onerror = () => console.error('[Rooms] Socket.IO client yüklenemedi.');
       document.head.appendChild(s);
@@ -70,7 +71,7 @@
     const ready = !!(me && me.isReady);
 
     boardArea.innerHTML = `<div class="room-waiting-overlay"><div class="waiting-card">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+      <div style="display:flex;justify-space-between;align-items:center;margin-bottom:10px;">
         <h2 style="font-size:1.2em;">🎲 ${room.name || 'Oyun Masası'}</h2>
         <span style="font-size:.8em;padding:3px 10px;background:var(--card);border-radius:10px;border:1px solid var(--border);">${room.isPrivate ? '🔒 Özel Oda' : '🌐 Genel Oda'}</span>
       </div>
@@ -111,9 +112,12 @@
   }
 
   function patch() {
-    // This is the authoritative replacement for the old random-bot function.
     window.startRoomWaitingProcess = function (room) {
       if (!room || !room.id) return;
+      if (typeof window.__gvStartRealRoomWaiting === 'function') {
+        window.__gvStartRealRoomWaiting(room);
+        return;
+      }
       window.__gvActiveRoomId = String(room.id);
       window.__gvActiveRoom = room;
       if (typeof st !== 'undefined' && st.roomWaitingInt) {
@@ -149,7 +153,6 @@
     ensureSocket(sock => install(sock));
   }
 
-  // utils.js loads this file after all inline application functions exist.
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
   else boot();
 })();
