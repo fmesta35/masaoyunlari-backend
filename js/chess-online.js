@@ -13,9 +13,8 @@
   let active = false;
   let clockInt = null;
 
-  // Debounce duplicate click events
-  let lastClickTime = 0;
-  let lastClickSquare = null;
+  // Global click lock to prevent duplicate execution within 200ms
+  let lastExecTime = 0;
 
   // Score tracking per session (Starts 0 - 0)
   let myMatchScore = 0;
@@ -371,13 +370,12 @@
   function click(r, c) {
     if (!active || !gameState || gameState.status !== 'playing' || pending) return;
 
-    // Debounce duplicate click calls within 150ms on same cell
+    // Global click lock to prevent duplicate execution within 200ms
     const now = Date.now();
-    if (now - lastClickTime < 150 && lastClickSquare === `${r},${c}`) {
+    if (now - lastExecTime < 200) {
       return;
     }
-    lastClickTime = now;
-    lastClickSquare = `${r},${c}`;
+    lastExecTime = now;
 
     const mine = colorCode();
     if (!mine) return toast('⏳ Oyuncu rengi bekleniyor.', 'info');
@@ -391,7 +389,7 @@
       if (piece && pc === mine) {
         selected = [r, c];
         render();
-        toast(`♟️ Seçildi: ${square(r, c)}. Hedef kareye tıklayın.`, 'info');
+        toast(`♟️ Seçildi: ${square(r, c)}. Lütfen hedef kareye tıklayın.`, 'info');
       } else if (piece) {
         toast('⚠️ Bu taş size ait değil.', 'warning');
       }
@@ -410,7 +408,7 @@
     if (piece && pc === mine) {
       selected = [r, c];
       render();
-      toast(`♟️ Seçildi: ${square(r, c)}. Hedef kareye tıklayın.`, 'info');
+      toast(`♟️ Seçildi: ${square(r, c)}. Lütfen hedef kareye tıklayın.`, 'info');
       return;
     }
 
