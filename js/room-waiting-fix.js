@@ -12,8 +12,15 @@
 
   function isChess() {
     const s = state();
-    const g = s?.curGame || window.__gvCurrentGame || '';
-    return String(g).toLowerCase() === 'chess' || /satranç|chess/i.test(document.getElementById('grTitle')?.textContent || '') || !!window.__gvChessOnlineRequested;
+    const g = String(s?.curGame || window.__gvCurrentGame || window.currentGame || '').toLowerCase().trim();
+    if (g === 'chess' || g === 'satranç' || g === 'satranc') return true;
+    
+    // If curGame is explicitly another game (Pişti, Tavla, Okey etc.), it is NOT chess!
+    if (g && g !== 'chess' && g !== 'satranc' && g !== 'satranç') return false;
+
+    const title = (document.getElementById('grTitle')?.textContent || '').toLowerCase();
+    if (/satranç|satranc/i.test(title)) return true;
+    return false;
   }
 
   function isRoomPage() {
@@ -93,7 +100,10 @@
   }
 
   function render() {
-    if (!room || started) return;
+    if (!isChess() || !room || started) {
+      hide();
+      return;
+    }
     const e = overlay();
     const ps = Array.isArray(room.players) ? room.players : [];
     const me = ps.find(p => p.id === socket?.id);
@@ -143,6 +153,7 @@
   }
 
   function loadChess() {
+    if (!isChess()) return;
     window.__gvChessGameStarted = true;
     window.__gvChessOnlineRequested = true;
     if (document.querySelector('script[data-gv-chess-online]')) return;
@@ -154,7 +165,7 @@
   }
 
   function connect() {
-    if (!roomId) return;
+    if (!roomId || !isChess()) return;
     if (!window.io) {
       const s = document.createElement('script');
       s.src = 'js/socket.io.min.js';
@@ -176,7 +187,7 @@
 
       socket.on('connect', join);
       socket.on('roomUpdated', r => {
-        if (!r || String(r.id) !== roomId) return;
+        if (!r || String(r.id) !== roomId || !isChess()) return;
         room = r;
         window.__gvActiveRoom = r;
         if (r.status === 'playing' || r.status === 'finished') {
@@ -189,7 +200,7 @@
       });
 
       socket.on('gameStarted', p => {
-        if (!p || String(p.roomId) !== roomId) return;
+        if (!p || String(p.roomId) !== roomId || !isChess()) return;
         started = true;
         hide();
         window.dispatchEvent(new CustomEvent('gv:roomGameStarted', { detail: p }));
@@ -197,10 +208,11 @@
       });
 
       socket.on('disconnect', () => {
-        if (!started) render();
+        if (!started && isChess()) render();
       });
 
       socket.on('roomFull', p => {
+        if (!isChess()) return;
         room = Object.assign({}, room, { players: [] });
         const e = overlay();
         e.innerHTML = `<div class="card"><h2>♟️ Satranç</h2><div class="sub">${esc(p?.message || 'Bu oda dolu.')}</div></div>`;
@@ -210,7 +222,7 @@
   }
 
   function join() {
-    if (!socket?.connected || !roomId) return;
+    if (!socket?.connected || !roomId || !isChess()) return;
     localStorage.setItem('gv-room-id', roomId);
     socket.emit('joinRoom', {
       roomId,
@@ -223,6 +235,7 @@
   }
 
   function leave() {
+    window.__gvChessOnlineRequested = false;
     try {
       if (socket && socket.connected) {
         socket.emit('leaveRoom');
@@ -252,6 +265,7 @@
   }
 
   function startRealRoomWaiting(r) {
+    if (!isChess()) return;
     roomId = String(r?.id || roomIdNow() || '');
     room = r || { id: roomId, name: 'Satranç Masası #' + roomId, maxPlayers: 2, duration: 10, players: [], status: 'waiting' };
     started = false;
@@ -296,7 +310,12 @@
   function scan() {
     patch();
     patchLeaveRoom();
-    if (!isChess() || !isRoomPage()) return;
+    if (!isChess()) {
+      window.__gvChessOnlineRequested = false;
+      hide(); // Ensure chess overlay is completely hidden on non-chess games like Pişti, Tavla, Okey!
+      return;
+    }
+    if (!isRoomPage()) return;
     const id = roomIdNow();
     if (id && id !== roomId) {
       roomId = id;
