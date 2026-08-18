@@ -291,14 +291,23 @@ io.on('connection', socket => {
 
     emitRoom(room);
 
-    if (room.status === 'playing') {
+        if (room.status === 'playing') {
+      // Yeniden bağlanan oyuncuya durumu SADECE ona gönder;
+      // tüm odaya yayınlamak rakibin taş seçimini sıfırlıyordu.
+      updateClock(room);
+      const state = buildChessState(room);
       io.to(socket.id).emit('gameStarted', {
         roomId,
         playerColor: player.color,
         players: publicRoom(room).players,
-        gameState: buildChessState(room)
+        gameState: state
       });
-      emitGameState(room);
+      io.to(socket.id).emit('gameStateUpdated', {
+        roomId,
+        gameState: state,
+        playerColor: player.color,
+        lastMove: room.lastMove
+      });
     }
   });
 
