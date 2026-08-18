@@ -223,7 +223,12 @@
   }
 
   function leave() {
-    try { socket?.disconnect(); } catch (_) {}
+    try {
+      if (socket && socket.connected) {
+        socket.emit('leaveRoom');
+        socket.disconnect();
+      }
+    } catch (_) {}
     socket = null;
     window.__gvRoomSocket = null;
     window.__gvChessSocket = null;
@@ -231,6 +236,13 @@
     window.__gvActiveRoomId = null;
     window.__gvChessGameStarted = false;
     hide();
+
+    // Reset clocks on UI to 10:00
+    const t1 = document.getElementById('t1');
+    const t2 = document.getElementById('t2');
+    if (t1) t1.textContent = '10:00';
+    if (t2) t2.textContent = '10:00';
+
     const s = state();
     if (s) {
       s.roomWaitingState = null;
@@ -268,8 +280,22 @@
     window.startRoomWaitingProcess = patched;
   }
 
+  function patchLeaveRoom() {
+    if (typeof window.leaveRoom === 'function' && !window.leaveRoom.__gvChessLeavePatch) {
+      const originalLeave = window.leaveRoom;
+      window.leaveRoom = function() {
+        if (isChess()) {
+          leave();
+        }
+        return originalLeave.apply(this, arguments);
+      };
+      window.leaveRoom.__gvChessLeavePatch = true;
+    }
+  }
+
   function scan() {
     patch();
+    patchLeaveRoom();
     if (!isChess() || !isRoomPage()) return;
     const id = roomIdNow();
     if (id && id !== roomId) {
