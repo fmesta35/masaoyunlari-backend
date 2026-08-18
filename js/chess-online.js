@@ -20,6 +20,7 @@
 
   // Çift tetiklenmeye karşı tıklama kilidi
   let lastExecTime = 0;
+  let lastClickCell = -1;
 
   // Score tracking per session (Starts 0 - 0)
   let myMatchScore = 0;
@@ -249,8 +250,11 @@
 
   function apply(gs) {
     if (!gs || !Array.isArray(gs.board)) return;
+    // Tahta pozisyonu DEĞİŞMEDİYSE (aynı fen) oyuncunun taş seçimini KORU.
+    const sameBoard = gameState && gameState.fen && gs.fen &&
+      gameState.fen === gs.fen && gameState.status === gs.status;
     gameState = gs;
-    selected = null;
+    if (!sameBoard) selected = null;
     pending = false;
 
     if (gameState.status === 'finished' && gameState.result) {
@@ -420,12 +424,15 @@
   function click(r, c) {
     if (!active || !gameState || gameState.status !== 'playing' || pending) return;
 
-    // Çift tetiklenmeye karşı kilit (aynı tıklamanın mükerrer işlenmesini önler)
+     // Çift tetiklenme kilidi: yalnızca AYNI kareye 100ms içinde gelen mükerrer
+    // tıklamayı yok say (farklı kareye hızlı tıklama meşrudur, yenmemeli).
     const now = Date.now();
-    if (now - lastExecTime < 100) {
+    const cellIdx = r * 8 + c;
+    if (now - lastExecTime < 100 && lastClickCell === cellIdx) {
       return;
     }
     lastExecTime = now;
+    lastClickCell = cellIdx;
 
     const mine = colorCode();
     if (!mine) return toast('⏳ Oyuncu rengi bekleniyor.', 'info');
