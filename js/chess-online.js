@@ -13,6 +13,10 @@
   let active = false;
   let clockInt = null;
 
+  // Score tracking per session (Starts 0 - 0)
+  let myMatchScore = 0;
+  let oppMatchScore = 0;
+
   function toast(message, type) {
     if (window.GV && typeof window.GV.toast === 'function') {
       try { window.GV.toast(message, type || 'info'); return; } catch (_) {}
@@ -29,8 +33,17 @@
 
   function isChessRoom() {
     const s = getState();
+    let g = s?.curGame || window.__gvCurrentGame || window.currentGame || '';
+    if (g === null || g === undefined || g === 'null' || g === 'undefined') g = '';
+    g = String(g).toLowerCase().trim();
+
+    if (g && g !== 'chess' && g !== 'satranc' && g !== 'satranç') return false;
+    if (g === 'chess' || g === 'satranç' || g === 'satranc') return true;
+
     const title = document.getElementById('grTitle')?.textContent || '';
-    return !!window.__gvChessOnlineRequested || /chess|satranç|satranc/i.test(String(s?.curGame || '')) || /chess|satranç|satranc/i.test(title);
+    if (/chess|satranç|satranc/i.test(title)) return true;
+
+    return !!window.__gvChessOnlineRequested;
   }
 
   function getRoomId() {
@@ -45,7 +58,7 @@
   }
 
   function userKey() {
-    const s = getState();
+    const s = state();
     const u = s?.user;
     const stable = u && (u.id || u.userId || u.username || u.email);
     if (stable) return 'user:' + String(stable);
@@ -81,6 +94,26 @@
     });
   }
 
+  function updateScorePanelUI() {
+    const myVal = document.getElementById('myScoreVal');
+    const oppVal = document.getElementById('oppScoreVal');
+    if (myVal) myVal.textContent = myMatchScore;
+    if (oppVal) oppVal.textContent = oppMatchScore;
+  }
+
+  function handlePlayerLeft() {
+    active = false;
+    pending = false;
+    toast('🚪 Rakip oyundan ayrıldı. Lobiye yönlendiriliyorsunuz...', 'warning');
+    setTimeout(() => {
+      if (typeof window.__gvRealChessLeave === 'function') {
+        window.__gvRealChessLeave();
+      } else if (typeof window.leaveRoom === 'function') {
+        window.leaveRoom();
+      }
+    }, 2000);
+  }
+
   function connect() {
     roomId = getRoomId();
     if (!roomId || !isChessRoom()) return;
@@ -101,19 +134,26 @@
       socket.on('connect', join);
       socket.on('disconnect', () => { pending = false; });
       socket.on('roomUpdated', room => {
-        if (!room || String(room.id) !== String(roomId)) return;
+        if (!room || String(room.id) !== String(roomId) || !isChessRoom()) return;
         const me = (room.players || []).find(p => p.id === socket.id);
         if (me) playerColor = me.color;
+        
+        // If room was playing but player left
+        if (active && room.players.length < 2) {
+          handlePlayerLeft();
+        }
       });
+
       socket.on('gameStarted', payload => {
-        if (!payload || String(payload.roomId) !== String(roomId)) return;
+        if (!payload || String(payload.roomId) !== String(roomId) || !isChessRoom()) return;
         active = true;
         playerColor = payload.playerColor || playerColor || findMyColor(payload.players);
         apply(payload.gameState);
         startClock();
       });
+
       socket.on('gameStateUpdated', payload => {
-        if (!payload || String(payload.roomId) !== String(roomId)) return;
+        if (!payload || String(payload.roomId) !== String(roomId) || !isChessRoom()) return;
         if (payload.playerColor) playerColor = payload.playerColor;
         if (payload.gameState) {
           active = payload.gameState.status === 'playing' || payload.gameState.status === 'finished';
@@ -121,13 +161,15 @@
           if (active) startClock();
         }
       });
+
       socket.on('chessMoveAccepted', payload => {
-        if (!payload || String(payload.roomId) !== String(roomId)) return;
+        if (!payload || String(payload.roomId) !== String(roomId) || !isChessRoom()) return;
         if (payload.playerColor) playerColor = payload.playerColor;
         pending = false;
         active = true;
         apply(payload.gameState);
       });
+
       socket.on('chessMoveRejected', payload => {
         pending = false;
         if (payload?.gameState) apply(payload.gameState);
@@ -139,24 +181,35 @@
         };
         toast(messages[payload?.reason] || '⚠️ Hamle reddedildi.', 'warning');
       });
+
       socket.on('gameEnded', payload => {
         pending = false;
         active = true;
         if (payload?.gameState) apply(payload.gameState);
+
+        if (payload?.reason === 'player_left') {
+          handlePlayerLeft();
+        }
       });
-      socket.on('playerLeft', () => { pending = false; active = false; });
+
+      socket.on('playerLeft', () => {
+        handlePlayerLeft();
+      });
     });
   }
 
   function findMyColor(players) {
     return (players || []).find(p => p.id === socket?.id)?.color || null;
   }
+
   function colorCode() {
     return playerColor === 'white' ? 'w' : playerColor === 'black' ? 'b' : null;
   }
+
   function square(r, c) {
     return 'abcdefgh'[c] + String(8 - r);
   }
+
   function format(ms) {
     const sec = Math.ceil(Math.max(0, Number(ms) || 0) / 1000);
     return String(Math.floor(sec / 60)).padStart(2, '0') + ':' + String(sec % 60).padStart(2, '0');
@@ -167,9 +220,22 @@
     gameState = gs;
     selected = null;
     pending = false;
+    
+    // Handle Game Winner score updates
+    if (gameState.status === 'finished' && gameState.result) {
+      if (gameState.result.winner === playerColor && !gameState._scoreCounted) {
+        gameState._scoreCounted = true;
+        myMatchScore++;
+      } else if (gameState.result.winner && gameState.result.winner !== playerColor && gameState.result.winner !== 'draw' && !gameState._scoreCounted) {
+        gameState._scoreCounted = true;
+        oppMatchScore++;
+      }
+    }
+
     render();
     updateClock();
     renderHistory();
+    updateScorePanelUI();
   }
 
   function renderHistory() {
@@ -181,7 +247,7 @@
   }
 
   function escapeHtml(value) {
-    return String(value).replace(/[&<>'"]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[ch]));
+    return String(value).replace(/[&<>'"]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[c]));
   }
 
   function injectPieceStyle() {
@@ -204,6 +270,7 @@
     if (!area) return;
 
     injectPieceStyle();
+    updateScorePanelUI();
 
     const board = gameState.board;
     const moves = gameState.legalMoves || [];
@@ -212,7 +279,6 @@
 
     let html = '<div class="chess-wrapper"><div class="chess">';
 
-    // Determine row & col iteration order based on board orientation
     const rowRange = isFlipped ? [7, 6, 5, 4, 3, 2, 1, 0] : [0, 1, 2, 3, 4, 5, 6, 7];
     const colRange = isFlipped ? [7, 6, 5, 4, 3, 2, 1, 0] : [0, 1, 2, 3, 4, 5, 6, 7];
 
@@ -287,7 +353,7 @@
         title = '🤝 BERABERE';
         desc = 'Oyun berabere bitti.';
       }
-      html += `<div class="chess-end-overlay"><div class="chess-end-modal"><div class="end-icon">🏁</div><h2>${title}</h2><p>${desc}</p></div></div>`;
+      html += `<div class="chess-end-overlay"><div class="chess-end-modal"><div class="end-icon">🏁</div><h2>${title}</h2><p>${desc}</p><button class="btn btn-p" style="margin-top:15px;padding:10px 20px;cursor:pointer;" onclick="window.__gvRealChessLeave()">🚪 Odadan Ayrıl ve Lobiye Dön</button></div></div>`;
     }
 
     html += '</div>';
@@ -427,7 +493,7 @@
   window.__gvOnlineChessPromote = promote;
 
   function boot() {
-    if (!window.__gvChessOnlineRequested && !isChessRoom()) return;
+    if (!isChessRoom()) return;
     roomId = getRoomId();
     if (roomId) connect();
   }
