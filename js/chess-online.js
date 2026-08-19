@@ -502,7 +502,7 @@
         if (ev.pointerType !== 'mouse' || ev.button !== 0) return;
         // Yalnızca tahta karelerinde işle; terfi penceresi vb. öğelerde
         // click olayına karışma.
-                if (!ev.target.closest('.chess-c')) return;
+        if (!ev.target.closest('.chess-c')) return;
         // Bu basışın üreteceği click olayını (ne kadar geç gelirse gelsin)
         // yut; yoksa yavaş tıklamada seçim anında geri alınıyor.
         swallowNextClick = true;
@@ -512,12 +512,6 @@
     // Dokunmatik ekran / kalem / eski tarayıcılar için click yedeği
     area.addEventListener('click', function (ev) {
       if (swallowNextClick) { swallowNextClick = false; return; } // fare: pointerdown'da işlendi
-      handleBoardEvent(ev);
-    });
-    }
-    // Dokunmatik ekran / kalem / eski tarayıcılar için click yedeği
-    area.addEventListener('click', function (ev) {
-      if (Date.now() < suppressClickUntil) return; // fare: pointerdown'da işlendi
       handleBoardEvent(ev);
     });
   }
