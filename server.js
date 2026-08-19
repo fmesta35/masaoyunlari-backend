@@ -18,6 +18,7 @@ const io = new Server(server, {
 
 const rooms = new Map();
 const MAX_ROOM_PLAYERS = 2;
+const MAX_SPECTATORS = 20;
 // Oyun sırasında kopan oyuncuya yeniden bağlanması için tanınan süre (ms).
 const RECONNECT_GRACE_MS = 30000;
 // Hamle süresi: 1. dakika sonunda uyarı, 2. dakika sonunda hükmen mağlubiyet.
@@ -40,14 +41,23 @@ function cancelDisconnectTimer(roomId, player) {
   }
 }
 
-function createRoom(id, gameId, maxPlayers, durationMinutes) {
+function lobbyChannel(gameId) {
+  return 'lobby:' + String(gameId || 'chess');
+}
+
+function createRoom(id, gameId, maxPlayers, durationMinutes, meta) {
+  meta = meta || {};
   const duration = Math.max(1, Number(durationMinutes) || 10);
+  const name = meta.name ? String(meta.name).slice(0, 60) : ('Masa #' + id);
   const room = {
     id,
     gameId: gameId || 'chess',
+    name,
+    isPrivate: !!meta.isPrivate,
     maxPlayers: Math.min(Number(maxPlayers) || 2, MAX_ROOM_PLAYERS),
     durationMinutes: duration,
     players: [],
+    spectators: [],
     status: 'waiting',
     chess: null,
     whiteTimeMs: duration * 60 * 1000,
@@ -79,23 +89,73 @@ function resetRoomToWaiting(room) {
   }
 }
 
+function publicPlayer(p) {
+  return {
+    id: p.id,
+    userKey: p.userKey,
+    name: p.name,
+    color: p.color,
+    seat: p.seat,
+    isReady: !!p.isReady
+  };
+}
+
+function publicSpectator(s) {
+  return {
+    id: s.id,
+    userKey: s.userKey,
+    name: s.name
+  };
+}
+
 function publicRoom(room) {
+  const spectators = Array.isArray(room.spectators) ? room.spectators : [];
   return {
     id: room.id,
     gameId: room.gameId,
+    name: room.name || ('Masa #' + room.id),
+    isPrivate: !!room.isPrivate,
     maxPlayers: room.maxPlayers,
+    duration: room.durationMinutes,
     durationMinutes: room.durationMinutes,
     status: room.status,
-    players: room.players.map(p => ({
-      id: p.id,
-      userKey: p.userKey,
-      name: p.name,
-      color: p.color,
-      seat: p.seat,
-      isReady: !!p.isReady
-    })),
+    players: room.players.map(publicPlayer),
+    spectators: spectators.map(publicSpectator),
+    spectatorCount: spectators.length,
     readyCount: room.players.filter(p => p.isReady).length
   };
+}
+
+function publicLobbyRoom(room) {
+  const spectators = Array.isArray(room.spectators) ? room.spectators : [];
+  return {
+    id: room.id,
+    gameId: room.gameId,
+    name: room.name || ('Masa #' + room.id),
+    maxPlayers: room.maxPlayers,
+    players: room.players.length,
+    playerList: room.players.map(p => ({ name: p.name, isReady: !!p.isReady, color: p.color })),
+    spectatorCount: spectators.length,
+    status: room.status,
+    isPrivate: !!room.isPrivate,
+    duration: room.durationMinutes,
+    durationMinutes: room.durationMinutes
+  };
+}
+
+function listPublicRooms(gameId) {
+  return [...rooms.values()]
+    .filter(r => (!gameId || r.gameId === gameId) && !r.isPrivate && r.players.length > 0)
+    .sort((a, b) => {
+      if (a.status !== b.status) return a.status === 'waiting' ? -1 : 1;
+      return String(a.id).localeCompare(String(b.id), undefined, { numeric: true });
+    })
+    .map(publicLobbyRoom);
+}
+
+function emitLobby(gameId) {
+  const gid = gameId || 'chess';
+  io.to(lobbyChannel(gid)).emit('roomsUpdated', { gameId: gid, rooms: listPublicRooms(gid) });
 }
 
 function updateClock(room) {
@@ -158,14 +218,15 @@ function serializeHistory(chess) {
   }));
 }
 
-function buildChessState(room) {
+function buildChessState(room, opts) {
   if (!room.chess) return null;
   updateClock(room);
   const chess = room.chess;
+  const hideMoves = !!(opts && opts.hideMoves);
   return {
     board: boardArray(chess),
     turn: chess.turn(),
-    legalMoves: room.status === 'playing' ? legalMoves(chess) : [],
+    legalMoves: (!hideMoves && room.status === 'playing') ? legalMoves(chess) : [],
     history: serializeHistory(chess),
     status: room.status,
     whiteTimeMs: room.whiteTimeMs,
@@ -179,18 +240,56 @@ function buildChessState(room) {
 
 function emitRoom(room) {
   io.to(room.id).emit('roomUpdated', publicRoom(room));
+  emitLobby(room.gameId);
+}
+
+function emitToPlayer(player, event, payload) {
+  if (!player || !player.id) return;
+  io.to(player.id).emit(event, payload);
 }
 
 function emitGameState(room) {
   const state = buildChessState(room);
   if (!state) return;
+  const specState = { ...state, legalMoves: [] };
   room.players.forEach(player => {
-    io.to(player.id).emit('gameStateUpdated', {
+    emitToPlayer(player, 'gameStateUpdated', {
       roomId: room.id,
       gameState: state,
       playerColor: player.color,
-      lastMove: room.lastMove
+      lastMove: room.lastMove,
+      isSpectator: false
     });
+  });
+  (room.spectators || []).forEach(spec => {
+    emitToPlayer(spec, 'gameStateUpdated', {
+      roomId: room.id,
+      gameState: specState,
+      playerColor: null,
+      lastMove: room.lastMove,
+      isSpectator: true
+    });
+  });
+}
+
+function emitPlayingSnapshot(room, socketId, player) {
+  if (!room || room.status !== 'playing' || !room.chess) return;
+  updateClock(room);
+  const isSpec = !player;
+  const state = buildChessState(room, { hideMoves: isSpec });
+  io.to(socketId).emit('gameStarted', {
+    roomId: room.id,
+    playerColor: player ? player.color : null,
+    isSpectator: isSpec,
+    players: publicRoom(room).players,
+    gameState: state
+  });
+  io.to(socketId).emit('gameStateUpdated', {
+    roomId: room.id,
+    gameState: state,
+    playerColor: player ? player.color : null,
+    lastMove: room.lastMove,
+    isSpectator: isSpec
   });
 }
 
@@ -213,16 +312,80 @@ function startChess(room) {
   room.turnStartedAt = now();
 
   const state = buildChessState(room);
+  const specState = { ...state, legalMoves: [] };
   emitRoom(room);
   room.players.forEach(player => {
-    io.to(player.id).emit('gameStarted', {
+    emitToPlayer(player, 'gameStarted', {
       roomId: room.id,
       playerColor: player.color,
+      isSpectator: false,
       players: publicRoom(room).players,
       gameState: state
     });
   });
+  (room.spectators || []).forEach(spec => {
+    emitToPlayer(spec, 'gameStarted', {
+      roomId: room.id,
+      playerColor: null,
+      isSpectator: true,
+      players: publicRoom(room).players,
+      gameState: specState
+    });
+  });
   emitGameState(room);
+}
+
+function findExistingPlayer(room, socket, userKey) {
+  if (!room || !Array.isArray(room.players)) return null;
+  return room.players.find(p => p.id === socket.id) ||
+    (userKey ? room.players.find(p => p.userKey && p.userKey === userKey) : null) ||
+    (socket.userKey ? room.players.find(p => p.userKey && p.userKey === socket.userKey) : null);
+}
+
+function findExistingSpectator(room, socket, userKey) {
+  if (!room || !Array.isArray(room.spectators)) return null;
+  return room.spectators.find(s => s.id === socket.id) ||
+    (userKey ? room.spectators.find(s => s.userKey && s.userKey === userKey) : null) ||
+    (socket.userKey ? room.spectators.find(s => s.userKey && s.userKey === socket.userKey) : null);
+}
+
+function maybePromoteSpectators(room) {
+  if (!room || room.status !== 'waiting') return;
+  if (!Array.isArray(room.spectators)) room.spectators = [];
+  while (room.players.length < room.maxPlayers && room.spectators.length) {
+    const spec = room.spectators.shift();
+    const color = room.players.length === 0 ? 'white' : 'black';
+    const player = {
+      id: spec.id,
+      userKey: spec.userKey,
+      name: spec.name,
+      color,
+      seat: room.players.length,
+      isReady: false
+    };
+    room.players.push(player);
+    io.to(spec.id).emit('promotedToPlayer', {
+      roomId: room.id,
+      playerColor: color,
+      room: publicRoom(room)
+    });
+  }
+}
+
+function removeSpectator(room, spec) {
+  if (!room || !spec) return;
+  room.spectators = (room.spectators || []).filter(s => s !== spec);
+  emitRoom(room);
+}
+
+function destroyRoom(room) {
+  if (!room) return;
+  (room.spectators || []).forEach(spec => {
+    io.to(spec.id).emit('roomClosed', { roomId: room.id, message: 'Oda kapandı.' });
+  });
+  rooms.delete(room.id);
+  console.log(`[ODA #${room.id}] boşaldı ve silindi.`);
+  emitLobby(room.gameId);
 }
 
 function removePlayerFromRoom(room, player, message) {
@@ -231,12 +394,11 @@ function removePlayerFromRoom(room, player, message) {
   room.players = room.players.filter(p => p !== player);
 
   if (room.players.length === 0) {
-    rooms.delete(room.id);
-    console.log(`[ODA #${room.id}] boşaldı ve silindi.`);
+    destroyRoom(room);
     return;
   }
 
-    const wasPlaying = room.status === 'playing';
+  const wasPlaying = room.status === 'playing';
   // Oyun sürerken ayrılan oyuncu HÜKMEN MAĞLUP olur; kalan oyuncu kazanır.
   if (wasPlaying && room.chess) {
     const remaining = room.players[0];
@@ -253,21 +415,37 @@ function removePlayerFromRoom(room, player, message) {
   }
 
   resetRoomToWaiting(room);
+  maybePromoteSpectators(room);
   emitRoom(room);
   if (wasPlaying) {
     io.to(room.id).emit('playerLeft', { roomId: room.id, message: message || 'Rakip oyundan ayrıldı.' });
   }
 }
 
-function findExistingPlayer(room, socket, userKey) {
-  if (!room || !Array.isArray(room.players)) return null;
-  return room.players.find(p => p.id === socket.id) ||
-    (userKey ? room.players.find(p => p.userKey && p.userKey === userKey) : null) ||
-    (socket.userKey ? room.players.find(p => p.userKey && p.userKey === socket.userKey) : null);
-}
-
 io.on('connection', socket => {
   console.log(`[BAĞLANDI] ${socket.id}`);
+
+  socket.on('subscribeLobby', payload => {
+    const gameId = String((payload && payload.gameId) || 'chess');
+    for (const roomName of socket.rooms) {
+      if (String(roomName).startsWith('lobby:')) socket.leave(roomName);
+    }
+    socket.lobbyGameId = gameId;
+    socket.join(lobbyChannel(gameId));
+    socket.emit('roomsUpdated', { gameId, rooms: listPublicRooms(gameId) });
+  });
+
+  socket.on('unsubscribeLobby', () => {
+    for (const roomName of socket.rooms) {
+      if (String(roomName).startsWith('lobby:')) socket.leave(roomName);
+    }
+    socket.lobbyGameId = null;
+  });
+
+  socket.on('listRooms', payload => {
+    const gameId = String((payload && payload.gameId) || 'chess');
+    socket.emit('roomsUpdated', { gameId, rooms: listPublicRooms(gameId) });
+  });
 
   socket.on('joinRoom', payload => {
     const data = payload || {};
@@ -276,7 +454,14 @@ io.on('connection', socket => {
     const roomId = String(data.roomId);
     const gameId = data.gameId || 'chess';
     let room = rooms.get(roomId);
-    if (!room) room = createRoom(roomId, gameId, data.maxPlayers, data.durationMinutes);
+    if (!room) {
+      room = createRoom(roomId, gameId, data.maxPlayers, data.durationMinutes, {
+        name: data.roomName || data.name,
+        isPrivate: !!(data.isPrivate)
+      });
+    } else if (!room.name && (data.roomName || data.name)) {
+      room.name = String(data.roomName || data.name).slice(0, 60);
+    }
 
     if ((room.status === 'finished' || room.status === 'aborted') && room.players.length < 2) {
       resetRoomToWaiting(room);
@@ -284,17 +469,14 @@ io.on('connection', socket => {
 
     const userKey = data.userKey ? String(data.userKey) : null;
     const name = String(data.userName || 'Oyuncu').slice(0, 40);
-    
+    const wantSpectate = !!(data.asSpectator || data.spectate);
+
     socket.userKey = userKey;
     socket.roomId = roomId;
     socket.join(roomId);
 
     let player = findExistingPlayer(room, socket, userKey);
-
-    if (!player && room.players.length >= room.maxPlayers) {
-      socket.emit('roomFull', { roomId, message: 'Bu oda dolu.' });
-      return;
-    }
+    let spectator = findExistingSpectator(room, socket, userKey);
 
     if (player) {
       player.id = socket.id;
@@ -302,7 +484,15 @@ io.on('connection', socket => {
       player.userKey = userKey || player.userKey;
       player.disconnectedAt = null;
       cancelDisconnectTimer(roomId, player);
-    } else {
+      if (spectator) room.spectators = room.spectators.filter(s => s !== spectator);
+      socket.role = 'player';
+    } else if (spectator && (wantSpectate || room.players.length >= room.maxPlayers || room.status === 'playing')) {
+      spectator.id = socket.id;
+      spectator.name = name || spectator.name;
+      spectator.userKey = userKey || spectator.userKey;
+      socket.role = 'spectator';
+    } else if (!wantSpectate && room.players.length < room.maxPlayers && room.status === 'waiting') {
+      if (spectator) room.spectators = room.spectators.filter(s => s !== spectator);
       const color = room.players.length === 0 ? 'white' : 'black';
       player = {
         id: socket.id,
@@ -313,27 +503,40 @@ io.on('connection', socket => {
         isReady: false
       };
       room.players.push(player);
+      socket.role = 'player';
+    } else {
+      if (!Array.isArray(room.spectators)) room.spectators = [];
+      if (!spectator && room.spectators.length >= MAX_SPECTATORS) {
+        socket.emit('roomFull', { roomId, message: 'Oda dolu ve izleyici kotası doldu.' });
+        socket.leave(roomId);
+        socket.roomId = null;
+        socket.role = null;
+        return;
+      }
+      if (!spectator) {
+        spectator = { id: socket.id, userKey, name };
+        room.spectators.push(spectator);
+      } else {
+        spectator.id = socket.id;
+        spectator.name = name || spectator.name;
+        spectator.userKey = userKey || spectator.userKey;
+      }
+      socket.role = 'spectator';
     }
 
     emitRoom(room);
+    socket.emit('joinedRoom', {
+      roomId,
+      role: socket.role,
+      playerColor: player ? player.color : null,
+      isSpectator: socket.role === 'spectator',
+      room: publicRoom(room)
+    });
 
-        if (room.status === 'playing') {
-      // Yeniden bağlanan oyuncuya durumu SADECE ona gönder;
+    if (room.status === 'playing') {
+      // Yeniden bağlanan oyuncuya / izleyiciye durumu SADECE ona gönder;
       // tüm odaya yayınlamak rakibin taş seçimini sıfırlıyordu.
-      updateClock(room);
-      const state = buildChessState(room);
-      io.to(socket.id).emit('gameStarted', {
-        roomId,
-        playerColor: player.color,
-        players: publicRoom(room).players,
-        gameState: state
-      });
-      io.to(socket.id).emit('gameStateUpdated', {
-        roomId,
-        gameState: state,
-        playerColor: player.color,
-        lastMove: room.lastMove
-      });
+      emitPlayingSnapshot(room, socket.id, player || null);
     }
   });
 
@@ -413,7 +616,15 @@ io.on('connection', socket => {
         roomId,
         playerColor: p.color,
         move: room.lastMove.moveData,
-        gameState: state
+        gameState: state,
+        isSpectator: false
+      }));
+      (room.spectators || []).forEach(spec => io.to(spec.id).emit('chessMoveAccepted', {
+        roomId,
+        playerColor: null,
+        move: room.lastMove.moveData,
+        gameState: { ...state, legalMoves: [] },
+        isSpectator: true
       }));
       emitGameState(room);
       if (room.status === 'finished') {
@@ -432,9 +643,12 @@ io.on('connection', socket => {
     if (!room) return;
 
     const player = findExistingPlayer(room, socket, socket.userKey);
+    const spectator = findExistingSpectator(room, socket, socket.userKey);
     socket.leave(roomId);
     socket.roomId = null;
+    socket.role = null;
     if (player) removePlayerFromRoom(room, player, 'Rakip oyundan ayrıldı.');
+    else if (spectator) removeSpectator(room, spectator);
   });
 
   socket.on('disconnect', () => {
@@ -442,6 +656,11 @@ io.on('connection', socket => {
     if (!roomId) return;
     const room = rooms.get(roomId);
     if (!room) return;
+
+    const spectator = (room.spectators || []).find(s => s.id === socket.id);
+    if (spectator) {
+      removeSpectator(room, spectator);
+    }
 
     const player = room.players.find(p => p.id === socket.id);
     if (!player) return;
@@ -469,7 +688,7 @@ io.on('connection', socket => {
   });
 });
 
-setInterval(() => {
+const clockTimer = setInterval(() => {
   for (const room of rooms.values()) {
     if (room.status !== 'playing') continue;
     const before = room.status;
@@ -512,8 +731,38 @@ setInterval(() => {
     }
   }
 }, 500);
+if (typeof clockTimer.unref === 'function') clockTimer.unref();
 
-app.get('/health', (_req, res) => res.json({ ok: true, rooms: rooms.size }));
+app.get('/health', (_req, res) => res.json({
+  ok: true,
+  rooms: rooms.size,
+  players: [...rooms.values()].reduce((n, r) => n + r.players.length, 0),
+  spectators: [...rooms.values()].reduce((n, r) => n + (r.spectators || []).length, 0)
+}));
 
-const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => console.log(`🚀 GameVerse Render sunucusu ${PORT} portunda aktif.`));
+app.get('/api/rooms', (req, res) => {
+  const gameId = String(req.query.gameId || req.query.game_id || 'chess');
+  res.json({ ok: true, gameId, rooms: listPublicRooms(gameId) });
+});
+
+function start(port) {
+  const listenPort = port !== undefined ? port : (process.env.PORT || 3000);
+  return new Promise((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(listenPort, () => {
+      const addr = server.address();
+      const actual = addr && typeof addr === 'object' ? addr.port : listenPort;
+      console.log(`🚀 GameVerse Render sunucusu ${actual} portunda aktif.`);
+      resolve(server);
+    });
+  });
+}
+
+if (require.main === module) {
+  start().catch(err => {
+    console.error('Sunucu başlatılamadı:', err);
+    process.exit(1);
+  });
+}
+
+module.exports = { app, server, io, rooms, start, listPublicRooms, publicRoom };

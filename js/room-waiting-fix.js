@@ -52,6 +52,12 @@
     return 'guest:' + id;
   }
 
+  function isMe(p) {
+    if (!p) return false;
+    if (socket?.id && p.id === socket.id) return true;
+    return !!(p.userKey && p.userKey === userKey());
+  }
+
   function roomIdNow() {
     const s = state();
     const a = [window.__gvActiveRoomId, window.__gvActiveRoom?.id, s?.roomWaitingState?.room?.id, s?.roomWaitingState?.roomId, localStorage.getItem('gv-room-id')];
@@ -85,6 +91,7 @@
 .gv-leave:hover{background:rgba(255,255,255,.05);color:#fff}
 .spin{width:28px;height:28px;margin:15px auto;border:3px solid var(--border2,rgba(255,255,255,.15));border-top-color:var(--primary,#6c5ce7);border-radius:50%;animation:gv-spin .8s linear infinite}
 @keyframes gv-spin{to{transform:rotate(360deg)}}
+#gv-real-chess-wait .spec-banner{margin:0 0 12px;padding:8px 12px;border-radius:10px;background:rgba(108,92,231,.15);border:1px solid rgba(108,92,231,.35);color:var(--primary2,#a29bfe);text-align:center;font-weight:700;font-size:.9rem}
 @media(max-width:650px){#gv-real-chess-wait .players{grid-template-columns:1fr}}
 `;
     document.head.appendChild(stl);
@@ -112,40 +119,55 @@
     }
     const e = overlay();
     const ps = Array.isArray(room.players) ? room.players : [];
-    const me = ps.find(p => p.id === socket?.id);
+    const specs = Array.isArray(room.spectators) ? room.spectators : [];
+    const me = ps.find(isMe);
+    const watching = !me && (!!specs.find(isMe) || !!window.__gvIsSpectator);
     const ready = !!me?.isReady;
     const full = ps.length === 2;
     const allReady = full && ps.every(p => p.isReady);
+    window.__gvIsSpectator = watching;
 
     const player = (i) => {
       const p = ps[i];
       if (!p) {
-        return `<div class="gvp"><div class="av">➕</div><div class="nm">Rakip bekleniyor...</div><div class="st">Boş Sandalye</div></div>`;
+        return '<div class="gvp"><div class="av">➕</div><div class="nm">Rakip bekleniyor...</div><div class="st">Boş Sandalye</div></div>';
       }
-      return `<div class="gvp ${p.isReady ? 'ready' : ''}">
-        <div class="av">${p.color === 'white' ? '⚪' : '🔴'}</div>
-        <div class="nm">${esc(p.name || 'Oyuncu')}${p.id === socket?.id ? ' <b>(Siz)</b>' : ''}</div>
-        <div class="st">${p.isReady ? '✅ HAZIR' : '⏳ BEKLİYOR'}</div>
-      </div>`;
+      return '<div class="gvp ' + (p.isReady ? 'ready' : '') + '">' +
+        '<div class="av">' + (p.color === 'white' ? '⚪' : '🔴') + '</div>' +
+        '<div class="nm">' + esc(p.name || 'Oyuncu') + (isMe(p) ? ' <b>(Siz)</b>' : '') + '</div>' +
+        '<div class="st">' + (p.isReady ? '✅ HAZIR' : '⏳ BEKLİYOR') + '</div>' +
+        '</div>';
     };
 
-    const status = allReady ? '🚀 Oyun başlatılıyor...' : full
-      ? (ready ? '⏳ Rakibin de "HAZIRIM" butonuna basması bekleniyor...' : '👉 Oyuna başlamak için "HAZIRIM" butonuna basınız.')
-      : '⌛ İkinci oyuncu masaya bekleniyor...';
+    const status = watching
+      ? (full ? '👁️ İzleyici olarak bekliyorsunuz. Oyun başlayınca tahtayı göreceksiniz.' : '👁️ İzleyici olarak bekliyorsunuz.')
+      : allReady ? '🚀 Oyun başlatılıyor...' : full
+        ? (ready ? '⏳ Rakibin de "HAZIRIM" butonuna basması bekleniyor...' : '👉 Oyuna başlamak için "HAZIRIM" butonuna basınız.')
+        : '⌛ İkinci oyuncu masaya bekleniyor...';
 
-    e.innerHTML = `<div class="card">
-      <h2>♟️ Satranç Masa #${roomId} — Bekleme Odası</h2>
-      <div class="sub">Oyun, her iki oyuncu da <b>HAZIRIM</b> butonuna bastığında başlayacaktır.</div>
-      ${ps.length < 2 ? '<div class="spin"></div>' : ''}
-      <div class="players">${player(0)}${player(1)}</div>
-      <div class="status">${status}</div>
-      <button class="gv-ready ${ready ? 'ready' : ''}" type="button">
-        ${ready ? '✓ HAZIRSINIZ (İPTAL ETMEK İÇİN TIKLAYIN)' : '▶ OYUNA HAZIRIM!'}
-      </button>
-      <button class="gv-leave" type="button">🚪 Odadan Ayrıl</button>
-    </div>`;
+    const specLine = specs.length ? '<div class="sub">👁️ ' + specs.length + ' izleyici</div>' : '';
+    const title = watching ? 'İzleyici' : 'Bekleme Odası';
+    const intro = watching
+      ? '<div class="spec-banner">👁️ İzleyici modu — hamle yapamazsınız</div>'
+      : '<div class="sub">Oyun, her iki oyuncu da <b>HAZIRIM</b> butonuna bastığında başlayacaktır.</div>';
+    const readyBtn = watching ? ''
+      : '<button class="gv-ready ' + (ready ? 'ready' : '') + '" type="button">' +
+        (ready ? '✓ HAZIRSINIZ (İPTAL ETMEK İÇİN TIKLAYIN)' : '▶ OYUNA HAZIRIM!') +
+        '</button>';
+    const leaveLabel = watching ? '🚪 İzlemeyi Bırak' : '🚪 Odadan Ayrıl';
+
+    e.innerHTML = '<div class="card">' +
+      '<h2>♟️ Satranç Masa #' + roomId + ' — ' + title + '</h2>' +
+      intro + specLine +
+      (ps.length < 2 ? '<div class="spin"></div>' : '') +
+      '<div class="players">' + player(0) + player(1) + '</div>' +
+      '<div class="status">' + status + '</div>' +
+      readyBtn +
+      '<button class="gv-leave" type="button">' + leaveLabel + '</button>' +
+      '</div>';
 
     e.querySelector('.gv-ready')?.addEventListener('click', () => {
+      if (watching) return;
       if (socket && socket.connected) {
         socket.emit('setReady', { ready: !ready });
       }
@@ -172,7 +194,7 @@
     }
     if (document.querySelector('script[data-gv-chess-online]')) return;
     const s = document.createElement('script');
-    s.src = 'js/chess-online.js?v=20260819b';
+    s.src = 'js/chess-online.js?v=20260819c';
     s.dataset.gvChessOnline = '1';
     s.async = false;
     document.head.appendChild(s);
@@ -208,6 +230,8 @@
         if (!r || String(r.id) !== roomId || !isChess()) return;
         room = r;
         window.__gvActiveRoom = r;
+        const mePlayer = (r.players || []).find(isMe);
+        window.__gvIsSpectator = !mePlayer && !!(r.spectators || []).find(isMe);
         if (started) return;
         if (r.status === 'playing' || r.status === 'finished') {
           started = true;
@@ -218,8 +242,43 @@
         }
       });
 
+      socket.on('joinedRoom', p => {
+        if (!p || String(p.roomId) !== roomId || !isChess()) return;
+        window.__gvIsSpectator = p.role === 'spectator' || !!p.isSpectator;
+        if (p.room) {
+          room = p.room;
+          window.__gvActiveRoom = p.room;
+        }
+        if (started) return;
+        if (p.room && (p.room.status === 'playing' || p.room.status === 'finished')) {
+          started = true;
+          hide();
+          loadChess();
+        } else {
+          render();
+        }
+      });
+
+      socket.on('promotedToPlayer', p => {
+        if (!p || String(p.roomId) !== roomId || !isChess()) return;
+        window.__gvIsSpectator = false;
+        window.__gvJoinAsSpectator = false;
+        if (p.room) {
+          room = p.room;
+          window.__gvActiveRoom = p.room;
+        }
+        started = false;
+        render();
+      });
+
+      socket.on('roomClosed', () => {
+        if (!isChess()) return;
+        leave();
+      });
+
       socket.on('gameStarted', p => {
         if (!p || String(p.roomId) !== roomId || !isChess()) return;
+        if (p.isSpectator) window.__gvIsSpectator = true;
         if (started) return;
         started = true;
         hide();
@@ -233,9 +292,11 @@
 
       socket.on('roomFull', p => {
         if (!isChess()) return;
-        room = Object.assign({}, room, { players: [] });
         const e = overlay();
-        e.innerHTML = `<div class="card"><h2>♟️ Satranç</h2><div class="sub">${esc(p?.message || 'Bu oda dolu.')}</div></div>`;
+        e.innerHTML = '<div class="card"><h2>♟️ Satranç</h2><div class="sub">' +
+          esc(p?.message || 'Bu oda dolu.') +
+          '</div><button class="gv-leave" type="button">🚪 Lobiye Dön</button></div>';
+        e.querySelector('.gv-leave')?.addEventListener('click', leave);
       });
     }
     join();
@@ -249,8 +310,11 @@
       userName: userName(),
       userKey: userKey(),
       maxPlayers: 2,
-      durationMinutes: Number(room?.duration || 10),
-      gameId: 'chess'
+      durationMinutes: Number(room?.duration || room?.durationMinutes || 10),
+      gameId: 'chess',
+      roomName: room?.name,
+      isPrivate: !!room?.isPrivate,
+      asSpectator: !!window.__gvJoinAsSpectator
     });
   }
 
@@ -271,6 +335,8 @@
     window.__gvActiveRoom = null;
     window.__gvActiveRoomId = null;
     window.__gvChessGameStarted = false;
+    window.__gvIsSpectator = false;
+    window.__gvJoinAsSpectator = false;
     try { localStorage.removeItem('gv-room-id'); } catch (_) {}
     hide();
 
