@@ -33,6 +33,9 @@
   // Terk / hükmen sonuçlarında sunucunun KİŞİYE ÖZEL gönderdiği karar.
   // Oda sıfırlanınca renk değişebildiği için renk karşılaştırmasına güvenilmez.
   let forfeitYouWon = null;
+  // Ana süre bitiminde ('timeout') sunucunun kişiye özel gönderdiği sonuç;
+  // "ters mesaj" (kazananın kaybettim görmesi) hatasını önler.
+  let endYouWon = null;
 
   // Terfi seçimi ARTIK gameState üzerinde değil ayrı değişkende tutulur:
   // sunucudan gelen her durum paketi gameState nesnesini yenilediği için
@@ -245,6 +248,9 @@
       socket.on('gameStarted', payload => {
         if (!payload || String(payload.roomId) !== String(roomId) || !isChessRoom()) return;
         active = true;
+        // Yeni oyun: önceki oyunun bitiş kararları geçersizdir.
+        forfeitYouWon = null;
+        endYouWon = null;
         if (payload.isSpectator) {
           isSpectator = true;
           window.__gvIsSpectator = true;
@@ -298,10 +304,15 @@
         pending = false;
         active = true;
         if (payload?.gameState) apply(payload.gameState);
+        // Sunucu TÜM bitiş nedenlerinde kişiye özel youWon gönderir.
+        if (payload && typeof payload.youWon === 'boolean' && !isSpectator && !payload.isSpectator) {
+          endYouWon = payload.youWon;
+        }
 
-        // Terk / hükmen mağlubiyet: her iki oyuncu da 5 sn sonra lobiye döner,
-        // masa yeni oyuncular için sıfırlanır.
-        if (payload?.reason === 'player_left' || payload?.reason === 'abandon') {
+        // Terk / hükmen mağlubiyet / hamle süresi bitimi: üçü de AYRI
+        // mesajlanır (hamle süresi ≠ terk ≠ ana süre). İki oyuncu da 5 sn
+        // sonra lobiye döner, masa yeni oyuncular için beklemeye alınır.
+        if (payload?.reason === 'player_left' || payload?.reason === 'abandon' || payload?.reason === 'move_timeout') {
           const winner = payload.winner || payload.gameState?.result?.winner;
           // Sunucu artık KİŞİYE ÖZEL `youWon` gönderiyor. Terk sonrası oda
           // sıfırlanınca renkler yeniden dağıtıldığı için `winner === playerColor`
@@ -310,26 +321,33 @@
             ? payload.youWon
             : (winner && winner === playerColor);
           forfeitYouWon = (isSpectator || payload.isSpectator) ? null : !!iWon;
+          const isMoveTimeout = payload?.reason === 'move_timeout';
           render();
           if (isSpectator || payload.isSpectator) {
             const who = winner === 'white' ? 'Beyaz' : winner === 'black' ? 'Siyah' : 'Bir oyuncu';
-            toast('🚪 Oyun terk edildi. ' + who + ' kazandı. Lobiye yönlendiriliyorsunuz...', 'info');
+            toast(isMoveTimeout
+              ? '⏱ Hamle süresi doldu. ' + who + ' kazandı. Lobiye yönlendiriliyorsunuz...'
+              : '🚪 Oyun terk edildi. ' + who + ' kazandı. Lobiye yönlendiriliyorsunuz...', 'info');
           } else if (iWon) {
-            toast('🏆 Oyunu KAZANDINIZ! Rakibiniz oyunu terk etti. Lobiye yönlendiriliyorsunuz...', 'success');
+            toast(isMoveTimeout
+              ? '🏆 Rakibiniz hamle süresini doldurdu — OYUNU KAZANDINIZ! Lobiye yönlendiriliyorsunuz...'
+              : '🏆 Oyunu KAZANDINIZ! Rakibiniz oyunu terk etti. Lobiye yönlendiriliyorsunuz...', 'success');
           } else {
-            toast('💔 Oyunu terk ettiğiniz için KAYBETTİNİZ. Lobiye yönlendiriliyorsunuz...', 'error');
+            toast(isMoveTimeout
+              ? '⏱ Hamle süreniz doldu — HÜKMEN KAYBETTİNİZ. Lobiye yönlendiriliyorsunuz...'
+              : '💔 Oyunu terk ettiğiniz için KAYBETTİNİZ. Lobiye yönlendiriliyorsunuz...', 'error');
           }
           autoReturnToLobby();
         }
       });
 
-      // Hamle süresi uyarısı: 1 dakikadır hamle yapılmadı, 1 dakika daha
-      // beklenirse hükmen mağlubiyet.
+      // Hamle süresi uyarısı: hamle limiti dolmak üzere; oynamazsanız
+      // hükmen mağlubiyet. Kalan süre sunucudan gelir (sabit metin yok).
       socket.on('moveTimeWarning', payload => {
         if (!payload || String(payload.roomId) !== String(roomId) || !isChessRoom()) return;
-        const secs = Math.ceil(Math.max(0, Number(payload.remainingMs) || 60000) / 1000);
+        const secs = Math.ceil(Math.max(0, Number(payload.remainingMs) || 0) / 1000) || 20;
         if (payload.color === playerColor) {
-          toast(`⏰ 1 dakikadır hamle yapmadınız! ${secs} saniye içinde oynamazsanız HÜKMEN MAĞLUP sayılacaksınız!`, 'error');
+          toast(`⏰ Hamle yapmakta gecikiyorsunuz! ${secs} saniye içinde oynamazsanız HÜKMEN MAĞLUP sayılacaksınız!`, 'error');
         } else {
           toast(`⏳ Rakibiniz hamle yapmıyor. ${secs} saniye içinde oynamazsa hükmen mağlup sayılacak.`, 'warning');
         }
@@ -451,6 +469,10 @@
       .chess-end-modal p { color: #aaa; margin-bottom: 20px; font-size: 1rem; }
       .end-icon { font-size: 3rem; }
       .gv-spec-banner { margin: 0 0 10px; padding: 8px 12px; border-radius: 10px; background: rgba(108,92,231,.18); border: 1px solid rgba(108,92,231,.4); color: #c4b5fd; text-align: center; font-weight: 700; font-size: .9rem; }
+      /* Hamle süresi geri sayım rozesi: tahtanın üstünde, son ~20 sn kırmızı */
+      .move-clock-badge { display: block; width: max-content; max-width: 100%; margin: 0 auto 8px; padding: 6px 14px; border-radius: 999px; background: rgba(46,213,115,.14); border: 1px solid rgba(46,213,115,.45); color: #7bed9f; font-weight: 700; font-size: .92rem; text-align: center; font-variant-numeric: tabular-nums; }
+      .move-clock-badge.danger { background: rgba(255,71,87,.18); border-color: rgba(255,71,87,.55); color: #ff6b81; animation: gvMoveDanger 1s ease-in-out infinite; }
+      @keyframes gvMoveDanger { 0%, 100% { box-shadow: 0 0 0 rgba(255,71,87,0); } 50% { box-shadow: 0 0 14px rgba(255,71,87,.55); } }
     `;
     document.head.appendChild(style);
   }
@@ -481,6 +503,8 @@
 
     let html = '<div class="chess-wrapper">' +
       (isSpectator ? '<div class="gv-spec-banner">👁️ İzleyici — sadece izliyorsunuz, hamle yapamazsınız</div>' : '') +
+      // Hamle süresi canlı geri sayım rozeti (tahtanın üstü; updateClock doldurur)
+      '<div id="moveClockBadge" class="move-clock-badge" style="display:none"></div>' +
       '<div class="chess">';
 
     const rowRange = isFlipped ? [7, 6, 5, 4, 3, 2, 1, 0] : [0, 1, 2, 3, 4, 5, 6, 7];
@@ -542,9 +566,24 @@
         desc = 'Oyun berabere bitti.';
       } else if (result.reason === 'timeout') {
         title = '⏰ SÜRE BİTTİ';
+        // Sunucunun kişiye özel youWon kararına güvenilir; renk
+        // karşılaştırması "ters mesaj" hatasına yol açabiliyordu.
+        const clockWon = endYouWon !== null ? endYouWon : (result.winner === playerColor);
         desc = isSpectator
-          ? ((result.winner === 'white' ? 'Beyaz' : 'Siyah') + ' kazandı (süre).')
-          : (result.winner === playerColor ? '🏆 Zaman bitti, Kazandınız!' : '💔 Süreniz doldu.');
+          ? ((result.winner === 'white' ? 'Beyaz' : 'Siyah') + ' kazandı (ana süre doldu).')
+          : (clockWon ? '🏆 Rakibin ana süresi doldu, Kazandınız!' : '💔 Ana süreniz doldu.');
+      } else if (result.reason === 'move_timeout') {
+        title = '⏱ HAMLE SÜRESİ DOLDU';
+        // Hamle süresi (1 dk) hamle yapılmadan doldu — hükmen mağlubiyet.
+        // Terk (player_left) ve ana süre (timeout) mesajlarından AYRIDIR.
+        const mtWon = forfeitYouWon !== null
+          ? forfeitYouWon
+          : (endYouWon !== null ? endYouWon : (result.winner === playerColor));
+        desc = isSpectator
+          ? ((result.winner === 'white' ? 'Beyaz' : result.winner === 'black' ? 'Siyah' : 'Bir oyuncu') + ' kazandı. Hamle süresi doldu.')
+          : (mtWon
+            ? '🏆 Rakibiniz hamle süresini doldurdu — OYUNU KAZANDINIZ! Birazdan lobiye yönlendirileceksiniz...'
+            : '💔 Hamle süreniz doldu — HÜKMEN KAYBETTİNİZ. Birazdan lobiye yönlendirileceksiniz...');
       } else if (result.reason === 'threefold_repetition') {
         title = '🤝 ÜÇLÜ TEKRAR';
         desc = 'Oyun berabere bitti.';
@@ -803,6 +842,25 @@
       const color = (isSpectator || !mine) ? (i === 0 ? 'w' : 'b') : (i === 0 ? mine : (mine === 'w' ? 'b' : 'w'));
       el.classList.toggle('active', color === gameState.turn && gameState.status === 'playing');
     });
+
+    // Hamle süresi rozeti: hamlesi beklenen tarafın kalan süresi canlı sayılır.
+    // Son ~20 sn'de kırmızıya döner (danger). Sunucu paketindeki
+    // moveRemainingMs + serverNow üzerinden yerel saatle türetilir.
+    const badge = document.getElementById('moveClockBadge');
+    if (badge) {
+      const limit = Number(gameState.moveLimitMs) || 60000;
+      if (gameState.status === 'playing' && typeof gameState.moveRemainingMs === 'number') {
+        const sincePack = gameState.serverNow ? Math.max(0, Date.now() - Number(gameState.serverNow)) : 0;
+        const remain = Math.max(0, Number(gameState.moveRemainingMs) - sincePack);
+        const secs = Math.ceil(remain / 1000);
+        const who = gameState.turn === 'w' ? 'Beyaz' : 'Siyah';
+        badge.textContent = `⏱ Hamle sırası: ${who} — ${secs} sn`;
+        badge.classList.toggle('danger', remain <= Math.min(20000, limit / 2));
+        badge.style.display = '';
+      } else {
+        badge.style.display = 'none';
+      }
+    }
   }
 
   function startClock() {
@@ -831,6 +889,7 @@
     playerColor = null;
     isSpectator = false;
     forfeitYouWon = null;
+    endYouWon = null;
     roomId = null;
     if (clockInt) { clearInterval(clockInt); clockInt = null; }
     socket = null; // room-waiting-fix yeni oyun için yeni soket oluşturur

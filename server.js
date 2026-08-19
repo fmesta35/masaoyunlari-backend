@@ -24,10 +24,38 @@ const MAX_SPECTATORS = 20;
 const POST_GAME_HOLD_MS = Number(process.env.GV_POST_GAME_HOLD_MS) || 8000;
 // Oyun sırasında kopan oyuncuya yeniden bağlanması için tanınan süre (ms).
 const RECONNECT_GRACE_MS = 30000;
-// Hamle süresi: 1. dakika sonunda uyarı, 2. dakika sonunda hükmen mağlubiyet.
-const MOVE_WARN_MS = Number(process.env.GV_MOVE_WARN_MS) || 60000;
-const MOVE_FORFEIT_MS = Number(process.env.GV_MOVE_FORFEIT_MS) || 120000;
+// Hamle süresi: 40. saniyede uyarı, 60. saniyede (1 dk) hükmen mağlubiyet.
+// DİKKAT: bu sayaç YALNIZCA oyun başında ve gerçek bir hamlede sıfırlanır
+// (touchMoveTimer). updateClock() içinde sıfırlanırsa saat döngüsü
+// (500 ms'de bir) sayacı sürekli başa döndürür ve denetim ölü kod olur.
+const MOVE_WARN_MS = Number(process.env.GV_MOVE_WARN_MS) || 40000;
+const MOVE_FORFEIT_MS = Number(process.env.GV_MOVE_FORFEIT_MS) || 60000;
 const disconnectTimers = new Map();
+
+// Lobide HER ZAMAN görünen kalıcı hazır masalar: 2 kişilik, masanın kendi
+// süresi korunur (istemci ne gönderirse göndersin değişmez), boşken de
+// listelenir, oyun bitince silinmez — beklemeye alınır.
+const PRESET_TABLES = [
+  { id: '101', durationMinutes: 5 },
+  { id: '102', durationMinutes: 10 },
+  { id: '103', durationMinutes: 15 },
+  { id: '104', durationMinutes: 20 },
+  { id: '105', durationMinutes: 5 },
+  { id: '106', durationMinutes: 10 },
+  { id: '107', durationMinutes: 15 },
+  { id: '108', durationMinutes: 20 },
+  { id: '109', durationMinutes: 5 },
+  { id: '110', durationMinutes: 10 }
+];
+
+function seedPresetTables() {
+  for (const t of PRESET_TABLES) {
+    const existing = rooms.get(t.id);
+    if (existing) { existing.isPreset = true; continue; }
+    const room = createRoom(t.id, 'chess', 2, t.durationMinutes, { name: 'Masa #' + t.id });
+    room.isPreset = true;
+  }
+}
 
 function now() { return Date.now(); }
 
@@ -62,10 +90,13 @@ function createRoom(id, gameId, maxPlayers, durationMinutes, meta) {
     players: [],
     spectators: [],
     status: 'waiting',
+    isPreset: false,
     chess: null,
     whiteTimeMs: duration * 60 * 1000,
     blackTimeMs: duration * 60 * 1000,
     turnStartedAt: null,
+    moveStartedAt: null,
+    moveWarned: false,
     result: null,
     lastMove: null
   };
@@ -80,6 +111,8 @@ function resetRoomToWaiting(room) {
   room.result = null;
   room.lastMove = null;
   room.turnStartedAt = null;
+  room.moveStartedAt = null;
+  room.moveWarned = false;
   const duration = Math.max(1, Number(room.durationMinutes) || 10);
   room.whiteTimeMs = duration * 60 * 1000;
   room.blackTimeMs = duration * 60 * 1000;
@@ -147,8 +180,11 @@ function publicLobbyRoom(room) {
 }
 
 function listPublicRooms(gameId) {
+  // NOT: boş masalar DA listelenir (eskiden `players.length > 0` filtresi
+  // yüzünden 0 oyunculu kalıcı masalar lobide görünmüyordu: "Henüz açık
+  // masa yok" hatasının sebebi buydu).
   return [...rooms.values()]
-    .filter(r => (!gameId || r.gameId === gameId) && !r.isPrivate && r.players.length > 0)
+    .filter(r => (!gameId || r.gameId === gameId) && !r.isPrivate)
     .sort((a, b) => {
       if (a.status !== b.status) return a.status === 'waiting' ? -1 : 1;
       return String(a.id).localeCompare(String(b.id), undefined, { numeric: true });
@@ -161,14 +197,23 @@ function emitLobby(gameId) {
   io.to(lobbyChannel(gid)).emit('roomsUpdated', { gameId: gid, rooms: listPublicRooms(gid) });
 }
 
+// Hamle sayacı SADECE burada sıfırlanır: oyun başında ve gerçek bir hamlede.
+// updateClock() her çağrısında (saat döngüsü 500 ms'de bir çalışır) sayacı
+// sıfırlamak hamle süresi denetimini tamamen çalışmaz hale getiriyordu:
+// elapsed hiç eşiği aşamadığı için ne uyarı ne de hükmen mağlubiyet geliyordu.
+function touchMoveTimer(room) {
+  room.moveStartedAt = now();
+  room.moveWarned = false;
+}
+
 function updateClock(room) {
   if (!room.chess || room.status !== 'playing' || !room.turnStartedAt) return;
   const elapsed = Math.max(0, now() - room.turnStartedAt);
   if (room.chess.turn() === 'w') room.whiteTimeMs = Math.max(0, room.whiteTimeMs - elapsed);
   else room.blackTimeMs = Math.max(0, room.blackTimeMs - elapsed);
   room.turnStartedAt = now();
-  room.moveStartedAt = now();
-  room.moveWarned = false;
+  // NOT: room.moveStartedAt ve room.moveWarned'a buraya bilinçli olarak
+  // dokunulmaz; bkz. touchMoveTimer.
 
   const remaining = room.chess.turn() === 'w' ? room.whiteTimeMs : room.blackTimeMs;
   if (remaining <= 0) {
@@ -226,6 +271,11 @@ function buildChessState(room, opts) {
   updateClock(room);
   const chess = room.chess;
   const hideMoves = !!(opts && opts.hideMoves);
+  // Hamle sayacı göstergesi için: bu paketin hazırlandığı andaki kalan süre.
+  // İstemci, serverNow üzerinden geçen süreyi düşerek canlı geri sayım yapar.
+  const moveElapsed = (room.status === 'playing' && room.moveStartedAt)
+    ? Math.max(0, now() - room.moveStartedAt)
+    : 0;
   return {
     board: boardArray(chess),
     turn: chess.turn(),
@@ -234,6 +284,8 @@ function buildChessState(room, opts) {
     status: room.status,
     whiteTimeMs: room.whiteTimeMs,
     blackTimeMs: room.blackTimeMs,
+    moveLimitMs: MOVE_FORFEIT_MS,
+    moveRemainingMs: Math.max(0, MOVE_FORFEIT_MS - moveElapsed),
     serverNow: now(),
     result: room.result,
     check: typeof chess.isCheck === 'function' ? chess.isCheck() : false,
@@ -313,6 +365,7 @@ function startChess(room) {
   room.whiteTimeMs = room.durationMinutes * 60 * 1000;
   room.blackTimeMs = room.durationMinutes * 60 * 1000;
   room.turnStartedAt = now();
+  touchMoveTimer(room); // hamle sayacı oyun başında başlar
 
   const state = buildChessState(room);
   const specState = { ...state, legalMoves: [] };
@@ -387,6 +440,14 @@ function removeSpectator(room, spec) {
 
 function destroyRoom(room) {
   if (!room) return;
+  // Kalıcı hazır masalar (#101-#110) ASLA silinmez: boşalınca beklemeye
+  // alınır ve lobide görünmeye devam eder.
+  if (room.isPreset) {
+    resetRoomToWaiting(room);
+    console.log(`[ODA #${room.id}] hazır masa boşaldı; beklemeye alındı (silinmedi).`);
+    emitRoom(room);
+    return;
+  }
   (room.spectators || []).forEach(spec => {
     io.to(spec.id).emit('roomClosed', { roomId: room.id, message: 'Oda kapandı.' });
   });
@@ -663,8 +724,7 @@ io.on('connection', socket => {
     try {
       const move = room.chess.move({ from, to, ...(promotion ? { promotion } : {}) });
       room.turnStartedAt = now();
-      room.moveStartedAt = now();
-      room.moveWarned = false;
+      touchMoveTimer(room); // gerçek hamle: hamle sayacı başa döner
       room.lastMove = { moveData: {
         from: move.from,
         to: move.to,
@@ -764,14 +824,37 @@ const clockTimer = setInterval(() => {
     const before = room.status;
     updateClock(room);
     if (before !== room.status) {
+      // ANA SÜRE bitti ('timeout'): kimde dolduysa karşı taraf kazanır.
+      // Kişiye özel youWon gönderilir — aksi halde "ters mesaj" hatası
+      // yaşanıyordu (kazanan "kaybettiniz", kaybeden "kazandınız" görüyordu).
       const state = buildChessState(room);
       emitGameState(room);
       emitRoom(room);
-      io.to(room.id).emit('gameEnded', { roomId: room.id, reason: room.result?.reason || 'timeout', gameState: state });
+      const clockWinner = room.result?.winner || null;
+      room.players.forEach(p => io.to(p.id).emit('gameEnded', {
+        roomId: room.id,
+        reason: room.result?.reason || 'timeout',
+        winner: clockWinner,
+        winnerColor: clockWinner,
+        playerColor: p.color,
+        youWon: !!clockWinner && p.color === clockWinner,
+        gameState: state
+      }));
+      (room.spectators || []).forEach(s => io.to(s.id).emit('gameEnded', {
+        roomId: room.id,
+        reason: room.result?.reason || 'timeout',
+        winner: clockWinner,
+        winnerColor: clockWinner,
+        playerColor: null,
+        youWon: false,
+        isSpectator: true,
+        gameState: { ...state, legalMoves: [] }
+      }));
       continue;
     }
 
-    // Hamle süresi denetimi: 1 dk sonunda uyarı, 2 dk sonunda hükmen mağlubiyet
+    // Hamle süresi denetimi: 40. saniyede uyarı, 60. saniyede hükmen mağlubiyet.
+    // 'move_timeout' — terk (player_left) ve ana süre (timeout) ile KARIŞTIRILMAZ.
     if (room.chess && room.moveStartedAt) {
       const elapsed = now() - room.moveStartedAt;
       const turnColor = room.chess.turn() === 'w' ? 'white' : 'black';
@@ -787,14 +870,14 @@ const clockTimer = setInterval(() => {
 
       if (elapsed >= MOVE_FORFEIT_MS) {
         room.status = 'finished';
-        room.result = { reason: 'abandon', winner: turnColor === 'white' ? 'black' : 'white' };
+        room.result = { reason: 'move_timeout', winner: turnColor === 'white' ? 'black' : 'white' };
         const state = buildChessState(room);
         emitGameState(room);
         emitRoom(room);
         const winner = room.result.winner;
         room.players.forEach(p => io.to(p.id).emit('gameEnded', {
           roomId: room.id,
-          reason: 'abandon',
+          reason: 'move_timeout',
           winner,
           winnerColor: winner,
           playerColor: p.color,
@@ -803,7 +886,7 @@ const clockTimer = setInterval(() => {
         }));
         (room.spectators || []).forEach(s => io.to(s.id).emit('gameEnded', {
           roomId: room.id,
-          reason: 'abandon',
+          reason: 'move_timeout',
           winner,
           winnerColor: winner,
           playerColor: null,
@@ -830,6 +913,8 @@ app.get('/api/rooms', (req, res) => {
 });
 
 function start(port) {
+  // Kalıcı hazır masalar sunucu ayağa kalkarken oluşturulur.
+  seedPresetTables();
   const listenPort = port !== undefined ? port : (process.env.PORT || 3000);
   return new Promise((resolve, reject) => {
     server.once('error', reject);
@@ -849,4 +934,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { app, server, io, rooms, start, listPublicRooms, publicRoom };
+module.exports = { app, server, io, rooms, start, listPublicRooms, publicRoom, seedPresetTables, PRESET_TABLES };
