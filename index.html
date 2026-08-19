@@ -903,7 +903,7 @@ const GV=(function(){'use strict';
 const TWO_PLAYER_GAMES = ['chess', 'tavla', 'dama', 'turkdamasi', 'reversi', 'gomoku', 'connect4', 'bilardo'];
 // Masa listesi sunucudan (Render) gelen gerçek zamanlı oyunlar.
 // Bu oyunlarda ASLA sahte/demo masa üretilmez.
-const ONLINE_GAMES = ['chess'];
+const ONLINE_GAMES = ['chess', 'tavla'];
 const BOT_FALLBACK_GAMES = ['okey', 'okey101', 'pisti', 'batak'];
 
 const GAMES={
@@ -1454,7 +1454,7 @@ function openCreateRoomModal(){
     }
   }
 
-  if(gid === 'chess') {
+  if(gid === 'chess' || gid === 'tavla') {
     if(roundsGroup) roundsGroup.style.display = 'none';
     if(durationGroup) durationGroup.style.display = 'block';
   } else {
@@ -1479,8 +1479,8 @@ function createRoom(){
   const pCount = isTwoPlayer ? 2 : parseInt(countInp?.value || '4');
   const isPrivate = typeInp?.value === 'private';
 
-  const rRounds = (gid === 'chess') ? 1 : parseInt(roundsInp?.value || '3');
-  const gameDuration = (gid === 'chess') ? parseInt(durationInp?.value || '10') : 10;
+  const rRounds = (gid === 'chess' || gid === 'tavla') ? 1 : parseInt(roundsInp?.value || '3');
+  const gameDuration = (gid === 'chess' || gid === 'tavla') ? parseInt(durationInp?.value || '10') : 10;
 
   if (!ROOMS[gid]) ROOMS[gid] = [];
 
@@ -2033,7 +2033,7 @@ function _chessGoLobby(){openLobby(st.curGame);}
 
 // ================= 2. TAVLA MOTORU =================
 function rTavla(el){const pts=Array(24).fill(null).map(()=>({color:null,count:0}));pts[23]={color:'w',count:2};pts[12]={color:'w',count:5};pts[7]={color:'w',count:3};pts[5]={color:'w',count:5};pts[0]={color:'b',count:2};pts[11]={color:'b',count:5};pts[16]={color:'b',count:3};pts[18]={color:'b',count:5};st.boards.tavla={points:pts,bar:{w:0,b:0},off:{w:0,b:0},dice:[0,0],availableMoves:[],turn:'w',selected:null,validTargets:[],diceRolled:false,gameEnded:false,moveHistory:[]};dTavla(el);}
-function dTavla(el){const s=st.boards.tavla;let h='<div class="tavla-wrap">';h+=`<div class="tavla-dice-area"><div class="tavla-info">👤 ${s.turn==='w'?'BEYAZ':'SİYAH'} sırası</div><div class="tavla-dice">`;[0,1].forEach(i=>{const v=s.dice[i],u=v>0&&!s.availableMoves.includes(v);let inner='';if(v>0){let dots='';for(let d=0;d<v;d++)dots+='<div class="dot"></div>';inner=`<div class="tavla-die-face f${v}">${dots}</div>`;}else inner='<div class="tavla-die-empty">🎲</div>';h+=`<div class="tavla-die ${u?'used':''}" id="tvDie${i}">${inner}</div>`;});h+='</div>';if(!s.diceRolled&&!s.gameEnded){h+='<button class="tavla-btn" onclick="GV._tvRoll()">🎲 Zar At</button>';}else if(s.diceRolled&&!s.gameEnded){if(s.moveHistory?.length>0&&s.availableMoves.length>0)h+='<button class="tavla-btn undo" onclick="GV._tvUndoMove()">↩️ Geri Al</button>';if(!s.availableMoves.length)h+='<button class="tavla-btn end" onclick="GV._tvEndTurn()">✅ Bitir</button>';}h+=`<div class="tavla-info">📦 ⚪${s.off.w}/⚫${s.off.b}</div></div>`;h+='<div class="tavla-board">';h+='<div class="tavla-num-row">';for(let i=13;i<=18;i++)h+=`<div class="tavla-num-cell">${i}</div>`;h+='<div style="width:42px;flex-shrink:0"></div>';for(let i=19;i<=24;i++)h+=`<div class="tavla-num-cell">${i}</div>`;h+='<div style="width:60px;flex-shrink:0"></div></div>';h+='<div class="tavla-row"><div class="tavla-half">';for(let i=12;i<=17;i++)h+=tvPt(i,s);h+=`</div><div class="tavla-bar">BAR<div class="tavla-bar-count">⚫${s.bar.b}</div></div><div class="tavla-half">`;for(let i=18;i<=23;i++)h+=tvPt(i,s);h+=`</div><div class="tavla-off" onclick="GV._tvBearOff('w')"><div>⚪</div><div class="tavla-off-count">${s.off.w}</div><div>OFF</div></div></div>`;h+='<div class="tavla-row"><div class="tavla-half">';for(let i=11;i>=6;i--)h+=tvPt(i,s);h+=`</div><div class="tavla-bar">BAR<div class="tavla-bar-count">⚪${s.bar.w}</div></div><div class="tavla-half">`;for(let i=5;i>=0;i--)h+=tvPt(i,s);h+=`</div><div class="tavla-off" style="background:linear-gradient(135deg,#333,#000)" onclick="GV._tvBearOff('b')"><div>⚫</div><div class="tavla-off-count">${s.off.b}</div><div>OFF</div></div></div>`;h+='<div class="tavla-num-row">';for(let i=12;i>=7;i--)h+=`<div class="tavla-num-cell">${i}</div>`;h+='<div style="width:42px;flex-shrink:0"></div>';for(let i=6;i>=1;i--)h+=`<div class="tavla-num-cell">${i}</div>`;h+='<div style="width:60px;flex-shrink:0"></div></div>';h+='</div></div>';el.innerHTML=h;}
+function dTavla(el){const s=st.boards.tavla;let h='<div class="tavla-wrap"><div id="tvMoveBadge" class="tavla-move-badge" style="display:none"></div>';h+=`<div class="tavla-dice-area"><div class="tavla-info">👤 ${s.turn==='w'?'BEYAZ':'SİYAH'} sırası</div><div class="tavla-dice">`;[0,1].forEach(i=>{const v=s.dice[i],u=v>0&&!s.availableMoves.includes(v);let inner='';if(v>0){let dots='';for(let d=0;d<v;d++)dots+='<div class="dot"></div>';inner=`<div class="tavla-die-face f${v}">${dots}</div>`;}else inner='<div class="tavla-die-empty">🎲</div>';h+=`<div class="tavla-die ${u?'used':''}" id="tvDie${i}">${inner}</div>`;});h+='</div>';if(!s.diceRolled&&!s.gameEnded){h+='<button class="tavla-btn" onclick="GV._tvRoll()">🎲 Zar At</button>';}else if(s.diceRolled&&!s.gameEnded){if(s.moveHistory?.length>0&&s.availableMoves.length>0)h+='<button class="tavla-btn undo" onclick="GV._tvUndoMove()">↩️ Geri Al</button>';if(!s.availableMoves.length)h+='<button class="tavla-btn end" onclick="GV._tvEndTurn()">✅ Bitir</button>';}h+=`<div class="tavla-info">📦 ⚪${s.off.w}/⚫${s.off.b}</div></div>`;h+='<div class="tavla-board">';h+='<div class="tavla-num-row">';for(let i=13;i<=18;i++)h+=`<div class="tavla-num-cell">${i}</div>`;h+='<div style="width:42px;flex-shrink:0"></div>';for(let i=19;i<=24;i++)h+=`<div class="tavla-num-cell">${i}</div>`;h+='<div style="width:60px;flex-shrink:0"></div></div>';h+='<div class="tavla-row"><div class="tavla-half">';for(let i=12;i<=17;i++)h+=tvPt(i,s);h+=`</div><div class="tavla-bar">BAR<div class="tavla-bar-count">⚫${s.bar.b}</div></div><div class="tavla-half">`;for(let i=18;i<=23;i++)h+=tvPt(i,s);h+=`</div><div class="tavla-off" onclick="GV._tvBearOff('w')"><div>⚪</div><div class="tavla-off-count">${s.off.w}</div><div>OFF</div></div></div>`;h+='<div class="tavla-row"><div class="tavla-half">';for(let i=11;i>=6;i--)h+=tvPt(i,s);h+=`</div><div class="tavla-bar">BAR<div class="tavla-bar-count">⚪${s.bar.w}</div></div><div class="tavla-half">`;for(let i=5;i>=0;i--)h+=tvPt(i,s);h+=`</div><div class="tavla-off" style="background:linear-gradient(135deg,#333,#000)" onclick="GV._tvBearOff('b')"><div>⚫</div><div class="tavla-off-count">${s.off.b}</div><div>OFF</div></div></div>`;h+='<div class="tavla-num-row">';for(let i=12;i>=7;i--)h+=`<div class="tavla-num-cell">${i}</div>`;h+='<div style="width:42px;flex-shrink:0"></div>';for(let i=6;i>=1;i--)h+=`<div class="tavla-num-cell">${i}</div>`;h+='<div style="width:60px;flex-shrink:0"></div></div>';h+='</div></div>';el.innerHTML=h;}
 function tvPt(i,s){const p=s.points[i],l=i%2===0,sel=s.selected===i,v=s.validTargets.includes(i);let c='tavla-point '+(l?'light':'dark');if(sel)c+=' selected';if(v)c+=' can-move';let h=`<div class="${c}" onclick="GV._tvClick(${i})">`;if(p.count>0){const mv=Math.min(p.count,5);for(let j=0;j<mv;j++){if(j===4&&p.count>5)h+=`<div class="tavla-checker ${p.color} count">${p.count}</div>`;else h+=`<div class="tavla-checker ${p.color}"></div>`;}}h+='</div>';return h;}
 function _tvRoll(){const s=st.boards.tavla;if(!s||s.gameEnded||s.diceRolled)return;[0,1].forEach(i=>{const d=document.getElementById('tvDie'+i);if(d)d.classList.add('rolling');});setTimeout(()=>{if(!s||s.gameEnded)return;s.dice[0]=Math.floor(Math.random()*6)+1;s.dice[1]=Math.floor(Math.random()*6)+1;s.availableMoves=s.dice[0]===s.dice[1]?[s.dice[0],s.dice[0],s.dice[0],s.dice[0]]:[s.dice[0],s.dice[1]];s.diceRolled=true;addMove(`🎲 ${s.dice[0]}-${s.dice[1]}`);toast(`🎲 ${s.dice[0]}-${s.dice[1]}`,'info');dTavla(document.getElementById('boardArea'));if(!tvHasMove())setTimeout(()=>{toast('Hamle yok! Sıra geçiyor.','warning');_tvEndTurn();},1500);},500);}
 function tvCanLand(i,c){if(i<0||i>23)return false;const p=st.boards.tavla.points[i];return!p.count||p.color===c||p.count===1;}
@@ -3630,8 +3630,9 @@ GV.init();
 <script src="js/games.js?v=20260819c" defer></script>
 <script src="js/utils.js?v=20260819c" defer></script>
 <script src="js/lobby-sync.js?v=20260819c" defer></script>
-<script src="js/room-waiting-fix.js?v=20260819c" defer></script>
+<script src="js/room-waiting-fix.js?v=20260819d" defer></script>
 <script src="js/chess-online.js?v=20260819c" defer></script>
+<script src="js/tavla-online.js?v=20260819d" defer></script>
 
 <!-- Structured Data for SEO -->
 <script type="application/ld+json">

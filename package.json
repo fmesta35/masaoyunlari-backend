@@ -4,7 +4,7 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "test": "node test/lobby-spectator.test.js && node test/spectator-forfeit.test.js && node test/move-timer-preset-tables.test.js"
+    "test": "node test/lobby-spectator.test.js && node test/spectator-forfeit.test.js && node test/move-timer-preset-tables.test.js && node test/tavla-engine.test.js && node test/tavla-online.test.js"
   },
   "dependencies": {
     "chess.js": "^1.4.0",

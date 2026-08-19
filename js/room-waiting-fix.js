@@ -16,18 +16,34 @@
     if (g === null || g === undefined || g === 'null' || g === 'undefined') g = '';
     g = String(g).toLowerCase().trim();
 
-    // If curGame is explicitly another game (Pişti, Tavla, Okey etc.), it is NOT chess!
-    if (g && g !== 'chess' && g !== 'satranc' && g !== 'satranç') {
+    // If curGame is explicitly another game (Pişti, Okey etc.), it is NOT chess/tavla!
+    if (g && g !== 'chess' && g !== 'satranc' && g !== 'satranç' && g !== 'tavla') {
       return false;
     }
 
-    if (g === 'chess' || g === 'satranç' || g === 'satranc') return true;
+    if (g === 'chess' || g === 'satranç' || g === 'satranc' || g === 'tavla') return true;
 
     const title = (document.getElementById('grTitle')?.textContent || '').toLowerCase();
-    if (/satranç|satranc/i.test(title)) return true;
+    if (/satranç|satranc|tavla/i.test(title)) return true;
 
-    return !!window.__gvChessOnlineRequested;
+    return !!window.__gvChessOnlineRequested || !!window.__gvTavlaOnlineRequested;
   }
+
+  // Bu köprü satranç ve tavla odalarını yönetir; aktif oyunu döndürür.
+  function activeGame() {
+    const s = state();
+    let g = s?.curGame || window.__gvCurrentGame || window.currentGame || '';
+    if (g === null || g === undefined || g === 'null' || g === 'undefined') g = '';
+    g = String(g).toLowerCase().trim();
+    if (g === 'tavla') return 'tavla';
+    if (!g) {
+      const title = (document.getElementById('grTitle')?.textContent || '').toLowerCase();
+      if (/tavla/i.test(title)) return 'tavla';
+    }
+    return 'chess';
+  }
+
+  function gameLabel() { return activeGame() === 'tavla' ? '🎲 Tavla' : '♟️ Satranç'; }
 
   function isRoomPage() {
     const s = state();
@@ -160,7 +176,7 @@
     const leaveLabel = watching ? '🚪 İzlemeyi Bırak' : '🚪 Odadan Ayrıl';
 
     e.innerHTML = '<div class="card">' +
-      '<h2>♟️ Satranç Masa #' + roomId + ' — ' + title + '</h2>' +
+      '<h2>' + gameLabel() + ' Masa #' + roomId + ' — ' + title + '</h2>' +
       intro + specLine +
       (ps.length < 2 ? '<div class="spin"></div>' : '') +
       '<div class="players">' + player(0) + player(1) + '</div>' +
@@ -185,6 +201,23 @@
 
   function loadChess() {
     if (!isChess()) return;
+    // Tavla odası: tavla istemcisini devreye al (statik yüklüyse sadece boot et).
+    if (activeGame() === 'tavla') {
+      if (window.__gvTavlaGameStarted && window.__gvTavlaOnlineLoaded) return;
+      window.__gvTavlaGameStarted = true;
+      window.__gvTavlaOnlineRequested = true;
+      if (window.__gvTavlaOnlineLoaded) {
+        window.dispatchEvent(new CustomEvent('gv:roomGameStarted', { detail: { roomId } }));
+        return;
+      }
+      if (document.querySelector('script[data-gv-tavla-online]')) return;
+      const ts = document.createElement('script');
+      ts.src = 'js/tavla-online.js?v=20260819d';
+      ts.dataset.gvTavlaOnline = '1';
+      ts.async = false;
+      document.head.appendChild(ts);
+      return;
+    }
     // Idempotent: oyun zaten boot edildiyse joinRoom/boot döngüsünü tetikleme.
     if (window.__gvChessGameStarted && window.__gvChessOnlineLoaded) return;
     window.__gvChessGameStarted = true;
@@ -296,7 +329,7 @@
       socket.on('roomFull', p => {
         if (!isChess()) return;
         const e = overlay();
-        e.innerHTML = '<div class="card"><h2>♟️ Satranç</h2><div class="sub">' +
+        e.innerHTML = '<div class="card"><h2>' + gameLabel() + '</h2><div class="sub">' +
           esc(p?.message || 'Bu oda dolu.') +
           '</div><button class="gv-leave" type="button">🚪 Lobiye Dön</button></div>';
         e.querySelector('.gv-leave')?.addEventListener('click', leave);
@@ -314,7 +347,7 @@
       userKey: userKey(),
       maxPlayers: 2,
       durationMinutes: Number(room?.duration || room?.durationMinutes || 10),
-      gameId: 'chess',
+      gameId: activeGame(), // 'chess' | 'tavla'
       roomName: room?.name,
       isPrivate: !!room?.isPrivate,
       asSpectator: !!window.__gvJoinAsSpectator || !!window.__gvIsSpectator
@@ -347,6 +380,12 @@
     if (typeof window.__gvChessOnlineReset === 'function') {
       try { window.__gvChessOnlineReset(); } catch (_) {}
     }
+    // Online tavla istemcisi için de aynı sıfırlama (tavla-online.js hook'u)
+    if (typeof window.__gvTavlaOnlineReset === 'function') {
+      try { window.__gvTavlaOnlineReset(); } catch (_) {}
+    }
+    window.__gvTavlaGameStarted = false;
+    window.__gvTavlaOnlineRequested = false;
 
     // Tahta alanını ve oyun sonu overlay'ini temizle
     const boardArea = document.getElementById('boardArea');
@@ -376,7 +415,7 @@
   function goLobby() {
     try {
       if (typeof GV !== 'undefined' && GV) {
-        if (typeof GV.openLobby === 'function') { GV.openLobby('chess'); return true; }
+        if (typeof GV.openLobby === 'function') { GV.openLobby(activeGame()); return true; }
         if (typeof GV.page === 'function') { GV.page('games'); return true; }
       }
     } catch (_) {}
@@ -389,11 +428,12 @@
   function startRealRoomWaiting(r) {
     if (!isChess()) return;
     roomId = String(r?.id || roomIdNow() || '');
-    room = r || { id: roomId, name: 'Satranç Masası #' + roomId, maxPlayers: 2, duration: 10, players: [], status: 'waiting' };
+    room = r || { id: roomId, name: gameLabel() + ' Masası #' + roomId, maxPlayers: 2, duration: 10, players: [], status: 'waiting' };
     started = false;
     window.__gvActiveRoomId = roomId;
     window.__gvActiveRoom = room;
-    window.__gvChessOnlineRequested = true;
+    if (activeGame() === 'tavla') window.__gvTavlaOnlineRequested = true;
+    else window.__gvChessOnlineRequested = true;
     localStorage.setItem('gv-room-id', roomId);
     if (state()) state().curPage = 'room';
     connect();
@@ -434,7 +474,8 @@
     patchLeaveRoom();
     if (!isChess()) {
       window.__gvChessOnlineRequested = false;
-      hide(); // Ensure chess overlay is completely hidden on non-chess games like Pişti, Tavla, Okey!
+      window.__gvTavlaOnlineRequested = false;
+      hide(); // Ensure chess/tavla overlay is completely hidden on other games like Pişti, Okey!
       return;
     }
     if (!isRoomPage()) return;

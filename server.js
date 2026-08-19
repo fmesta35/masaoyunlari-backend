@@ -4,6 +4,7 @@ const http = require('http');
 const { Server } = require('socket.io');
 const cors = require('cors');
 const { Chess } = require('chess.js');
+const tavlaEngine = require('./tavla-engine');
 
 const app = express();
 app.use(cors({ origin: true, credentials: true }));
@@ -35,24 +36,21 @@ const disconnectTimers = new Map();
 // Lobide HER ZAMAN görünen kalıcı hazır masalar: 2 kişilik, masanın kendi
 // süresi korunur (istemci ne gönderirse göndersin değişmez), boşken de
 // listelenir, oyun bitince silinmez — beklemeye alınır.
+// Satranç: #101-#110, Tavla: #201-#210 (her lobide 10'ar masa).
+function presetRange(startId) {
+  const durations = [5, 10, 15, 20, 5, 10, 15, 20, 5, 10];
+  return durations.map((d, i) => ({ id: String(startId + i), durationMinutes: d }));
+}
 const PRESET_TABLES = [
-  { id: '101', durationMinutes: 5 },
-  { id: '102', durationMinutes: 10 },
-  { id: '103', durationMinutes: 15 },
-  { id: '104', durationMinutes: 20 },
-  { id: '105', durationMinutes: 5 },
-  { id: '106', durationMinutes: 10 },
-  { id: '107', durationMinutes: 15 },
-  { id: '108', durationMinutes: 20 },
-  { id: '109', durationMinutes: 5 },
-  { id: '110', durationMinutes: 10 }
+  ...presetRange(101).map(t => ({ ...t, gameId: 'chess' })),
+  ...presetRange(201).map(t => ({ ...t, gameId: 'tavla' }))
 ];
 
 function seedPresetTables() {
   for (const t of PRESET_TABLES) {
     const existing = rooms.get(t.id);
     if (existing) { existing.isPreset = true; continue; }
-    const room = createRoom(t.id, 'chess', 2, t.durationMinutes, { name: 'Masa #' + t.id });
+    const room = createRoom(t.id, t.gameId || 'chess', 2, t.durationMinutes, { name: 'Masa #' + t.id });
     room.isPreset = true;
   }
 }
@@ -92,6 +90,7 @@ function createRoom(id, gameId, maxPlayers, durationMinutes, meta) {
     status: 'waiting',
     isPreset: false,
     chess: null,
+    tavla: null,
     whiteTimeMs: duration * 60 * 1000,
     blackTimeMs: duration * 60 * 1000,
     turnStartedAt: null,
@@ -108,6 +107,7 @@ function resetRoomToWaiting(room) {
   if (!room) return;
   room.status = 'waiting';
   room.chess = null;
+  room.tavla = null;
   room.result = null;
   room.lastMove = null;
   room.turnStartedAt = null;
@@ -206,19 +206,28 @@ function touchMoveTimer(room) {
   room.moveWarned = false;
 }
 
+// Sıra kimde? ('white' | 'black' | null) — satranç ve tavla için ortak.
+function turnColorOf(room) {
+  if (room.chess) return room.chess.turn() === 'w' ? 'white' : 'black';
+  if (room.tavla) return room.tavla.turn === 'w' ? 'white' : 'black';
+  return null;
+}
+
 function updateClock(room) {
-  if (!room.chess || room.status !== 'playing' || !room.turnStartedAt) return;
+  if ((!room.chess && !room.tavla) || room.status !== 'playing' || !room.turnStartedAt) return;
+  const turnColor = turnColorOf(room);
+  if (!turnColor) return;
   const elapsed = Math.max(0, now() - room.turnStartedAt);
-  if (room.chess.turn() === 'w') room.whiteTimeMs = Math.max(0, room.whiteTimeMs - elapsed);
+  if (turnColor === 'white') room.whiteTimeMs = Math.max(0, room.whiteTimeMs - elapsed);
   else room.blackTimeMs = Math.max(0, room.blackTimeMs - elapsed);
   room.turnStartedAt = now();
   // NOT: room.moveStartedAt ve room.moveWarned'a buraya bilinçli olarak
   // dokunulmaz; bkz. touchMoveTimer.
 
-  const remaining = room.chess.turn() === 'w' ? room.whiteTimeMs : room.blackTimeMs;
+  const remaining = turnColor === 'white' ? room.whiteTimeMs : room.blackTimeMs;
   if (remaining <= 0) {
     room.status = 'finished';
-    room.result = { reason: 'timeout', winner: room.chess.turn() === 'w' ? 'black' : 'white' };
+    room.result = { reason: 'timeout', winner: turnColor === 'white' ? 'black' : 'white' };
   }
 }
 
@@ -293,6 +302,52 @@ function buildChessState(room, opts) {
   };
 }
 
+// Testlerde deterministik zar: GV_TAVLA_FORCE_DICE="3,1" tüm zarları sabitler.
+function forcedTavlaDice() {
+  const raw = String(process.env.GV_TAVLA_FORCE_DICE || '').trim();
+  if (!raw) return null;
+  const m = raw.split(',').map(x => parseInt(x, 10));
+  return (m.length === 2 && m.every(n => n >= 1 && n <= 6)) ? m : null;
+}
+
+function buildTavlaState(room, opts) {
+  if (!room.tavla) return null;
+  updateClock(room);
+  const t = room.tavla;
+  const hideMoves = !!(opts && opts.hideMoves);
+  const moveElapsed = (room.status === 'playing' && room.moveStartedAt)
+    ? Math.max(0, now() - room.moveStartedAt)
+    : 0;
+  return {
+    kind: 'tavla',
+    points: t.points.map(p => ({ color: p.color, count: p.count })),
+    bar: { w: t.bar.w, b: t.bar.b },
+    off: { w: t.off.w, b: t.off.b },
+    turn: t.turn,
+    dice: [t.dice[0], t.dice[1]],
+    movesLeft: t.movesLeft.slice(),
+    rolled: !!t.rolled,
+    legalMoves: (!hideMoves && room.status === 'playing' && t.rolled) ? tavlaEngine.legalSteps(t) : [],
+    turnMoves: t.history.length, // tur içi hamle sayısı (Geri Al butonu)
+    status: room.status,
+    whiteTimeMs: room.whiteTimeMs,
+    blackTimeMs: room.blackTimeMs,
+    moveLimitMs: MOVE_FORFEIT_MS,
+    moveRemainingMs: Math.max(0, MOVE_FORFEIT_MS - moveElapsed),
+    serverNow: now(),
+    result: room.result,
+    notice: room.tavlaNotice || null,
+    lastStep: room.lastMove ? room.lastMove.moveData : null
+  };
+}
+
+// Oyun türüne göre doğru durum üreticisini seç (satranç / tavla).
+function buildBoardState(room, opts) {
+  if (room.chess) return buildChessState(room, opts);
+  if (room.tavla) return buildTavlaState(room, opts);
+  return null;
+}
+
 function emitRoom(room) {
   io.to(room.id).emit('roomUpdated', publicRoom(room));
   emitLobby(room.gameId);
@@ -304,7 +359,7 @@ function emitToPlayer(player, event, payload) {
 }
 
 function emitGameState(room) {
-  const state = buildChessState(room);
+  const state = buildBoardState(room);
   if (!state) return;
   const specState = { ...state, legalMoves: [] };
   room.players.forEach(player => {
@@ -328,10 +383,10 @@ function emitGameState(room) {
 }
 
 function emitPlayingSnapshot(room, socketId, player) {
-  if (!room || room.status !== 'playing' || !room.chess) return;
+  if (!room || room.status !== 'playing' || (!room.chess && !room.tavla)) return;
   updateClock(room);
   const isSpec = !player;
-  const state = buildChessState(room, { hideMoves: isSpec });
+  const state = buildBoardState(room, { hideMoves: isSpec });
   io.to(socketId).emit('gameStarted', {
     roomId: room.id,
     playerColor: player ? player.color : null,
@@ -389,6 +444,56 @@ function startChess(room) {
     });
   });
   emitGameState(room);
+}
+
+function startTavla(room) {
+  if (room.status === 'playing') return;
+  if (room.players.length !== 2 || !room.players.every(p => p.isReady)) return;
+
+  // Satrançtaki gibi renkler RASTGELE dağıtılır; beyaz (w) başlar.
+  const flip = Math.random() < 0.5;
+  room.players[0].color = flip ? 'black' : 'white';
+  room.players[1].color = flip ? 'white' : 'black';
+
+  room.tavla = tavlaEngine.init();
+  room.tavlaNotice = null;
+  room.status = 'playing';
+  room.result = null;
+  room.lastMove = null;
+  room.whiteTimeMs = room.durationMinutes * 60 * 1000;
+  room.blackTimeMs = room.durationMinutes * 60 * 1000;
+  room.turnStartedAt = now();
+  touchMoveTimer(room); // hamle sayacı oyun başında başlar
+
+  const state = buildTavlaState(room);
+  const specState = { ...state, legalMoves: [] };
+  emitRoom(room);
+  room.players.forEach(player => {
+    emitToPlayer(player, 'gameStarted', {
+      roomId: room.id,
+      playerColor: player.color,
+      isSpectator: false,
+      players: publicRoom(room).players,
+      gameState: state
+    });
+  });
+  (room.spectators || []).forEach(spec => {
+    emitToPlayer(spec, 'gameStarted', {
+      roomId: room.id,
+      playerColor: null,
+      isSpectator: true,
+      players: publicRoom(room).players,
+      gameState: specState
+    });
+  });
+  emitGameState(room);
+}
+
+// Oda türüne göre doğru oyunu başlat.
+function startRoomGame(room) {
+  if (!room) return;
+  if (room.gameId === 'tavla') return startTavla(room);
+  if (room.gameId === 'chess') return startChess(room);
 }
 
 function findExistingPlayer(room, socket, userKey) {
@@ -468,11 +573,12 @@ function removePlayerFromRoom(room, player, message) {
 
   const wasPlaying = room.status === 'playing';
   // Oyun sürerken ayrılan oyuncu HÜKMEN MAĞLUP olur; kalan oyuncu kazanır.
-  if (wasPlaying && room.chess) {
+  // (Satranç ve tavla için ortak.)
+  if (wasPlaying && (room.chess || room.tavla)) {
     const remaining = room.players[0];
     room.status = 'finished';
     room.result = { reason: 'player_left', winner: remaining ? remaining.color : null };
-    const state = buildChessState(room);
+    const state = buildBoardState(room);
 
     // KRİTİK: kalan oyuncuya rengine bakmadan "kazandın" bilgisi gönderilir.
     // Eskiden oda hemen sıfırlanıp renkler yeniden dağıtıldığı için istemcideki
@@ -677,7 +783,7 @@ io.on('connection', socket => {
     if (!player) return;
     player.isReady = !!ready;
     emitRoom(room);
-    startChess(room);
+    startRoomGame(room);
   });
 
   socket.on('toggleReady', () => {
@@ -687,7 +793,7 @@ io.on('connection', socket => {
     if (!player) return;
     player.isReady = !player.isReady;
     emitRoom(room);
-    startChess(room);
+    startRoomGame(room);
   });
 
   socket.on('chessMove', data => {
@@ -766,6 +872,165 @@ io.on('connection', socket => {
     }
   });
 
+  // ==================== TAVLA ====================
+  // Koltuk doğrulaması satrançtakiyle aynı: SOKET kimliğiyle yapılır,
+  // izleyici ASLA oynayamaz (aynı userKey ile 2. sekme dahil).
+  function tavlaSeatedPlayer(room) {
+    if (!room || room.gameId !== 'tavla' || room.status !== 'playing' || !room.tavla) return null;
+    const isSpectatorSocket = socket.role === 'spectator' ||
+      (room.spectators || []).some(s => s.id === socket.id);
+    if (isSpectatorSocket) return null;
+    return room.players.find(p => p.id === socket.id) || null;
+  }
+
+  function tavlaReject(roomId, reason) {
+    socket.emit('tavlaRejected', { roomId, reason });
+  }
+
+  // Yasal hamle kalmadıysa / zarlar bittiyse sırayı otomatik devreder.
+  function tavlaAdvance(room) {
+    const t = room.tavla;
+    if (!t || room.status !== 'playing' || !t.rolled || t.winner) return;
+    if (t.movesLeft.length && tavlaEngine.legalSteps(t).length) return; // hâlâ hamle var
+    const noMoves = t.movesLeft.length > 0; // zar vardı ama yasal hamle yoktu
+    tavlaEngine.endTurn(t);
+    room.turnStartedAt = now();
+    touchMoveTimer(room); // yeni oyuncunun hamle süresi başlar
+    if (noMoves) {
+      room.tavlaNoticeSeq = (room.tavlaNoticeSeq || 0) + 1;
+      room.tavlaNotice = {
+        id: room.id + ':' + room.tavlaNoticeSeq,
+        type: 'no_moves',
+        text: 'Yasal hamle yok — sıra otomatik olarak rakibe geçti.'
+      };
+    }
+  }
+
+  function tavlaFinish(room) {
+    const t = room.tavla;
+    const winnerColor = t.winner === 'w' ? 'white' : 'black';
+    const loser = t.winner === 'w' ? 'b' : 'w';
+    // Rakip hiç pul çıkaramadıysa MARS
+    const reason = t.off[loser] === 0 ? 'mars' : 'win';
+    room.status = 'finished';
+    room.result = { reason, winner: winnerColor };
+    const state = buildTavlaState(room);
+    room.players.forEach(p => io.to(p.id).emit('gameEnded', {
+      roomId: room.id,
+      reason,
+      winner: winnerColor,
+      winnerColor,
+      playerColor: p.color,
+      youWon: p.color === winnerColor,
+      gameState: state
+    }));
+    (room.spectators || []).forEach(s => io.to(s.id).emit('gameEnded', {
+      roomId: room.id,
+      reason,
+      winner: winnerColor,
+      winnerColor,
+      playerColor: null,
+      youWon: false,
+      isSpectator: true,
+      gameState: { ...state, legalMoves: [] }
+    }));
+    emitGameState(room);
+    emitRoom(room);
+  }
+
+  socket.on('tavlaRoll', data => {
+    const roomId = socket.roomId || (data && String(data.roomId));
+    const room = rooms.get(roomId);
+    if (!room || room.gameId !== 'tavla' || room.status !== 'playing' || !room.tavla) return;
+    const player = tavlaSeatedPlayer(room);
+    if (!player) return tavlaReject(roomId, 'not_in_room');
+    updateClock(room);
+    if (room.status !== 'playing') { emitGameState(room); return tavlaReject(roomId, 'time_expired'); }
+    const expectedColor = player.color === 'white' ? 'w' : 'b';
+    if (room.tavla.turn !== expectedColor) return tavlaReject(roomId, 'not_your_turn');
+    if (room.tavla.rolled) return tavlaReject(roomId, 'already_rolled');
+    tavlaEngine.roll(room.tavla, forcedTavlaDice() || undefined);
+    room.lastMove = null;
+    tavlaAdvance(room); // zar attı ama yasal hamle yoksa pas
+    emitGameState(room);
+  });
+
+  socket.on('tavlaMove', data => {
+    const roomId = socket.roomId || (data && String(data.roomId));
+    const room = rooms.get(roomId);
+    if (!room || room.gameId !== 'tavla' || room.status !== 'playing' || !room.tavla) return;
+    const player = tavlaSeatedPlayer(room);
+    if (!player) return tavlaReject(roomId, 'not_in_room');
+    updateClock(room);
+    if (room.status !== 'playing') { emitGameState(room); return tavlaReject(roomId, 'time_expired'); }
+    const t = room.tavla;
+    const expectedColor = player.color === 'white' ? 'w' : 'b';
+    if (t.turn !== expectedColor) return tavlaReject(roomId, 'not_your_turn');
+    if (!t.rolled) return tavlaReject(roomId, 'roll_first');
+
+    const rawFrom = data && data.from;
+    const from = rawFrom === 'bar' ? 'bar' : parseInt(rawFrom, 10);
+    const rawTo = data && data.to;
+    const to = rawTo === 'off' ? 'off' : parseInt(rawTo, 10);
+    const fromOk = from === 'bar' || (Number.isInteger(from) && from >= 0 && from <= 23);
+    const toOk = to === 'off' || (Number.isInteger(to) && to >= 0 && to <= 23);
+    if (!fromOk || !toOk) return tavlaReject(roomId, 'bad_target');
+
+    // Zar değeri mesafeden türetilir; geçerlilik tamamen legalSteps'tedir
+    // (vuruş, kapalı kapı, bar zorunluluğu, toplama ve zar-maksimizasyon
+    // kurallarının tamamı orada denetlenir).
+    let die;
+    if (from === 'bar') {
+      if (to === 'off') return tavlaReject(roomId, 'bad_target');
+      die = expectedColor === 'w' ? 24 - to : to + 1;
+    } else if (to === 'off') {
+      die = expectedColor === 'w' ? from + 1 : 24 - from;
+    } else {
+      die = Math.abs(to - from);
+    }
+
+    const legal = tavlaEngine.legalSteps(t);
+    const step = legal.find(x => x.from === from && x.to === to && x.die === die) ||
+      (to === 'off' ? legal.find(x => x.from === from && x.to === 'off') : null);
+    if (!step) return tavlaReject(roomId, 'illegal_move');
+
+    tavlaEngine.applyStep(t, step);
+    room.lastMove = { moveData: { from: step.from, to: step.to, die: step.die, color: expectedColor } };
+
+    if (t.winner) { tavlaFinish(room); return; }
+    tavlaAdvance(room);
+    emitGameState(room);
+  });
+
+  socket.on('tavlaUndo', data => {
+    const roomId = socket.roomId || (data && String(data.roomId));
+    const room = rooms.get(roomId);
+    if (!room || room.gameId !== 'tavla' || room.status !== 'playing' || !room.tavla) return;
+    const player = tavlaSeatedPlayer(room);
+    if (!player) return tavlaReject(roomId, 'not_in_room');
+    const t = room.tavla;
+    const expectedColor = player.color === 'white' ? 'w' : 'b';
+    if (t.turn !== expectedColor) return tavlaReject(roomId, 'not_your_turn');
+    if (!tavlaEngine.undo(t)) return tavlaReject(roomId, 'nothing_to_undo');
+    room.lastMove = null;
+    emitGameState(room);
+  });
+
+  socket.on('tavlaPass', data => {
+    const roomId = socket.roomId || (data && String(data.roomId));
+    const room = rooms.get(roomId);
+    if (!room || room.gameId !== 'tavla' || room.status !== 'playing' || !room.tavla) return;
+    const player = tavlaSeatedPlayer(room);
+    if (!player) return tavlaReject(roomId, 'not_in_room');
+    const t = room.tavla;
+    const expectedColor = player.color === 'white' ? 'w' : 'b';
+    if (t.turn !== expectedColor) return tavlaReject(roomId, 'not_your_turn');
+    if (!t.rolled) return tavlaReject(roomId, 'roll_first');
+    if (tavlaEngine.legalSteps(t).length) return tavlaReject(roomId, 'has_legal_move');
+    tavlaAdvance(room);
+    emitGameState(room);
+  });
+
   socket.on('leaveRoom', () => {
     const roomId = socket.roomId;
     if (!roomId) return;
@@ -827,7 +1092,7 @@ const clockTimer = setInterval(() => {
       // ANA SÜRE bitti ('timeout'): kimde dolduysa karşı taraf kazanır.
       // Kişiye özel youWon gönderilir — aksi halde "ters mesaj" hatası
       // yaşanıyordu (kazanan "kaybettiniz", kaybeden "kazandınız" görüyordu).
-      const state = buildChessState(room);
+      const state = buildBoardState(room);
       emitGameState(room);
       emitRoom(room);
       const clockWinner = room.result?.winner || null;
@@ -855,9 +1120,10 @@ const clockTimer = setInterval(() => {
 
     // Hamle süresi denetimi: 40. saniyede uyarı, 60. saniyede hükmen mağlubiyet.
     // 'move_timeout' — terk (player_left) ve ana süre (timeout) ile KARIŞTIRILMAZ.
-    if (room.chess && room.moveStartedAt) {
+    // Satranç ve tavla için ortak çalışır (sıra turnColorOf üzerinden bulunur).
+    if ((room.chess || room.tavla) && room.moveStartedAt) {
       const elapsed = now() - room.moveStartedAt;
-      const turnColor = room.chess.turn() === 'w' ? 'white' : 'black';
+      const turnColor = turnColorOf(room);
 
       if (!room.moveWarned && elapsed >= MOVE_WARN_MS) {
         room.moveWarned = true;
@@ -871,7 +1137,7 @@ const clockTimer = setInterval(() => {
       if (elapsed >= MOVE_FORFEIT_MS) {
         room.status = 'finished';
         room.result = { reason: 'move_timeout', winner: turnColor === 'white' ? 'black' : 'white' };
-        const state = buildChessState(room);
+        const state = buildBoardState(room);
         emitGameState(room);
         emitRoom(room);
         const winner = room.result.winner;
