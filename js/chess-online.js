@@ -130,17 +130,24 @@
     if (oppVal) oppVal.textContent = oppMatchScore;
   }
 
-  function handlePlayerLeft() {
-    active = false;
-    pending = false;
-    toast('🚪 Rakip oyundan ayrıldı. Lobiye yönlendiriliyorsunuz...', 'warning');
-    setTimeout(() => {
+  let autoReturnTimer = null;
+  function autoReturnToLobby() {
+    if (autoReturnTimer) return; // bir kez planla
+    autoReturnTimer = setTimeout(() => {
+      autoReturnTimer = null;
       if (typeof window.__gvRealChessLeave === 'function') {
         window.__gvRealChessLeave();
       } else if (typeof window.leaveRoom === 'function') {
         window.leaveRoom();
       }
-    }, 2000);
+    }, 5000);
+  }
+
+  function handlePlayerLeft() {
+    active = false;
+    pending = false;
+    toast('🚪 Rakip oyundan ayrıldı. Lobiye yönlendiriliyorsunuz...', 'warning');
+    autoReturnToLobby();
   }
 
   function connect() {
@@ -224,8 +231,28 @@
         active = true;
         if (payload?.gameState) apply(payload.gameState);
 
-        if (payload?.reason === 'player_left') {
-          handlePlayerLeft();
+        // Terk / hükmen mağlubiyet: her iki oyuncu da 5 sn sonra lobiye döner,
+        // masa yeni oyuncular için sıfırlanır.
+        if (payload?.reason === 'player_left' || payload?.reason === 'abandon') {
+          const winner = payload.winner || payload.gameState?.result?.winner;
+          if (winner === playerColor) {
+            toast('🏆 Oyunu KAZANDINIZ! Rakibiniz oyunu terk etti. Lobiye yönlendiriliyorsunuz...', 'success');
+          } else {
+            toast('💔 Oyunu terk ettiğiniz için KAYBETTİNİZ. Lobiye yönlendiriliyorsunuz...', 'error');
+          }
+          autoReturnToLobby();
+        }
+      });
+
+      // Hamle süresi uyarısı: 1 dakikadır hamle yapılmadı, 1 dakika daha
+      // beklenirse hükmen mağlubiyet.
+      socket.on('moveTimeWarning', payload => {
+        if (!payload || String(payload.roomId) !== String(roomId) || !isChessRoom()) return;
+        const secs = Math.ceil(Math.max(0, Number(payload.remainingMs) || 60000) / 1000);
+        if (payload.color === playerColor) {
+          toast(`⏰ 1 dakikadır hamle yapmadınız! ${secs} saniye içinde oynamazsanız HÜKMEN MAĞLUP sayılacaksınız!`, 'error');
+        } else {
+          toast(`⏳ Rakibiniz hamle yapmıyor. ${secs} saniye içinde oynamazsa hükmen mağlup sayılacak.`, 'warning');
         }
       });
 
@@ -433,9 +460,11 @@
       } else if (result.reason === 'fifty_move') {
         title = '🤝 50 HAMLE KURALI';
         desc = 'Oyun berabere bitti.';
-      } else if (result.reason === 'player_left') {
-        title = '🚪 OYUNCU AYRILDI';
-        desc = 'Rakip oyundan ayrıldı.';
+      } else if (result.reason === 'player_left' || result.reason === 'abandon') {
+        title = '🚪 OYUN TERK EDİLDİ';
+        desc = result.winner === playerColor
+          ? '🏆 Oyunu KAZANDINIZ! Rakibiniz oyunu terk etti. Birazdan lobiye yönlendirileceksiniz...'
+          : '💔 Oyunu terk ettiğiniz için KAYBETTİNİZ. Birazdan lobiye yönlendirileceksiniz...';
       } else {
         title = '🤝 BERABERE';
         desc = 'Oyun berabere bitti.';
