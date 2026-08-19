@@ -175,7 +175,7 @@
         '</button>';
     const leaveLabel = watching ? '🚪 İzlemeyi Bırak' : '🚪 Odadan Ayrıl';
 
-    e.innerHTML = '<div class="card">' +
+    const html = '<div class="card">' +
       '<h2>' + gameLabel() + ' Masa #' + roomId + ' — ' + title + '</h2>' +
       intro + specLine +
       (ps.length < 2 ? '<div class="spin"></div>' : '') +
@@ -184,6 +184,15 @@
       readyBtn +
       '<button class="gv-leave" type="button">' + leaveLabel + '</button>' +
       '</div>';
+
+    // ÖNEMLİ: içerik değişmediyse innerHTML'i YENİDEN YAZMA. Eskiden her
+    // render'da (scan 300 ms'de bir çağırıyor) tüm düğümler yeniden
+    // oluşturuluyordu; kullanıcının HAZIRIM tıklaması tam yeniden yazım
+    // anına denk gelirse tıklama ÖKSÜZ düğüme gider ve sunucuya hiç
+    // ulaşmazdı ("hazırım basıyorum oyun başlamıyor").
+    if (e.__gvLastHtml === html) return;
+    e.__gvLastHtml = html;
+    e.innerHTML = html;
 
     e.querySelector('.gv-ready')?.addEventListener('click', () => {
       if (watching) return;

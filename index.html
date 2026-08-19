@@ -3537,6 +3537,14 @@ document.addEventListener('keydown', e=>{
 });
 
 // ================= DIŞA AKTARILAN TÜM METHOTLAR =================
+// KRİTİK DÜZELTME: st / rTavla / dTavla bu IIFE içinde kaldığı için window
+// üzerinde YOKTU. js/tavla-online.js durumu st.boards.tavla'ya yazar ve
+// tahtayı window.dTavla ile çizer; st bulunamayınca rerender() sessizce
+// geri dönüyordu — online tavlada saatler işlerken tahta alanı BOMBOŞ
+// kalıyordu (canlıdaki "tavla açılmıyor" hatasının kök nedeni budur).
+window.st = st;
+window.rTavla = rTavla;
+window.dTavla = dTavla;
 return {
   page,
   toggleSidebar,
@@ -3630,7 +3638,7 @@ GV.init();
 <script src="js/games.js?v=20260819f" defer></script>
 <script src="js/utils.js?v=20260819c" defer></script>
 <script src="js/lobby-sync.js?v=20260819f" defer></script>
-<script src="js/room-waiting-fix.js?v=20260819f" defer></script>
+<script src="js/room-waiting-fix.js?v=20260819g" defer></script>
 <script src="js/chess-online.js?v=20260819d" defer></script>
 <script src="js/tavla-online.js?v=20260819e" defer></script>
 
