@@ -100,7 +100,18 @@ async function main() {
   const emptyRoom = api.rooms.find(r => String(r.id) === ROOM);
   assert.strictEqual(emptyRoom.players, 0, 'boş masa oyuncusuz listelenmeli (eski filtre eliyordu)');
   assert.strictEqual(emptyRoom.status, 'waiting');
+
+  // Satranç oda tipleri (YALNIZCA satranç): 4x Hızlı (10 dk), 3x Normal (15 dk), 3x Düşünen (20 dk)
+  const dist = { 10: 0, 15: 0, 20: 0 };
+  api.rooms.forEach(r => {
+    const id = String(r.id);
+    if (/^10[1-9]$/.test(id) || id === '110') dist[Number(r.duration)] = (dist[Number(r.duration)] || 0) + 1;
+  });
+  assert.deepStrictEqual(dist, { 10: 4, 15: 3, 20: 3 }, 'satranç masaları 4x10dk + 3x15dk + 3x20dk olmalı');
+  assert.ok(/Hızlı/.test(api.rooms.find(r => String(r.id) === '101').name), 'masa adı tipi yansıtmalı');
+  assert.ok(/Düşünen/.test(api.rooms.find(r => String(r.id) === '110').name), 'masa adı tipi yansıtmalı');
   console.log('  ✓ 1) #101-#110 hazır masalar boşken de listeleniyor');
+  console.log('  ✓ 1b) satranç oda tipleri: 4x Hızlı(10) + 3x Normal(15) + 3x Düşünen(20)');
 
   // --- 2) masanın kendi süresi korunur (istemci 10 dk gönderir) ---
   const a = await connect(io, url, 'user:a', 'Ali');
@@ -108,8 +119,8 @@ async function main() {
   await joinAs(a, ROOM);
   api = await httpGet(url + '/api/rooms?gameId=chess');
   const joined = api.rooms.find(r => String(r.id) === ROOM);
-  assert.strictEqual(Number(joined.duration), 5, 'kalıcı masanın süresi korunmalı (5 dk, 10 değil)');
-  console.log('  ✓ 2) masanın kendi süresi korunuyor (istemci 10 gönderse de 5 kalıyor)');
+  assert.strictEqual(Number(joined.duration), 15, 'kalıcı masanın süresi korunmalı (#105 Normal 15 dk, 10 değil)');
+  console.log('  ✓ 2) masanın kendi süresi korunuyor (istemci 10 gönderse de 15 kalıyor)');
 
   await joinAs(b, ROOM);
   a.emit('setReady', { ready: true });
@@ -158,7 +169,7 @@ async function main() {
   assert.ok(after, 'kalıcı masa boşalınca SİLİNMEMELİ');
   assert.strictEqual(after.players, 0);
   assert.strictEqual(after.status, 'waiting', 'masa beklemeye alınmalı');
-  assert.strictEqual(Number(after.duration), 5, 'masanın süresi yine korunmalı');
+  assert.strictEqual(Number(after.duration), 15, 'masanın süresi yine korunmalı');
   console.log('  ✓ 5) kalıcı masa boşalınca silinmiyor, beklemeye alınıyor');
 
   a.disconnect();
