@@ -25,6 +25,9 @@
   // Score tracking per session (Starts 0 - 0)
   let myMatchScore = 0;
   let oppMatchScore = 0;
+  // Terfi seçimi ayrı değişkende tutulur: sunucudan gelen her durum paketi
+  // gameState nesnesini yenilediği için pencere kendiliğinden kapanıyordu.
+  let promotionPending = null;
 
   function clearDuplicateToasts() {
     const wrap = document.getElementById('toastWrap');
@@ -254,7 +257,10 @@
     const sameBoard = gameState && gameState.fen && gs.fen &&
       gameState.fen === gs.fen && gameState.status === gs.status;
     gameState = gs;
-    if (!sameBoard) selected = null;
+        if (!sameBoard) {
+      selected = null;
+      promotionPending = null; // pozisyon değişti; bekleyen terfi geçersiz
+    }
     pending = false;
 
     if (gameState.status === 'finished' && gameState.result) {
@@ -358,7 +364,7 @@
     html += '</div>';
 
     // Promotion Modal
-    if (gameState.promotionPending) {
+      if (promotionPending) {
       html += '<div class="promo-overlay"><div class="promo-modal"><h3>♟️ Piyon Terfisi</h3><p style="margin-bottom:10px;font-size:0.9em;color:#aaa;">Dönüştürmek istediğiniz taşı seçin:</p><div class="promo-options">' +
         '<div class="promo-piece" onclick="window.__gvOnlineChessPromote(\'q\')">♛</div>' +
         '<div class="promo-piece" onclick="window.__gvOnlineChessPromote(\'r\')">♜</div>' +
@@ -428,6 +434,7 @@
     if (window.PointerEvent) {
       area.addEventListener('pointerdown', function (ev) {
         if (ev.pointerType !== 'mouse' || ev.button !== 0) return;
+                if (!ev.target.closest('.chess-c')) return;
         suppressClickUntil = Date.now() + 500; // ardından gelen click'i yut
         handleBoardEvent(ev);
       });
@@ -501,7 +508,7 @@
     }
 
     if (candidates.some(m => m.promotion)) {
-      gameState.promotionPending = { from, to };
+      promotionPending = { from, to };
       render();
       return;
     }
@@ -544,9 +551,9 @@
   }
 
   function promote(piece) {
-    if (!gameState?.promotionPending) return;
-    const pendingMove = gameState.promotionPending;
-    gameState.promotionPending = null;
+      if (!promotionPending) return;
+    const pendingMove = promotionPending;
+    promotionPending = null;
     render();
     send(pendingMove.from, pendingMove.to, piece);
   }
