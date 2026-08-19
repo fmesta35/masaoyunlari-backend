@@ -25,8 +25,13 @@
   // Score tracking per session (Starts 0 - 0)
   let myMatchScore = 0;
   let oppMatchScore = 0;
-  // Terfi seçimi ayrı değişkende tutulur: sunucudan gelen her durum paketi
-  // gameState nesnesini yenilediği için pencere kendiliğinden kapanıyordu.
+
+  // Şah uyarısının aynı pozisyon için tekrar tekrar gösterilmemesi için
+  let lastCheckFen = null;
+
+  // Terfi seçimi ARTIK gameState üzerinde değil ayrı değişkende tutulur:
+  // sunucudan gelen her durum paketi gameState nesnesini yenilediği için
+  // pencere kendiliğinden kapanıyordu. Pozisyon değişmedikçe korunur.
   let promotionPending = null;
 
   function clearDuplicateToasts() {
@@ -202,9 +207,12 @@
       socket.on('chessMoveRejected', payload => {
         pending = false;
         if (payload?.gameState) apply(payload.gameState);
+        const inCheck = !!(payload?.gameState?.check);
         const messages = {
           not_your_turn: '⏳ Sıra sizde değil! Rakibin hamlesi bekleniyor.',
-          illegal_move: '⚠️ Satranç kurallarına göre geçersiz hamle.',
+          illegal_move: inCheck
+            ? '⛔ ŞAH tehdidi altındasınız! Sadece Şah\'ınızı kurtaran hamleler oynanabilir.'
+            : '⚠️ Satranç kurallarına göre geçersiz hamle.',
           not_in_room: '⚠️ Oyuncu koltuğu bulunamadı.',
           time_expired: '⏰ Süreniz doldu.'
         };
@@ -254,10 +262,12 @@
   function apply(gs) {
     if (!gs || !Array.isArray(gs.board)) return;
     // Tahta pozisyonu DEĞİŞMEDİYSE (aynı fen) oyuncunun taş seçimini KORU.
+    // Aksi halde sunucudan gelen her durum yayını (reconnect, rakibin join'i
+    // vb.) seçimi siler ve oyuncu hedef kareye tıklayamadan seçim kaybolur.
     const sameBoard = gameState && gameState.fen && gs.fen &&
       gameState.fen === gs.fen && gameState.status === gs.status;
     gameState = gs;
-        if (!sameBoard) {
+    if (!sameBoard) {
       selected = null;
       promotionPending = null; // pozisyon değişti; bekleyen terfi geçersiz
     }
@@ -277,6 +287,20 @@
     updateClock();
     renderHistory();
     updateScorePanelUI();
+    notifyCheck();
+  }
+
+  // ŞAH bildirimi: şah çekildiğinde her iki tarafa uygun uyarıyı gösterir.
+  function notifyCheck() {
+    if (!gameState || gameState.status !== 'playing' || !gameState.check) return;
+    if (gameState.fen && gameState.fen === lastCheckFen) return; // aynı pozisyon için tekrarlama
+    lastCheckFen = gameState.fen || null;
+    const mine = colorCode();
+    if (gameState.turn === mine) {
+      toast('⚠️ ŞAH! Şahınız tehdit altında — Şah\'ınızı korumalısınız!', 'error');
+    } else {
+      toast('♚ ŞAH çektiniz! Rakip şahını korumak zorunda.', 'success');
+    }
   }
 
   function renderHistory() {
@@ -305,6 +329,8 @@
       .chess-c.valid-capture { outline: none !important; }
       .chess-c.valid-capture::after { content: ''; position: absolute; inset: 5%; border: 4px solid #f1c40f; border-radius: 50%; box-shadow: 0 0 10px rgba(241, 196, 15, 0.8), inset 0 0 8px rgba(241, 196, 15, 0.5); background: rgba(241, 196, 15, 0.12); pointer-events: none; z-index: 6; }
       @keyframes gvDotPulse { 0%, 100% { opacity: .85; } 50% { opacity: .5; } }
+      .chess-c.in-check { background: radial-gradient(circle, rgba(255,107,107,.75), rgba(255,107,107,.35)) !important; animation: gvCheckPulse 1s infinite; }
+      @keyframes gvCheckPulse { 0%, 100% { box-shadow: inset 0 0 12px rgba(255,0,0,.8); } 50% { box-shadow: inset 0 0 25px rgba(255,0,0,.5); } }
       .chess-end-overlay { position: fixed; inset: 0; z-index: 2147483000; display: flex; align-items: center; justify-content: center; background: rgba(6,7,20,0.88); backdrop-filter: blur(12px); }
       .chess-end-modal { background: #111128; border: 1px solid rgba(255,255,255,0.15); padding: 28px; border-radius: 18px; text-align: center; color: #fff; box-shadow: 0 20px 60px rgba(0,0,0,0.7); max-width: 420px; width: 90%; }
       .chess-end-modal h2 { margin: 12px 0 8px; font-size: 1.5rem; color: #6c5ce7; }
@@ -327,6 +353,17 @@
     const mine = colorCode();
     const isFlipped = (mine === 'b');
 
+    // Şah tehdidi altındaki şahın karesi (kırmızı vurgulanır)
+    let checkedKing = null;
+    if (gameState.check && gameState.status === 'playing') {
+      const kingChar = gameState.turn === 'w' ? 'K' : 'k';
+      for (let kr = 0; kr < 8 && !checkedKing; kr++) {
+        for (let kc = 0; kc < 8; kc++) {
+          if (board[kr][kc] === kingChar) { checkedKing = [kr, kc]; break; }
+        }
+      }
+    }
+
     let html = '<div class="chess-wrapper"><div class="chess">';
 
     const rowRange = isFlipped ? [7, 6, 5, 4, 3, 2, 1, 0] : [0, 1, 2, 3, 4, 5, 6, 7];
@@ -342,6 +379,7 @@
         const last = gameState.history?.[gameState.history.length - 1];
         if (last?.from === square(r, c)) cls += ' last-from';
         if (last?.to === square(r, c)) cls += ' last-to';
+        if (checkedKing && checkedKing[0] === r && checkedKing[1] === c) cls += ' in-check';
 
         if (selected) {
           const from = square(selected[0], selected[1]);
@@ -364,7 +402,7 @@
     html += '</div>';
 
     // Promotion Modal
-      if (promotionPending) {
+    if (promotionPending) {
       html += '<div class="promo-overlay"><div class="promo-modal"><h3>♟️ Piyon Terfisi</h3><p style="margin-bottom:10px;font-size:0.9em;color:#aaa;">Dönüştürmek istediğiniz taşı seçin:</p><div class="promo-options">' +
         '<div class="promo-piece" onclick="window.__gvOnlineChessPromote(\'q\')">♛</div>' +
         '<div class="promo-piece" onclick="window.__gvOnlineChessPromote(\'r\')">♜</div>' +
@@ -410,10 +448,8 @@
     attachBoardDelegation(area);
   }
 
-  // Tıklamalar tek bir delege dinleyiciyle yakalanır (inline onclick yok);
-  // böylece her tıklama yalnızca BİR kez işlenir ve window.GV._cc başka bir
-  // script tarafından ezilse bile tahta çalışmaya devam eder.
-   // Farede 'pointerdown' (basıldığı an) kullanılır: draggable kareler ufak fare
+  // Tıklamalar tek bir delege dinleyiciyle yakalanır (inline onclick yok).
+  // Farede 'pointerdown' (basıldığı an) kullanılır: draggable kareler ufak fare
   // kaymasında click olayını yutabildiği için "birkaç kez tıklayınca çalışıyor"
   // hissi oluşuyordu. pointerdown İLK dokunuşta anında tepki verir.
   let delegationAttached = false;
@@ -424,6 +460,7 @@
 
     const handleBoardEvent = function (ev) {
       if (!active || !gameState) return; // sadece online satranç aktifken
+      if (promotionPending) return; // terfi seçimi açıkken tahta kilitli
       const cell = ev.target.closest('.chess-c');
       if (!cell || !area.contains(cell) || cell.dataset.r === undefined) return;
       const r = parseInt(cell.dataset.r, 10);
@@ -434,7 +471,9 @@
     if (window.PointerEvent) {
       area.addEventListener('pointerdown', function (ev) {
         if (ev.pointerType !== 'mouse' || ev.button !== 0) return;
-                if (!ev.target.closest('.chess-c')) return;
+        // Yalnızca tahta karelerinde işle; terfi penceresi vb. öğelerde
+        // click olayına karışma.
+        if (!ev.target.closest('.chess-c')) return;
         suppressClickUntil = Date.now() + 500; // ardından gelen click'i yut
         handleBoardEvent(ev);
       });
@@ -448,8 +487,9 @@
 
   function click(r, c) {
     if (!active || !gameState || gameState.status !== 'playing' || pending) return;
+    if (promotionPending) return; // terfi seçimi tamamlanmadan tahta kilitli
 
-     // Çift tetiklenme kilidi: yalnızca AYNI kareye 100ms içinde gelen mükerrer
+    // Çift tetiklenme kilidi: yalnızca AYNI kareye 100ms içinde gelen mükerrer
     // tıklamayı yok say (farklı kareye hızlı tıklama meşrudur, yenmemeli).
     const now = Date.now();
     const cellIdx = r * 8 + c;
@@ -471,7 +511,15 @@
       if (piece && pc === mine) {
         selected = [r, c];
         render();
-        toast(`♟️ Seçildi: ${square(r, c)}. Lütfen hedef kareye tıklayın.`, 'info');
+        const fromSq = square(r, c);
+        const pieceMoves = (gameState.legalMoves || []).filter(m => m.from === fromSq);
+        if (!pieceMoves.length) {
+          toast(gameState.check
+            ? '⛔ Bu taşla Şah\'ınızı koruyamazsınız! Başka bir taş deneyin.'
+            : '⚠️ Bu taşın oynanabilir hamlesi yok. Başka bir taş seçin.', 'warning');
+        } else {
+          toast(`♟️ Seçildi: ${fromSq}. Lütfen hedef kareye tıklayın.`, 'info');
+        }
       } else if (piece) {
         toast('⚠️ Bu taş size ait değil.', 'warning');
       }
@@ -490,7 +538,15 @@
     if (piece && pc === mine) {
       selected = [r, c];
       render();
-      toast(`♟️ Seçildi: ${square(r, c)}. Lütfen hedef kareye tıklayın.`, 'info');
+      const fromSq = square(r, c);
+      const pieceMoves = (gameState.legalMoves || []).filter(m => m.from === fromSq);
+      if (!pieceMoves.length) {
+        toast(gameState.check
+          ? '⛔ Bu taşla Şah\'ınızı koruyamazsınız! Başka bir taş deneyin.'
+          : '⚠️ Bu taşın oynanabilir hamlesi yok. Başka bir taş seçin.', 'warning');
+      } else {
+        toast(`♟️ Seçildi: ${fromSq}. Lütfen hedef kareye tıklayın.`, 'info');
+      }
       return;
     }
 
@@ -503,7 +559,7 @@
       // Invalid destination clicked -> DESELECT piece
       selected = null;
       render();
-            toast(gameState.check
+      toast(gameState.check
         ? '⛔ ŞAH tehdidi altındasınız! Bu hamle Şah\'ınızı kurtarmıyor — sadece Şah\'ı koruyan hamleler oynanabilir.'
         : '⚠️ Geçersiz kare. Seçim iptal edildi.', gameState.check ? 'error' : 'warning');
       return;
@@ -520,6 +576,7 @@
 
   function dragStart(ev, r, c) {
     if (!active || !gameState || gameState.status !== 'playing' || pending) return;
+    if (promotionPending) return;
     const mine = colorCode();
     if (gameState.turn !== mine) return;
     selected = [r, c];
@@ -531,6 +588,7 @@
 
   function drop(ev, tr, tc) {
     ev.preventDefault();
+    if (promotionPending) return;
     if (!selected) return;
     const from = square(selected[0], selected[1]);
     const to = square(tr, tc);
@@ -539,14 +597,14 @@
     if (!candidates.length) {
       selected = null;
       render();
-            toast(gameState.check
+      toast(gameState.check
         ? '⛔ ŞAH tehdidi altındasınız! Bu hamle Şah\'ınızı kurtarmıyor — sadece Şah\'ı koruyan hamleler oynanabilir.'
         : '⚠️ Geçersiz kare. Seçim iptal edildi.', gameState.check ? 'error' : 'warning');
       return;
     }
 
     if (candidates.some(m => m.promotion)) {
-      gameState.promotionPending = { from, to };
+      promotionPending = { from, to };
       render();
       return;
     }
@@ -555,7 +613,7 @@
   }
 
   function promote(piece) {
-      if (!promotionPending) return;
+    if (!promotionPending) return;
     const pendingMove = promotionPending;
     promotionPending = null;
     render();
