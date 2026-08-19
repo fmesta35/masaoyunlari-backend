@@ -17,6 +17,7 @@
   let pending = false;
   let active = false;
   let clockInt = null;
+  let isSpectator = !!window.__gvIsSpectator;
 
   // Çift tetiklenmeye karşı tıklama kilidi
   let lastExecTime = 0;
@@ -119,7 +120,8 @@
       userKey: userKey(),
       maxPlayers: 2,
       durationMinutes: 10,
-      gameId: 'chess'
+      gameId: 'chess',
+      asSpectator: !!window.__gvJoinAsSpectator || !!window.__gvIsSpectator
     });
   }
 
@@ -146,7 +148,11 @@
   function handlePlayerLeft() {
     active = false;
     pending = false;
-    toast('🚪 Rakip oyundan ayrıldı. Lobiye yönlendiriliyorsunuz...', 'warning');
+    if (isSpectator) {
+      toast('🚪 Bir oyuncu ayrıldı. İzleme sona eriyor...', 'info');
+    } else {
+      toast('🚪 Rakip oyundan ayrıldı. Lobiye yönlendiriliyorsunuz...', 'warning');
+    }
     autoReturnToLobby();
   }
 
@@ -178,23 +184,48 @@
       socket.on('roomUpdated', room => {
         if (!room || String(room.id) !== String(roomId) || !isChessRoom()) return;
         const me = (room.players || []).find(p => p.id === socket.id || (p.userKey && p.userKey === userKey()));
-        if (me) playerColor = me.color;
+        const spec = (room.spectators || []).find(p => p.id === socket.id || (p.userKey && p.userKey === userKey()));
+        if (me) {
+          playerColor = me.color;
+          isSpectator = false;
+          window.__gvIsSpectator = false;
+        } else if (spec) {
+          isSpectator = true;
+          window.__gvIsSpectator = true;
+        }
 
-        if (active && room.players.length < 2) {
+        if (active && !isSpectator && room.players.length < 2) {
           handlePlayerLeft();
         }
+      });
+
+      socket.on('joinedRoom', payload => {
+        if (!payload || String(payload.roomId) !== String(roomId) || !isChessRoom()) return;
+        isSpectator = payload.role === 'spectator' || !!payload.isSpectator;
+        window.__gvIsSpectator = isSpectator;
+        if (payload.playerColor) playerColor = payload.playerColor;
       });
 
       socket.on('gameStarted', payload => {
         if (!payload || String(payload.roomId) !== String(roomId) || !isChessRoom()) return;
         active = true;
-        playerColor = payload.playerColor || playerColor || findMyColor(payload.players);
+        if (payload.isSpectator) {
+          isSpectator = true;
+          window.__gvIsSpectator = true;
+          playerColor = null;
+        } else {
+          playerColor = payload.playerColor || playerColor || findMyColor(payload.players);
+        }
         apply(payload.gameState);
         startClock();
       });
 
       socket.on('gameStateUpdated', payload => {
         if (!payload || String(payload.roomId) !== String(roomId) || !isChessRoom()) return;
+        if (payload.isSpectator) {
+          isSpectator = true;
+          window.__gvIsSpectator = true;
+        }
         if (payload.playerColor) playerColor = payload.playerColor;
         if (payload.gameState) {
           active = payload.gameState.status === 'playing' || payload.gameState.status === 'finished';
@@ -205,6 +236,7 @@
 
       socket.on('chessMoveAccepted', payload => {
         if (!payload || String(payload.roomId) !== String(roomId) || !isChessRoom()) return;
+        if (payload.isSpectator) isSpectator = true;
         if (payload.playerColor) playerColor = payload.playerColor;
         pending = false;
         active = true;
@@ -235,7 +267,10 @@
         // masa yeni oyuncular için sıfırlanır.
         if (payload?.reason === 'player_left' || payload?.reason === 'abandon') {
           const winner = payload.winner || payload.gameState?.result?.winner;
-          if (winner === playerColor) {
+          if (isSpectator) {
+            const who = winner === 'white' ? 'Beyaz' : winner === 'black' ? 'Siyah' : 'Bir oyuncu';
+            toast('🚪 Oyun terk edildi. ' + who + ' kazandı. Lobiye yönlendiriliyorsunuz...', 'info');
+          } else if (winner === playerColor) {
             toast('🏆 Oyunu KAZANDINIZ! Rakibiniz oyunu terk etti. Lobiye yönlendiriliyorsunuz...', 'success');
           } else {
             toast('💔 Oyunu terk ettiğiniz için KAYBETTİNİZ. Lobiye yönlendiriliyorsunuz...', 'error');
@@ -300,7 +335,7 @@
     }
     pending = false;
 
-    if (gameState.status === 'finished' && gameState.result) {
+    if (!isSpectator && gameState.status === 'finished' && gameState.result) {
       if (gameState.result.winner === playerColor && !gameState._scoreCounted) {
         gameState._scoreCounted = true;
         myMatchScore++;
@@ -322,6 +357,10 @@
     if (!gameState || gameState.status !== 'playing' || !gameState.check) return;
     if (gameState.fen && gameState.fen === lastCheckFen) return; // aynı pozisyon için tekrarlama
     lastCheckFen = gameState.fen || null;
+    if (isSpectator) {
+      toast(gameState.turn === 'w' ? '⚠️ Beyaz şah çekildi!' : '⚠️ Siyah şah çekildi!', 'info');
+      return;
+    }
     const mine = colorCode();
     if (gameState.turn === mine) {
       toast('⚠️ ŞAH! Şahınız tehdit altında — Şah\'ınızı korumalısınız!', 'error');
@@ -363,6 +402,7 @@
       .chess-end-modal h2 { margin: 12px 0 8px; font-size: 1.5rem; color: #6c5ce7; }
       .chess-end-modal p { color: #aaa; margin-bottom: 20px; font-size: 1rem; }
       .end-icon { font-size: 3rem; }
+      .gv-spec-banner { margin: 0 0 10px; padding: 8px 12px; border-radius: 10px; background: rgba(108,92,231,.18); border: 1px solid rgba(108,92,231,.4); color: #c4b5fd; text-align: center; font-weight: 700; font-size: .9rem; }
     `;
     document.head.appendChild(style);
   }
@@ -377,7 +417,7 @@
 
     const board = gameState.board;
     const moves = gameState.legalMoves || [];
-    const mine = colorCode();
+    const mine = isSpectator ? null : colorCode();
     const isFlipped = (mine === 'b');
 
     // Şah tehdidi altındaki şahın karesi (kırmızı vurgulanır)
@@ -391,7 +431,9 @@
       }
     }
 
-    let html = '<div class="chess-wrapper"><div class="chess">';
+    let html = '<div class="chess-wrapper">' +
+      (isSpectator ? '<div class="gv-spec-banner">👁️ İzleyici — sadece izliyorsunuz, hamle yapamazsınız</div>' : '') +
+      '<div class="chess">';
 
     const rowRange = isFlipped ? [7, 6, 5, 4, 3, 2, 1, 0] : [0, 1, 2, 3, 4, 5, 6, 7];
     const colRange = isFlipped ? [7, 6, 5, 4, 3, 2, 1, 0] : [0, 1, 2, 3, 4, 5, 6, 7];
@@ -444,13 +486,17 @@
       let desc = '';
       if (result.reason === 'checkmate') {
         title = '♟️ ŞAH MAT!';
-        desc = result.winner === playerColor ? '🏆 Tebrikler, Kazandınız!' : '💔 Rakip kazandı.';
+        desc = isSpectator
+          ? ((result.winner === 'white' ? 'Beyaz' : 'Siyah') + ' kazandı.')
+          : (result.winner === playerColor ? '🏆 Tebrikler, Kazandınız!' : '💔 Rakip kazandı.');
       } else if (result.reason === 'stalemate') {
         title = '🤝 PAT!';
         desc = 'Oyun berabere bitti.';
       } else if (result.reason === 'timeout') {
         title = '⏰ SÜRE BİTTİ';
-        desc = result.winner === playerColor ? '🏆 Zaman bitti, Kazandınız!' : '💔 Süreniz doldu.';
+        desc = isSpectator
+          ? ((result.winner === 'white' ? 'Beyaz' : 'Siyah') + ' kazandı (süre).')
+          : (result.winner === playerColor ? '🏆 Zaman bitti, Kazandınız!' : '💔 Süreniz doldu.');
       } else if (result.reason === 'threefold_repetition') {
         title = '🤝 ÜÇLÜ TEKRAR';
         desc = 'Oyun berabere bitti.';
@@ -462,9 +508,11 @@
         desc = 'Oyun berabere bitti.';
       } else if (result.reason === 'player_left' || result.reason === 'abandon') {
         title = '🚪 OYUN TERK EDİLDİ';
-        desc = result.winner === playerColor
-          ? '🏆 Oyunu KAZANDINIZ! Rakibiniz oyunu terk etti. Birazdan lobiye yönlendirileceksiniz...'
-          : '💔 Oyunu terk ettiğiniz için KAYBETTİNİZ. Birazdan lobiye yönlendirileceksiniz...';
+        desc = isSpectator
+          ? ((result.winner === 'white' ? 'Beyaz' : result.winner === 'black' ? 'Siyah' : 'Bir oyuncu') + ' kazandı. Oyun terk edildi.')
+          : (result.winner === playerColor
+            ? '🏆 Oyunu KAZANDINIZ! Rakibiniz oyunu terk etti. Birazdan lobiye yönlendirileceksiniz...'
+            : '💔 Oyunu terk ettiğiniz için KAYBETTİNİZ. Birazdan lobiye yönlendirileceksiniz...');
       } else {
         title = '🤝 BERABERE';
         desc = 'Oyun berabere bitti.';
@@ -517,6 +565,7 @@
   }
 
   function click(r, c) {
+    if (isSpectator) return;
     if (!active || !gameState || gameState.status !== 'playing' || pending) return;
     if (promotionPending) return; // terfi seçimi tamamlanmadan tahta kilitli
 
@@ -606,6 +655,7 @@
   }
 
   function dragStart(ev, r, c) {
+    if (isSpectator) return;
     if (!active || !gameState || gameState.status !== 'playing' || pending) return;
     if (promotionPending) return;
     const mine = colorCode();
@@ -653,6 +703,7 @@
 
     let pendingTimer = null;
   function send(from, to, promotion) {
+    if (isSpectator) return;
     if (!socket?.connected) return toast('🔌 Sunucu bağlantısı yok. Bağlantı kurulunca tekrar deneyin.', 'error');
     pending = true;
     // Güvenlik: 8 sn içinde sunucudan yanıt gelmezse kilidi kaldır
@@ -678,15 +729,25 @@
     }
 
     if (names.length >= 2) {
-      names[0].textContent = mine === 'w' ? '⚪ Beyaz (Siz)' : '🔴 Siyah (Siz)';
-      names[1].textContent = mine === 'w' ? '🔴 Siyah (Rakip)' : '⚪ Beyaz (Rakip)';
+      if (isSpectator || !mine) {
+        names[0].textContent = '⚪ Beyaz';
+        names[1].textContent = '🔴 Siyah';
+      } else {
+        names[0].textContent = mine === 'w' ? '⚪ Beyaz (Siz)' : '🔴 Siyah (Siz)';
+        names[1].textContent = mine === 'w' ? '🔴 Siyah (Rakip)' : '⚪ Beyaz (Rakip)';
+      }
     }
 
-    if (t1) t1.textContent = format(mine === 'w' ? white : black);
-    if (t2) t2.textContent = format(mine === 'w' ? black : white);
+    if (isSpectator || !mine) {
+      if (t1) t1.textContent = format(white);
+      if (t2) t2.textContent = format(black);
+    } else {
+      if (t1) t1.textContent = format(mine === 'w' ? white : black);
+      if (t2) t2.textContent = format(mine === 'w' ? black : white);
+    }
 
     document.querySelectorAll('#topTimers .timer').forEach((el, i) => {
-      const color = i === 0 ? mine : (mine === 'w' ? 'b' : 'w');
+      const color = (isSpectator || !mine) ? (i === 0 ? 'w' : 'b') : (i === 0 ? mine : (mine === 'w' ? 'b' : 'w'));
       el.classList.toggle('active', color === gameState.turn && gameState.status === 'playing');
     });
   }
@@ -713,6 +774,7 @@
     gameState = null;
     selected = null;
     playerColor = null;
+    isSpectator = false;
     roomId = null;
     if (clockInt) { clearInterval(clockInt); clockInt = null; }
     socket = null; // room-waiting-fix yeni oyun için yeni soket oluşturur
