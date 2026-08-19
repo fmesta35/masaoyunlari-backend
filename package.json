@@ -4,7 +4,7 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "test": "node test/lobby-spectator.test.js && node test/spectator-forfeit.test.js && node test/move-timer-preset-tables.test.js && node test/tavla-engine.test.js && node test/tavla-online.test.js && node test/room-sync.test.js"
+    "test": "node test/lobby-spectator.test.js && node test/spectator-forfeit.test.js && node test/move-timer-preset-tables.test.js && node test/tavla-engine.test.js && node test/tavla-online.test.js && node test/room-sync.test.js && node test/clock-ownership.test.js"
   },
   "dependencies": {
     "chess.js": "^1.4.0",
@@ -12,6 +12,7 @@
     "socket.io": "^4.7.2"
   },
   "devDependencies": {
-    "socket.io-client": "^4.8.3"
+    "socket.io-client": "^4.8.3",
+    "jsdom": "^30.0.1"
   }
 }

@@ -572,16 +572,22 @@ html{scrollbar-gutter:stable}
 /* 3) Oyun alanı: tek merkez eksen; çocuklar kendi genişliğini korur */
 .game-board-area{min-width:0;width:100%}
 .game-board-area>*{margin-left:auto;margin-right:auto;max-width:100%}
-/* 4) SATRANÇ: tahta her zaman tamamen görünür — genişlik de yükseklik de aşılmaz.
-   Yatay modda kısa ekranlar (telefon yan çevrilince) için vh sınırı kritik. */
-.chess-wrapper{max-width:min(520px,100%,68vh)}
-.chess-c{font-size:min(5.2vw,2.3em)}
+/* 4) SATRANÇ: PC'de tahta, üstteki sayaç şeridi ile sohbet paneli arasındaki
+   alanı DOLDURUR ("kırmızı kutu" ölçüsü): yükseklik 100vh - ~250px (üst bar +
+   oda başlığı + sayaçlar + hamle rozeti payı), genişlik 760px ile sınırlı;
+   kısa ekranlarda asla 300px'in altına düşmez, mobil sınırlar aşağıdadır. */
+.chess-wrapper{width:100%;max-width:min(760px,100%,max(300px,calc(100vh - 250px)))}
+/* Taş glifleri tahtayla orantılı büyür/küçülür (kare boyunun ~%67'si).
+   cqw desteklemeyen çok eski tarayıcılar yukarıdaki vw'li temel kurala düşer. */
+.chess{container-type:inline-size}
+.chess-c{font-size:8.4cqw}
 /* 5) TAVLA: sarma + pullar ekrana oranla küçülür (taşma yok) */
 .tavla-wrap{width:100%;max-width:min(820px,960px)}
 .tavla-checker{width:min(24px,4.4vw);height:min(24px,4.4vw)}
 .tavla-bar{width:min(42px,9vw)}
 .tavla-off{width:min(60px,14vw);height:min(60px,26vh)}
 .tavla-dice-area{flex-wrap:wrap;gap:10px;padding:10px}
+.tavla-row{height:min(200px,27vh)}
 /* 6) Hamle süresi rozetleri: alan HER ZAMAN ayrık (visibility tekniğiyle),
    rozet gelip gitse bile tahta yerinden kımıldamaz */
 .move-clock-badge,.tavla-move-badge{min-height:32px;box-sizing:border-box;font-variant-numeric:tabular-nums}
@@ -596,7 +602,7 @@ html{scrollbar-gutter:stable}
   .game-side{gap:8px}
   .chat{height:200px !important}
   .moves{max-height:130px}
-  .chess-wrapper{max-width:min(100%,62vh)}
+  .chess-wrapper{max-width:min(100%,max(260px,calc(100vh - 235px)))}
   .tavla-row{height:min(180px,24vh)}
   .score-panel{padding:8px}
 }
@@ -612,7 +618,7 @@ html{scrollbar-gutter:stable}
 }
 /* 9) Çok büyük ekranlarda tahta aşırı büyümesin, İKİ SÜTUN korunur */
 @media(min-width:1600px){
-  .chess-wrapper{max-width:min(600px,60vh)}
+  .chess-wrapper{max-width:min(820px,calc(100vh - 230px))}
   .game-side{width:300px}
 }
 </style>
@@ -1049,7 +1055,7 @@ let visitorCounter = Math.floor(1 + Math.random() * 9);
 let memberCounter = 1;
 
 let st={
-  curPage:'home',curGame:null,curRoom:null,theme:'dark',timerInterval:null,matchInterval:null,
+  curPage:'home',curGame:null,curRoom:null,theme:'dark',timerInterval:null,matchInterval:null,onlineClock:false,
   timers:{t1:600,t2:600,player:1},boards:{},lastToast:null,lastToastTime:0,roomConfig:null,
   isGuest: true,
   user: { name: 'Ziyaretçi#' + visitorCounter, score: 0, level: 1 },
@@ -1556,7 +1562,16 @@ function createRoom(){
 
 function joinRoom(rid, opts){
   st.curRoom = rid;
+  // Yerel (bot/gösterim) oyunundan kalan bir sayaç varsa kapat: aksi halde
+  // online satranç/tavla odasında İKİ yazıcı #t1/#t2'ye basar (ekran
+  // "sıfırlanıyormuş" gibi titrer) ve yerel sayaç bitince kullanıcı lobiye
+  // atılır ("belirli süre sonra oyundan otomatik atıyor" hatasının kökü).
+  stopTimer();
+  st.timers = null;
   const gid = st.curGame || 'okey';
+  // Yerel oyun odasına geçişte online saat sahipliği kalıntısını kaldır
+  // (online satranç/tavla modülleri kendi paketleri gelince tekrar üstlenir).
+  if (gid !== 'chess' && gid !== 'tavla') st.onlineClock = false;
   const g = GAMES[gid];
 
   // "👁️ İzle" ile gelindiyse bu bayrak room-waiting-fix.js / chess-online.js
@@ -1743,7 +1758,7 @@ function startCountdownAndBeginGame(room) {
 }
 
 function getGamePlayerCount(gid){return TWO_PLAYER_GAMES.includes(gid) ? 2 : 4;}
-function hasActiveMatch(){const a=['chess','tavla','dama','turkdamasi','pisti','batak','reversi','gomoku','connect4','okey','okey101','bilardo'];if(!a.includes(st.curGame))return false;const g=st.boards[st.curGame];return g&&!g.gameEnded;}
+function hasActiveMatch(){if(st.onlineClock)return false;const a=['chess','tavla','dama','turkdamasi','pisti','batak','reversi','gomoku','connect4','okey','okey101','bilardo'];if(!a.includes(st.curGame))return false;const g=st.boards[st.curGame];return g&&!g.gameEnded;}
 function hasActiveGame(){return hasActiveMatch();}
 
 function leaveRoom(){
@@ -1804,12 +1819,14 @@ function quickMatch(){
 function cancelMatch(){clearInterval(st.matchInterval);hideModal('matchModal');}
 
 function startTimer(){
+  if(st.onlineClock) return; // online satranç/tavla odasındayız: saatler sunucudan işlenir
   const dur=st.roomConfig?.duration?st.roomConfig.duration*60:600;
   const un=st.roomConfig?.duration===0;
   st.timers={t1:un?9999:dur,t2:un?9999:dur,player:1,unlimited:un,paused:false};
   stopTimer();
   _updateTimerDisplay();
   st.timerInterval=setInterval(()=>{
+    if(!st.timers||st.onlineClock){stopTimer();return;}
     if(st.timers.unlimited||st.timers.paused)return;
     if(st.timers.player===1){
       st.timers.t1--;
@@ -1835,6 +1852,7 @@ function startTimer(){
 }
 
 function _updateTimerDisplay(){
+  if(!st.timers||st.onlineClock)return; // online modüller saat panelinin tek sahibi
   const a=document.getElementById('t1'),b=document.getElementById('t2');
   if(a)a.textContent=st.timers.unlimited?'∞':fT(st.timers.t1);
   if(b)b.textContent=st.timers.unlimited?'∞':fT(st.timers.t2);
@@ -3600,6 +3618,11 @@ document.addEventListener('keydown', e=>{
 window.st = st;
 window.rTavla = rTavla;
 window.dTavla = dTavla;
+// Sayaç sahipliği/test kancaları: online modüller ve regresyon testleri
+// yerel zamanlayıcıyı buradan da doğrulayabilir/durdurabilir.
+window.startTimer = startTimer;
+window.stopTimer = stopTimer;
+window._updateTimerDisplay = _updateTimerDisplay;
 return {
   page,
   toggleSidebar,
@@ -3693,9 +3716,9 @@ GV.init();
 <script src="js/games.js?v=20260819f" defer></script>
 <script src="js/utils.js?v=20260819c" defer></script>
 <script src="js/lobby-sync.js?v=20260819f" defer></script>
-<script src="js/room-waiting-fix.js?v=20260819h" defer></script>
-<script src="js/chess-online.js?v=20260819h" defer></script>
-<script src="js/tavla-online.js?v=20260819h" defer></script>
+<script src="js/room-waiting-fix.js?v=20260819i" defer></script>
+<script src="js/chess-online.js?v=20260819i" defer></script>
+<script src="js/tavla-online.js?v=20260819i" defer></script>
 
 <!-- Structured Data for SEO -->
 <script type="application/ld+json">

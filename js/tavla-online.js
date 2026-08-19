@@ -33,6 +33,26 @@
     try { return typeof st !== 'undefined' ? st : null; } catch (_) { return null; }
   }
 
+  // DOM'a YALNIZCA değişiklik varsa yaz: her 250 ms'de aynı metni tekrar
+  // basmak (textContent ataması aynı olsa bile düğümü siler-yeniler) bazı
+  // tarayıcılarda sayacı "yanıp sönüyormuş" gibi gösteriyordu.
+  function setText(el, txt) {
+    if (el && el.textContent !== txt) el.textContent = txt;
+  }
+
+  // Online oyun saatleri DEVRALINDI: index.html'deki yerel (bot/gösterim)
+  // zamanlayıcısının #t1/#t2'ye yazması bu işaretle kesin olarak mühürlenir.
+  // (Eski hata: yerel sayaç açık kalırsa iki yazıcı çakışır → ekran
+  // "sıfırlanıyormuş" gibi titrer, süre bitince kullanıcı lobiye atılırdı.)
+  function claimClockOwnership() {
+    const s = getState();
+    if (s) s.onlineClock = true;
+  }
+  function releaseClockOwnership() {
+    const s = getState();
+    if (s) s.onlineClock = false;
+  }
+
   function isTavlaRoom() {
     const s = getState();
     let g = s?.curGame || window.__gvCurrentGame || window.currentGame || '';
@@ -116,32 +136,132 @@
     document.head.appendChild(style);
   }
 
-  // ---------- Görünüm: sunucu durumu -> st.boards.tavla + dTavla ----------
+  // ---------- Görünüm: sunucu durumu -> tahta ----------
   function rerender() {
     if (!gameState) return;
     const s = getState();
-    if (!s) return;
     injectStyle();
-    s.boards = s.boards || {};
-    s.boards.tavla = {
-      points: gameState.points,
-      bar: gameState.bar,
-      off: gameState.off,
-      dice: gameState.rolled ? gameState.dice : [0, 0],
-      availableMoves: (gameState.movesLeft || []).slice(),
-      turn: gameState.turn,
-      diceRolled: !!gameState.rolled,
-      gameEnded: gameState.status === 'finished',
-      selected: sel,
-      validTargets: selTargets(),
-      moveHistory: new Array(gameState.turnMoves || 0).fill(0)
-    };
     const area = document.getElementById('boardArea');
-    if (area && typeof window.dTavla === 'function') {
+
+    if (s && area && typeof window.dTavla === 'function') {
+      // ANA YOL: index.html'deki yerleşik çizici (tam tema uyumu).
+      s.boards = s.boards || {};
+      s.boards.tavla = {
+        points: gameState.points,
+        bar: gameState.bar,
+        off: gameState.off,
+        dice: gameState.rolled ? gameState.dice : [0, 0],
+        availableMoves: (gameState.movesLeft || []).slice(),
+        turn: gameState.turn,
+        diceRolled: !!gameState.rolled,
+        gameEnded: gameState.status === 'finished',
+        selected: sel,
+        validTargets: selTargets(),
+        moveHistory: new Array(gameState.turnMoves || 0).fill(0)
+      };
       window.dTavla(area);
       postRender(area);
+    } else if (area) {
+      // YEDEK YOL: barındırmadaki index.html eski nesilse window.st/dTavla
+      // hiç tanımlı olmayabilir; o durumda bile tahta BOŞ KALMASIN diye
+      // bu modül tahtayı tamamen kendisi çizer (kendi tıklama katmanıyla).
+      drawSelfBoard(area);
+      renderEndOverlay(area);
     }
     updateClock();
+  }
+
+  // ---------- Kendi kendine yeten tahta çizici (st/dTavla YOKSA) ----------
+  // index.html'in .tavla-* sınıflarını kullanır (eski nesil sayfada bile bu
+  // CSS bulunur); bulunamazsa da minik bir iç stil enjekte edilir.
+  function selfPt(i) {
+    const p = gameState.points[i] || { color: null, count: 0 };
+    const l = i % 2 === 0;
+    let c = 'tavla-point ' + (l ? 'light' : 'dark');
+    if (sel === i) c += ' selected';
+    if (selTargets().includes(i)) c += ' can-move';
+    let h = `<div class="${c}" onclick="window.__gvTavlaSelfClick(${i})">`;
+    if (p.count > 0) {
+      const mv = Math.min(p.count, 5);
+      for (let j = 0; j < mv; j++) {
+        if (j === 4 && p.count > 5) h += `<div class="tavla-checker ${p.color} count">${p.count}</div>`;
+        else h += `<div class="tavla-checker ${p.color}"></div>`;
+      }
+    }
+    return h + '</div>';
+  }
+
+  function selfDie(v, used) {
+    let inner = '';
+    if (v > 0) {
+      let dots = '';
+      for (let d = 0; d < v; d++) dots += '<div class="dot"></div>';
+      inner = `<div class="tavla-die-face f${v}">${dots}</div>`;
+    } else {
+      inner = '<div class="tavla-die-empty">🎲</div>';
+    }
+    return `<div class="tavla-die${used ? ' used' : ''}">${inner}</div>`;
+  }
+
+  function drawSelfBoard(area) {
+    const gs = gameState;
+    if (!gs || !Array.isArray(gs.points)) return;
+    const lock = !myTurn() || !active || gs.status !== 'playing';
+    const movesLeft = gs.movesLeft || [];
+
+    let h = '<div class="tavla-wrap">';
+    h += '<div id="tvMoveBadge" class="tavla-move-badge" style="visibility:hidden"></div>';
+
+    // Zar / aksiyon şeridi
+    h += '<div class="tavla-dice-area">';
+    h += `<div class="tavla-info">${gs.turn === 'w' ? '⚪ BEYAZ' : '⚫ SİYAH'} sırası${myTurn() ? ' — SİZDE' : ''}</div>`;
+    h += '<div class="tavla-dice">';
+    [0, 1].forEach(i => {
+      const v = gs.rolled ? (gs.dice[i] || 0) : 0;
+      h += selfDie(v, v > 0 && !movesLeft.includes(v));
+    });
+    h += '</div>';
+    if (!gs.rolled && gs.status === 'playing') {
+      const disabled = lock ? ' disabled style="opacity:.45;cursor:not-allowed"' : '';
+      h += `<button class="tavla-btn" onclick="window.__gvTavlaSelfRoll()"${disabled}>🎲 Zar At</button>`;
+    } else if (gs.rolled && gs.status === 'playing') {
+      if ((gs.turnMoves || 0) > 0 && movesLeft.length > 0) {
+        const disabled = lock ? ' disabled style="opacity:.45;cursor:not-allowed"' : '';
+        h += `<button class="tavla-btn undo" onclick="window.__gvTavlaSelfUndo()"${disabled}>↩️ Geri Al</button>`;
+      }
+      if (!movesLeft.length) {
+        const disabled = lock ? ' disabled style="opacity:.45;cursor:not-allowed"' : '';
+        h += `<button class="tavla-btn end" onclick="window.__gvTavlaSelfEndTurn()"${disabled}>✅ Bitir</button>`;
+      }
+    }
+    h += `<div class="tavla-info">📦 ⚪${gs.off?.w || 0}/⚫${gs.off?.b || 0}</div>`;
+    h += '</div>';
+
+    // Tahta
+    h += '<div class="tavla-board">';
+    h += '<div class="tavla-num-row">';
+    for (let i = 13; i <= 18; i++) h += `<div class="tavla-num-cell">${i}</div>`;
+    h += '<div style="width:42px;flex-shrink:0"></div>';
+    for (let i = 19; i <= 24; i++) h += `<div class="tavla-num-cell">${i}</div>`;
+    h += '<div style="width:60px;flex-shrink:0"></div></div>';
+    h += '<div class="tavla-row"><div class="tavla-half">';
+    for (let i = 12; i <= 17; i++) h += selfPt(i);
+    h += `</div><div class="tavla-bar">BAR<div class="tavla-bar-count">⚫${gs.bar?.b || 0}</div></div><div class="tavla-half">`;
+    for (let i = 18; i <= 23; i++) h += selfPt(i);
+    h += `</div><div class="tavla-off" onclick="window.__gvTavlaSelfBear('w')"><div>⚪</div><div class="tavla-off-count">${gs.off?.w || 0}</div><div>OFF</div></div></div>`;
+    h += '<div class="tavla-row"><div class="tavla-half">';
+    for (let i = 11; i >= 6; i--) h += selfPt(i);
+    h += `</div><div class="tavla-bar">BAR<div class="tavla-bar-count">⚪${gs.bar?.w || 0}</div></div><div class="tavla-half">`;
+    for (let i = 5; i >= 0; i--) h += selfPt(i);
+    h += `</div><div class="tavla-off" style="background:linear-gradient(135deg,#333,#000)" onclick="window.__gvTavlaSelfBear('b')"><div>⚫</div><div class="tavla-off-count">${gs.off?.b || 0}</div><div>OFF</div></div></div>`;
+    h += '<div class="tavla-num-row">';
+    for (let i = 12; i >= 7; i--) h += `<div class="tavla-num-cell">${i}</div>`;
+    h += '<div style="width:42px;flex-shrink:0"></div>';
+    for (let i = 6; i >= 1; i--) h += `<div class="tavla-num-cell">${i}</div>`;
+    h += '<div style="width:60px;flex-shrink:0"></div></div>';
+    h += '</div></div>';
+
+    area.innerHTML = h;
   }
 
   function postRender(area) {
@@ -208,6 +328,7 @@
     // Yetkili sunucu durumu ulaştı: yerel yedek planı iptal.
     if (fallbackTimer) { clearTimeout(fallbackTimer); fallbackTimer = null; }
     gameState = gs;
+    claimClockOwnership();
 
     if (!active) active = true;
 
@@ -255,19 +376,19 @@
 
     if (names.length >= 2) {
       if (isSpectator || !m) {
-        names[0].textContent = '⚪ Beyaz';
-        names[1].textContent = '⚫ Siyah';
+        setText(names[0], '⚪ Beyaz');
+        setText(names[1], '⚫ Siyah');
       } else {
-        names[0].textContent = m === 'w' ? '⚪ Beyaz (Siz)' : '⚫ Siyah (Siz)';
-        names[1].textContent = m === 'w' ? '⚫ Siyah (Rakip)' : '⚪ Beyaz (Rakip)';
+        setText(names[0], m === 'w' ? '⚪ Beyaz (Siz)' : '⚫ Siyah (Siz)');
+        setText(names[1], m === 'w' ? '⚫ Siyah (Rakip)' : '⚪ Beyaz (Rakip)');
       }
     }
     if (isSpectator || !m) {
-      if (t1) t1.textContent = format(white);
-      if (t2) t2.textContent = format(black);
+      setText(t1, format(white));
+      setText(t2, format(black));
     } else {
-      if (t1) t1.textContent = format(m === 'w' ? white : black);
-      if (t2) t2.textContent = format(m === 'w' ? black : white);
+      setText(t1, format(m === 'w' ? white : black));
+      setText(t2, format(m === 'w' ? black : white));
     }
 
     document.querySelectorAll('#topTimers .timer').forEach((el, i) => {
@@ -284,11 +405,12 @@
         const remain = Math.max(0, Number(gameState.moveRemainingMs) - sincePack);
         const secs = Math.ceil(remain / 1000);
         const who = gameState.turn === 'w' ? 'Beyaz' : 'Siyah';
-        badge.textContent = `⏱ Hamle sırası: ${who} — ${secs} sn`;
-        badge.classList.toggle('danger', remain <= Math.min(20000, limit / 2));
-        badge.style.visibility = 'visible';
+        setText(badge, `⏱ Hamle sırası: ${who} — ${secs} sn`);
+        const danger = remain <= Math.min(20000, limit / 2);
+        if (badge.classList.contains('danger') !== danger) badge.classList.toggle('danger', danger);
+        if (badge.style.visibility !== 'visible') badge.style.visibility = 'visible';
       } else {
-        badge.style.visibility = 'hidden';
+        if (badge.style.visibility !== 'hidden') badge.style.visibility = 'hidden';
       }
     }
   }
@@ -571,9 +693,17 @@
     });
   }
 
+  // Kendi çizici katmanının (st/dTavla'sız yedek yol) kullandığı global kancalar.
+  window.__gvTavlaSelfClick = function (i) { onlineClick(i); };
+  window.__gvTavlaSelfRoll = function () { onlineRoll(); };
+  window.__gvTavlaSelfUndo = function () { onlineUndo(); };
+  window.__gvTavlaSelfEndTurn = function () { onlineEndTurn(); };
+  window.__gvTavlaSelfBear = function (c) { onlineBearOff(c); };
+
   // Odadan ayrılırken room-waiting-fix.js tarafından çağrılır.
   window.__gvTavlaOnlineReset = function () {
     active = false;
+    releaseClockOwnership();
     gameState = null;
     sel = null;
     playerColor = null;
@@ -599,17 +729,27 @@
       fallbackTimer = null;
       if (gameState || !isTavlaRoom()) return; // sunucu durumu zaten gelmiş
       const s = getState();
-      if (!s) return;
       const area = document.getElementById('boardArea');
       if (!area) return;
-      s.boards = s.boards || {};
       injectStyle();
-      if (!s.boards.tavla && typeof window.rTavla === 'function') {
-        window.rTavla(area); // gönderilen yerel motorla aynı başlangıç dizilimi
-      } else if (s.boards.tavla && typeof window.dTavla === 'function') {
-        window.dTavla(area);
+      if (s) {
+        // Yerel (çevrimdışı) tahta: oyuncu en azından dizilimi görür.
+        s.boards = s.boards || {};
+        if (!s.boards.tavla && typeof window.rTavla === 'function') {
+          window.rTavla(area);
+        } else if (s.boards.tavla && typeof window.dTavla === 'function') {
+          window.dTavla(area);
+        }
+        toast('⚠️ Sunucu senkronu kurulamadı — tavla şu an ÇEVRİMDIŞI (yerel) görünümde. Online senkron için sayfayı yenileyin.', 'warning');
+      } else {
+        // index.html eski nesil ve sunucudan da durum gelmedi: ekran bomboş
+        // kalmasın, açıklayıcı bir kart göster.
+        area.innerHTML = '<div style="max-width:420px;margin:40px auto;padding:28px;text-align:center;' +
+          'background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.14);border-radius:16px;color:#fff">' +
+          '<div style="font-size:2.4em">🎲</div><h3 style="margin:10px 0 8px">Tavla masası açılamadı</h3>' +
+          '<p style="color:#aaa;font-size:.92em;margin-bottom:14px">Sunucuya bağlanılamadı. Lütfen sayfayı yenileyin (Ctrl+F5) ve tekrar katılın.</p>' +
+          '<button onclick="window.location.reload()" style="padding:10px 18px;border-radius:10px;border:0;background:#6c5ce7;color:#fff;font-weight:700;cursor:pointer">🔄 Sayfayı Yenile</button></div>';
       }
-      toast('⚠️ Sunucu senkronu kurulamadı — tavla şu an ÇEVRİMDIŞI (yerel) görünümde. Online senkron için sayfayı yenileyin.', 'warning');
     }, 4000);
   }
 

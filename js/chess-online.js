@@ -62,6 +62,24 @@
     try { return typeof st !== 'undefined' ? st : null; } catch (_) { return null; }
   }
 
+  // DOM'a yalnızca DEĞİŞİKLİKTE yaz; 250 ms'lik saat döngüsü aynı metni tekrar
+  // tekrar basınca (textContent aynı olsa bile düğüm silinip yeniden yazılır)
+  // bazı tarayıcılarda sayaç paneli "yanıp sönüyormuş" gibi görünüyordu.
+  function setText(el, txt) {
+    if (el && el.textContent !== txt) el.textContent = txt;
+  }
+
+  // Online saatler bu modüldedir: index.html'in YEREL zamanlayıcısının
+  // (bot/gösterim oyunları için) #t1/#t2'ye yazması st.onlineClock ile kilitlenir.
+  function claimClockOwnership() {
+    const s = getState();
+    if (s) s.onlineClock = true;
+  }
+  function releaseClockOwnership() {
+    const s = getState();
+    if (s) s.onlineClock = false;
+  }
+
   function isChessRoom() {
     const s = getState();
     let g = s?.curGame || window.__gvCurrentGame || window.currentGame || '';
@@ -389,6 +407,7 @@
 
   function apply(gs) {
     if (!gs || !Array.isArray(gs.board)) return;
+    claimClockOwnership();
     // Tahta pozisyonu DEĞİŞMEDİYSE (aynı fen) oyuncunun taş seçimini KORU.
     // Aksi halde sunucudan gelen her durum yayını (reconnect, rakibin join'i
     // vb.) seçimi siler ve oyuncu hedef kareye tıklayamadan seçim kaybolur.
@@ -654,6 +673,38 @@
     });
   }
 
+  // Seçim vurgularını YERİNDE boyar (tahtayı baştan kurmaz).
+  // Eski akış her seçimde 64 karenin TAMAMINI innerHTML ile yeniden
+  // oluşturuyordu; bu yeniden kurulum ekranda "titreme / aşağı-yukarı oynama"
+  // olarak hissediliyordu. Seçim yalnızca sınıf değişimidir — DOM sabit kalır.
+  function paintSelection() {
+    const area = document.getElementById('boardArea');
+    if (!area) return;
+    const cells = area.querySelectorAll('.chess-c');
+    if (!cells.length) { render(); return; } // tahta DOM'u henüz yoksa tam çiz
+    cells.forEach(cell => {
+      if (cell.dataset.r === undefined) return;
+      const hadSel = cell.classList.contains('sel');
+      cell.classList.remove('valid-move', 'valid-capture');
+      if (selected && +cell.dataset.r === selected[0] && +cell.dataset.c === selected[1]) {
+        if (!hadSel) cell.classList.add('sel');
+      } else if (hadSel) {
+        cell.classList.remove('sel');
+      }
+    });
+    if (!selected || !gameState) return;
+    const from = square(selected[0], selected[1]);
+    for (const m of (gameState.legalMoves || [])) {
+      if (m.from !== from || typeof m.to !== 'string' || m.to.length < 2) continue;
+      const tr = 8 - parseInt(m.to[1], 10);
+      const tc = 'abcdefgh'.indexOf(m.to[0]);
+      if (tr < 0 || tc < 0) continue;
+      const cell = area.querySelector('.chess-c[data-r="' + tr + '"][data-c="' + tc + '"]');
+      if (!cell) continue;
+      cell.classList.add((gameState.board[tr] && gameState.board[tr][tc]) ? 'valid-capture' : 'valid-move');
+    }
+  }
+
   function click(r, c) {
     // İzleyici tahtaya tıklayınca SESSİZ kalır: hiçbir uyarı/hamle toast'ı yok.
     if (isSpectator || window.__gvIsSpectator) return;
@@ -681,7 +732,7 @@
     if (!selected) {
       if (piece && pc === mine) {
         selected = [r, c];
-        render();
+        paintSelection();
         const fromSq = square(r, c);
         const pieceMoves = (gameState.legalMoves || []).filter(m => m.from === fromSq);
         if (!pieceMoves.length) {
@@ -700,7 +751,7 @@
     // 2. Re-clicking the SAME selected piece -> DESELECT!
     if (selected[0] === r && selected[1] === c) {
       selected = null;
-      render();
+      paintSelection();
       toast('↩️ Seçim iptal edildi.', 'info');
       return;
     }
@@ -708,7 +759,7 @@
     // 3. Clicking another piece of OWN color -> SWITCH SELECTION!
     if (piece && pc === mine) {
       selected = [r, c];
-      render();
+      paintSelection();
       const fromSq = square(r, c);
       const pieceMoves = (gameState.legalMoves || []).filter(m => m.from === fromSq);
       if (!pieceMoves.length) {
@@ -729,7 +780,7 @@
     if (!candidates.length) {
       // Invalid destination clicked -> DESELECT piece
       selected = null;
-      render();
+      paintSelection();
       toast(gameState.check
         ? '⛔ ŞAH tehdidi altındasınız! Bu hamle Şah\'ınızı kurtarmıyor — sadece Şah\'ı koruyan hamleler oynanabilir.'
         : '⚠️ Geçersiz kare. Seçim iptal edildi.', gameState.check ? 'error' : 'warning');
@@ -755,7 +806,7 @@
     if (ev.dataTransfer) {
       ev.dataTransfer.setData('text/plain', JSON.stringify({ r, c }));
     }
-    render();
+    paintSelection();
   }
 
   function drop(ev, tr, tc) {
@@ -769,7 +820,7 @@
 
     if (!candidates.length) {
       selected = null;
-      render();
+      paintSelection();
       toast(gameState.check
         ? '⛔ ŞAH tehdidi altındasınız! Bu hamle Şah\'ınızı kurtarmıyor — sadece Şah\'ı koruyan hamleler oynanabilir.'
         : '⚠️ Geçersiz kare. Seçim iptal edildi.', gameState.check ? 'error' : 'warning');
@@ -822,20 +873,20 @@
 
     if (names.length >= 2) {
       if (isSpectator || !mine) {
-        names[0].textContent = '⚪ Beyaz';
-        names[1].textContent = '🔴 Siyah';
+        setText(names[0], '⚪ Beyaz');
+        setText(names[1], '🔴 Siyah');
       } else {
-        names[0].textContent = mine === 'w' ? '⚪ Beyaz (Siz)' : '🔴 Siyah (Siz)';
-        names[1].textContent = mine === 'w' ? '🔴 Siyah (Rakip)' : '⚪ Beyaz (Rakip)';
+        setText(names[0], mine === 'w' ? '⚪ Beyaz (Siz)' : '🔴 Siyah (Siz)');
+        setText(names[1], mine === 'w' ? '🔴 Siyah (Rakip)' : '⚪ Beyaz (Rakip)');
       }
     }
 
     if (isSpectator || !mine) {
-      if (t1) t1.textContent = format(white);
-      if (t2) t2.textContent = format(black);
+      setText(t1, format(white));
+      setText(t2, format(black));
     } else {
-      if (t1) t1.textContent = format(mine === 'w' ? white : black);
-      if (t2) t2.textContent = format(mine === 'w' ? black : white);
+      setText(t1, format(mine === 'w' ? white : black));
+      setText(t2, format(mine === 'w' ? black : white));
     }
 
     document.querySelectorAll('#topTimers .timer').forEach((el, i) => {
@@ -854,11 +905,12 @@
         const remain = Math.max(0, Number(gameState.moveRemainingMs) - sincePack);
         const secs = Math.ceil(remain / 1000);
         const who = gameState.turn === 'w' ? 'Beyaz' : 'Siyah';
-        badge.textContent = `⏱ Hamle sırası: ${who} — ${secs} sn`;
-        badge.classList.toggle('danger', remain <= Math.min(20000, limit / 2));
-        badge.style.visibility = 'visible';
+        setText(badge, `⏱ Hamle sırası: ${who} — ${secs} sn`);
+        const danger = remain <= Math.min(20000, limit / 2);
+        if (badge.classList.contains('danger') !== danger) badge.classList.toggle('danger', danger);
+        if (badge.style.visibility !== 'visible') badge.style.visibility = 'visible';
       } else {
-        badge.style.visibility = 'hidden';
+        if (badge.style.visibility !== 'hidden') badge.style.visibility = 'hidden';
       }
     }
   }
@@ -884,6 +936,7 @@
   window.__gvChessOnlineReset = function () {
     active = false;
     pending = false;
+    releaseClockOwnership();
     gameState = null;
     selected = null;
     playerColor = null;

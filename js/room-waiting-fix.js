@@ -242,7 +242,7 @@
       }
       if (document.querySelector('script[data-gv-tavla-online]')) return;
       const ts = document.createElement('script');
-      ts.src = 'js/tavla-online.js?v=20260819h';
+      ts.src = 'js/tavla-online.js?v=20260819i';
       ts.dataset.gvTavlaOnline = '1';
       ts.async = false;
       let settled = false;
@@ -272,7 +272,7 @@
     }
     if (document.querySelector('script[data-gv-chess-online]')) return;
     const s = document.createElement('script');
-    s.src = 'js/chess-online.js?v=20260819h';
+    s.src = 'js/chess-online.js?v=20260819i';
     s.dataset.gvChessOnline = '1';
     s.async = false;
     document.head.appendChild(s);
@@ -446,6 +446,7 @@
       s.roomWaitingState = null;
       s.roomWaitingInt = null;
       s.curRoom = null;
+      s.onlineClock = false; // saat paneli tekrar yerel sisteme açılabilir
     }
 
     goLobby();
