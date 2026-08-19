@@ -101,7 +101,7 @@ async function main() {
   await start(0);
   const port = server.address().port;
   const url = 'http://127.0.0.1:' + port;
-  const ROOM = '205'; // 5 dk'lık kalıcı tavla masası
+  const ROOM = '205'; // 15 dk'lık (Normal) kalıcı tavla masası
 
   // --- 1) her iki lobide de 10'ar kalıcı masa ---
   let apiT = await httpGet(url + '/api/rooms?gameId=tavla');
@@ -109,6 +109,14 @@ async function main() {
   assert.deepStrictEqual(presetT, ['201', '202', '203', '204', '205', '206', '207', '208', '209', '210'],
     'tavla lobisinde #201-#210 listelenmeli');
   assert.strictEqual(apiT.rooms.find(r => String(r.id) === ROOM).players, 0, 'boş masa listelenmeli');
+  // Satrançtaki tip dağılımının aynısı tavlada da: 4x Hızlı(10) + 3x Normal(15) + 3x Düşünen(20)
+  const distT = { 10: 0, 15: 0, 20: 0 };
+  apiT.rooms.forEach(r => {
+    const id = String(r.id);
+    if ((/^20[1-9]$/.test(id) || id === '210')) distT[Number(r.duration)] = (distT[Number(r.duration)] || 0) + 1;
+  });
+  assert.deepStrictEqual(distT, { 10: 4, 15: 3, 20: 3 }, 'tavla masaları 4x10dk + 3x15dk + 3x20dk olmalı');
+  assert.ok(/Hızlı/.test(apiT.rooms.find(r => String(r.id) === '201').name), 'tavla masa adı tipi yansıtmalı');
 
   let apiC = await httpGet(url + '/api/rooms?gameId=chess');
   const presetC = apiC.rooms.map(r => String(r.id)).filter(id => /^10[1-9]$/.test(id) || id === '110').sort();
@@ -120,8 +128,8 @@ async function main() {
   const b = await connect(io, url, 'user:tb', 'Ayşe');
   await joinAs(a, ROOM);
   apiT = await httpGet(url + '/api/rooms?gameId=tavla');
-  assert.strictEqual(Number(apiT.rooms.find(r => String(r.id) === ROOM).duration), 5,
-    'kalıcı masanın süresi korunmalı (5 dk, 10 değil)');
+  assert.strictEqual(Number(apiT.rooms.find(r => String(r.id) === ROOM).duration), 15,
+    'kalıcı masanın süresi korunmalı (#205 Normal 15 dk, 10 değil)');
   console.log('  ✓ 2) tavla masasının kendi süresi korunuyor');
 
   // --- 3) oyun başlar; zar ve hamle yetkisi sunucuda ---
@@ -130,7 +138,7 @@ async function main() {
   b.emit('setReady', { ready: true });
   const [startedA, startedB] = await Promise.all([once(a, 'gameStarted'), once(b, 'gameStarted')]);
   assert.strictEqual(startedA.gameState.kind, 'tavla', 'oyun türü tavla olmalı');
-  assert.strictEqual(startedA.gameState.whiteTimeMs, 5 * 60 * 1000, 'ana süre masanınkinde olmalı');
+  assert.strictEqual(startedA.gameState.whiteTimeMs, 15 * 60 * 1000, 'ana süre masanınkinde olmalı');
 
   const whiteSock = startedA.playerColor === 'white' ? a : b;
   const blackSock = whiteSock === a ? b : a;

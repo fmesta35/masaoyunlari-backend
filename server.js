@@ -36,27 +36,25 @@ const disconnectTimers = new Map();
 // Lobide HER ZAMAN görünen kalıcı hazır masalar: 2 kişilik, masanın kendi
 // süresi korunur (istemci ne gönderirse göndersin değişmez), boşken de
 // listelenir, oyun bitince silinmez — beklemeye alınır.
-// Satranç: #101-#110 — 3 oda tipi: 4x Hızlı (10 dk), 3x Normal (15 dk),
-// 3x Düşünen (20 dk).  Bu dağılım YALNIZCA satranca özgüdür.
-// Tavla: #201-#210 (5/10/15/20 karışık).
-const CHESS_PRESET_TYPES = [
+// Satranç (#101-#110) VE Tavla (#201-#210) — her ikisinde de 3 oda tipi:
+// 4x Hızlı (10 dk), 3x Normal (15 dk), 3x Düşünen (20 dk).
+const PRESET_TYPES = [
   ...Array(4).fill({ label: '⚡ Hızlı', durationMinutes: 10 }),
   ...Array(3).fill({ label: '♟️ Normal', durationMinutes: 15 }),
   ...Array(3).fill({ label: '🧠 Düşünen', durationMinutes: 20 })
 ];
 
-function presetRange(startId) {
-  const durations = [5, 10, 15, 20, 5, 10, 15, 20, 5, 10];
-  return durations.map((d, i) => ({ id: String(startId + i), durationMinutes: d }));
+function presetTablesFor(gameId, startId) {
+  return PRESET_TYPES.map((t, i) => ({
+    id: String(startId + i),
+    gameId,
+    durationMinutes: t.durationMinutes,
+    name: `${t.label} Masa #${startId + i}`
+  }));
 }
 const PRESET_TABLES = [
-  ...CHESS_PRESET_TYPES.map((t, i) => ({
-    id: String(101 + i),
-    gameId: 'chess',
-    durationMinutes: t.durationMinutes,
-    name: `${t.label} Masa #${101 + i}`
-  })),
-  ...presetRange(201).map(t => ({ ...t, gameId: 'tavla' }))
+  ...presetTablesFor('chess', 101),
+  ...presetTablesFor('tavla', 201)
 ];
 
 function seedPresetTables() {

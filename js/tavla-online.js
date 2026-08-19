@@ -22,6 +22,7 @@
   let sel = null;
   let lastNoticeId = null;
   let lastRollKey = null;
+  let fallbackTimer = null;
 
   // Bitiş kararları: sunucunun kişiye özel youWon bilgisi (renk karşılaştırması
   // "ters mesaj" hatasına yol açabildiği için tek doğru kaynak budur).
@@ -204,6 +205,8 @@
   // ---------- Durum uygulama ----------
   function apply(gs) {
     if (!gs || gs.kind !== 'tavla') return;
+    // Yetkili sunucu durumu ulaştı: yerel yedek planı iptal.
+    if (fallbackTimer) { clearTimeout(fallbackTimer); fallbackTimer = null; }
     gameState = gs;
 
     if (!active) active = true;
@@ -579,16 +582,43 @@
     endYouWon = null;
     lastNoticeId = null;
     lastRollKey = null;
+    if (fallbackTimer) { clearTimeout(fallbackTimer); fallbackTimer = null; }
     roomId = null;
     if (clockInt) { clearInterval(clockInt); clockInt = null; }
     socket = null;
   };
+
+  // ---------- "Oyun açılmıyor" koruması ----------
+  // Odaya girildi ama birkaç saniye içinde sunucudan tavla durumu gelmediyse
+  // (eski backend, eksik dosya dağıtımı, bağlantı hatası) ekran BOŞ KALMASIN:
+  // yerel tahta açılır ve kullanıcı açıkça bilgilendirilir. Sunucu durumu
+  // sonradan ulaşırsa apply() bu görünümün üzerine geçer (kesintisiz).
+  function scheduleLocalFallback() {
+    if (fallbackTimer) clearTimeout(fallbackTimer);
+    fallbackTimer = setTimeout(() => {
+      fallbackTimer = null;
+      if (gameState || !isTavlaRoom()) return; // sunucu durumu zaten gelmiş
+      const s = getState();
+      if (!s) return;
+      const area = document.getElementById('boardArea');
+      if (!area) return;
+      s.boards = s.boards || {};
+      injectStyle();
+      if (!s.boards.tavla && typeof window.rTavla === 'function') {
+        window.rTavla(area); // gönderilen yerel motorla aynı başlangıç dizilimi
+      } else if (s.boards.tavla && typeof window.dTavla === 'function') {
+        window.dTavla(area);
+      }
+      toast('⚠️ Sunucu senkronu kurulamadı — tavla şu an ÇEVRİMDIŞI (yerel) görünümde. Online senkron için sayfayı yenileyin.', 'warning');
+    }, 4000);
+  }
 
   function boot() {
     wrapLocalHandlers();
     if (!isTavlaRoom()) return;
     roomId = getRoomId();
     if (roomId) connect();
+    scheduleLocalFallback();
   }
 
   window.addEventListener('gv:roomGameStarted', boot);
