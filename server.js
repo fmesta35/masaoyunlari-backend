@@ -198,6 +198,12 @@ function startChess(room) {
   if (room.status === 'playing') return;
   if (room.players.length !== 2 || !room.players.every(p => p.isReady)) return;
 
+  // Renkler RASTGELE dağıtılır (ilk giren hep beyaz olmasın);
+  // beyaz kimdeyse ilk hamleyi o yapar.
+  const flip = Math.random() < 0.5;
+  room.players[0].color = flip ? 'black' : 'white';
+  room.players[1].color = flip ? 'white' : 'black';
+
   room.chess = new Chess();
   room.status = 'playing';
   room.result = null;
