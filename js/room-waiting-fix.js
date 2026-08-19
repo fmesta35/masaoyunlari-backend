@@ -193,7 +193,7 @@
 
     if (!socket) {
       socket = window.io(BACKEND, {
-        transports: ['websocket', 'polling'],
+        transports: ['polling', 'websocket'],
         reconnection: true,
         reconnectionAttempts: Infinity,
         reconnectionDelay: 700
