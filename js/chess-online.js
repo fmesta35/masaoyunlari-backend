@@ -165,7 +165,7 @@
         return;
       }
       socket = window.__gvRoomSocket || window.__gvChessSocket || window.io(BACKEND, {
-        transports: ['websocket', 'polling'],
+        transports: ['polling', 'websocket'],
         reconnection: true,
         reconnectionAttempts: Infinity,
         reconnectionDelay: 800
