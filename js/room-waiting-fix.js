@@ -160,6 +160,8 @@
 
   function loadChess() {
     if (!isChess()) return;
+    // Idempotent: oyun zaten boot edildiyse joinRoom/boot döngüsünü tetikleme.
+    if (window.__gvChessGameStarted && window.__gvChessOnlineLoaded) return;
     window.__gvChessGameStarted = true;
     window.__gvChessOnlineRequested = true;
     // chess-online.js index.html içinde statik olarak da yüklüdür; yüklüyse
@@ -170,7 +172,7 @@
     }
     if (document.querySelector('script[data-gv-chess-online]')) return;
     const s = document.createElement('script');
-    s.src = 'js/chess-online.js?v=' + Date.now();
+    s.src = 'js/chess-online.js?v=20260819b';
     s.dataset.gvChessOnline = '1';
     s.async = false;
     document.head.appendChild(s);
@@ -193,7 +195,7 @@
 
     if (!socket) {
       socket = window.io(BACKEND, {
-        transports: ['polling', 'websocket'],
+        transports: ['websocket', 'polling'],
         reconnection: true,
         reconnectionAttempts: Infinity,
         reconnectionDelay: 700
@@ -206,6 +208,7 @@
         if (!r || String(r.id) !== roomId || !isChess()) return;
         room = r;
         window.__gvActiveRoom = r;
+        if (started) return;
         if (r.status === 'playing' || r.status === 'finished') {
           started = true;
           hide();
@@ -217,6 +220,7 @@
 
       socket.on('gameStarted', p => {
         if (!p || String(p.roomId) !== roomId || !isChess()) return;
+        if (started) return;
         started = true;
         hide();
         window.dispatchEvent(new CustomEvent('gv:roomGameStarted', { detail: p }));

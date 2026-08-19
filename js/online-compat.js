@@ -16,12 +16,12 @@
 
   // Shared-hosting frontend; Render owns the real-time chess connection.
   // The waiting-room socket remains the only socket until gameStarted.
-  load('js/room-waiting-fix.js?v=20260819', 'data-gv-room-fix');
+  load('js/room-waiting-fix.js?v=20260819b', 'data-gv-room-fix');
 
   window.__gvEnsureChessOnline = function () {
     if (!window.__gvChessGameStarted) return;
     if (document.querySelector('script[data-gv-chess-online]')) return;
-    load('js/chess-online.js?v=20260819', 'data-gv-chess-online');
+    load('js/chess-online.js?v=20260819b', 'data-gv-chess-online');
   };
 
   window.GV_BACKEND_URL = BACKEND;
