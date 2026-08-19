@@ -649,12 +649,12 @@
     send(pendingMove.from, pendingMove.to, piece);
   }
 
-  let pendingTimer = null;
+    let pendingTimer = null;
   function send(from, to, promotion) {
     if (!socket?.connected) return toast('🔌 Sunucu bağlantısı yok. Bağlantı kurulunca tekrar deneyin.', 'error');
     pending = true;
     // Güvenlik: 8 sn içinde sunucudan yanıt gelmezse kilidi kaldır
-    // (paket kaybında tahta sonsuza dek kilitli kalmasın).
+    // (bağlantı sorununda tahta sonsuza dek kilitli kalmasın).
     if (pendingTimer) clearTimeout(pendingTimer);
     pendingTimer = setTimeout(() => { pending = false; }, 8000);
     socket.emit('chessMove', { roomId, from, to, promotion, userKey: userKey() });
