@@ -503,7 +503,9 @@
       // Invalid destination clicked -> DESELECT piece
       selected = null;
       render();
-      toast('⚠️ Geçersiz kare. Seçim iptal edildi.', 'warning');
+            toast(gameState.check
+        ? '⛔ ŞAH tehdidi altındasınız! Bu hamle Şah\'ınızı kurtarmıyor — sadece Şah\'ı koruyan hamleler oynanabilir.'
+        : '⚠️ Geçersiz kare. Seçim iptal edildi.', gameState.check ? 'error' : 'warning');
       return;
     }
 
@@ -537,7 +539,9 @@
     if (!candidates.length) {
       selected = null;
       render();
-      toast('⚠️ Geçersiz kare. Seçim iptal edildi.', 'warning');
+            toast(gameState.check
+        ? '⛔ ŞAH tehdidi altındasınız! Bu hamle Şah\'ınızı kurtarmıyor — sadece Şah\'ı koruyan hamleler oynanabilir.'
+        : '⚠️ Geçersiz kare. Seçim iptal edildi.', gameState.check ? 'error' : 'warning');
       return;
     }
 
