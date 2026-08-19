@@ -482,7 +482,7 @@
   // kaymasında click olayını yutabildiği için "birkaç kez tıklayınca çalışıyor"
   // hissi oluşuyordu. pointerdown İLK dokunuşta anında tepki verir.
   let delegationAttached = false;
-  let suppressClickUntil = 0;
+  let swallowNextClick = false;
   function attachBoardDelegation(area) {
     if (delegationAttached || !area) return;
     delegationAttached = true;
