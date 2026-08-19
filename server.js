@@ -19,6 +19,9 @@ const io = new Server(server, {
 const rooms = new Map();
 const MAX_ROOM_PLAYERS = 2;
 const MAX_SPECTATORS = 20;
+// Terk sonrası oda hemen sıfırlanmaz: kalan oyuncu "Kazandınız" ekranını
+// görürken renginin değişmemesi için sonuç bir süre korunur.
+const POST_GAME_HOLD_MS = Number(process.env.GV_POST_GAME_HOLD_MS) || 8000;
 // Oyun sırasında kopan oyuncuya yeniden bağlanması için tanınan süre (ms).
 const RECONNECT_GRACE_MS = 30000;
 // Hamle süresi: 1. dakika sonunda uyarı, 2. dakika sonunda hükmen mağlubiyet.
@@ -352,8 +355,12 @@ function findExistingSpectator(room, socket, userKey) {
 function maybePromoteSpectators(room) {
   if (!room || room.status !== 'waiting') return;
   if (!Array.isArray(room.spectators)) room.spectators = [];
-  while (room.players.length < room.maxPlayers && room.spectators.length) {
-    const spec = room.spectators.shift();
+  // "İzle" diyerek gelenler koltuğa TERFİ ETTİRİLMEZ; yalnızca oda dolu
+  // olduğu için izleyiciye düşmüş olanlar sıradaki koltuğu alabilir.
+  while (room.players.length < room.maxPlayers &&
+         room.spectators.some(s => !s.wantsSpectate)) {
+    const idx = room.spectators.findIndex(s => !s.wantsSpectate);
+    const spec = room.spectators.splice(idx, 1)[0];
     const color = room.players.length === 0 ? 'white' : 'black';
     const player = {
       id: spec.id,
@@ -405,21 +412,62 @@ function removePlayerFromRoom(room, player, message) {
     room.status = 'finished';
     room.result = { reason: 'player_left', winner: remaining ? remaining.color : null };
     const state = buildChessState(room);
-    io.to(room.id).emit('gameEnded', {
-      roomId: room.id,
-      reason: 'player_left',
-      winner: room.result.winner,
-      gameState: state
+
+    // KRİTİK: kalan oyuncuya rengine bakmadan "kazandın" bilgisi gönderilir.
+    // Eskiden oda hemen sıfırlanıp renkler yeniden dağıtıldığı için istemcideki
+    // `winner === playerColor` karşılaştırması false oluyor ve KALAN oyuncu
+    // "kaybettiniz" mesajı görüyordu.
+    room.players.forEach(p => {
+      io.to(p.id).emit('gameEnded', {
+        roomId: room.id,
+        reason: 'player_left',
+        winner: room.result.winner,
+        winnerColor: room.result.winner,
+        playerColor: p.color,
+        youWon: true,
+        gameState: state
+      });
+    });
+    (room.spectators || []).forEach(s => {
+      io.to(s.id).emit('gameEnded', {
+        roomId: room.id,
+        reason: 'player_left',
+        winner: room.result.winner,
+        winnerColor: room.result.winner,
+        playerColor: null,
+        youWon: false,
+        isSpectator: true,
+        gameState: { ...state, legalMoves: [] }
+      });
     });
     emitGameState(room);
+    emitRoom(room);
+    io.to(room.id).emit('playerLeft', {
+      roomId: room.id,
+      youWon: true,
+      message: message || 'Rakip oyundan ayrıldı.'
+    });
+
+    // Oda, kazanan ekranı görülebilsin diye hemen sıfırlanmaz.
+    const roomId = room.id;
+    const holdTimer = setTimeout(() => {
+      const current = rooms.get(roomId);
+      if (!current || current.status !== 'finished') return;
+      if (current.players.length === 0) {
+        destroyRoom(current);
+        return;
+      }
+      resetRoomToWaiting(current);
+      maybePromoteSpectators(current);
+      emitRoom(current);
+    }, POST_GAME_HOLD_MS);
+    if (typeof holdTimer.unref === 'function') holdTimer.unref();
+    return;
   }
 
   resetRoomToWaiting(room);
   maybePromoteSpectators(room);
   emitRoom(room);
-  if (wasPlaying) {
-    io.to(room.id).emit('playerLeft', { roomId: room.id, message: message || 'Rakip oyundan ayrıldı.' });
-  }
 }
 
 io.on('connection', socket => {
@@ -478,6 +526,14 @@ io.on('connection', socket => {
     let player = findExistingPlayer(room, socket, userKey);
     let spectator = findExistingSpectator(room, socket, userKey);
 
+    // "İzle" ile gelen bağlantı ASLA koltuk almaz / koltuk geri kazanmaz.
+    // Aynı tarayıcı (aynı userKey) ikinci sekmede izlemek istediğinde sunucu
+    // eskiden onu oyuncu koltuğuna reconnect ediyordu; "Siyah (Siz)" +
+    // "sıra sizde değil" hatası buradan geliyordu.
+    if (wantSpectate && player && player.id !== socket.id) {
+      player = null;
+    }
+
     if (player) {
       player.id = socket.id;
       player.name = name || player.name;
@@ -524,6 +580,11 @@ io.on('connection', socket => {
       socket.role = 'spectator';
     }
 
+    // Bilinçli olarak "İzle" diyen kişi boşalan koltuğa otomatik oturtulmaz.
+    if (socket.role === 'spectator' && spectator) {
+      spectator.wantsSpectate = spectator.wantsSpectate || wantSpectate;
+    }
+
     emitRoom(room);
     socket.emit('joinedRoom', {
       roomId,
@@ -540,12 +601,19 @@ io.on('connection', socket => {
     }
   });
 
+  // İzleyici "hazırım" gönderemez: koltuk yalnızca SOKET kimliğiyle bulunur.
+  function seatedPlayer(room) {
+    if (!room) return null;
+    if (socket.role === 'spectator') return null;
+    if ((room.spectators || []).some(s => s.id === socket.id)) return null;
+    return room.players.find(p => p.id === socket.id) || null;
+  }
+
   socket.on('setReady', ({ ready } = {}) => {
     const room = rooms.get(socket.roomId);
     if (!room || room.status !== 'waiting') return;
-    const player = findExistingPlayer(room, socket, socket.userKey);
+    const player = seatedPlayer(room);
     if (!player) return;
-    player.id = socket.id;
     player.isReady = !!ready;
     emitRoom(room);
     startChess(room);
@@ -554,9 +622,8 @@ io.on('connection', socket => {
   socket.on('toggleReady', () => {
     const room = rooms.get(socket.roomId);
     if (!room || room.status !== 'waiting') return;
-    const player = findExistingPlayer(room, socket, socket.userKey);
+    const player = seatedPlayer(room);
     if (!player) return;
-    player.id = socket.id;
     player.isReady = !player.isReady;
     emitRoom(room);
     startChess(room);
@@ -567,10 +634,13 @@ io.on('connection', socket => {
     const room = rooms.get(roomId);
     if (!room || room.gameId !== 'chess' || room.status !== 'playing' || !room.chess) return;
 
-    const player = findExistingPlayer(room, socket, socket.userKey || (data && data.userKey));
+    // GÜVENLİK: koltuk eşleşmesi SOKET kimliğiyle yapılır. Aksi halde izleyici,
+    // oyuncuyla aynı userKey'i (aynı tarayıcı / 2. sekme) göndererek onun
+    // koltuğu üzerinden hamle oynayabiliyordu.
+    const isSpectatorSocket = socket.role === 'spectator' ||
+      (room.spectators || []).some(s => s.id === socket.id);
+    const player = isSpectatorSocket ? null : room.players.find(p => p.id === socket.id);
     if (!player) return socket.emit('chessMoveRejected', { roomId, reason: 'not_in_room' });
-
-    player.id = socket.id;
 
     updateClock(room);
     if (room.status !== 'playing') {
@@ -721,12 +791,26 @@ const clockTimer = setInterval(() => {
         const state = buildChessState(room);
         emitGameState(room);
         emitRoom(room);
-        io.to(room.id).emit('gameEnded', {
+        const winner = room.result.winner;
+        room.players.forEach(p => io.to(p.id).emit('gameEnded', {
           roomId: room.id,
           reason: 'abandon',
-          winner: room.result.winner,
+          winner,
+          winnerColor: winner,
+          playerColor: p.color,
+          youWon: p.color === winner,
           gameState: state
-        });
+        }));
+        (room.spectators || []).forEach(s => io.to(s.id).emit('gameEnded', {
+          roomId: room.id,
+          reason: 'abandon',
+          winner,
+          winnerColor: winner,
+          playerColor: null,
+          youWon: false,
+          isSpectator: true,
+          gameState: { ...state, legalMoves: [] }
+        }));
       }
     }
   }

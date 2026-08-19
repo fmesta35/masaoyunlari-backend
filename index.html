@@ -901,6 +901,9 @@ button,input,select{font-family:var(--font)}
 const GV=(function(){'use strict';
 
 const TWO_PLAYER_GAMES = ['chess', 'tavla', 'dama', 'turkdamasi', 'reversi', 'gomoku', 'connect4', 'bilardo'];
+// Masa listesi sunucudan (Render) gelen gerçek zamanlı oyunlar.
+// Bu oyunlarda ASLA sahte/demo masa üretilmez.
+const ONLINE_GAMES = ['chess'];
 const BOT_FALLBACK_GAMES = ['okey', 'okey101', 'pisti', 'batak'];
 
 const GAMES={
@@ -1381,6 +1384,20 @@ function genRooms(gid){
 
   const isTwoPlayer = TWO_PLAYER_GAMES.includes(gid);
 
+  // ONLINE oyunlarda (satranç) masa listesi SUNUCUDAN gelir.
+  // Eskiden burada sahte "#101 Düello Masası - players: 1" üretiliyor ve
+  // sunucuda 2 kişi olsa bile lobide 1/2 görünüyordu. Artık sahte masa yok;
+  // listeyi js/lobby-sync.js (GET /api/rooms + soket) dolduruyor.
+  if (ONLINE_GAMES.includes(gid)) {
+    if (!ROOMS[gid]) ROOMS[gid] = [];
+    if (!ROOMS[gid].length) {
+      list.innerHTML = `<div class="room" style="justify-content:center;padding:28px 18px;text-align:center;color:var(--text2);">
+        ⏳ Masalar yükleniyor...
+      </div>`;
+    }
+    return;
+  }
+
   if (!ROOMS[gid] || ROOMS[gid].length === 0) {
     if(isTwoPlayer) {
       ROOMS[gid] = [
@@ -1482,11 +1499,19 @@ function createRoom(){
   joinRoom(rid);
 }
 
-function joinRoom(rid){
+function joinRoom(rid, opts){
   st.curRoom = rid;
   const gid = st.curGame || 'okey';
   const g = GAMES[gid];
-  
+
+  // "👁️ İzle" ile gelindiyse bu bayrak room-waiting-fix.js / chess-online.js
+  // tarafından joinRoom paketine asSpectator:true olarak konur; sunucu da
+  // koltuk vermez. Her katılımda AÇIKÇA sıfırla ki önceki izleme oturumu
+  // sonraki normal katılıma sızmasın.
+  const asSpectator = !!(opts && (opts.spectate || opts.asSpectator)) || !!window.__gvJoinAsSpectator;
+  window.__gvJoinAsSpectator = asSpectator;
+  window.__gvIsSpectator = asSpectator;
+
   let room = (ROOMS[gid] || []).find(r => r.id === rid);
   if(!room) {
     const isTwo = TWO_PLAYER_GAMES.includes(gid);
@@ -1893,6 +1918,13 @@ function sendChat(type){
       list.scrollTop = list.scrollHeight;
     }
     inp.value = '';
+    return;
+  }
+  // İzleyici sohbete yazamaz (input zaten kilitli; bu son savunma hattı).
+  if(window.__gvIsSpectator){
+    toast('👁️ İzleyici modundasınız, sohbete yazamazsınız.','info');
+    const gi=document.getElementById('gcInput');
+    if(gi) gi.value='';
     return;
   }
   const inp=document.getElementById('gcInput');
@@ -3579,6 +3611,13 @@ return {
   init
 };
 })();
+
+// KRİTİK: GV bu inline script'te "const" olduğu için global sözcüksel
+// kapsamdadır ama window üzerinde DEĞİLDİR. lobby-sync.js / room-waiting-fix.js
+// gibi harici dosyalar window.GV üzerinden yama yaptığı için köprü şart;
+// aksi halde chess-online.js boş bir window.GV={} yaratıyor ve lobi
+// senkronu, izleyici bayrağı gibi tüm yamalar sessizce devre dışı kalıyordu.
+window.GV = GV;
 
 // UYGULAMAYI BAŞLAT
 GV.init();
