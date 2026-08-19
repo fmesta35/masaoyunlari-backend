@@ -242,7 +242,7 @@
       }
       if (document.querySelector('script[data-gv-tavla-online]')) return;
       const ts = document.createElement('script');
-      ts.src = 'js/tavla-online.js?v=20260819e';
+      ts.src = 'js/tavla-online.js?v=20260819h';
       ts.dataset.gvTavlaOnline = '1';
       ts.async = false;
       let settled = false;
@@ -272,7 +272,7 @@
     }
     if (document.querySelector('script[data-gv-chess-online]')) return;
     const s = document.createElement('script');
-    s.src = 'js/chess-online.js?v=20260819d';
+    s.src = 'js/chess-online.js?v=20260819h';
     s.dataset.gvChessOnline = '1';
     s.async = false;
     document.head.appendChild(s);

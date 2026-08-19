@@ -104,7 +104,7 @@
     const style = document.createElement('style');
     style.id = 'gv-tavla-online-style';
     style.textContent = `
-      .tavla-move-badge { display: block; width: max-content; max-width: 100%; margin: 0 auto 8px; padding: 6px 14px; border-radius: 999px; background: rgba(46,213,115,.14); border: 1px solid rgba(46,213,115,.45); color: #7bed9f; font-weight: 700; font-size: .92rem; text-align: center; font-variant-numeric: tabular-nums; }
+      .tavla-move-badge { display: block; width: max-content; max-width: 100%; min-height: 32px; margin: 0 auto 8px; padding: 6px 14px; border-radius: 999px; background: rgba(46,213,115,.14); border: 1px solid rgba(46,213,115,.45); color: #7bed9f; font-weight: 700; font-size: .92rem; text-align: center; font-variant-numeric: tabular-nums; box-sizing: border-box; }
       .tavla-move-badge.danger { background: rgba(255,71,87,.18); border-color: rgba(255,71,87,.55); color: #ff6b81; animation: gvTavlaDanger 1s ease-in-out infinite; }
       @keyframes gvTavlaDanger { 0%, 100% { box-shadow: 0 0 0 rgba(255,71,87,0); } 50% { box-shadow: 0 0 14px rgba(255,71,87,.55); } }
       .chess-end-overlay { position: fixed; inset: 0; z-index: 2147483000; display: flex; align-items: center; justify-content: center; background: rgba(6,7,20,0.88); backdrop-filter: blur(12px); }
@@ -286,9 +286,9 @@
         const who = gameState.turn === 'w' ? 'Beyaz' : 'Siyah';
         badge.textContent = `⏱ Hamle sırası: ${who} — ${secs} sn`;
         badge.classList.toggle('danger', remain <= Math.min(20000, limit / 2));
-        badge.style.display = '';
+        badge.style.visibility = 'visible';
       } else {
-        badge.style.display = 'none';
+        badge.style.visibility = 'hidden';
       }
     }
   }

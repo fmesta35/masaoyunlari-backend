@@ -470,7 +470,7 @@
       .end-icon { font-size: 3rem; }
       .gv-spec-banner { margin: 0 0 10px; padding: 8px 12px; border-radius: 10px; background: rgba(108,92,231,.18); border: 1px solid rgba(108,92,231,.4); color: #c4b5fd; text-align: center; font-weight: 700; font-size: .9rem; }
       /* Hamle süresi geri sayım rozesi: tahtanın üstünde, son ~20 sn kırmızı */
-      .move-clock-badge { display: block; width: max-content; max-width: 100%; margin: 0 auto 8px; padding: 6px 14px; border-radius: 999px; background: rgba(46,213,115,.14); border: 1px solid rgba(46,213,115,.45); color: #7bed9f; font-weight: 700; font-size: .92rem; text-align: center; font-variant-numeric: tabular-nums; }
+      .move-clock-badge { display: block; width: max-content; max-width: 100%; min-height: 32px; margin: 0 auto 8px; padding: 6px 14px; border-radius: 999px; background: rgba(46,213,115,.14); border: 1px solid rgba(46,213,115,.45); color: #7bed9f; font-weight: 700; font-size: .92rem; text-align: center; font-variant-numeric: tabular-nums; box-sizing: border-box; }
       .move-clock-badge.danger { background: rgba(255,71,87,.18); border-color: rgba(255,71,87,.55); color: #ff6b81; animation: gvMoveDanger 1s ease-in-out infinite; }
       @keyframes gvMoveDanger { 0%, 100% { box-shadow: 0 0 0 rgba(255,71,87,0); } 50% { box-shadow: 0 0 14px rgba(255,71,87,.55); } }
     `;
@@ -504,7 +504,7 @@
     let html = '<div class="chess-wrapper">' +
       (isSpectator ? '<div class="gv-spec-banner">👁️ İzleyici — sadece izliyorsunuz, hamle yapamazsınız</div>' : '') +
       // Hamle süresi canlı geri sayım rozeti (tahtanın üstü; updateClock doldurur)
-      '<div id="moveClockBadge" class="move-clock-badge" style="display:none"></div>' +
+      '<div id="moveClockBadge" class="move-clock-badge" style="visibility:hidden"></div>' +
       '<div class="chess">';
 
     const rowRange = isFlipped ? [7, 6, 5, 4, 3, 2, 1, 0] : [0, 1, 2, 3, 4, 5, 6, 7];
@@ -856,9 +856,9 @@
         const who = gameState.turn === 'w' ? 'Beyaz' : 'Siyah';
         badge.textContent = `⏱ Hamle sırası: ${who} — ${secs} sn`;
         badge.classList.toggle('danger', remain <= Math.min(20000, limit / 2));
-        badge.style.display = '';
+        badge.style.visibility = 'visible';
       } else {
-        badge.style.display = 'none';
+        badge.style.visibility = 'hidden';
       }
     }
   }
