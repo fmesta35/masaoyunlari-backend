@@ -230,7 +230,7 @@
     }
     if (document.querySelector('script[data-gv-chess-online]')) return;
     const s = document.createElement('script');
-    s.src = 'js/chess-online.js?v=20260819c';
+    s.src = 'js/chess-online.js?v=20260819d';
     s.dataset.gvChessOnline = '1';
     s.async = false;
     document.head.appendChild(s);
