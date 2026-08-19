@@ -210,8 +210,23 @@ const GVGames = {
             new URLSearchParams(location.search).get('room');
     },
 
+    // Satranç ve tavla odalarının sahibi ÖZEL istemcilerdir (room-waiting-fix +
+    // chess-online / tavla-online). Bu genel köprü o oyunlar için İKİNCİ bir
+    // soketle userKey'siz katılım açmasın — aksi halde aynı tarayıcı iki
+    // koltuk kaplar (hayalet rakip) ve lobideki oyuncu sayısı gerçeği yansıtmaz.
+    isDedicatedOnlineGame() {
+        try {
+            const g = String(this.currentGame || (typeof st !== 'undefined' && st && st.curGame) || '').toLowerCase();
+            if (g === 'chess' || g === 'satranc' || g === 'satranç' || g === 'tavla') return true;
+            return !!window.__gvChessOnlineRequested || !!window.__gvTavlaOnlineRequested;
+        } catch (_) {
+            return !!window.__gvChessOnlineRequested || !!window.__gvTavlaOnlineRequested;
+        }
+    },
+
     initRealtime() {
         if (this.realtimeReady) return;
+        if (this.isDedicatedOnlineGame()) return; // hayalet koltuk açma
         this.roomId = this.getRoomId();
         if (!this.roomId) {
             console.warn('[Realtime] Oda ID bulunamadı; Socket.IO bağlantısı beklemeye alındı.');
@@ -252,6 +267,7 @@ const GVGames = {
 
     joinCurrentRoom() {
         if (!this.socket || !this.roomId) return;
+        if (this.isDedicatedOnlineGame()) return; // satranç/tavla: özel istemci katılır
         const user = this.getCurrentUser();
         this.socket.emit('joinRoom', {
             roomId: this.roomId,

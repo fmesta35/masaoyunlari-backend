@@ -199,6 +199,27 @@
     return String(v).replace(/[&<>'"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[c]));
   }
 
+  // Online tavla istemcisi dosyası (js/tavla-online.js) barındırmada EKSİKSE
+  // oda ekranı boş kalmasın: yerel tahta açılır + açık uyarı gösterilir.
+  // (Dosya hiç yüklenemediğinde tavla-online.js'in KENDİ bekçisi de
+  // çalışamaz; bu ikinci sigorta bu yüzden burada duruyor.)
+  function tavlaLocalFallback(why) {
+    try {
+      if (window.__gvTavlaLocalFallbackShown) return;
+      window.__gvTavlaLocalFallbackShown = true;
+      const s = state();
+      const area = document.getElementById('boardArea');
+      if (s && area) {
+        s.boards = s.boards || {};
+        if (!s.boards.tavla && typeof window.rTavla === 'function') window.rTavla(area);
+        else if (s.boards.tavla && typeof window.dTavla === 'function') window.dTavla(area);
+      }
+      const msg = '⚠️ Online tavla senkronu kurulamadı — tahta şu an ÇEVRİMDIŞI (yerel) görünümde. (' + (why || 'istemci yüklenemedi') + ')';
+      if (window.GV && typeof window.GV.toast === 'function') window.GV.toast(msg, 'warning');
+      else console.warn('[RoomFix]', msg);
+    } catch (e) { console.warn('[RoomFix] tavla yerel görünüm açılamadı:', e); }
+  }
+
   function loadChess() {
     if (!isChess()) return;
     // Tavla odası: tavla istemcisini devreye al (statik yüklüyse sadece boot et).
@@ -215,7 +236,19 @@
       ts.src = 'js/tavla-online.js?v=20260819e';
       ts.dataset.gvTavlaOnline = '1';
       ts.async = false;
+      let settled = false;
+      ts.onload = () => { settled = true; };
+      ts.onerror = () => {
+        if (settled) return;
+        settled = true;
+        tavlaLocalFallback('js/tavla-online.js yüklenemedi');
+      };
       document.head.appendChild(ts);
+      setTimeout(() => {
+        if (settled || window.__gvTavlaOnlineLoaded) return;
+        settled = true;
+        tavlaLocalFallback('istemci zamanında açılamadı');
+      }, 6000);
       return;
     }
     // Idempotent: oyun zaten boot edildiyse joinRoom/boot döngüsünü tetikleme.
@@ -386,6 +419,7 @@
     }
     window.__gvTavlaGameStarted = false;
     window.__gvTavlaOnlineRequested = false;
+    window.__gvTavlaLocalFallbackShown = false;
 
     // Tahta alanını ve oyun sonu overlay'ini temizle
     const boardArea = document.getElementById('boardArea');

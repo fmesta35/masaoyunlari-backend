@@ -119,6 +119,8 @@ function resetRoomToWaiting(room) {
   room.status = 'waiting';
   room.chess = null;
   room.tavla = null;
+  room.tavlaNotice = null;
+  room.tavlaNoticeSeq = 0;
   room.result = null;
   room.lastMove = null;
   room.turnStartedAt = null;
@@ -417,6 +419,7 @@ function emitPlayingSnapshot(room, socketId, player) {
 function startChess(room) {
   if (room.status === 'playing') return;
   if (room.players.length !== 2 || !room.players.every(p => p.isReady)) return;
+  cancelRoomReset(room); // yeni oyun başlıyor; bekleyen sıfırlama iptal
 
   // Renkler RASTGELE dağıtılır (ilk giren hep beyaz olmasın);
   // beyaz kimdeyse ilk hamleyi o yapar.
@@ -460,6 +463,7 @@ function startChess(room) {
 function startTavla(room) {
   if (room.status === 'playing') return;
   if (room.players.length !== 2 || !room.players.every(p => p.isReady)) return;
+  cancelRoomReset(room); // yeni oyun başlıyor; bekleyen sıfırlama iptal
 
   // Satrançtaki gibi renkler RASTGELE dağıtılır; beyaz (w) başlar.
   const flip = Math.random() < 0.5;
@@ -554,8 +558,43 @@ function removeSpectator(room, spec) {
   emitRoom(room);
 }
 
+// Oyun sonrası oda TAKILI KALMAZ: bitişten (mat / süre / hamle hükmen /
+// terk / mars) kısa bir süre sonra oda otomatik olarak beklemeye döner.
+// Oyuncular hâlâ masadaysa koltukları korunur (rövanş için HAZIRIM yeter);
+// oda tamamen boşaldıysa kalıcı masalar sıfırlanır, normal odalar silinir.
+// Eskiden bu zamanlayıcı YALNIZCA 'player_left' yolunda kuruluyordu; diğer
+// bitişlerde oda lobide sonsuza dek "Oynanıyor 2/2" olarak takılı kalıyordu.
+function cancelRoomReset(room) {
+  if (room && room.resetTimer) {
+    clearTimeout(room.resetTimer);
+    room.resetTimer = null;
+  }
+}
+
+function scheduleRoomReset(room) {
+  if (!room) return;
+  cancelRoomReset(room);
+  const roomId = room.id;
+  const timer = setTimeout(() => {
+    const current = rooms.get(roomId);
+    if (!current) return;
+    if (current.resetTimer === timer) current.resetTimer = null;
+    if (current.status !== 'finished' && current.status !== 'aborted') return;
+    if (current.players.length === 0) {
+      destroyRoom(current);
+      return;
+    }
+    resetRoomToWaiting(current);
+    maybePromoteSpectators(current);
+    emitRoom(current);
+  }, POST_GAME_HOLD_MS);
+  if (typeof timer.unref === 'function') timer.unref();
+  room.resetTimer = timer;
+}
+
 function destroyRoom(room) {
   if (!room) return;
+  cancelRoomReset(room);
   // Kalıcı hazır masalar (#101-#110) ASLA silinmez: boşalınca beklemeye
   // alınır ve lobide görünmeye devam eder.
   if (room.isPreset) {
@@ -626,20 +665,9 @@ function removePlayerFromRoom(room, player, message) {
       message: message || 'Rakip oyundan ayrıldı.'
     });
 
-    // Oda, kazanan ekranı görülebilsin diye hemen sıfırlanmaz.
-    const roomId = room.id;
-    const holdTimer = setTimeout(() => {
-      const current = rooms.get(roomId);
-      if (!current || current.status !== 'finished') return;
-      if (current.players.length === 0) {
-        destroyRoom(current);
-        return;
-      }
-      resetRoomToWaiting(current);
-      maybePromoteSpectators(current);
-      emitRoom(current);
-    }, POST_GAME_HOLD_MS);
-    if (typeof holdTimer.unref === 'function') holdTimer.unref();
+    // Oda, kazanan ekranı görülebilsin diye hemen sıfırlanmaz; kısa bir
+    // beklemenin ardından evrensel sıfırlayıcı beklemeye alır.
+    scheduleRoomReset(room);
     return;
   }
 
@@ -877,6 +905,7 @@ io.on('connection', socket => {
       if (room.status === 'finished') {
         io.to(room.id).emit('gameEnded', { roomId, reason: room.result?.reason || 'finished', gameState: state });
         emitRoom(room);
+        scheduleRoomReset(room); // oda finished'da takılı kalmasın
       }
     } catch (_) {
       socket.emit('chessMoveRejected', { roomId, reason: 'illegal_move', gameState: buildChessState(room) });
@@ -947,6 +976,7 @@ io.on('connection', socket => {
     }));
     emitGameState(room);
     emitRoom(room);
+    scheduleRoomReset(room); // tavla bitişinde de oda takılı kalmasın
   }
 
   socket.on('tavlaRoll', data => {
@@ -1094,7 +1124,21 @@ io.on('connection', socket => {
   });
 });
 
+let lastRoomSweep = 0;
 const clockTimer = setInterval(() => {
+  // Takılmış oda süpürücüsü (5 sn'de bir): bitiş zamanlayıcısı her bitişte
+  // zaten kurulur; bu, beklenmedik bir yolla 'finished' kalan ya da bomboş
+  // durumda listede kalan kalıcı olmayan odaları kendi kendine iyileştirir.
+  if (now() - lastRoomSweep >= 5000) {
+    lastRoomSweep = now();
+    for (const room of rooms.values()) {
+      if ((room.status === 'finished' || room.status === 'aborted') && !room.resetTimer) {
+        scheduleRoomReset(room);
+      } else if (!room.isPreset && room.players.length === 0 && !(room.spectators || []).length) {
+        destroyRoom(room);
+      }
+    }
+  }
   for (const room of rooms.values()) {
     if (room.status !== 'playing') continue;
     const before = room.status;
@@ -1126,6 +1170,7 @@ const clockTimer = setInterval(() => {
         isSpectator: true,
         gameState: { ...state, legalMoves: [] }
       }));
+      scheduleRoomReset(room); // ana süre bitişi: oda finished'da kalmasın
       continue;
     }
 
@@ -1171,6 +1216,7 @@ const clockTimer = setInterval(() => {
           isSpectator: true,
           gameState: { ...state, legalMoves: [] }
         }));
+        scheduleRoomReset(room); // hamle hükmen mağlubiyeti: oda takılı kalmasın
       }
     }
   }

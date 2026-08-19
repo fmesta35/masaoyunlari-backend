@@ -56,22 +56,28 @@
     list.innerHTML = rows.map(r => {
       const maxP = Number(r.maxPlayers || 2);
       const currentP = Number(r.players || 0);
-      const playing = r.status === 'playing' || r.status === 'finished';
-      const full = currentP >= maxP;
+      const playing = r.status === 'playing';
+      const done = r.status === 'finished' || r.status === 'aborted';
+      const full = currentP >= maxP; // GERÇEK koltuk sayısı (izleyiciler dahil değil)
       const specs = Number(r.spectatorCount || 0);
-      const statusLabel = playing ? '▶ Oynanıyor' : (full ? 'Dolu' : 'Bekliyor');
-      const statusColor = playing ? 'var(--accent)' : (full ? 'var(--warning)' : 'var(--success)');
-      const action = playing || full
+      const statusLabel = playing ? '▶ Oynanıyor' : done ? '☑ Oyun Bitti' : (full ? 'Dolu' : 'Bekliyor');
+      const statusColor = playing ? 'var(--accent)' : done ? 'var(--text3)' : (full ? 'var(--warning)' : 'var(--success)');
+      // Boş koltuğu olan bitmiş odaya normal KATILINABİLİR (sunucu odayı
+      // beklemeye alıp koltuk verir); oynanan / dolu odaya yalnızca İZLEYİCİ.
+      const canTakeSeat = !playing && !full;
+      const action = !canTakeSeat
         ? `<button class="btn btn-sm btn-o" onclick="GV.joinRoom('${esc(r.id)}',{spectate:true})">👁️ İzle</button>`
         : `<button class="btn btn-sm ${r.isPrivate ? 'btn-a' : 'btn-p'}" onclick="GV.joinRoom('${esc(r.id)}')">${r.isPrivate ? '🔒 Katıl' : 'Katıl'}</button>`;
       const names = Array.isArray(r.playerList) && r.playerList.length
         ? r.playerList.map(p => esc(p.name || 'Oyuncu')).join(' · ')
         : '';
+      const dur = Number(r.duration || r.durationMinutes || 0);
       return `<div class="room" style="display:flex;justify-content:space-between;align-items:center;padding:12px 18px;margin-bottom:8px;background:var(--card);border-radius:10px;border:1px solid var(--border);flex-wrap:wrap;gap:10px;">
         <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
           <span style="color:var(--accent);font-weight:bold;">#${esc(r.id)}</span>
           <span class="room-name">${r.isPrivate ? '🔒' : '🌐'} ${esc(r.name || ('Masa #' + r.id))}</span>
           <span style="font-size:0.8em;color:var(--text2);">(${maxP} Kişilik)</span>
+          ${dur ? `<span style="font-size:0.78em;color:var(--text2);">⏱️ ${dur} dk</span>` : ''}
           ${names ? `<span style="font-size:0.78em;color:var(--text3);">${names}</span>` : ''}
         </div>
         <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
@@ -90,7 +96,15 @@
     sock.on('roomsUpdated', payload => {
       if (!payload) return;
       const gid = payload.gameId || currentGame;
-      if (gid) paint(gid, payload.rooms || []);
+      if (!gid) return;
+      // Zaten F5'te tazelenir: görünürde olmayan / farklı oyunun listesini
+      // ekrana BASMA (eskiden satranç listesi tavla lobisine çizilebiliyordu
+      // — "odalar senkron eşleşmiyor" şikayetinin istemci tarafı). Önbellek
+      // yine de güncel tutulur.
+      lastRooms[gid] = payload.rooms || [];
+      if (currentGame && gid !== currentGame) return;
+      if (!lobbyVisible()) return;
+      paint(gid, payload.rooms || []);
     });
     sock.on('connect', () => {
       if (currentGame) sock.emit('subscribeLobby', { gameId: currentGame });
