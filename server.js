@@ -20,6 +20,9 @@ const rooms = new Map();
 const MAX_ROOM_PLAYERS = 2;
 // Oyun sırasında kopan oyuncuya yeniden bağlanması için tanınan süre (ms).
 const RECONNECT_GRACE_MS = 30000;
+// Hamle süresi: 1. dakika sonunda uyarı, 2. dakika sonunda hükmen mağlubiyet.
+const MOVE_WARN_MS = Number(process.env.GV_MOVE_WARN_MS) || 60000;
+const MOVE_FORFEIT_MS = Number(process.env.GV_MOVE_FORFEIT_MS) || 120000;
 const disconnectTimers = new Map();
 
 function now() { return Date.now(); }
@@ -101,6 +104,8 @@ function updateClock(room) {
   if (room.chess.turn() === 'w') room.whiteTimeMs = Math.max(0, room.whiteTimeMs - elapsed);
   else room.blackTimeMs = Math.max(0, room.blackTimeMs - elapsed);
   room.turnStartedAt = now();
+  room.moveStartedAt = now();
+  room.moveWarned = false;
 
   const remaining = room.chess.turn() === 'w' ? room.whiteTimeMs : room.blackTimeMs;
   if (remaining <= 0) {
@@ -225,7 +230,22 @@ function removePlayerFromRoom(room, player, message) {
     return;
   }
 
-  const wasPlaying = room.status === 'playing';
+    const wasPlaying = room.status === 'playing';
+  // Oyun sürerken ayrılan oyuncu HÜKMEN MAĞLUP olur; kalan oyuncu kazanır.
+  if (wasPlaying && room.chess) {
+    const remaining = room.players[0];
+    room.status = 'finished';
+    room.result = { reason: 'player_left', winner: remaining ? remaining.color : null };
+    const state = buildChessState(room);
+    io.to(room.id).emit('gameEnded', {
+      roomId: room.id,
+      reason: 'player_left',
+      winner: room.result.winner,
+      gameState: state
+    });
+    emitGameState(room);
+  }
+
   resetRoomToWaiting(room);
   emitRoom(room);
   if (wasPlaying) {
@@ -364,6 +384,8 @@ io.on('connection', socket => {
     try {
       const move = room.chess.move({ from, to, ...(promotion ? { promotion } : {}) });
       room.turnStartedAt = now();
+      room.moveStartedAt = now();
+      room.moveWarned = false;
       room.lastMove = { moveData: {
         from: move.from,
         to: move.to,
@@ -451,6 +473,36 @@ setInterval(() => {
       emitGameState(room);
       emitRoom(room);
       io.to(room.id).emit('gameEnded', { roomId: room.id, reason: room.result?.reason || 'timeout', gameState: state });
+      continue;
+    }
+
+    // Hamle süresi denetimi: 1 dk sonunda uyarı, 2 dk sonunda hükmen mağlubiyet
+    if (room.chess && room.moveStartedAt) {
+      const elapsed = now() - room.moveStartedAt;
+      const turnColor = room.chess.turn() === 'w' ? 'white' : 'black';
+
+      if (!room.moveWarned && elapsed >= MOVE_WARN_MS) {
+        room.moveWarned = true;
+        io.to(room.id).emit('moveTimeWarning', {
+          roomId: room.id,
+          color: turnColor,
+          remainingMs: Math.max(0, MOVE_FORFEIT_MS - elapsed)
+        });
+      }
+
+      if (elapsed >= MOVE_FORFEIT_MS) {
+        room.status = 'finished';
+        room.result = { reason: 'abandon', winner: turnColor === 'white' ? 'black' : 'white' };
+        const state = buildChessState(room);
+        emitGameState(room);
+        emitRoom(room);
+        io.to(room.id).emit('gameEnded', {
+          roomId: room.id,
+          reason: 'abandon',
+          winner: room.result.winner,
+          gameState: state
+        });
+      }
     }
   }
 }, 500);
