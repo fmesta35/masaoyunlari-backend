@@ -55,6 +55,9 @@
   function isMe(p) {
     if (!p) return false;
     if (socket?.id && p.id === socket.id) return true;
+    // İzleyici modunda userKey ile eşleştirme YAPILMAZ: aynı tarayıcının
+    // 2. sekmesi "İzle" dediğinde kendini oyuncu koltuğunda sanıyordu.
+    if (window.__gvIsSpectator || window.__gvJoinAsSpectator) return false;
     return !!(p.userKey && p.userKey === userKey());
   }
 
@@ -314,7 +317,7 @@
       gameId: 'chess',
       roomName: room?.name,
       isPrivate: !!room?.isPrivate,
-      asSpectator: !!window.__gvJoinAsSpectator
+      asSpectator: !!window.__gvJoinAsSpectator || !!window.__gvIsSpectator
     });
   }
 

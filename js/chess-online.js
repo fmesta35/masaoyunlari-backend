@@ -30,6 +30,10 @@
   // Şah uyarısının aynı pozisyon için tekrar tekrar gösterilmemesi için
   let lastCheckFen = null;
 
+  // Terk / hükmen sonuçlarında sunucunun KİŞİYE ÖZEL gönderdiği karar.
+  // Oda sıfırlanınca renk değişebildiği için renk karşılaştırmasına güvenilmez.
+  let forfeitYouWon = null;
+
   // Terfi seçimi ARTIK gameState üzerinde değil ayrı değişkende tutulur:
   // sunucudan gelen her durum paketi gameState nesnesini yenilediği için
   // pencere kendiliğinden kapanıyordu. Pozisyon değişmedikçe korunur.
@@ -132,6 +136,28 @@
     if (oppVal) oppVal.textContent = oppMatchScore;
   }
 
+  // İzleyici sohbete YAZAMAZ: input + gönder butonu kilitlenir.
+  // (Eskiden izleyici oyuncu sayıldığı için sohbet açık kalıyordu.)
+  function applySpectatorChatLock() {
+    const watching = !!(isSpectator || window.__gvIsSpectator);
+    const input = document.getElementById('gcInput');
+    if (input) {
+      input.disabled = watching;
+      input.placeholder = watching ? '👁️ İzleyici modunda sohbet kapalı' : 'Mesaj...';
+      input.style.opacity = watching ? '0.55' : '';
+      input.style.cursor = watching ? 'not-allowed' : '';
+      if (watching) input.value = '';
+    }
+    const btn = input?.parentElement?.querySelector('button');
+    if (btn) {
+      btn.disabled = watching;
+      btn.style.opacity = watching ? '0.55' : '';
+      btn.style.cursor = watching ? 'not-allowed' : '';
+    }
+  }
+  window.__gvApplySpectatorChatLock = applySpectatorChatLock;
+  setInterval(applySpectatorChatLock, 500);
+
   let autoReturnTimer = null;
   function autoReturnToLobby() {
     if (autoReturnTimer) return; // bir kez planla
@@ -145,13 +171,18 @@
     }, 5000);
   }
 
-  function handlePlayerLeft() {
-    active = false;
+  function handlePlayerLeft(payload) {
     pending = false;
     if (isSpectator) {
+      active = false;
       toast('🚪 Bir oyuncu ayrıldı. İzleme sona eriyor...', 'info');
     } else {
-      toast('🚪 Rakip oyundan ayrıldı. Lobiye yönlendiriliyorsunuz...', 'warning');
+      // Kalan oyuncu KAZANIR. active'i kapatmıyoruz ki "Kazandınız"
+      // sonuç ekranı tahtada görünmeye devam etsin.
+      if (payload && typeof payload.youWon === 'boolean') forfeitYouWon = payload.youWon;
+      else if (forfeitYouWon === null) forfeitYouWon = true;
+      toast('🏆 Rakip oyundan ayrıldı — KAZANDINIZ! Lobiye yönlendiriliyorsunuz...', 'success');
+      render();
     }
     autoReturnToLobby();
   }
@@ -183,15 +214,20 @@
       socket.on('disconnect', () => { pending = false; });
       socket.on('roomUpdated', room => {
         if (!room || String(room.id) !== String(roomId) || !isChessRoom()) return;
-        const me = (room.players || []).find(p => p.id === socket.id || (p.userKey && p.userKey === userKey()));
-        const spec = (room.spectators || []).find(p => p.id === socket.id || (p.userKey && p.userKey === userKey()));
-        if (me) {
-          playerColor = me.color;
-          isSpectator = false;
-          window.__gvIsSpectator = false;
-        } else if (spec) {
+        // Kimlik SOKET id'siyle belirlenir. userKey ile eşleştirmek, aynı
+        // tarayıcının 2. sekmesi "İzle" dediğinde izleyiciyi tekrar oyuncu
+        // sayıp "Siyah (Siz)" + "sıra sizde değil" hatasına yol açıyordu.
+        const specBySocket = (room.spectators || []).some(p => p.id === socket.id);
+        const meBySocket = (room.players || []).find(p => p.id === socket.id);
+
+        if (specBySocket) {
           isSpectator = true;
           window.__gvIsSpectator = true;
+          playerColor = null;
+        } else if (meBySocket) {
+          playerColor = meBySocket.color;
+          isSpectator = false;
+          window.__gvIsSpectator = false;
         }
 
         if (active && !isSpectator && room.players.length < 2) {
@@ -267,10 +303,18 @@
         // masa yeni oyuncular için sıfırlanır.
         if (payload?.reason === 'player_left' || payload?.reason === 'abandon') {
           const winner = payload.winner || payload.gameState?.result?.winner;
-          if (isSpectator) {
+          // Sunucu artık KİŞİYE ÖZEL `youWon` gönderiyor. Terk sonrası oda
+          // sıfırlanınca renkler yeniden dağıtıldığı için `winner === playerColor`
+          // karşılaştırması güvenilmezdi ve KALAN oyuncu "kaybettiniz" görüyordu.
+          const iWon = typeof payload.youWon === 'boolean'
+            ? payload.youWon
+            : (winner && winner === playerColor);
+          forfeitYouWon = (isSpectator || payload.isSpectator) ? null : !!iWon;
+          render();
+          if (isSpectator || payload.isSpectator) {
             const who = winner === 'white' ? 'Beyaz' : winner === 'black' ? 'Siyah' : 'Bir oyuncu';
             toast('🚪 Oyun terk edildi. ' + who + ' kazandı. Lobiye yönlendiriliyorsunuz...', 'info');
-          } else if (winner === playerColor) {
+          } else if (iWon) {
             toast('🏆 Oyunu KAZANDINIZ! Rakibiniz oyunu terk etti. Lobiye yönlendiriliyorsunuz...', 'success');
           } else {
             toast('💔 Oyunu terk ettiğiniz için KAYBETTİNİZ. Lobiye yönlendiriliyorsunuz...', 'error');
@@ -291,8 +335,8 @@
         }
       });
 
-      socket.on('playerLeft', () => {
-        handlePlayerLeft();
+      socket.on('playerLeft', payload => {
+        handlePlayerLeft(payload);
       });
 
       // KRİTİK: Bu script çoğu zaman oyun başladıktan SONRA, bekleme odasının
@@ -305,7 +349,11 @@
   }
 
   function findMyColor(players) {
-    return (players || []).find(p => p.id === socket?.id || (p.userKey && p.userKey === userKey()))?.color || null;
+    if (isSpectator || window.__gvIsSpectator) return null;
+    // Soket id'si önceliklidir; userKey yalnızca yedek eşleşmedir.
+    const bySocket = (players || []).find(p => p.id === socket?.id);
+    if (bySocket) return bySocket.color || null;
+    return null;
   }
 
   function colorCode() {
@@ -508,9 +556,12 @@
         desc = 'Oyun berabere bitti.';
       } else if (result.reason === 'player_left' || result.reason === 'abandon') {
         title = '🚪 OYUN TERK EDİLDİ';
+        // forfeitYouWon sunucudan gelen kişiye özel karardır; renk
+        // karşılaştırması oda sıfırlandıktan sonra yanlış sonuç veriyordu.
+        const iWon = forfeitYouWon !== null ? forfeitYouWon : (result.winner === playerColor);
         desc = isSpectator
           ? ((result.winner === 'white' ? 'Beyaz' : result.winner === 'black' ? 'Siyah' : 'Bir oyuncu') + ' kazandı. Oyun terk edildi.')
-          : (result.winner === playerColor
+          : (iWon
             ? '🏆 Oyunu KAZANDINIZ! Rakibiniz oyunu terk etti. Birazdan lobiye yönlendirileceksiniz...'
             : '💔 Oyunu terk ettiğiniz için KAYBETTİNİZ. Birazdan lobiye yönlendirileceksiniz...');
       } else {
@@ -565,7 +616,8 @@
   }
 
   function click(r, c) {
-    if (isSpectator) return;
+    // İzleyici tahtaya tıklayınca SESSİZ kalır: hiçbir uyarı/hamle toast'ı yok.
+    if (isSpectator || window.__gvIsSpectator) return;
     if (!active || !gameState || gameState.status !== 'playing' || pending) return;
     if (promotionPending) return; // terfi seçimi tamamlanmadan tahta kilitli
 
@@ -655,7 +707,7 @@
   }
 
   function dragStart(ev, r, c) {
-    if (isSpectator) return;
+    if (isSpectator || window.__gvIsSpectator) return;
     if (!active || !gameState || gameState.status !== 'playing' || pending) return;
     if (promotionPending) return;
     const mine = colorCode();
@@ -669,6 +721,7 @@
 
   function drop(ev, tr, tc) {
     ev.preventDefault();
+    if (isSpectator || window.__gvIsSpectator) return; // izleyici: sessiz
     if (promotionPending) return;
     if (!selected) return;
     const from = square(selected[0], selected[1]);
@@ -758,6 +811,8 @@
     updateClock();
   }
 
+  // window.GV index.html tarafından kurulur; burada YENİ boş nesne yaratmak
+  // lobby-sync.js'in yamalarını yok ediyordu. Sadece yoksa oluştur.
   if (!window.GV) window.GV = {};
   window.GV._cc = click;
   window._cc = click;
@@ -775,6 +830,7 @@
     selected = null;
     playerColor = null;
     isSpectator = false;
+    forfeitYouWon = null;
     roomId = null;
     if (clockInt) { clearInterval(clockInt); clockInt = null; }
     socket = null; // room-waiting-fix yeni oyun için yeni soket oluşturur

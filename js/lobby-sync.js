@@ -4,10 +4,12 @@
 (function () {
   'use strict';
   const BACKEND = window.GV_BACKEND_URL || 'https://masaoyunlari-backend.onrender.com';
+  const POLL_MS = 2000;
   let socket = null;
   let currentGame = null;
   let lastRooms = {};
   let hooked = false;
+  let pollTimer = null;
 
   function toast(msg, type) {
     if (window.GV && typeof window.GV.toast === 'function') {
@@ -129,11 +131,40 @@
     else socket.once('connect', () => done(socket));
   }
 
+  // Lobi görünürken 2 sn'de bir REST ile de tazele: soket gecikse / kopsa bile
+  // "2/2 Dolu / Oynanıyor / İzle" durumu doğru kalsın.
+  function lobbyVisible() {
+    const pg = document.getElementById('pg-lobby');
+    return !!(pg && pg.classList.contains('active'));
+  }
+
+  function pollOnce() {
+    const gid = currentGame;
+    if (!gid || !lobbyVisible()) return;
+    const url = BACKEND.replace(/\/+$/, '') + '/api/rooms?gameId=' + encodeURIComponent(gid);
+    fetch(url, { cache: 'no-store' })
+      .then(r => (r.ok ? r.json() : null))
+      .then(data => {
+        if (!data || data.ok !== true) return;
+        if ((data.gameId || gid) !== currentGame) return;
+        if (!lobbyVisible()) return;
+        paint(currentGame, data.rooms || []);
+      })
+      .catch(() => {});
+  }
+
+  function startPolling() {
+    if (pollTimer) return;
+    pollTimer = setInterval(pollOnce, POLL_MS);
+  }
+
   function subscribe(gameId) {
     if (!gameId) return;
     currentGame = gameId;
     window.__gvLobbyGameId = gameId;
     paint(gameId, lastRooms[gameId] || [], { loading: !lastRooms[gameId] });
+    pollOnce();
+    startPolling();
     getSocket(sock => {
       sock.emit('subscribeLobby', { gameId });
     });
@@ -169,8 +200,12 @@
     if (typeof GV.joinRoom === 'function' && !GV.joinRoom.__gvSpecPatch) {
       const origJoin = GV.joinRoom;
       GV.joinRoom = function (rid, opts) {
-        window.__gvJoinAsSpectator = !!(opts && (opts.spectate || opts.asSpectator));
-        return origJoin.call(this, rid);
+        const spectate = !!(opts && (opts.spectate || opts.asSpectator));
+        // Bayrağı HER katılımda kesin olarak yaz (stale true kalmasın),
+        // ayrıca opts'u da ilet.
+        window.__gvJoinAsSpectator = spectate;
+        window.__gvIsSpectator = spectate;
+        return origJoin.call(this, rid, opts);
       };
       GV.joinRoom.__gvSpecPatch = true;
     }
