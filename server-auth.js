@@ -21,6 +21,7 @@ const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
 const { db } = require('./db');
 const mailer = require('./mailer');
+const remote = require('./auth-remote');
 
 const now = () => Date.now();
 const online = new Map(); // userId -> Set<socket>
@@ -65,6 +66,11 @@ function isOnline(userId) { const s = online.get(Number(userId)); return !!(s &&
 function installAuth(app, deps) {
   const io = deps.io;
   const rooms = deps.rooms;
+
+  // ==== UZAK MOD: kalıcı veri Yöncü MySQL/PHP'de — Render sadece soket ====
+  if (remote.enabled()) {
+    return installRemoteMode(app, { io, rooms });
+  }
 
   if (!db) {
     app.all('/api/auth/*', (_req, res) => res.status(503).json({ ok: false, error: 'Üyelik katmanı (veritabanı) bu sunucuda devre dışı.' }));
@@ -388,6 +394,89 @@ function installAuth(app, deps) {
 
   console.log('👤 Üyelik & sosyal katman aktif (auth + profil + arkadaş + davet).');
   return { isOnline, uidFromUserKey, recordMatch, attachSocket, userById };
+}
+
+// ================== UZAK MOD (Yöncü PHP/MySQL) ==================
+// Render yalnızca: online haritası + oda kuralları + davet yönlendirmesi.
+// Üyelik/profil/arkadaş/maç/sohbet kaydı PHP'de; REST uçları proxy'lenir.
+function installRemoteMode(app, deps) {
+  const rooms = deps.rooms;
+  remote.installProxy(app, { isOnline });
+
+  function attachSocket(socket) {
+    socket.on('authHello', payload => {
+      const token = payload && payload.token;
+      remote.me(token).then(u => {
+        if (!u) return socket.emit('authReady', { ok: false, error: 'Oturum geçersiz.' });
+        socket.userId = Number(u.id);
+        socket.userName = u.name;
+        socket.userEmail = u.email;
+        socket.userKey = 'user:' + u.id;
+        let set = online.get(socket.userId);
+        if (!set) { set = new Set(); online.set(socket.userId, set); }
+        set.add(socket);
+        socket.emit('authReady', { ok: true, user: { id: socket.userId, name: u.name, email: u.email } });
+      }).catch(() => socket.emit('authReady', { ok: false, error: 'Üyelik sunucusuna ulaşılamadı.' }));
+    });
+
+    socket.on('disconnect', () => {
+      if (!socket.userId) return;
+      const set = online.get(socket.userId);
+      if (set) { set.delete(socket); if (!set.size) online.delete(socket.userId); }
+    });
+
+    // Oyun daveti: kurallar (kendi özel masası + arkadaş + çevrimiçi) burada;
+    // üyelik doğrulamaları PHP'den sorulur.
+    socket.on('gameInvite', async payload => {
+      const rej = reason => socket.emit('inviteRejected', { reason });
+      try {
+        if (!socket.userId) return rej('Davet göndermek için üye girişi gereklidir.');
+        const me = { id: socket.userId, name: socket.userName || 'Oyuncu' };
+        const room = rooms.get(String((payload && payload.roomId) || ''));
+        if (!room) return rej('Masa bulunamadı.');
+        if (!room.isPrivate) return rej('Davet yalnızca ÖZEL masalardan gönderilebilir.');
+        if (room.creatorId !== me.id) return rej('Daveti yalnızca masayı kuran oyuncu gönderebilir.');
+        const targetId = Number(payload && payload.toUserId);
+        if (targetId === me.id) return rej('Kendinizi davet edemezsiniz.');
+        const target = await remote.userPublic(targetId);
+        if (!target) return rej('Oyuncu bulunamadı.');
+        const friends = await remote.isFriendPair(me.id, targetId);
+        if (!friends) return rej('Yalnızca arkadaş listenizdeki oyuncuları davet edebilirsiniz.');
+        const set = online.get(targetId);
+        if (!set || !set.size) return rej('Arkadaşınız şu an çevrimiçi değil.');
+        const invite = {
+          inviteId: 'inv-' + now() + '-' + Math.floor(Math.random() * 1e5),
+          fromId: me.id, fromName: me.name,
+          roomId: String(room.id), roomName: room.name, gameId: room.gameId, ts: now()
+        };
+        set.forEach(s => s.emit('gameInvite', invite));
+        socket.emit('inviteSent', { ok: true, toName: target.name });
+      } catch (e) {
+        rej('Üyelik sunucusuna ulaşılamadı, sonra deneyin.');
+      }
+    });
+
+    socket.on('inviteResponse', payload => {
+      if (!socket.userId) return;
+      const fromId = Number(payload && payload.fromId);
+      const set = online.get(fromId);
+      if (!set) return;
+      set.forEach(s => s.emit('inviteAnswered', {
+        byId: socket.userId, byName: socket.userName || 'Oyuncu',
+        accepted: !!(payload && payload.accepted),
+        roomId: payload && payload.roomId
+      }));
+    });
+  }
+
+  function recordMatch(p) {
+    if (!p || !Array.isArray(p.players) || !p.players.some(x => x.id != null)) return;
+    remote.recordMatch(p); // ateş-unut, Render'ı bekletme
+  }
+  function logChat(m) { remote.logChat(m); }
+
+  console.log('👤 Üyelik UZAK modda: Yöncü PHP/MySQL — Render sadece soket/proxy.');
+  return { isOnline, uidFromUserKey, recordMatch, attachSocket, logChat, userById: () => null };
 }
 
 module.exports = { installAuth, uidFromUserKey };

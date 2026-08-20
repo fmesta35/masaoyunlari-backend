@@ -1193,6 +1193,10 @@ io.on('connection', socket => {
       while (chatGlobal.length > CHAT_HISTORY) chatGlobal.shift();
       io.emit('chatMessage', msg); // genel sohbet herkese açık akar
     }
+    // UZAK modda sohbet MySQL'e de yazılır (kayıtlı kalıcılık isteği).
+    if (authApi && typeof authApi.logChat === 'function') {
+      try { authApi.logChat(msg); } catch (_) {}
+    }
   });
 
   socket.on('chatHistory', (payload, ack) => {

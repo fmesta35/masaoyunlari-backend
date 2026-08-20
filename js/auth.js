@@ -12,8 +12,25 @@
   'use strict';
 
   const BACKEND = (window.GV_BACKEND_URL || 'https://masaoyunlari-backend.onrender.com').replace(/\/+$/, '');
+  // Kalıcı veri (üyelik/profil/arkadaş/maç) Yöncü PHP API'de tutulur —
+  // GV_PHP_API tanımlıysa REST çağrıları PHP'ye gider (config.js ayarlar).
+  const PHP = (window.GV_PHP_API || '').replace(/\/+$/, '');
   const TOK = 'gv-auth-token';
   let resetToken = null;
+
+  function urlFor(path) {
+    if (!PHP) return BACKEND + path;
+    let m = path.match(/^\/api\/users\/(\d+)\/profile$/);
+    if (m) return PHP + '/social.php?action=profile&id=' + m[1];
+    m = path.match(/^\/api\/users\/search\?q=(.*)$/);
+    if (m) return PHP + '/social.php?action=search&q=' + m[1];
+    m = path.match(/^\/api\/auth\/(\w+)$/);
+    if (m) return PHP + '/auth.php?action=' + m[1];
+    if (path === '/api/friends') return PHP + '/social.php?action=friends';
+    m = path.match(/^\/api\/friends\/(\w+)$/);
+    if (m) return PHP + '/social.php?action=' + ({ add: 'friendAdd', remove: 'friendRemove' }[m[1]] || m[1]);
+    return BACKEND + path;
+  }
 
   function getToken() { try { return localStorage.getItem(TOK); } catch (_) { return null; } }
   function setToken(t) { try { t ? localStorage.setItem(TOK, t) : localStorage.removeItem(TOK); } catch (_) {} }
@@ -22,7 +39,7 @@
     const headers = { 'Content-Type': 'application/json' };
     const tok = getToken();
     if (tok) headers.Authorization = 'Bearer ' + tok;
-    const r = await fetch(BACKEND + path, {
+    const r = await fetch(urlFor(path), {
       method: method || (body ? 'POST' : 'GET'),
       headers,
       body: body ? JSON.stringify(body) : undefined

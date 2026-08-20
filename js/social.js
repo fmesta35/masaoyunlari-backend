@@ -44,11 +44,28 @@
     return Math.floor(h / 24) + ' gün önce';
   }
 
+  const PHP = (window.GV_PHP_API || '').replace(/\/+$/, '');
+  function urlFor(path) {
+    if (!PHP) return BACKEND + path;
+    let m = path.match(/^\/api\/users\/(\d+)\/profile$/);
+    if (m) return PHP + '/social.php?action=profile&id=' + m[1];
+    m = path.match(/^\/api\/users\/search\?q=(.*)$/);
+    if (m) return PHP + '/social.php?action=search&q=' + m[1];
+    m = path.match(/^\/api\/auth\/(\w+)$/);
+    if (m) return PHP + '/auth.php?action=' + m[1];
+    if (path === '/api/friends') return PHP + '/social.php?action=friends';
+    m = path.match(/^\/api\/friends\/(\w+)$/);
+    if (m) return PHP + '/social.php?action=' + ({ add: 'friendAdd', remove: 'friendRemove' }[m[1]] || m[1]);
+    return BACKEND + path;
+  }
+
   async function api(path, body, method) {
+    // auth.js yüklendiyse ortak yardımcıyı kullan (ayarı tek yerde).
+    if (window.GVAuth && typeof GVAuth.api === 'function') return GVAuth.api(path, body, method);
     const headers = { 'Content-Type': 'application/json' };
     const t = tok();
     if (t) headers.Authorization = 'Bearer ' + t;
-    const r = await fetch(BACKEND + path, {
+    const r = await fetch(urlFor(path), {
       method: method || (body ? 'POST' : 'GET'),
       headers, body: body ? JSON.stringify(body) : undefined
     });
