@@ -16,6 +16,10 @@ const path = require('path');
 
 let db = null;
 try {
+  // UZAK modda kalıcı veri Yöncü MySQL'dir; Render'da SQLite hiç açılmaz.
+  if (process.env.GV_AUTH_API) {
+    console.log('💾 UZAK mod: kalıcı veri Yöncü\'de — yerel SQLite devre dışı.');
+  } else {
   const Database = require('better-sqlite3');
   const dir = process.env.GV_DATA_DIR || path.join(__dirname, 'data');
   fs.mkdirSync(dir, { recursive: true });
@@ -60,6 +64,7 @@ try {
     CREATE INDEX IF NOT EXISTS idx_matches_ts ON matches(ts);
   `);
   console.log('💾 SQLite veritabanı hazır (' + path.join(dir, 'gameverse.db') + ')');
+  }
 } catch (e) {
   console.warn('⚠️  SQLite yüklenemedi, üyelik katmanı devre dışı:', e.message);
   db = null;
