@@ -18,6 +18,15 @@ const io = new Server(server, {
 });
 
 const rooms = new Map();
+
+// ---- Üyelik & Sosyal katman (server-auth.js): DB yoksa güvenle devre dışı ----
+let authApi = null;
+try {
+  authApi = require('./server-auth').installAuth(app, { io, rooms });
+} catch (e) {
+  console.warn('⚠️  server-auth yüklenemedi (üyelik katmanı kapalı):', e.message);
+}
+
 const MAX_ROOM_PLAYERS = 2;
 // Okey 4 kişilik oynanır; diğerleri ikişer kişilik kalır.
 const MAX_PLAYERS_BY_GAME = { okey: 4, okey101: 4 };
@@ -230,6 +239,7 @@ function publicPlayer(p) {
   return {
     id: p.id,
     userKey: p.userKey,
+    uid: p.userId || null,
     name: p.name,
     color: p.color,
     seat: p.seat,
@@ -260,6 +270,8 @@ function publicRoom(room) {
     spectators: spectators.map(publicSpectator),
     spectatorCount: spectators.length,
     readyCount: room.players.filter(p => p.isReady).length,
+    // Özel masayı kuran ÜYE (davet yetkisi istemcide de gösterilsin diye)
+    creatorId: room.creatorId || null,
     // Okey masaları: maç el sayısı (lobi "🀄 X El" rozeti basar)
     rounds: room.okeyMaxRounds || null
   };
@@ -273,7 +285,7 @@ function publicLobbyRoom(room) {
     name: room.name || ('Masa #' + room.id),
     maxPlayers: room.maxPlayers,
     players: room.players.length,
-    playerList: room.players.map(p => ({ name: p.name, isReady: !!p.isReady, color: p.color })),
+    playerList: room.players.map(p => ({ name: p.name, isReady: !!p.isReady, color: p.color, uid: p.userId || null })),
     spectatorCount: spectators.length,
     status: room.status,
     isPrivate: !!room.isPrivate,
@@ -935,6 +947,7 @@ function maybePromoteSpectators(room) {
     const player = {
       id: spec.id,
       userKey: spec.userKey,
+      userId: spec.userId || (authApi ? authApi.uidFromUserKey(spec.userKey) : null),
       name: spec.name,
       color: seatColorFor(room, room.players.length),
       seat: room.players.length,
@@ -972,6 +985,33 @@ function cancelRoomReset(room) {
 function scheduleRoomReset(room) {
   if (!room) return;
   cancelRoomReset(room);
+  // Maç geçmişi: bitişte (her yol buradan geçer) üyeli oyuncular için tek
+  // defalık kayıt düşülür (profilde "Son Maçlar" ve istatistikler bundan okunur).
+  if (authApi && room.result && !room.__matchRecorded) {
+    room.__matchRecorded = true;
+    try {
+      const res = room.result;
+      const winnerName =
+        res.winnerSeat !== undefined && res.winnerSeat !== null
+          ? ((room.players.find(p => p.seat === res.winnerSeat) || {}).name || null)
+          : res.winner
+            ? ((room.players.find(p => p.color === res.winner) || room.players.find(p => p.seat === res.winner) || {}).name || null)
+            : null;
+      const players = (room.players || []).map(p => ({
+        id: p.userId || null,
+        name: p.name,
+        won: !!(winnerName && p.name === winnerName)
+      }));
+      (room.__leftPlayers || []).forEach(lp => players.push({ id: lp.userId || null, name: lp.name, won: false }));
+      authApi.recordMatch({
+        gameId: room.gameId,
+        roomId: room.id,
+        players,
+        winnerName,
+        reason: res.reason || 'finished'
+      });
+    } catch (e) { console.warn('maç kaydı atlandı:', e.message); }
+  }
   const roomId = room.id;
   const timer = setTimeout(() => {
     const current = rooms.get(roomId);
@@ -1013,6 +1053,10 @@ function destroyRoom(room) {
 function removePlayerFromRoom(room, player, message) {
   if (!room || !player) return;
   cancelDisconnectTimer(room.id, player);
+  // Maç geçmişi bütünlüğü: oyun SIRASINDA ayrılan üye de kayda dahil edilsin.
+  if (room.status === 'playing') {
+    (room.__leftPlayers = room.__leftPlayers || []).push({ name: player.name, userId: player.userId || null });
+  }
   room.players = room.players.filter(p => p !== player);
 
   if (room.players.length === 0) {
@@ -1097,6 +1141,7 @@ function removePlayerFromRoom(room, player, message) {
 
 io.on('connection', socket => {
   console.log(`[BAĞLANDI] ${socket.id}`);
+  if (authApi) authApi.attachSocket(socket);
 
   socket.on('subscribeLobby', payload => {
     const gameId = String((payload && payload.gameId) || 'chess');
@@ -1128,13 +1173,15 @@ io.on('connection', socket => {
     const room = roomId ? rooms.get(roomId) : null;
     // Gösterilecek isim: oda kaydından, yoksa paketten.
     let name = null;
+    let chatUid = socket.userId || null;
     if (room) {
       const pl = (room.players || []).find(p => p.id === socket.id);
       const sp = (room.spectators || []).find(s => s.id === socket.id);
       name = (pl || sp)?.name || null;
+      chatUid = (pl || sp)?.userId || chatUid;
     }
     name = chatSanitize(name || (payload && payload.name) || 'Oyuncu') || 'Oyuncu';
-    const msg = { id: 'm' + t + '-' + Math.floor(Math.random() * 1e6), name, text, ts: t, scope };
+    const msg = { id: 'm' + t + '-' + Math.floor(Math.random() * 1e6), name, text, ts: t, scope, uid: chatUid };
 
     if (scope === 'room') {
       if (!room) return socket.emit('chatRejected', { reason: 'Masa sohbeti için bir odada olmalısınız.' });
@@ -1213,6 +1260,7 @@ io.on('connection', socket => {
       player.id = socket.id;
       player.name = name || player.name;
       player.userKey = userKey || player.userKey;
+      player.userId = player.userId || socket.userId || (authApi ? authApi.uidFromUserKey(userKey) : null);
       player.disconnectedAt = null;
       cancelDisconnectTimer(roomId, player);
       if (spectator) room.spectators = room.spectators.filter(s => s !== spectator);
@@ -1227,6 +1275,7 @@ io.on('connection', socket => {
       player = {
         id: socket.id,
         userKey,
+        userId: socket.userId || (authApi ? authApi.uidFromUserKey(userKey) : null),
         name,
         color: seatColorFor(room, room.players.length),
         seat: room.players.length,
@@ -1244,14 +1293,20 @@ io.on('connection', socket => {
         return;
       }
       if (!spectator) {
-        spectator = { id: socket.id, userKey, name };
+        spectator = { id: socket.id, userKey, userId: socket.userId || (authApi ? authApi.uidFromUserKey(userKey) : null), name };
         room.spectators.push(spectator);
       } else {
         spectator.id = socket.id;
         spectator.name = name || spectator.name;
         spectator.userKey = userKey || spectator.userKey;
+        spectator.userId = spectator.userId || socket.userId || (authApi ? authApi.uidFromUserKey(userKey) : null);
       }
       socket.role = 'spectator';
+    }
+
+    // Özel masanın kurucusu (davet hakkı onundur): ilk koltuk alan ÜYE kaydedilir.
+    if (player && player.userId && room.isPrivate && !room.creatorId) {
+      room.creatorId = player.userId;
     }
 
     // Bilinçli olarak "İzle" diyen kişi boşalan koltuğa otomatik oturtulmaz.

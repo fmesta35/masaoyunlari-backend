@@ -89,15 +89,21 @@ async function main() {
     await waitFor(() => win.document.querySelector('.gvlg-overlay') === null, 'pencere kapandı');
     assert.strictEqual(navCalls.length, 1, 'B: HAYIR sonrası hâlâ gezinilmedi');
 
-    // EVET → gezinme gerçekleşir
+    // EVET → gezinme gerçekleşir (ve gerçek terk işlemi yapılır: sokete
+    // leaveRoom emit edilir, bekçi sıfırlanır)
     win.GV.openLobby('tavla');
     await waitFor(() => win.document.querySelector('.gvlg-overlay') !== null, 'ikinci pencere');
     win.document.querySelector('.gvlg-yes').click();
     await waitFor(() => navCalls.length === 2, 'EVET sonrası hedef sayfa açıldı');
     assert.deepStrictEqual(navCalls[1], ['openLobby', 'tavla']);
     assert.ok(!win.document.querySelector('.gvlg-overlay'), 'B: EVET sonrası pencere kapalı');
-    console.log('  ✓ B) Maçta gezinme bloklandı → HAYIR kal, EVET git (metin doğru)');
+    await waitFor(() => win.__gvLeaveGuard.inGame === false, 'B: EVET terk işlemi yaptı (bekçi sıfır)');
+    console.log('  ✓ B) Maçta gezinme bloklandı → HAYIR kal, EVET git + gerçek terk (metin doğru)');
   }
+
+  // Bekçiyi tekrar maç konumuna getir
+  fakeSock.emit('gameStarted', { isSpectator: false });
+  await waitFor(() => win.__gvLeaveGuard.inGame === true, 'ikinci maç başladı');
 
   // ---------- C) Cevapsız pencere kendi kapanır (oyunda kalınır) ----------
   {
@@ -110,6 +116,9 @@ async function main() {
 
   // ---------- D) beforeunload engeli + maç bitince serbest ----------
   {
+    // C'deki otomatik kapanış bekçiyi kırmaz; yeni maç başlatıp engeli doğrula
+    fakeSock.emit('gameStarted', { isSpectator: false });
+    await waitFor(() => win.__gvLeaveGuard.inGame === true, 'üçüncü maç başladı');
     const ev = new win.Event('beforeunload', { cancelable: true });
     win.dispatchEvent(ev);
     assert.strictEqual(ev.defaultPrevented, true, 'D: maç sırasında yenileme/kapama engellenir');

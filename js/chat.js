@@ -19,6 +19,7 @@
   let attachedSock = null;
   let lastHistKey = '';
   let unread = 0;
+  const seenIds = new Set(); // çift soketten GELEN aynı mesajın yankısını önler
 
   function st8() { return window.st || {}; }
   function esc(v) {
@@ -145,7 +146,8 @@
       const time = new Date(Number(m.ts) || Date.now());
       const hm = ('0' + time.getHours()).slice(-2) + ':' + ('0' + time.getMinutes()).slice(-2);
       const mine = (m.name || '') === myName();
-      return `<div class="gc-msg${mine ? ' mine' : ''}"><span class="gc-nm">${esc(m.name)}</span>${esc(m.text)}<span class="gc-tm">${hm}</span></div>`;
+      const uid = Number(m.uid) > 0 ? ` data-uid="${Number(m.uid)}"` : '';
+      return `<div class="gc-msg${mine ? ' mine' : ''}"><span class="gc-nm"${uid}>${esc(m.name)}</span>${esc(m.text)}<span class="gc-tm">${hm}</span></div>`;
     }).join('');
     scrollEnd();
   }
@@ -158,11 +160,36 @@
     const time = new Date(Number(m.ts) || Date.now());
     const hm = ('0' + time.getHours()).slice(-2) + ':' + ('0' + time.getMinutes()).slice(-2);
     const mine = (m.name || '') === myName();
+    const uid = Number(m.uid) > 0 ? ` data-uid="${Number(m.uid)}"` : '';
     const div = document.createElement('div');
     div.className = 'gc-msg' + (mine ? ' mine' : '');
-    div.innerHTML = `<span class="gc-nm">${esc(m.name)}</span>${esc(m.text)}<span class="gc-tm">${hm}</span>`;
+    div.innerHTML = `<span class="gc-nm"${uid}>${esc(m.name)}</span>${esc(m.text)}<span class="gc-tm">${hm}</span>`;
     list.appendChild(div);
     scrollEnd();
+  }
+
+  // Oyun sayfasındaki KART sohbetine de yansıt (eski yerel kutunun yerine
+  // gerçek oda sohbeti akar; iki arayüz de aynı akışı gösterir).
+  function paintGameChat(messages) {
+    const list = document.getElementById('gameChat');
+    if (!list) return;
+    list.innerHTML = (messages || []).map(m => {
+      const uid = Number(m.uid) > 0 ? ` data-uid="${Number(m.uid)}"` : '';
+      return `<div class="chat-msg"><div class="avatar sm">${esc((m.name || 'O').substring(0, 1))}</div><div class="m-body"><div class="m-name" style="color:var(--accent)"${uid}>${esc(m.name)}</div><div>${esc(m.text)}</div></div></div>`;
+    }).join('');
+    list.scrollTop = list.scrollHeight;
+  }
+  function mirrorToGameChat(m) {
+    const list = document.getElementById('gameChat');
+    if (!list || m.scope !== 'room') return;
+    if (curRoomId && String(m.roomId) !== String(curRoomId)) return;
+    const nm = m.name || 'Oyuncu';
+    const uid = Number(m.uid) > 0 ? ` data-uid="${Number(m.uid)}"` : '';
+    const div = document.createElement('div');
+    div.className = 'chat-msg';
+    div.innerHTML = `<div class="avatar sm">${esc(nm.substring(0, 1))}</div><div class="m-body"><div class="m-name" style="color:var(--accent)"${uid}>${esc(nm)}</div><div>${esc(m.text)}</div></div>`;
+    list.appendChild(div);
+    list.scrollTop = list.scrollHeight;
   }
 
   // ---------- Soket ----------
@@ -176,6 +203,9 @@
     sock.__gvChat = true;
     sock.on('chatMessage', msg => {
       if (!msg) return;
+      if (msg.id && seenIds.has(msg.id)) return; // iki soket de açıksa yankı düşmesin
+      if (msg.id) { seenIds.add(msg.id); if (seenIds.size > 300) { const it = seenIds.values(); for (let i = 0; i < 150; i++) seenIds.delete(it.next().value); } }
+      mirrorToGameChat(msg);
       const mine = msg.scope === 'room'
         ? (mode === 'room' && String(msg.roomId) === String(curRoomId))
         : (mode === 'global');
@@ -195,6 +225,7 @@
     sock.emit('chatHistory', { scope: mode, roomId: curRoomId }, res => {
       if (!res || !res.ok) return;
       renderList(res.messages || []);
+      if (mode === 'room') paintGameChat(res.messages || []);
     });
   }
 
@@ -213,7 +244,19 @@
 
   // ---------- Durum taraması ----------
   function tick() {
+    const member = isMember();
+    // Sohbet SADECE üyeler içindir: misafir ise baloncuk+panel tamamen gizlenir.
+    const fabEl = document.getElementById('gvChatFab');
+    const panelEl = document.getElementById('gvChatPanel');
+    if (!member) {
+      if (fabEl) fabEl.style.display = 'none';
+      if (panelEl) { panelEl.classList.remove('open'); panelEl.style.display = 'none'; }
+      open = false;
+      return;
+    }
     els();
+    document.getElementById('gvChatFab').style.display = '';
+    if (panelEl) panelEl.style.display = '';
     const wantRoom = isRoomPage() && !!roomIdNow();
     const nextMode = wantRoom ? 'room' : 'global';
     const nextRoom = wantRoom ? roomIdNow() : null;
@@ -225,7 +268,6 @@
       lastHistKey = '';
       renderList([]);
     }
-    const member = isMember();
     const inp = document.getElementById('gvChatText');
     const btn = document.getElementById('gvChatSend');
     if (inp) {

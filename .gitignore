@@ -14,4 +14,9 @@
 
 # Dependencies
 node_modules/
-```
+
+# SQLite yerel veritabanı (üyelik/arkadaş/maç kayıtları) — sürüme girmez
+data/
+*.db
+*.db-wal
+*.db-shm

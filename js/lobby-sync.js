@@ -69,7 +69,9 @@
         ? `<button class="btn btn-sm btn-o" onclick="GV.joinRoom('${esc(r.id)}',{spectate:true})">👁️ İzle</button>`
         : `<button class="btn btn-sm ${r.isPrivate ? 'btn-a' : 'btn-p'}" onclick="GV.joinRoom('${esc(r.id)}')">${r.isPrivate ? '🔒 Katıl' : 'Katıl'}</button>`;
       const names = Array.isArray(r.playerList) && r.playerList.length
-        ? r.playerList.map(p => esc(p.name || 'Oyuncu')).join(' · ')
+        ? r.playerList.map(p => Number(p.uid) > 0
+            ? `<span data-uid="${Number(p.uid)}" class="gv-u">${esc(p.name || 'Oyuncu')}</span>`
+            : esc(p.name || 'Oyuncu')).join(' · ')
         : '';
       const dur = Number(r.duration || r.durationMinutes || 0);
       return `<div class="room" style="display:flex;justify-content:space-between;align-items:center;padding:12px 18px;margin-bottom:8px;background:var(--card);border-radius:10px;border:1px solid var(--border);flex-wrap:wrap;gap:10px;">

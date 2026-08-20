@@ -197,9 +197,12 @@
       const ava = isOkeyGame
         ? seatAva[i % seatAva.length]
         : (p.color === 'white' ? '⚪' : '🔴');
+      const nmHtml = Number(p.uid) > 0 && !isMe(p)
+        ? '<span class="gv-u" data-uid="' + Number(p.uid) + '">' + esc(p.name || 'Oyuncu') + '</span>'
+        : esc(p.name || 'Oyuncu');
       return '<div class="gvp ' + (p.isReady ? 'ready' : '') + '">' +
         '<div class="av">' + ava + '</div>' +
-        '<div class="nm">' + esc(p.name || 'Oyuncu') + (isMe(p) ? ' <b>(Siz)</b>' : '') + '</div>' +
+        '<div class="nm">' + nmHtml + (isMe(p) ? ' <b>(Siz)</b>' : '') + '</div>' +
         '<div class="st">' + (p.isReady ? '✅ HAZIR' : '⏳ BEKLİYOR') + '</div>' +
         '</div>';
     };
@@ -326,7 +329,7 @@
       }
       if (document.querySelector('script[data-gv-okey-online]')) return;
       const os = document.createElement('script');
-      os.src = 'js/okey-online.js?v=20260820d';
+      os.src = 'js/okey-online.js?v=20260820e';
       os.dataset.gvOkeyOnline = '1';
       os.async = false;
       let oSettled = false;
@@ -355,7 +358,7 @@
       }
       if (document.querySelector('script[data-gv-tavla-online]')) return;
       const ts = document.createElement('script');
-      ts.src = 'js/tavla-online.js?v=20260820d';
+      ts.src = 'js/tavla-online.js?v=20260820e';
       ts.dataset.gvTavlaOnline = '1';
       ts.async = false;
       let settled = false;
@@ -385,7 +388,7 @@
     }
     if (document.querySelector('script[data-gv-chess-online]')) return;
     const s = document.createElement('script');
-    s.src = 'js/chess-online.js?v=20260820d';
+    s.src = 'js/chess-online.js?v=20260820e';
     s.dataset.gvChessOnline = '1';
     s.async = false;
     document.head.appendChild(s);

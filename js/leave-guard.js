@@ -48,6 +48,22 @@
     if (s && s !== attachedSock) { attach(s); attachedSock = s; }
   }
 
+  // Terk işlemini GERÇEKLEŞTİR: onay veren oyuncu hükmen mağlup olur (sunucu
+  // leaveRoom/playerLeft akışıyla işler), soket kapanır, bekçi sıfırlanır.
+  // Bu yapılmazsa hedef fonksiyonun içindeki çağrılar bekçiye tekrar takılır
+  // ve "Evet dedim ama yönlendirilmedim" yaşanır.
+  function doLeaveNow() {
+    inGame = false;
+    try { if (typeof window.__gvRealChessLeave === 'function') window.__gvRealChessLeave(); } catch (_) {}
+    try {
+      const s = window.__gvRoomSocket;
+      if (s) {
+        if (s.connected) { try { s.emit('leaveRoom'); } catch (_) {} }
+        try { s.disconnect(); } catch (_) {}
+      }
+    } catch (_) {}
+  }
+
   // ---------- Onay penceresi ----------
   function css() {
     if (document.getElementById('gv-leave-guard-style')) return;
@@ -118,13 +134,32 @@
       const guarded = function () {
         if (!active()) return orig.apply(this, arguments);
         const args = Array.prototype.slice.call(arguments);
-        askLeave(() => orig.apply(GV, args));
+        askLeave(() => { doLeaveNow(); orig.apply(GV, args); });
         return undefined;
       };
       guarded.__gvLeaveGuard = true;
       guarded.__gvOriginal = orig;
       GV[fn] = guarded;
     });
+    // Oyun içi "Odadan Ayrıl / Lobiye Dön" butonlarının çağırdığı merkez:
+    // leaveRoom da aynı onay penceresinden geçirilir (native confirm susturulur).
+    if (typeof GV.leaveRoom === 'function' && !GV.leaveRoom.__gvLeaveGuard) {
+      const origLeave = GV.leaveRoom;
+      const guardedLeave = function () {
+        if (!active()) return origLeave.apply(this, arguments);
+        const args = Array.prototype.slice.call(arguments);
+        askLeave(() => {
+          doLeaveNow();
+          const oc = window.confirm;
+          window.confirm = () => true;
+          try { origLeave.apply(GV, args); } finally { window.confirm = oc; }
+        });
+        return undefined;
+      };
+      guardedLeave.__gvLeaveGuard = true;
+      guardedLeave.__gvOriginal = origLeave;
+      GV.leaveRoom = guardedLeave;
+    }
     wrapped = true;
   }
 
@@ -137,9 +172,15 @@
     e.preventDefault();
     e.stopPropagation();
     askLeave(() => {
+      doLeaveNow();
       bypassOnce = true;
       btn.click();
-      setTimeout(() => { bypassOnce = false; }, 120);
+      const gid = (window.st && window.st.curGame) || 'chess';
+      setTimeout(() => {
+        bypassOnce = false;
+        // Onay veren oyuncuyu bastığı/isteyeceği yere GÖTÜR: oyunun lobisi.
+        try { if (window.GV && typeof GV.openLobby === 'function') GV.openLobby(gid); } catch (_) {}
+      }, 160);
     });
   }, true);
 

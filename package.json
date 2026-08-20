@@ -4,15 +4,18 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "test": "node test/lobby-spectator.test.js && node test/spectator-forfeit.test.js && node test/move-timer-preset-tables.test.js && node test/tavla-engine.test.js && node test/tavla-online.test.js && node test/room-sync.test.js && node test/clock-ownership.test.js && node test/okey-presets.test.js && node test/okey-table-modes.test.js && node test/okey-engine.test.js && node test/okey-online.test.js && node test/okey-client.test.js && node test/guest-tab-identity.test.js && node test/lobby-ghost-sync.test.js && node test/chat.test.js && node test/leave-guard.test.js"
+    "test": "node test/lobby-spectator.test.js && node test/spectator-forfeit.test.js && node test/move-timer-preset-tables.test.js && node test/tavla-engine.test.js && node test/tavla-online.test.js && node test/room-sync.test.js && node test/clock-ownership.test.js && node test/okey-presets.test.js && node test/okey-table-modes.test.js && node test/okey-engine.test.js && node test/okey-online.test.js && node test/okey-client.test.js && node test/guest-tab-identity.test.js && node test/lobby-ghost-sync.test.js && node test/chat.test.js && node test/leave-guard.test.js && node test/auth-flow.test.js && node test/social-flow.test.js && node test/social-client.test.js"
   },
   "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "better-sqlite3": "^13.0.3",
     "chess.js": "^1.4.0",
     "express": "^4.18.2",
+    "nodemailer": "^9.0.5",
     "socket.io": "^4.7.2"
   },
   "devDependencies": {
-    "socket.io-client": "^4.8.3",
-    "jsdom": "^30.0.1"
+    "jsdom": "^30.0.1",
+    "socket.io-client": "^4.8.3"
   }
 }

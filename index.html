@@ -829,15 +829,9 @@ html{scrollbar-gutter:stable}
       <div id="allRanksList"></div>
     </div>
   </main>
-
-  <!-- SAĞ PANEL (GENEL SOHBET) -->
-  <aside class="right-panel">
-    <div style="padding:10px 12px;border-bottom:1px solid var(--border);font-weight:600">💬 Genel Sohbet <span class="online-dot"></span></div>
-    <div class="chat-msgs" id="globalChat" style="flex:1;padding:8px"></div>
-    <div class="chat-input" style="border-top:1px solid var(--border)">
-      <input placeholder="Mesaj..." id="globalChatInp" onkeydown="if(event.key==='Enter')GV.sendChat('global')"><button onclick="GV.sendChat('global')">➤</button>
-    </div>
-  </aside>
+  <!-- SAĞ PANEL: Genel Sohbet alanı kaldırıldı (kullanıcı isteği). Bu kolon
+       ileride AdSense/banner alanı olarak şekillendirilecek — tema buna göre
+       genişye yayıldı. -->
 </div>
 
 <!-- ================= MODALLAR ================= -->
@@ -1188,7 +1182,8 @@ function addNotification(title, desc, actionData = null){
     const tEl = document.getElementById('invPopupTitle');
     const dEl = document.getElementById('invPopupDesc');
     if(tEl) tEl.textContent = `🎮 Oyun Daveti!`;
-    if(dEl) dEl.textContent = `<b>${actionData.sender}</b> seni <b>${GAMES[actionData.gameId]?.name || 'Oyun'}</b> masasına davet ediyor!`;
+    // Not: isimler sunucuda sanitize edilir (cleanName <>"'` temizler); innerHTML güvenli.
+    if(dEl) dEl.innerHTML = `<b>${String(actionData.sender).replace(/[<>&"']/g,'')}</b> seni <b>${GAMES[actionData.gameId]?.name || 'Oyun'}</b> masasına davet ediyor!`;
     showModal('invitePopupModal');
   } else {
     toast(`🔔 ${title}`, 'info');
@@ -2011,9 +2006,21 @@ function sendChat(type){
   }
   const inp=document.getElementById('gcInput');
   if(!inp?.value.trim())return;
+  // Oyun içi sohbet artık GERÇEK sunucu sohbeti: oda kanalına gönderilir,
+  // odadaki herkes (ve izleyiciler) mesajı görür. Yalnız üyeler yazabilir.
+  if(st.isGuest) return showModal('guestPromptModal');
+  const sock = window.__gvRoomSocket;
+  const u = st.user || {};
+  const stable = u.id || u.userId || u.username || u.email || u.name;
+  if(sock && sock.connected && stable){
+    sock.emit('chatMessage', { scope:'room', text: inp.value.trim(), name: u.name || 'Oyuncu', memberKey: 'user:'+stable });
+    inp.value='';
+    return;
+  }
+  // Çevrimdışı/yerel oyunda geçmiş yankı davranışı (tek başına görünüm)
   const list=document.getElementById('gameChat');
   if(list){
-    list.innerHTML+=`<div class="chat-msg"><div class="avatar sm">${st.user.name.substring(0,1)}</div><div class="m-body"><div class="m-name" style="color:var(--accent)">${st.user.name}</div><div>${inp.value}</div></div></div>`;
+    list.innerHTML+=`<div class="chat-msg"><div class="avatar sm">${(u.name||'O').substring(0,1)}</div><div class="m-body"><div class="m-name" style="color:var(--accent)">${u.name||'Oyuncu'}</div><div>${inp.value}</div></div></div>`;
     list.scrollTop=list.scrollHeight;
   }
   inp.value='';
@@ -3726,15 +3733,17 @@ GV.init();
 <script src="js/config.js?v=20260819c"></script>
 <script src="js/socket.io.min.js?v=20260819c"></script>
 <script src="js/app.js?v=20260819c" defer></script>
-<script src="js/games.js?v=20260820d" defer></script>
+<script src="js/games.js?v=20260820e" defer></script>
 <script src="js/utils.js?v=20260819c" defer></script>
-<script src="js/lobby-sync.js?v=20260820d" defer></script>
-<script src="js/room-waiting-fix.js?v=20260820d" defer></script>
-<script src="js/chess-online.js?v=20260820d" defer></script>
-<script src="js/tavla-online.js?v=20260820d" defer></script>
-<script src="js/okey-online.js?v=20260820d" defer></script>
-<script src="js/chat.js?v=20260820d" defer></script>
-<script src="js/leave-guard.js?v=20260820d" defer></script>
+<script src="js/lobby-sync.js?v=20260820e" defer></script>
+<script src="js/room-waiting-fix.js?v=20260820e" defer></script>
+<script src="js/chess-online.js?v=20260820e" defer></script>
+<script src="js/tavla-online.js?v=20260820e" defer></script>
+<script src="js/okey-online.js?v=20260820e" defer></script>
+<script src="js/chat.js?v=20260820e" defer></script>
+<script src="js/leave-guard.js?v=20260820e" defer></script>
+<script src="js/auth.js?v=20260820e" defer></script>
+<script src="js/social.js?v=20260820e" defer></script>
 
 <!-- Structured Data for SEO -->
 <script type="application/ld+json">
