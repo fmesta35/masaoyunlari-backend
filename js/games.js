@@ -217,7 +217,7 @@ const GVGames = {
     isDedicatedOnlineGame() {
         try {
             const g = String(this.currentGame || (typeof st !== 'undefined' && st && st.curGame) || '').toLowerCase();
-            if (g === 'chess' || g === 'satranc' || g === 'satranç' || g === 'tavla') return true;
+            if (g === 'chess' || g === 'satranc' || g === 'satranç' || g === 'tavla' || g === 'okey') return true;
             return !!window.__gvChessOnlineRequested || !!window.__gvTavlaOnlineRequested;
         } catch (_) {
             return !!window.__gvChessOnlineRequested || !!window.__gvTavlaOnlineRequested;

@@ -16,13 +16,19 @@
 
   // Shared-hosting frontend; Render owns the real-time chess connection.
   // The waiting-room socket remains the only socket until gameStarted.
-  load('js/lobby-sync.js?v=20260819c', 'data-gv-lobby-sync');
-  load('js/room-waiting-fix.js?v=20260819i', 'data-gv-room-fix');
+  load('js/lobby-sync.js?v=20260820a', 'data-gv-lobby-sync');
+  load('js/room-waiting-fix.js?v=20260820a', 'data-gv-room-fix');
 
   window.__gvEnsureChessOnline = function () {
     if (!window.__gvChessGameStarted) return;
     if (document.querySelector('script[data-gv-chess-online]')) return;
     load('js/chess-online.js?v=20260819i', 'data-gv-chess-online');
+  };
+
+  window.__gvEnsureOkeyOnline = function () {
+    if (!window.__gvOkeyGameStarted) return;
+    if (document.querySelector('script[data-gv-okey-online]')) return;
+    load('js/okey-online.js?v=20260820a', 'data-gv-okey-online');
   };
 
   window.GV_BACKEND_URL = BACKEND;
@@ -39,7 +45,10 @@
   }
 
   window.addEventListener('gv:roomGameStarted', function () {
-    window.__gvChessGameStarted = true;
+    const gid = (window.st && window.st.curGame) || window.__gvCurrentGame || '';
+    if (gid === 'okey') window.__gvOkeyGameStarted = true;
+    else window.__gvChessGameStarted = true;
     window.__gvEnsureChessOnline();
+    window.__gvEnsureOkeyOnline();
   });
 })();

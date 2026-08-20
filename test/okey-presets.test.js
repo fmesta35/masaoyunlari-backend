@@ -10,14 +10,10 @@
  *  Bu süit şunları kilitler:
  *   1) #301-#310 masaları doğru süre tipleriyle ve BOŞKEN listelenir (0/4).
  *   2) Masalar maxPlayers=4'tür; 4 oyuncu koltuk alır, 5. kişi İZLEYİCİ olur.
- *   3) Motor (okey-engine.js) daha entegre edilmediği için 4 oyuncu da HAZIR
- *      bassa bile oda beklemeyi terk ETMEZ (takılı/yanlış başlamaz).
- *
- *  NOT: Preset tohumu GV_OKEY_PRESETS=1 ile zorlanır (motor dosyası eklenince
- *  bu bayrağa gerek kalmaz, otomatik açılır).
+ *   3) Motor (okey-engine.js) entegre olduğu için 4 oyuncu da HAZIR basınca
+ *      oyun BAŞLAR ve her oyuncuya KİŞİYE ÖZEL dağıtım gider (kendi eli açık,
+ *      rakipler sadece taş sayısı; izleyiciye el gitmez).
  */
-
-process.env.GV_OKEY_PRESETS = '1';
 
 const assert = require('assert');
 const http = require('http');
@@ -111,18 +107,48 @@ async function main() {
   assert.strictEqual(roomNow.spectatorCount, 1, 'lobi 1 izleyici göstermeli');
   console.log('  ✓ 2) 4 gerçek oyuncu koltuk aldı, 5. kişi izleyicide (lobi 4/4 + 1👁️)');
 
-  // --- 3) Motor henüz yok: 4 HAZIR bile olsa oda beklemeyi terk etmez ---
+  // --- 3) Motor hazır: 4/4 HAZIR → oyun başlar, kişiye özel dağıtım ---
+  const started = [s1, s2, s3, s4].map(s => once(s, 'gameStarted'));
+  const specStarted = once(s5, 'gameStarted');
   s1.emit('setReady', { ready: true });
   s2.emit('setReady', { ready: true });
   s3.emit('setReady', { ready: true });
   s4.emit('setReady', { ready: true });
-  await sleep(600);
+  const payloads = await Promise.all(started);
+  const specPayload = await specStarted;
+
   const afterReady = await httpRooms(BASE, 'okey').then(rs => rs.find(r => String(r.id) === '301'));
-  assert.strictEqual(afterReady.status, 'waiting',
-    'motor yokken oda takılı/yanlış başlamamalı — beklemeli');
-  const readyN = (afterReady.playerList || []).filter(p => p.isReady).length;
-  assert.strictEqual(readyN, 4, 'hazır sayısı 4 görünmeli');
-  console.log('  ✓ 3) 4/4 HAZIR — motor yokken oda güvenle bekliyor (takılma yok)');
+  assert.strictEqual(afterReady.status, 'playing', '4/4 hazır olunca okey başlamalı (playing)');
+
+  let starterSeen = 0;
+  for (const p of payloads) {
+    const gs = p.gameState;
+    assert.strictEqual(gs.kind, 'okey', 'gameState.kind okey olmalı');
+    assert.strictEqual(gs.status, 'playing');
+    assert.strictEqual(typeof gs.mySeat, 'number', 'oyuncu koltuğu sayı olmalı');
+    assert.ok(Array.isArray(gs.myHand), 'kendi eli açık gelmeli');
+    assert.ok(gs.myHand.length === 14 || gs.myHand.length === 15, 'el 14/15 taş olmalı');
+    if (gs.myHand.length === 15) starterSeen++;
+    if (gs.mySeat === gs.turn) assert.strictEqual(gs.myHand.length, 15, 'başlayan 15 taş alır');
+    // Rakip elleri GİZLİ: sadece sayaçlar gelir.
+    assert.deepStrictEqual(Object.keys(gs.handCounts).sort(), ['0', '1', '2', '3'],
+      'dört koltuğun taş sayısı görünmeli');
+    const total = Object.values(gs.handCounts).reduce((a, b) => a + b, 0);
+    assert.strictEqual(total, 57, 'toplam 57 taş dağıtılmalı (15+14+14+14)');
+    assert.strictEqual(gs.deckCount, 48, 'deste 48 kalmalı (106-1 gösterge-57)');
+    assert.ok(gs.indicator && gs.realOkey, 'gösterge + okey bilgisi herkese açık');
+    assert.strictEqual(gs.phase, 'discard', 'başlayan çekmeden atar');
+    assert.strictEqual(gs.round, 1);
+    assert.strictEqual(gs.maxRounds, 3);
+  }
+  assert.strictEqual(starterSeen, 1, 'tek başlayan (15 taşlı) olmalı');
+
+  // İzleyici: el YOK, ama masa durumu var.
+  assert.strictEqual(specPayload.isSpectator, true);
+  assert.strictEqual(specPayload.gameState.mySeat, null, 'izleyiciye koltuk yok');
+  assert.strictEqual(specPayload.gameState.myHand, null, 'izleyiciye el GİTMEZ');
+  assert.strictEqual(specPayload.gameState.deckCount, 48);
+  console.log('  ✓ 3) 4/4 HAZIR → oyun başladı; kişiye özel dağıtım + izleyicide gizli el');
 
   // Temizlik
   for (const s of [s1, s2, s3, s4, s5]) s.disconnect();

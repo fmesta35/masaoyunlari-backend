@@ -40,6 +40,12 @@ const RECONNECT_GRACE_MS = 30000;
 // (500 ms'de bir) sayacı sürekli başa döndürür ve denetim ölü kod olur.
 const MOVE_WARN_MS = Number(process.env.GV_MOVE_WARN_MS) || 40000;
 const MOVE_FORFEIT_MS = Number(process.env.GV_MOVE_FORFEIT_MS) || 60000;
+// OKEY: tur başına süre (yerel motordaki 30 sn "SIRA" sayacının sunucu
+// karşılığı) + art arda sürünceme toleransı (3. strike = diskalifiye).
+const OKEY_TURN_MS = Number(process.env.GV_OKEY_TURN_MS) || 30000;
+const OKEY_STRIKES_MAX = Number(process.env.GV_OKEY_STRIKES_MAX) || 3;
+const OKEY_MAX_ROUNDS = Number(process.env.GV_OKEY_MAX_ROUNDS) || 3;
+const OKEY_ROUND_PAUSE_MS = Number(process.env.GV_OKEY_ROUND_PAUSE_MS) || 4000;
 const disconnectTimers = new Map();
 
 // Lobide HER ZAMAN görünen kalıcı hazır masalar: 2 kişilik, masanın kendi
@@ -138,6 +144,8 @@ function resetRoomToWaiting(room) {
   room.tavla = null;
   room.tavlaNotice = null;
   room.tavlaNoticeSeq = 0;
+  if (room.okey && room.okey.between) { clearTimeout(room.okey.between); }
+  room.okey = null; // okey el/maç durumu tamamen temizlenir
   room.result = null;
   room.lastMove = null;
   room.turnStartedAt = null;
@@ -413,6 +421,24 @@ function emitGameState(room) {
 }
 
 function emitPlayingSnapshot(room, socketId, player) {
+  if (room && room.status === 'playing' && room.okey) {
+    emitToPlayer({ id: socketId }, 'gameStarted', {
+      roomId: room.id,
+      seat: player ? player.seat : null,
+      playerColor: null,
+      isSpectator: !player,
+      players: publicRoom(room).players,
+      gameState: buildOkeyState(room, player ? player.seat : null)
+    });
+    emitToPlayer({ id: socketId }, 'gameStateUpdated', {
+      roomId: room.id,
+      seat: player ? player.seat : null,
+      playerColor: null,
+      isSpectator: !player,
+      gameState: buildOkeyState(room, player ? player.seat : null)
+    });
+    return;
+  }
   if (!room || room.status !== 'playing' || (!room.chess && !room.tavla)) return;
   updateClock(room);
   const isSpec = !player;
@@ -530,6 +556,291 @@ function startRoomGame(room) {
   if (room.gameId === 'okey' && typeof startOkey === 'function') return startOkey(room);
 }
 
+// ==================== OKEY (4 kişilik, sunucu yetkili) ====================
+function startOkey(room) {
+  if (!okeyEngine) return; // çağıran zaten kontrol eder; güvence
+  if (room.status === 'playing') return;
+  if (room.players.length !== room.maxPlayers || !room.players.every(p => p.isReady)) return;
+  cancelRoomReset(room);
+
+  room.status = 'playing';
+  room.result = null;
+  room.lastMove = null;
+  const seats = room.players.map(p => p.seat).sort((a, b) => a - b);
+  const scores = Object.fromEntries(seats.map(s => [s, 0]));
+  room.okey = {
+    roundState: okeyEngine.startRound(1, seats, scores),
+    currentRound: 1,
+    maxRounds: OKEY_MAX_ROUNDS,
+    // Koltuk başına ANA süre (masa süresi 10/15/20 dk, herkesinki ayrı).
+    clockMs: Object.fromEntries(seats.map(s => [s, room.durationMinutes * 60 * 1000])),
+    clockStartedAt: now(),
+    turnDeadlineMs: OKEY_TURN_MS,
+    turnStartedAt: now(),
+    strikes: Object.fromEntries(seats.map(s => [s, 0])),
+    between: null   // eller arası bekleme zamanlayıcısı
+  };
+  touchMoveTimer(room);
+  emitRoom(room);
+  emitOkeyState(room, 'gameStarted');
+}
+
+// Herkese KİŞİYE ÖZEL okey durumu gönderilir (kendi eli açık, rakiplerin
+// elleri gizli; atıklar ve gösterge herkese açık).
+function buildOkeyState(room, forSeat) {
+  const ok = room.okey;
+  const st8 = ok.roundState;
+  const publicHands = {};
+  for (const seat of st8.seats) {
+    publicHands[seat] = st8.hands[seat].length;
+  }
+  const state = {
+    kind: 'okey',
+    status: room.status,
+    round: ok.currentRound,
+    maxRounds: ok.maxRounds,
+    seats: st8.seats,
+    turn: st8.turn,
+    starter: st8.starter,
+    phase: st8.phase,
+    deckCount: st8.deck.length,
+    indicator: st8.indicator,
+    realOkey: st8.realOkey,
+    handCounts: publicHands,
+    discardPiles: Object.fromEntries(st8.seats.map(x => [x, (st8.discardPiles[x] || []).slice()])),
+    scores: Object.assign({}, ok.roundState.scores, {}),
+    strikes: Object.assign({}, ok.strikes),
+    clockMs: room.status === 'playing' ? okeyLiveClocks(room) : Object.assign({}, ok.clockMs),
+    turnRemainingMs: Math.max(0, ok.turnDeadlineMs - (now() - ok.turnStartedAt)),
+    players: room.players.map(p => ({ seat: p.seat, name: p.name, isReady: !!p.isReady })),
+    serverNow: now(),
+    finished: st8.finished,
+    result: st8.result,
+    matchResult: room.result || null
+  };
+  // Kendi eli yalnızca sahibine gider.
+  if (forSeat !== null && forSeat !== undefined && st8.hands[forSeat]) {
+    state.mySeat = forSeat;
+    state.myHand = st8.hands[forSeat].slice();
+  } else {
+    state.mySeat = null;
+    state.myHand = null;
+  }
+  return state;
+}
+
+function okeyLiveClocks(room) {
+  // Tur oyuncusunun ana saati canlı azalır; diğerleri durur.
+  const ok = room.okey;
+  const clocks = Object.assign({}, ok.clockMs);
+  if (room.status === 'playing' && ok.clockStartedAt && !ok.between) {
+    const elapsed = Math.max(0, now() - ok.clockStartedAt);
+    const t = ok.roundState.turn;
+    clocks[t] = Math.max(0, (clocks[t] || 0) - elapsed);
+  }
+  return clocks;
+}
+
+function emitOkeyState(room, event) {
+  const evt = event || 'gameStateUpdated';
+  room.players.forEach(player => {
+    emitToPlayer(player, evt, {
+      roomId: room.id,
+      seat: player.seat,
+      playerColor: null,
+      isSpectator: false,
+      players: publicRoom(room).players,
+      gameState: buildOkeyState(room, player.seat)
+    });
+  });
+  (room.spectators || []).forEach(spec => {
+    emitToPlayer(spec, evt, {
+      roomId: room.id,
+      seat: null,
+      playerColor: null,
+      isSpectator: true,
+      players: publicRoom(room).players,
+      gameState: buildOkeyState(room, null)
+    });
+  });
+}
+
+// Tur sahibi değişince çağrılır: ana saat muhasebesi + tur sayacı sıfırlanır.
+function okeyAdvanceClock(room) {
+  const ok = room.okey;
+  if (!ok || room.status !== 'playing' || ok.between) return;
+  const t = ok.roundState.turn;
+  if (ok.clockStartedAt) {
+    const elapsed = Math.max(0, now() - ok.clockStartedAt);
+    ok.clockMs[t] = Math.max(0, (ok.clockMs[t] || 0) - elapsed);
+  }
+  ok.clockStartedAt = now();
+  ok.turnStartedAt = now();
+  touchMoveTimer(room);
+}
+
+function okeyName(room, seat) {
+  const p = room.players.find(x => x.seat === seat);
+  return p ? p.name : ('Koltuk ' + (seat + 1));
+}
+
+function okeyLeaderAmong(room, excludedSeat) {
+  // Kalan oyuncular arasından en yüksek skorlu; eşitlikte daha düşük koltuk.
+  const scores = room.okey?.roundState?.scores || {};
+  let best = null;
+  room.players.forEach(p => {
+    if (excludedSeat !== null && excludedSeat !== undefined && p.seat === excludedSeat) return;
+    const sc = scores[p.seat] || 0;
+    if (!best || sc > best.score) best = { seat: p.seat, score: sc, name: p.name };
+  });
+  return best;
+}
+
+// Maç bitişi (herhangi bir neden): kazananı belirler, herkese kişiye özel
+// sonuç gönderir, odayı evrensel sıfırlayıcıya havale eder (takılmaz).
+function endOkeyMatch(room, reason, loserSeat) {
+  const ok = room.okey;
+  if (!ok || room.status !== 'playing') return;
+  if (ok.between) { clearTimeout(ok.between); ok.between = null; }
+  room.status = 'finished';
+  const leader = okeyLeaderAmong(room, (reason === 'player_left' || reason === 'timeout' || reason === 'disqualified') ? loserSeat : null);
+  room.result = {
+    reason,
+    winner: leader ? leader.seat : null,
+    winnerSeat: leader ? leader.seat : null,
+    winnerName: leader ? leader.name : null
+  };
+  room.players.forEach(p => {
+    emitToPlayer(p, 'gameEnded', {
+      roomId: room.id,
+      reason,
+      winner: room.result.winner,
+      winnerSeat: room.result.winnerSeat,
+      winnerName: room.result.winnerName,
+      loserSeat: loserSeat ?? null,
+      seat: p.seat,
+      youWon: leader ? p.seat === leader.seat : false,
+      isSpectator: false,
+      gameState: buildOkeyState(room, p.seat)
+    });
+  });
+  (room.spectators || []).forEach(spec => {
+    emitToPlayer(spec, 'gameEnded', {
+      roomId: room.id,
+      reason,
+      winner: room.result.winner,
+      winnerSeat: room.result.winnerSeat,
+      winnerName: room.result.winnerName,
+      loserSeat: loserSeat ?? null,
+      seat: null,
+      youWon: false,
+      isSpectator: true,
+      gameState: buildOkeyState(room, null)
+    });
+  });
+  emitRoom(room);
+  scheduleRoomReset(room);
+}
+
+// El bitişi (bir oyuncu ortaya bitirdi veya deste bitti).
+function okeyRoundFinished(room) {
+  const ok = room.okey;
+  if (!ok || !ok.roundState.finished || ok.between) return;
+  okeyAdvanceClock(room); // açık saati kapat
+  const res = ok.roundState.result || { winner: null, winType: 'draw' };
+  if (res.winner !== null && res.winner !== undefined) {
+    ok.roundState.scores[res.winner] = (ok.roundState.scores[res.winner] || 0) + 1;
+  }
+  const lastRound = ok.currentRound >= ok.maxRounds;
+  emitOkeyState(room, 'okeyRoundEnded');
+
+  if (lastRound) {
+    endOkeyMatch(room, 'completed', null);
+    return;
+  }
+  ok.between = setTimeout(() => {
+    ok.between = null;
+    if (room.status !== 'playing') return; // arada maç bitmişse
+    if (room.players.length !== room.maxPlayers) { endOkeyMatch(room, 'player_left', null); return; }
+    ok.currentRound += 1;
+    ok.roundState = okeyEngine.startRound(ok.currentRound, ok.roundState.seats, ok.roundState.scores);
+    ok.clockStartedAt = now();
+    ok.turnStartedAt = now();
+    touchMoveTimer(room);
+    emitRoom(room);
+    emitOkeyState(room);
+  }, OKEY_ROUND_PAUSE_MS);
+}
+
+// 500 ms'lik saat döngüsü her 'playing' okey odası için çağrılır.
+function okeyClockTick(room) {
+  const ok = room.okey;
+  if (!ok || room.status !== 'playing' || ok.between) return;
+
+  // 1) ANA SAAT: tur sahibinin süresi dolduysa diskalifiye.
+  const elapsed = Math.max(0, now() - ok.clockStartedAt);
+  const turnSeat = ok.roundState.turn;
+  const remain = (ok.clockMs[turnSeat] || 0) - elapsed;
+  if (remain <= 0) {
+    endOkeyMatch(room, 'timeout', turnSeat);
+    return;
+  }
+
+  // 2) TUR SAYACI (SIRA): dolunca otomatik eylem + strike.
+  const turnElapsed = now() - ok.turnStartedAt;
+  if (turnElapsed >= ok.turnDeadlineMs) {
+    ok.strikes[turnSeat] = (ok.strikes[turnSeat] || 0) + 1;
+    if (ok.strikes[turnSeat] >= OKEY_STRIKES_MAX) {
+      endOkeyMatch(room, 'disqualified', turnSeat);
+      return;
+    }
+    // Otomatik oyna: çekme aşamasındaysa desteden çek; sonra okey OLMAYAN
+    // ilk taşı at (yoksa ilk taşı).
+    if (ok.roundState.phase === 'draw') {
+      const r = okeyEngine.drawFromDeck(ok.roundState, turnSeat);
+      if (r.ok && r.deckEmpty) { okeyRoundFinished(room); return; }
+    }
+    ok.clockStartedAt = now(); // çekim süresini tur sahibine yazdık
+    const hand = ok.roundState.hands[turnSeat] || [];
+    const nonOkey = hand.find(t => !okeyEngine.isRealOkeyTile(t, ok.roundState.realOkey));
+    const tile = nonOkey || hand[0];
+    if (tile) okeyEngine.discard(ok.roundState, turnSeat, tile.id);
+    ok.turnStartedAt = now();
+    touchMoveTimer(room);
+    emitOkeyState(room, 'okeyAutoPlayed');
+  }
+}
+
+function okeyGuard(room, socket) {
+  if (!okeyEngine || room.gameId !== 'okey' || room.status !== 'playing' || !room.okey) return null;
+  if (room.okey.between) return null;
+  const isSpectatorSocket = socket.role === 'spectator' ||
+    (room.spectators || []).some(x => x.id === socket.id);
+  const player = isSpectatorSocket ? null : room.players.find(p => p.id === socket.id);
+  return player;
+}
+
+function okeyAct(room, socket, act) {
+  const player = okeyGuard(room, socket);
+  if (!player) return false;
+  const ok = room.okey;
+  const res = act(ok.roundState, player.seat);
+  if (!res.ok) {
+    socket.emit('okeyRejected', { roomId: room.id, reason: res.reason, gameState: buildOkeyState(room, player.seat) });
+    return false;
+  }
+  // Başarılı eylem: saatleri muhasebele, strike sıfırla, herkese yayınla.
+  okeyAdvanceClock(room);
+  ok.strikes[player.seat] = 0;
+  if (ok.roundState.finished) {
+    okeyRoundFinished(room);
+  } else {
+    emitOkeyState(room);
+  }
+  emitRoom(room);
+  return true;
+}
+
 function findExistingPlayer(room, socket, userKey) {
   if (!room || !Array.isArray(room.players)) return null;
   return room.players.find(p => p.id === socket.id) ||
@@ -641,6 +952,26 @@ function removePlayerFromRoom(room, player, message) {
   }
 
   const wasPlaying = room.status === 'playing';
+  // Okey: oyun sürerken ayrılan HÜKMEN MAĞLUP; lider kalan arasından seçilir.
+  if (wasPlaying && room.okey) {
+    endOkeyMatch(room, 'player_left', player.seat);
+    room.players.forEach(p => emitToPlayer(p, 'playerLeft', {
+      roomId: room.id,
+      message: message || 'Bir oyuncu oyundan ayrıldı.',
+      seat: p.seat,
+      youWon: room.result ? p.seat === room.result.winnerSeat : false,
+      isSpectator: false
+    }));
+    (room.spectators || []).forEach(s => emitToPlayer(s, 'playerLeft', {
+      roomId: room.id,
+      message: message || 'Bir oyuncu oyundan ayrıldı.',
+      seat: null,
+      youWon: false,
+      isSpectator: true
+    }));
+    emitRoom(room);
+    return;
+  }
   // Oyun sürerken ayrılan oyuncu HÜKMEN MAĞLUP olur; kalan oyuncu kazanır.
   // (Satranç ve tavla için ortak.)
   if (wasPlaying && (room.chess || room.tavla)) {
@@ -1090,6 +1421,30 @@ io.on('connection', socket => {
     emitGameState(room);
   });
 
+  // ---------- OKEY eylemleri (sunucu yetkili) ----------
+  socket.on('okeyDraw', data => {
+    const roomId = socket.roomId || (data && String(data.roomId));
+    const room = rooms.get(roomId);
+    if (!room) return;
+    const source = (data && data.source) === 'prev' ? 'prev' : 'deck';
+    okeyAct(room, socket, (st8, seat) =>
+      source === 'prev' ? okeyEngine.drawFromPrev(st8, seat) : okeyEngine.drawFromDeck(st8, seat));
+  });
+
+  socket.on('okeyDiscard', data => {
+    const roomId = socket.roomId || (data && String(data.roomId));
+    const room = rooms.get(roomId);
+    if (!room || !data || !data.tileId) return;
+    okeyAct(room, socket, (st8, seat) => okeyEngine.discard(st8, seat, String(data.tileId)));
+  });
+
+  socket.on('okeyFinish', data => {
+    const roomId = socket.roomId || (data && String(data.roomId));
+    const room = rooms.get(roomId);
+    if (!room || !data || !data.tileId) return;
+    okeyAct(room, socket, (st8, seat) => okeyEngine.finish(st8, seat, String(data.tileId)));
+  });
+
   socket.on('leaveRoom', () => {
     const roomId = socket.roomId;
     if (!roomId) return;
@@ -1159,6 +1514,8 @@ const clockTimer = setInterval(() => {
   }
   for (const room of rooms.values()) {
     if (room.status !== 'playing') continue;
+    // Okey kendi saat döngüsünü işletir (SIRA sayacı + koltuk ana saatleri).
+    if (room.okey) { okeyClockTick(room); continue; }
     const before = room.status;
     updateClock(room);
     if (before !== room.status) {

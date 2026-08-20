@@ -964,8 +964,10 @@ const GV=(function(){'use strict';
 const TWO_PLAYER_GAMES = ['chess', 'tavla', 'dama', 'turkdamasi', 'reversi', 'gomoku', 'connect4', 'bilardo'];
 // Masa listesi sunucudan (Render) gelen gerçek zamanlı oyunlar.
 // Bu oyunlarda ASLA sahte/demo masa üretilmez.
-const ONLINE_GAMES = ['chess', 'tavla'];
-const BOT_FALLBACK_GAMES = ['okey', 'okey101', 'pisti', 'batak'];
+const ONLINE_GAMES = ['chess', 'tavla', 'okey'];
+// Okey artık ONLINE (4 gerçek oyuncu, sunucu yetkili). Bot yedeği yalnızca
+// çevrimdışı kalan oyunlarda devrede.
+const BOT_FALLBACK_GAMES = ['okey101', 'pisti', 'batak'];
 
 const GAMES={
   chess:{name:'Satranç',icon:'♟️',cat:'strategy',p:1247},
@@ -3618,6 +3620,10 @@ document.addEventListener('keydown', e=>{
 window.st = st;
 window.rTavla = rTavla;
 window.dTavla = dTavla;
+// Online okey istemcisi (js/okey-online.js) masayı yerleşik çiziciyle birebir
+// aynı görünümde boyar: bu iki fonksiyonu da dışa açıyoruz (dTavla kalıbı).
+window.rOkey = rOkey;
+window.dOkey = dOkey;
 // Sayaç sahipliği/test kancaları: online modüller ve regresyon testleri
 // yerel zamanlayıcıyı buradan da doğrulayabilir/durdurabilir.
 window.startTimer = startTimer;
@@ -3713,12 +3719,13 @@ GV.init();
 <script src="js/config.js?v=20260819c"></script>
 <script src="js/socket.io.min.js?v=20260819c"></script>
 <script src="js/app.js?v=20260819c" defer></script>
-<script src="js/games.js?v=20260819f" defer></script>
+<script src="js/games.js?v=20260820a" defer></script>
 <script src="js/utils.js?v=20260819c" defer></script>
-<script src="js/lobby-sync.js?v=20260819f" defer></script>
-<script src="js/room-waiting-fix.js?v=20260819i" defer></script>
+<script src="js/lobby-sync.js?v=20260820a" defer></script>
+<script src="js/room-waiting-fix.js?v=20260820a" defer></script>
 <script src="js/chess-online.js?v=20260819i" defer></script>
 <script src="js/tavla-online.js?v=20260819i" defer></script>
+<script src="js/okey-online.js?v=20260820a" defer></script>
 
 <!-- Structured Data for SEO -->
 <script type="application/ld+json">

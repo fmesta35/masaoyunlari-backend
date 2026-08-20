@@ -16,34 +16,42 @@
     if (g === null || g === undefined || g === 'null' || g === 'undefined') g = '';
     g = String(g).toLowerCase().trim();
 
-    // If curGame is explicitly another game (Pişti, Okey etc.), it is NOT chess/tavla!
-    if (g && g !== 'chess' && g !== 'satranc' && g !== 'satranç' && g !== 'tavla') {
+    // If curGame is explicitly another game (Pişti, 101 Okey etc.), it is NOT chess/tavla/okey!
+    if (g && g !== 'chess' && g !== 'satranc' && g !== 'satranç' && g !== 'tavla' && g !== 'okey') {
       return false;
     }
 
-    if (g === 'chess' || g === 'satranç' || g === 'satranc' || g === 'tavla') return true;
+    if (g === 'chess' || g === 'satranç' || g === 'satranc' || g === 'tavla' || g === 'okey') return true;
 
     const title = (document.getElementById('grTitle')?.textContent || '').toLowerCase();
     if (/satranç|satranc|tavla/i.test(title)) return true;
+    if (/okey/i.test(title) && !/101/.test(title)) return true;
 
-    return !!window.__gvChessOnlineRequested || !!window.__gvTavlaOnlineRequested;
+    return !!window.__gvChessOnlineRequested || !!window.__gvTavlaOnlineRequested || !!window.__gvOkeyOnlineRequested;
   }
 
-  // Bu köprü satranç ve tavla odalarını yönetir; aktif oyunu döndürür.
+  // Bu köprü satranç, tavla ve okey odalarını yönetir; aktif oyunu döndürür.
   function activeGame() {
     const s = state();
     let g = s?.curGame || window.__gvCurrentGame || window.currentGame || '';
     if (g === null || g === undefined || g === 'null' || g === 'undefined') g = '';
     g = String(g).toLowerCase().trim();
-    if (g === 'tavla') return 'tavla';
+    if (g === 'tavla' || g === 'okey') return g;
     if (!g) {
       const title = (document.getElementById('grTitle')?.textContent || '').toLowerCase();
       if (/tavla/i.test(title)) return 'tavla';
+      if (/okey/i.test(title) && !/101/.test(title)) return 'okey';
     }
     return 'chess';
   }
 
-  function gameLabel() { return activeGame() === 'tavla' ? '🎲 Tavla' : '♟️ Satranç'; }
+  function gameLabel() {
+    const g = activeGame();
+    return g === 'tavla' ? '🎲 Tavla' : g === 'okey' ? '🀄 Okey' : '♟️ Satranç';
+  }
+
+  // Okey 4 koltuklu, satranç/tavla 2 koltuklu.
+  function maxSeats() { return activeGame() === 'okey' ? 4 : 2; }
 
   function isRoomPage() {
     const s = state();
@@ -142,44 +150,59 @@
     const me = ps.find(isMe);
     const watching = !me && (!!specs.find(isMe) || !!window.__gvIsSpectator);
     const ready = !!me?.isReady;
-    const full = ps.length === 2;
+    const seats = maxSeats();
+    const isOkeyGame = seats === 4;
+    const full = ps.length === seats;
     const allReady = full && ps.every(p => p.isReady);
     window.__gvIsSpectator = watching;
 
+    // Okeyde koltuk renkleri masa görünümüyle uyumlu: turuncu/mavi/kırmızı/mor.
+    const seatAva = ['🟠', '🔵', '🔴', '🟣'];
     const player = (i) => {
       const p = ps[i];
       if (!p) {
-        return '<div class="gvp"><div class="av">➕</div><div class="nm">Rakip bekleniyor...</div><div class="st">Boş Sandalye</div></div>';
+        const emptyTxt = isOkeyGame ? ('Sandalye ' + (i + 1) + ' — oyuncu bekleniyor...') : 'Rakip bekleniyor...';
+        return '<div class="gvp"><div class="av">➕</div><div class="nm">' + emptyTxt + '</div><div class="st">Boş Sandalye</div></div>';
       }
+      const ava = isOkeyGame
+        ? seatAva[i % seatAva.length]
+        : (p.color === 'white' ? '⚪' : '🔴');
       return '<div class="gvp ' + (p.isReady ? 'ready' : '') + '">' +
-        '<div class="av">' + (p.color === 'white' ? '⚪' : '🔴') + '</div>' +
+        '<div class="av">' + ava + '</div>' +
         '<div class="nm">' + esc(p.name || 'Oyuncu') + (isMe(p) ? ' <b>(Siz)</b>' : '') + '</div>' +
         '<div class="st">' + (p.isReady ? '✅ HAZIR' : '⏳ BEKLİYOR') + '</div>' +
         '</div>';
     };
 
     const status = watching
-      ? (full ? '👁️ İzleyici olarak bekliyorsunuz. Oyun başlayınca tahtayı göreceksiniz.' : '👁️ İzleyici olarak bekliyorsunuz.')
+      ? (full ? '👁️ İzleyici olarak bekliyorsunuz. Oyun başlayınca masayı göreceksiniz.' : '👁️ İzleyici olarak bekliyorsunuz.')
       : allReady ? '🚀 Oyun başlatılıyor...' : full
-        ? (ready ? '⏳ Rakibin de "HAZIRIM" butonuna basması bekleniyor...' : '👉 Oyuna başlamak için "HAZIRIM" butonuna basınız.')
-        : '⌛ İkinci oyuncu masaya bekleniyor...';
+        ? (ready ? '⏳ Diğer oyuncuların da "HAZIRIM" demesi bekleniyor...' : '👉 Oyuna başlamak için "HAZIRIM" butonuna basınız.')
+        : (isOkeyGame
+          ? ('⌛ ' + ps.length + '/4 oyuncu masada — ' + (seats - ps.length) + ' oyuncu daha bekleniyor...')
+          : '⌛ İkinci oyuncu masaya bekleniyor...');
 
     const specLine = specs.length ? '<div class="sub">👁️ ' + specs.length + ' izleyici</div>' : '';
     const title = watching ? 'İzleyici' : 'Bekleme Odası';
     const intro = watching
       ? '<div class="spec-banner">👁️ İzleyici modu — hamle yapamazsınız</div>'
-      : '<div class="sub">Oyun, her iki oyuncu da <b>HAZIRIM</b> butonuna bastığında başlayacaktır.</div>';
+      : (isOkeyGame
+        ? '<div class="sub">Oyun, <b>dört oyuncu</b> da <b>HAZIRIM</b> butonuna bastığında başlayacaktır.</div>'
+        : '<div class="sub">Oyun, her iki oyuncu da <b>HAZIRIM</b> butonuna bastığında başlayacaktır.</div>');
     const readyBtn = watching ? ''
       : '<button class="gv-ready ' + (ready ? 'ready' : '') + '" type="button">' +
         (ready ? '✓ HAZIRSINIZ (İPTAL ETMEK İÇİN TIKLAYIN)' : '▶ OYUNA HAZIRIM!') +
         '</button>';
     const leaveLabel = watching ? '🚪 İzlemeyi Bırak' : '🚪 Odadan Ayrıl';
 
+    let seatCells = '';
+    for (let i = 0; i < seats; i++) seatCells += player(i);
+
     const html = '<div class="card">' +
       '<h2>' + gameLabel() + ' Masa #' + roomId + ' — ' + title + '</h2>' +
       intro + specLine +
-      (ps.length < 2 ? '<div class="spin"></div>' : '') +
-      '<div class="players">' + player(0) + player(1) + '</div>' +
+      (!full ? '<div class="spin"></div>' : '') +
+      '<div class="players">' + seatCells + '</div>' +
       '<div class="status">' + status + '</div>' +
       readyBtn +
       '<button class="gv-leave" type="button">' + leaveLabel + '</button>' +
@@ -196,9 +219,20 @@
 
     e.querySelector('.gv-ready')?.addEventListener('click', () => {
       if (watching) return;
-      if (socket && socket.connected) {
-        socket.emit('setReady', { ready: !ready });
-      }
+      const send = () => {
+        if (socket && socket.connected) socket.emit('setReady', { ready: !ready });
+      };
+      // Bağlantı henüz kurulmadıysa ya da oda kaydı (joinedRoom) dönmediyse
+      // setReady boşluğa gider (soket joinRoom'dan ÖNCE flush edilebilir —
+      // yavaş bağlantıda "hazırım basıyorum başlamıyor" yarışı). Oda kaydı
+      // oturana kadar kısa aralıklarla dene.
+      if (socket && socket.connected && window.__gvRoomJoined) return send();
+      let tries = 0;
+      const t = setInterval(() => {
+        tries++;
+        if (socket && socket.connected && window.__gvRoomJoined) { clearInterval(t); send(); }
+        else if (tries > 60) clearInterval(t);
+      }, 100);
     });
 
     e.querySelector('.gv-leave')?.addEventListener('click', leave);
@@ -229,8 +263,57 @@
     } catch (e) { console.warn('[RoomFix] tavla yerel görünüm açılamadı:', e); }
   }
 
+  // Online okey istemcisi (js/okey-online.js) barındırmada EKSİKSE ekran boş
+  // kalmasın: yerel okey masası açılır + açık uyarı gösterilir (tavla sigortası
+  // ile aynı kalıp; sunucu durumu ulaşırsa istemci üzerine geçer).
+  function okeyLocalFallback(why) {
+    try {
+      if (window.__gvOkeyLocalFallbackShown) return;
+      window.__gvOkeyLocalFallbackShown = true;
+      const s = state();
+      const area = document.getElementById('boardArea');
+      if (s && area) {
+        s.boards = s.boards || {};
+        if (!s.boards.okey && typeof window.rOkey === 'function') window.rOkey(area);
+        else if (s.boards.okey && typeof window.dOkey === 'function') window.dOkey(area);
+      }
+      const msg = '⚠️ Online okey senkronu kurulamadı — masa şu an ÇEVRİMDIŞI (yerel) görünümde. (' + (why || 'istemci yüklenemedi') + ')';
+      if (window.GV && typeof window.GV.toast === 'function') window.GV.toast(msg, 'warning');
+      else console.warn('[RoomFix]', msg);
+    } catch (e) { console.warn('[RoomFix] okey yerel görünüm açılamadı:', e); }
+  }
+
   function loadChess() {
     if (!isChess()) return;
+    // Okey odası: okey istemcisini devreye al (statik yüklüyse sadece boot et).
+    if (activeGame() === 'okey') {
+      if (window.__gvOkeyGameStarted && window.__gvOkeyOnlineLoaded) return;
+      window.__gvOkeyGameStarted = true;
+      window.__gvOkeyOnlineRequested = true;
+      if (window.__gvOkeyOnlineLoaded) {
+        window.dispatchEvent(new CustomEvent('gv:roomGameStarted', { detail: { roomId } }));
+        return;
+      }
+      if (document.querySelector('script[data-gv-okey-online]')) return;
+      const os = document.createElement('script');
+      os.src = 'js/okey-online.js?v=20260820a';
+      os.dataset.gvOkeyOnline = '1';
+      os.async = false;
+      let oSettled = false;
+      os.onload = () => { oSettled = true; };
+      os.onerror = () => {
+        if (oSettled) return;
+        oSettled = true;
+        okeyLocalFallback('js/okey-online.js yüklenemedi');
+      };
+      document.head.appendChild(os);
+      setTimeout(() => {
+        if (oSettled || window.__gvOkeyOnlineLoaded) return;
+        oSettled = true;
+        okeyLocalFallback('istemci zamanında açılamadı');
+      }, 6000);
+      return;
+    }
     // Tavla odası: tavla istemcisini devreye al (statik yüklüyse sadece boot et).
     if (activeGame() === 'tavla') {
       if (window.__gvTavlaGameStarted && window.__gvTavlaOnlineLoaded) return;
@@ -322,6 +405,7 @@
 
       socket.on('joinedRoom', p => {
         if (!p || String(p.roomId) !== roomId || !isChess()) return;
+        window.__gvRoomJoined = true; // oda kaydı sunucuda oturdu — HAZIRIM güvenle gönderilebilir
         window.__gvIsSpectator = p.role === 'spectator' || !!p.isSpectator;
         if (p.room) {
           room = p.room;
@@ -387,9 +471,9 @@
       roomId,
       userName: userName(),
       userKey: userKey(),
-      maxPlayers: 2,
+      maxPlayers: maxSeats(), // okey 4, satranç/tavla 2 (kalıcı masalarda sunucu kendi değerini korur)
       durationMinutes: Number(room?.duration || room?.durationMinutes || 10),
-      gameId: activeGame(), // 'chess' | 'tavla'
+      gameId: activeGame(), // 'chess' | 'tavla' | 'okey'
       roomName: room?.name,
       isPrivate: !!room?.isPrivate,
       asSpectator: !!window.__gvJoinAsSpectator || !!window.__gvIsSpectator
@@ -412,6 +496,7 @@
     window.__gvChessSocket = null;
     window.__gvActiveRoom = null;
     window.__gvActiveRoomId = null;
+    window.__gvRoomJoined = false;
     window.__gvChessGameStarted = false;
     window.__gvIsSpectator = false;
     window.__gvJoinAsSpectator = false;
@@ -429,6 +514,13 @@
     window.__gvTavlaGameStarted = false;
     window.__gvTavlaOnlineRequested = false;
     window.__gvTavlaLocalFallbackShown = false;
+    // Online okey istemcisi sıfırlaması (okey-online.js hook'u)
+    if (typeof window.__gvOkeyOnlineReset === 'function') {
+      try { window.__gvOkeyOnlineReset(); } catch (_) {}
+    }
+    window.__gvOkeyGameStarted = false;
+    window.__gvOkeyOnlineRequested = false;
+    window.__gvOkeyLocalFallbackShown = false;
 
     // Tahta alanını ve oyun sonu overlay'ini temizle
     const boardArea = document.getElementById('boardArea');
@@ -472,11 +564,12 @@
   function startRealRoomWaiting(r) {
     if (!isChess()) return;
     roomId = String(r?.id || roomIdNow() || '');
-    room = r || { id: roomId, name: gameLabel() + ' Masası #' + roomId, maxPlayers: 2, duration: 10, players: [], status: 'waiting' };
+    room = r || { id: roomId, name: gameLabel() + ' Masası #' + roomId, maxPlayers: maxSeats(), duration: 10, players: [], status: 'waiting' };
     started = false;
     window.__gvActiveRoomId = roomId;
     window.__gvActiveRoom = room;
     if (activeGame() === 'tavla') window.__gvTavlaOnlineRequested = true;
+    else if (activeGame() === 'okey') window.__gvOkeyOnlineRequested = true;
     else window.__gvChessOnlineRequested = true;
     localStorage.setItem('gv-room-id', roomId);
     if (state()) state().curPage = 'room';
@@ -519,7 +612,8 @@
     if (!isChess()) {
       window.__gvChessOnlineRequested = false;
       window.__gvTavlaOnlineRequested = false;
-      hide(); // Ensure chess/tavla overlay is completely hidden on other games like Pişti, Okey!
+      window.__gvOkeyOnlineRequested = false;
+      hide(); // Ensure chess/tavla/okey overlay is completely hidden on other games like Pişti, 101!
       return;
     }
     if (!isRoomPage()) return;
