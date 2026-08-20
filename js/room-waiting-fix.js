@@ -326,7 +326,7 @@
       }
       if (document.querySelector('script[data-gv-okey-online]')) return;
       const os = document.createElement('script');
-      os.src = 'js/okey-online.js?v=20260820c';
+      os.src = 'js/okey-online.js?v=20260820d';
       os.dataset.gvOkeyOnline = '1';
       os.async = false;
       let oSettled = false;
@@ -355,7 +355,7 @@
       }
       if (document.querySelector('script[data-gv-tavla-online]')) return;
       const ts = document.createElement('script');
-      ts.src = 'js/tavla-online.js?v=20260820c';
+      ts.src = 'js/tavla-online.js?v=20260820d';
       ts.dataset.gvTavlaOnline = '1';
       ts.async = false;
       let settled = false;
@@ -385,7 +385,7 @@
     }
     if (document.querySelector('script[data-gv-chess-online]')) return;
     const s = document.createElement('script');
-    s.src = 'js/chess-online.js?v=20260820c';
+    s.src = 'js/chess-online.js?v=20260820d';
     s.dataset.gvChessOnline = '1';
     s.async = false;
     document.head.appendChild(s);

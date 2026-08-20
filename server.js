@@ -34,6 +34,37 @@ const MAX_SPECTATORS = 20;
 const POST_GAME_HOLD_MS = Number(process.env.GV_POST_GAME_HOLD_MS) || 8000;
 // Oyun sırasında kopan oyuncuya yeniden bağlanması için tanınan süre (ms).
 const RECONNECT_GRACE_MS = 30000;
+
+// ==================== SOHBET (masa içi + genel) ====================
+// Kurallar: mesaj GÖNDERMEK üyelere özeldir (misafirler okuyabilir);
+// metinler temizlenir, 240 karakterle sınırlanır, soket başına 1 sn hız
+// sınırı uygulanır. Geçmiş halka tamponunda tutulur (genel + oda başına).
+const CHAT_MAX_LEN = 240;
+const CHAT_HISTORY = 50;
+const CHAT_RATE_MS = 1000;
+const chatGlobal = [];            // genel sohbet: son N mesaj
+const chatRoomHist = new Map();   // roomId -> son N mesaj
+
+function chatSanitize(v) {
+  return String(v == null ? '' : v)
+    .replace(/<[^>]*>/g, '')      // HTML etiketleri
+    .replace(/[<>'"`]/g, '')  // kalabilecek tehlikeli karakterler
+    .replace(/[\u0000-\u001f\u007f]/g, '') // kontrol karakterleri
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, CHAT_MAX_LEN);
+}
+function chatIsMember(socket, payload) {
+  if (typeof socket.userKey === 'string' && socket.userKey.startsWith('user:')) return true;
+  const k = payload && payload.memberKey;
+  return typeof k === 'string' && k.startsWith('user:');
+}
+function pushChat(roomId, msg) {
+  const hist = chatRoomHist.get(roomId) || [];
+  hist.push(msg);
+  while (hist.length > CHAT_HISTORY) hist.shift();
+  chatRoomHist.set(roomId, hist);
+}
 // Hamle süresi: 40. saniyede uyarı, 60. saniyede (1 dk) hükmen mağlubiyet.
 // DİKKAT: bu sayaç YALNIZCA oyun başında ve gerçek bir hamlede sıfırlanır
 // (touchMoveTimer). updateClock() içinde sıfırlanırsa saat döngüsü
@@ -962,6 +993,7 @@ function scheduleRoomReset(room) {
 function destroyRoom(room) {
   if (!room) return;
   cancelRoomReset(room);
+  chatRoomHist.delete(room.id); // masa sohbeti geçmişi odayla birlikte silinir
   // Kalıcı hazır masalar (#101-#110) ASLA silinmez: boşalınca beklemeye
   // alınır ve lobide görünmeye devam eder.
   if (room.isPreset) {
@@ -1072,8 +1104,56 @@ io.on('connection', socket => {
       if (String(roomName).startsWith('lobby:')) socket.leave(roomName);
     }
     socket.lobbyGameId = gameId;
+    // Genel sohbet için kimliği sakla (üyelik denetimi chatMessage'da yapılır).
+    if (payload && payload.userKey && typeof socket.userKey !== 'string') socket.userKey = String(payload.userKey);
     socket.join(lobbyChannel(gameId));
     socket.emit('roomsUpdated', { gameId, rooms: listPublicRooms(gameId) });
+  });
+
+  // ---- SOHBET: masa içi (room) ve genel (global) ----
+  socket.on('chatMessage', payload => {
+    const scope = payload && payload.scope === 'global' ? 'global' : 'room';
+    const text = chatSanitize(payload && payload.text);
+    if (!text) return;
+    if (!chatIsMember(socket, payload)) {
+      return socket.emit('chatRejected', { reason: 'Sohbette yazabilmek için üye girişi yapmalısınız. Mesajları okumaya devam edebilirsiniz.' });
+    }
+    const t = now();
+    if (socket.__lastChatAt && t - socket.__lastChatAt < CHAT_RATE_MS) {
+      return socket.emit('chatRejected', { reason: 'Çok hızlı gönderiyorsunuz (1 sn sınırı).' });
+    }
+    socket.__lastChatAt = t;
+
+    const roomId = String(socket.roomId || '');
+    const room = roomId ? rooms.get(roomId) : null;
+    // Gösterilecek isim: oda kaydından, yoksa paketten.
+    let name = null;
+    if (room) {
+      const pl = (room.players || []).find(p => p.id === socket.id);
+      const sp = (room.spectators || []).find(s => s.id === socket.id);
+      name = (pl || sp)?.name || null;
+    }
+    name = chatSanitize(name || (payload && payload.name) || 'Oyuncu') || 'Oyuncu';
+    const msg = { id: 'm' + t + '-' + Math.floor(Math.random() * 1e6), name, text, ts: t, scope };
+
+    if (scope === 'room') {
+      if (!room) return socket.emit('chatRejected', { reason: 'Masa sohbeti için bir odada olmalısınız.' });
+      msg.roomId = roomId;
+      pushChat(roomId, msg);
+      io.to(roomId).emit('chatMessage', msg);
+    } else {
+      chatGlobal.push(msg);
+      while (chatGlobal.length > CHAT_HISTORY) chatGlobal.shift();
+      io.emit('chatMessage', msg); // genel sohbet herkese açık akar
+    }
+  });
+
+  socket.on('chatHistory', (payload, ack) => {
+    if (typeof ack !== 'function') return;
+    const scope = payload && payload.scope === 'global' ? 'global' : 'room';
+    const rid = String((payload && payload.roomId) || socket.roomId || '');
+    const list = scope === 'global' ? chatGlobal : (chatRoomHist.get(rid) || []);
+    ack({ ok: true, scope, messages: list.slice(-CHAT_HISTORY) });
   });
 
   socket.on('unsubscribeLobby', () => {
@@ -1536,6 +1616,36 @@ io.on('connection', socket => {
   });
 });
 
+// HAYALET KOLTUK TEMİZLEYİCİ — lobinin her zaman GERÇEK sayıları göstermesi
+// için: beklemede / bitmiş odalarda koltuğu işgal ediyor GÖRÜNEN ama soketi
+// artık bağlı olmayan oyuncular (ve izleyiciler) düşürülür. Sekme kapanışı,
+// ağ kopması, Render uyku/uyanma gibi durumlarda 'disconnect' olayı geç veya
+// hiç düşmeyebilir; bu süpürme gerçek bağlantı durumunu (io.sockets) tek
+// doğru kaynak sayarak lobiyi kendi kendine iyileştirir. 'playing' odalara
+// KESİNLİKLE dokunulmaz — orada 30 sn'lik yeniden bağlanma hakkı işler.
+function socketAlive(id) {
+  const s = id ? io.sockets.sockets.get(id) : null;
+  return !!(s && s.connected);
+}
+
+function purgeGhostPlayers(room) {
+  if (!room || room.status === 'playing') return false;
+  let changed = false;
+  room.players = (room.players || []).filter(p => {
+    if (socketAlive(p.id)) return true;
+    cancelDisconnectTimer(room.id, p);
+    changed = true;
+    console.log(`[ODA #${room.id}] hayalet oyuncu düşürüldü: ${p.name || p.id} (lobi senkronu)`);
+    return false;
+  });
+  room.spectators = (room.spectators || []).filter(s => {
+    if (socketAlive(s.id)) return true;
+    changed = true;
+    return false;
+  });
+  return changed;
+}
+
 let lastRoomSweep = 0;
 const clockTimer = setInterval(() => {
   // Takılmış oda süpürücüsü (5 sn'de bir): bitiş zamanlayıcısı her bitişte
@@ -1544,6 +1654,16 @@ const clockTimer = setInterval(() => {
   if (now() - lastRoomSweep >= 5000) {
     lastRoomSweep = now();
     for (const room of rooms.values()) {
+      // 1) Hayalet senkronu (yalnız beklemede/bitişte).
+      if (room.status !== 'playing' && purgeGhostPlayers(room)) {
+        if (!room.players.length && !(room.spectators || []).length) {
+          destroyRoom(room); // kalıcı masa -> beklemeye; normal oda -> silinir
+        } else {
+          room.players.forEach((p, idx) => { p.seat = idx; });
+          emitRoom(room); // lobiye taze gerçek sayılar yayınlanır
+        }
+        continue;
+      }
       if ((room.status === 'finished' || room.status === 'aborted') && !room.resetTimer) {
         scheduleRoomReset(room);
       } else if (!room.isPreset && room.players.length === 0 && !(room.spectators || []).length) {
