@@ -19,6 +19,13 @@ require_once __DIR__ . '/bootstrap.php';
 require_once __DIR__ . '/mailer.inc.php';
 
 $action = $_GET['action'] ?? '';
+
+// En hafif nabız: DB'ye hiç dokunmaz. 503 ise PHP bile çalışmıyor demektir;
+// ok:true gelirse sorun yalnızca config.php/MySQL ayarındadır.
+if ($action === 'ping') {
+    gv_json(array('ok' => true, 'php' => PHP_VERSION, 'time' => time()));
+}
+
 $in = gv_input();
 $now = round(microtime(true) * 1000);
 
