@@ -2030,7 +2030,7 @@ function showRules(){document.getElementById('rulesBody').innerHTML=RULES[st.cur
 function showModal(id){const m=document.getElementById(id);if(m)m.classList.add('show');}
 function hideModal(id){const m=document.getElementById(id);if(m)m.classList.remove('show');}
 
-function toast(msg,type='info'){
+function toast(msg,type='info',ms){
   const now=Date.now();if(st.lastToast===msg&&(now-st.lastToastTime)<800)return;st.lastToast=msg;st.lastToastTime=now;
   const w=document.getElementById('toastWrap');
   if(!w) return;
@@ -2038,7 +2038,8 @@ function toast(msg,type='info'){
   const ic={success:'✅',error:'❌',info:'ℹ️',warning:'⚠️'};
   const t=document.createElement('div');t.className=`toast ${type}`;t.innerHTML=`<span>${ic[type]||'ℹ️'}</span><span>${msg}</span>`;
   w.appendChild(t);
-  setTimeout(()=>{t.style.opacity='0';t.style.transition='.3s';setTimeout(()=>t.remove(),300);},3500);
+  // 3. parametre verilirse o kadar ms ekranda kalır (üyelik uyarıları 5 sn kullanır).
+  setTimeout(()=>{t.style.opacity='0';t.style.transition='.3s';setTimeout(()=>t.remove(),300);},ms||3500);
 }
 
 function startLive(){
@@ -3643,6 +3644,14 @@ window.dOkey = dOkey;
 window.startTimer = startTimer;
 window.stopTimer = stopTimer;
 window._updateTimerDisplay = _updateTimerDisplay;
+// KRİTİK DÜZELTME (üyelik üst barı): js/auth.js giriş/çıkış sonrası arayüzü
+// tazelemek için bu dört fonksiyonu window üzerinde arıyor; IIFE içinde
+// kaldıkları için bulamıyordu → giriş başarılıyken üst bar hâlâ
+// "Giriş Yap/Kayıt Ol" gösteriyor, karşılama "Ziyaretçi"de kalıyordu.
+window.checkAuthState = checkAuthState;
+window.updateAuthState = updateAuthState;
+window.updateScoreUI = updateScoreUI;
+window.renderFriends = renderFriends;
 return {
   page,
   toggleSidebar,
@@ -3742,8 +3751,8 @@ GV.init();
 <script src="js/okey-online.js?v=20260820e" defer></script>
 <script src="js/chat.js?v=20260820e" defer></script>
 <script src="js/leave-guard.js?v=20260820e" defer></script>
-<script src="js/auth.js?v=20260820f" defer></script>
-<script src="js/social.js?v=20260820f" defer></script>
+<script src="js/auth.js?v=20260820g" defer></script>
+<script src="js/social.js?v=20260820g" defer></script>
 
 <!-- Structured Data for SEO -->
 <script type="application/ld+json">

@@ -29,3 +29,11 @@ define('GV_SITE_URL', 'https://www.masaoyunlari.com.tr');
 /* Maillerin görünen göndereni (Yöncü panelinde açtığınız kutu) */
 define('GV_MAIL_FROM', 'GameVerse <info@masaoyunlari.com.tr>');
 define('GV_MAIL_FROM_ADDR', 'info@masaoyunlari.com.tr');
+
+/* SMTP ile gönderim (ÖNERİLİR — teslim oranı PHP mail()'den çok daha yüksek):
+ * Yöncü'de açtığınız info@ kutusunun şifresini GV_SMTP_PASS'e yazın.
+ * Boş/yer tutucu bırakılırsa sistem eskisi gibi PHP mail() ile gönderir. */
+define('GV_SMTP_HOST', 'mail.masaoyunlari.com.tr');
+define('GV_SMTP_PORT', 465);
+define('GV_SMTP_USER', 'info@masaoyunlari.com.tr');
+define('GV_SMTP_PASS', 'BURAYA_SMTP_ŞİFRESİ');

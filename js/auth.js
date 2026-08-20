@@ -46,11 +46,23 @@
     });
     let data = null;
     try { data = await r.json(); } catch (_) {}
-    return { status: r.status, ...(data || { ok: false, error: 'Sunucuya ulaşılamadı.' }) };
+    if (!data) {
+      // oPanel gibi paneller hata gövdelerini (JSON'ı) kendi hata sayfasıyla
+      // değiştirebiliyor — duruma göre okunabilir Türkçe mesaj üretelim.
+      const m = {
+        401: 'Kullanıcı adı/e-posta veya şifre hatalı.',
+        403: 'E-posta adresiniz onay bekliyor olabilir — gelen kutusunu ve spam klasörünü kontrol edin.',
+        404: 'Sunucudaki uygulama eski sürümde görünüyor.',
+        500: 'Sunucu hatası (500).',
+        503: 'Sunucu geçici olarak hizmet veremiyor (bakım veya veritabanı).'
+      };
+      data = { ok: false, error: m[r.status] || 'Sunucuya ulaşılamadı.' };
+    }
+    return { status: r.status, ...data };
   }
 
   function st8() { return window.st || {}; }
-  function toast(msg, type) { if (window.GV && GV.toast) GV.toast(msg, type || 'info'); }
+  function toast(msg, type, ms) { if (window.GV && GV.toast) GV.toast(msg, type || 'info', ms || 5000); }
   function showModal(id) { if (window.GV && GV.showModal) GV.showModal(id); }
   function hideModal(id) { if (window.GV && GV.hideModal) GV.hideModal(id); }
 

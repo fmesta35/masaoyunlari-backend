@@ -24,16 +24,9 @@ function gv_b64_subject($s) {
 }
 
 // HTML + düz metin (multipart/alternative) — spam filtrelerine daha dosttur.
-function gv_send_mail($to, $subject, $text, $html) {
-    if (!function_exists('mail')) {
-        gv_mail_set_error('Sunucuda mail() fonksiyonu kapalı (Yöncü desteğe sorun).');
-        gv_mail_log("MAIL-KAPALI -> $to :: $text");
-        return false;
-    }
+function gv_mime_parts($text, $html) {
     $boundary = '----gv' . bin2hex(random_bytes(8));
-    $headers  = "From: " . GV_MAIL_FROM . "\r\n";
-    $headers .= "Reply-To: " . GV_MAIL_FROM_ADDR . "\r\n";
-    $headers .= "MIME-Version: 1.0\r\n";
+    $headers  = "MIME-Version: 1.0\r\n";
     $headers .= "Content-Type: multipart/alternative; boundary=\"$boundary\"\r\n";
     $headers .= "X-Mailer: GameVerse/1.0\r\n";
     $textB = chunk_split(base64_encode($text));
@@ -41,11 +34,88 @@ function gv_send_mail($to, $subject, $text, $html) {
     $body  = "--$boundary\r\nContent-Type: text/plain; charset=UTF-8\r\nContent-Transfer-Encoding: base64\r\n\r\n$textB\r\n";
     $body .= "--$boundary\r\nContent-Type: text/html; charset=UTF-8\r\nContent-Transfer-Encoding: base64\r\n\r\n$htmlB\r\n";
     $body .= "--$boundary--";
+    return array($headers, $body);
+}
 
-    $ok = @mail($to, gv_b64_subject($subject), $body, $headers, '-f ' . GV_MAIL_FROM_ADDR);
+// Doğrulanmış SMTP gönderimi (Yöncü mail sunucusu, info@ kutusu).
+// mail() "gönderdim" diyip teslim edemiyorsa kalıcı çözüm budur.
+// Döner: true = gönderildi, false = denendi ama hata, null = SMTP tanımsız.
+function gv_smtp_send($to, $subject, $text, $html) {
+    if (!defined('GV_SMTP_USER') || !GV_SMTP_USER) return null;
+    if (!defined('GV_SMTP_PASS') || !GV_SMTP_PASS || strpos(GV_SMTP_PASS, 'BURAYA') !== false || strpos(GV_SMTP_PASS, 'ŞİFRE') !== false) return null;
+    $host = defined('GV_SMTP_HOST') ? GV_SMTP_HOST : 'mail.masaoyunlari.com.tr';
+    $port = defined('GV_SMTP_PORT') ? intval(GV_SMTP_PORT) : 465;
+    $errno = 0; $errstr = '';
+    $conn = @fsockopen(($port === 465 ? 'ssl://' : '') . $host, $port, $errno, $errstr, 15);
+    if (!$conn) {
+        gv_mail_set_error("SMTP bağlanamadı: $errstr ($errno)");
+        gv_mail_log("SMTP-BAGLANTI-HATASI -> $to :: $errstr ($errno)");
+        return false;
+    }
+    stream_set_timeout($conn, 15);
+    $read = function () use ($conn) {
+        $d = '';
+        while (($l = fgets($conn, 515)) !== false) { $d .= $l; if (strlen($l) >= 4 && $l[3] === ' ') break; }
+        return $d;
+    };
+    $ok25 = function () use ($read) { $r = $read(); return (strpos($r, '25') === 0) ? $r : false; };
+    $say = function ($c) use ($conn) { fwrite($conn, $c . "\r\n"); };
+    $die = function ($why) use ($conn, $to) {
+        gv_mail_set_error('SMTP: ' . $why);
+        gv_mail_log("SMTP-HATA -> $to :: $why");
+        @fwrite($conn, "QUIT\r\n");
+        fclose($conn);
+        return false;
+    };
+    $read(); // 220 karşılama
+    $say('EHLO ' . $host);               if (!$ok25()) return $die('EHLO reddedildi');
+    $say('AUTH LOGIN');                  if (strpos($read(), '334') !== 0) return $die('AUTH LOGIN desteklenmiyor');
+    $say(base64_encode(GV_SMTP_USER));   if (strpos($read(), '334') !== 0) return $die('SMTP kullanıcı adı reddedildi');
+    $say(base64_encode(GV_SMTP_PASS));   if (strpos($read(), '235') !== 0) return $die('SMTP kimlik doğrulama başarısız (config.php şifresini kontrol edin)');
+    $say('MAIL FROM:<' . GV_SMTP_USER . '>'); if (!$ok25()) return $die('MAIL FROM reddedildi');
+    $say('RCPT TO:<' . $to . '>');       if (!$ok25()) return $die('RCPT TO reddedildi');
+    $say('DATA');                        if (strpos($read(), '354') !== 0) return $die('DATA reddedildi');
+
+    list($mimeH, $mimeB) = gv_mime_parts($text, $html);
+    $msg  = 'From: ' . GV_MAIL_FROM . "\r\n";
+    $msg .= 'Reply-To: ' . GV_MAIL_FROM_ADDR . "\r\n";
+    $msg .= 'To: <' . $to . ">\r\n";
+    $msg .= 'Subject: ' . gv_b64_subject($subject) . "\r\n";
+    $msg .= 'Date: ' . date('r') . "\r\n";
+    $msg .= 'Message-ID: <gv' . bin2hex(random_bytes(8)) . '@masaoyunlari.com.tr>' . "\r\n";
+    $msg .= $mimeH . "\r\n" . $mimeB;
+    $msg = preg_replace('/\r?\n/', "\r\n", $msg);  // CRLF normalleştir
+    $msg = preg_replace('/^\./m', '..', $msg);     // dot-stuffing
+    fwrite($conn, $msg . "\r\n.\r\n");
+    if (!$ok25()) return $die('ileti gövdesi kabul edilmedi');
+    $say('QUIT');
+    fclose($conn);
+    return true;
+}
+
+function gv_send_mail($to, $subject, $text, $html) {
+    // Önce doğrulanmış SMTP (teslim oranı mail()'den çok daha yüksek);
+    // tanımsızsa ya da başarısız olursa PHP mail()'e düşer.
+    $smtp = gv_smtp_send($to, $subject, $text, $html);
+    if ($smtp === true) {
+        @unlink(__DIR__ . '/gv-mail-last-error.txt');
+        gv_mail_log("GONDERILDI(SMTP) -> $to :: $subject");
+        return true;
+    }
+    if (!function_exists('mail')) {
+        gv_mail_set_error('Sunucuda mail() fonksiyonu kapalı (Yöncü desteğe sorun).');
+        gv_mail_log("MAIL-KAPALI -> $to :: $text");
+        return false;
+    }
+    list($mimeH, $mimeB) = gv_mime_parts($text, $html);
+    $headers  = "From: " . GV_MAIL_FROM . "\r\n";
+    $headers .= "Reply-To: " . GV_MAIL_FROM_ADDR . "\r\n";
+    $headers .= $mimeH;
+
+    $ok = @mail($to, gv_b64_subject($subject), $mimeB, $headers, '-f ' . GV_MAIL_FROM_ADDR);
     if (!$ok) {
         // Bazı cPanel kurulumlarında 5. parametre (envelope) reddedilir — onsuz dene.
-        $ok = @mail($to, gv_b64_subject($subject), $body, $headers);
+        $ok = @mail($to, gv_b64_subject($subject), $mimeB, $headers);
     }
     if (!$ok) {
         $err = error_get_last();

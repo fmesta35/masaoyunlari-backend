@@ -24,7 +24,7 @@
   function myUser() { const s = st8(); return (!s.isGuest && s.user && s.user.id) ? s.user : null; }
   function myId() { const u = myUser(); return u ? Number(u.id) : null; }
   function tok() { try { return localStorage.getItem('gv-auth-token'); } catch (_) { return null; } }
-  function toast(m, t) { if (window.GV && GV.toast) GV.toast(m, t || 'info'); }
+  function toast(m, t, ms) { if (window.GV && GV.toast) GV.toast(m, t || 'info', ms || 5000); }
   function showModal(id) { if (window.GV && GV.showModal) GV.showModal(id); }
   function esc(s) {
     return String(s == null ? '' : s).replace(/[&<>"']/g, c =>
