@@ -72,6 +72,19 @@ function installAuth(app, deps) {
     return { isOnline: () => false, uidFromUserKey, recordMatch: () => {}, attachSocket: () => {} };
   }
 
+  // ---- SMTP tanı (girişsiz; şifre asla dönmez) ----
+  // Mail gelmiyorsa ilk bakılacak yer: configured=false ise GV_SMTP_PASS eksik,
+  // configured=true ama lastError doluysa güvenlik duvarı/yanlış porttur.
+  app.get('/api/auth/mail-status', (_req, res) => {
+    res.json({
+      ok: true,
+      configured: mailer.mailEnabled(),
+      host: process.env.GV_SMTP_HOST || 'mail.masaoyunlari.com.tr',
+      user: process.env.GV_SMTP_USER || 'info@masaoyunlari.com.tr',
+      lastError: mailer.lastError ? mailer.lastError() : null
+    });
+  });
+
   // ---- Kayıt ----
   app.post('/api/auth/register', async (req, res) => {
     try {

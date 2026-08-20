@@ -23,39 +23,52 @@ const PASS = process.env.GV_SMTP_PASS || '';
 const FROM = process.env.GV_MAIL_FROM || `GameVerse <${USER}>`;
 const SITE = (process.env.GV_SITE_URL || 'https://www.masaoyunlari.com.tr').replace(/\/+$/, '');
 
-let transport = null;
-function getTransport() {
-  if (transport || !nodemailer || !PASS) return transport;
-  transport = nodemailer.createTransport({
-    host: HOST,
-    port: PORT,
-    secure: SECURE,
-    auth: { user: USER, pass: PASS },
-    tls: { rejectUnauthorized: false } // paylaşımlı hosting sertifikaları için
-  });
-  return transport;
-}
-
 function mailEnabled() { return !!PASS && !!nodemailer; }
+
+// Tanı için son gönderim hatasını sakla (şifre/parola ASLA saklanmaz).
+let lastErr = null;
+function lastError() { return lastErr; }
+
+// Yöncü paylaşımlı hosting hem 465/SSL hem 587/STARTTLS açabilir: ilki
+// düşerse ikincisini dene (bazı firewall'lar yalnızca birini geçirir).
+function attemptConfigs() {
+  const order = [];
+  order.push({ port: PORT, secure: SECURE });
+  if (PORT !== 465) order.push({ port: 465, secure: true });
+  if (PORT !== 587) order.push({ port: 587, secure: false });
+  return order;
+}
 
 // Başarısızlıkta FALSE döner ama linki konsola yazar (kurulum hatasında
 // kullanıcı dışarıda kalmasın; sunucu yöneticisi linki logdan alabilir).
 async function sendMail(to, subject, text, html, logTag) {
-  const t = getTransport();
-  if (!t) {
-    console.log(`📧 [MAIL-KAPALI] ${logTag || subject} -> ${to}`);
+  if (!mailEnabled()) {
+    console.log(`📧 [MAIL-KAPALI] ${logTag || subject} -> ${to} (GV_SMTP_PASS tanımsız!)`);
     console.log(text);
     return false;
   }
-  try {
-    await t.sendMail({ from: FROM, to, subject, text, html });
-    console.log(`📧 ${logTag || 'Mail'} gönderildi -> ${to}`);
-    return true;
-  } catch (e) {
-    console.warn('⚠️  Mail gönderilemedi (' + (logTag || to) + '):', e.message);
-    console.log(text); // link hiç kaybolmasın
-    return false;
+  let firstErr = null;
+  for (const cfg of attemptConfigs()) {
+    try {
+      const t = nodemailer.createTransport({
+        host: HOST, port: cfg.port, secure: cfg.secure,
+        auth: { user: USER, pass: PASS },
+        tls: { rejectUnauthorized: false },
+        connectionTimeout: 10000, greetingTimeout: 10000, socketTimeout: 15000
+      });
+      await t.sendMail({ from: FROM, to, subject, text, html });
+      console.log(`📧 ${logTag || 'Mail'} gönderildi -> ${to} (${HOST}:${cfg.port})`);
+      lastErr = null;
+      return true;
+    } catch (e) {
+      if (!firstErr) firstErr = e;
+      console.warn(`⚠️  ${HOST}:${cfg.port} düştü (${logTag || to}):`, e.code || '', e.message);
+    }
   }
+  lastErr = firstErr ? (firstErr.code ? firstErr.code + ' ' : '') + String(firstErr.message || firstErr).slice(0, 200) : 'bilinmeyen hata';
+  console.warn('⚠️  Mail gönderilemedi (' + (logTag || to) + '): ' + lastErr);
+  console.log(text); // link hiç kaybolmasın
+  return false;
 }
 
 function verifyLink(token) { return `${SITE}/?verify=${encodeURIComponent(token)}`; }
@@ -100,4 +113,4 @@ function esc(v) {
   return String(v == null ? '' : v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
-module.exports = { sendVerifyMail, sendResetMail, verifyLink, resetLink, mailEnabled };
+module.exports = { sendVerifyMail, sendResetMail, verifyLink, resetLink, mailEnabled, lastError };

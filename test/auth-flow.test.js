@@ -164,6 +164,14 @@ async function main() {
   assert.strictEqual(r.ok, false);
   console.log('  ✓ 14) kullanılmış/geçersiz onay linki tekrar işlemiyor');
 
+  // --- 9) SMTP tanı: mail-status şifre sızdırmadan durum bildirmeli ---------------
+  r = await api(BASE, '/api/auth/mail-status', null, 'GET');
+  assert.strictEqual(r.status, 200);
+  assert.strictEqual(r.configured, false, 'GV_SMTP_PASS yokken configured=false beklenir (test ortamı)');
+  const bodyStr = JSON.stringify(r);
+  assert.ok(!/3198|HYgh|PASS/i.test(bodyStr), 'mail-status asla şifre sızdırmamalı');
+  console.log('  ✓ 15) /api/auth/mail-status durumu şifre sızdırmadan raporluyor');
+
   console.log('\n✅ AUTH-FLOW: tüm üyelik akışı testleri geçti');
   serverModule.io && serverModule.io.close();
   server.close();
