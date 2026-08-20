@@ -1053,7 +1053,9 @@ let friendsList = [
   { name: "Burak Z.", online: true, score: 6400, level: 14 }
 ];
 
-let visitorCounter = Math.floor(1 + Math.random() * 9);
+// Geniş havuz (100-999): aynı anda açılan pencereler farklı ziyaretçi adları
+// alsın; 1-9 havuzunda 4 pencerenin isimleri sık çakışıyordu.
+let visitorCounter = Math.floor(100 + Math.random() * 900);
 let memberCounter = 1;
 
 let st={
@@ -1147,7 +1149,7 @@ function submitChangePassword(){
 }
 
 function logout(){
-  visitorCounter++;
+  visitorCounter = Math.floor(100 + Math.random() * 900);
   st.isGuest = true;
   st.user = { name: 'Ziyaretçi#' + visitorCounter, score: 0, level: 1 };
   st.scores = {chess:0,tavla:0,dama:0,turkdamasi:0,okey:0,okey101:0,pisti:0,batak:0,reversi:0,gomoku:0,connect4:0,bilardo:0};
@@ -3719,13 +3721,13 @@ GV.init();
 <script src="js/config.js?v=20260819c"></script>
 <script src="js/socket.io.min.js?v=20260819c"></script>
 <script src="js/app.js?v=20260819c" defer></script>
-<script src="js/games.js?v=20260820a" defer></script>
+<script src="js/games.js?v=20260820b" defer></script>
 <script src="js/utils.js?v=20260819c" defer></script>
-<script src="js/lobby-sync.js?v=20260820a" defer></script>
-<script src="js/room-waiting-fix.js?v=20260820a" defer></script>
-<script src="js/chess-online.js?v=20260819i" defer></script>
-<script src="js/tavla-online.js?v=20260819i" defer></script>
-<script src="js/okey-online.js?v=20260820a" defer></script>
+<script src="js/lobby-sync.js?v=20260820b" defer></script>
+<script src="js/room-waiting-fix.js?v=20260820b" defer></script>
+<script src="js/chess-online.js?v=20260820b" defer></script>
+<script src="js/tavla-online.js?v=20260820b" defer></script>
+<script src="js/okey-online.js?v=20260820b" defer></script>
 
 <!-- Structured Data for SEO -->
 <script type="application/ld+json">

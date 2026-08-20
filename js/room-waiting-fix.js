@@ -63,17 +63,41 @@
     return s?.user?.name || s?.user?.username || localStorage.getItem('gv-user-name') || 'Oyuncu';
   }
 
+  // Sekme/pencere bazlı parça: aynı tarayıcı PROFİLİNDEKİ her pencere aynı
+  // localStorage misafir kimliğini paylaştığı için (bkz. "4 tarayıcı lobide
+  // buluşamıyor" hatası: sunucu 2.-4. pencereyi rejoin sanıp oda 1/4'te
+  // takılıyordu) misafir userKey'ine pencere başına bir parça eklenir.
+  // sessionStorage F5/yenilemede AYNI sekmede korunur → reconnect hakkı
+  // kaybolmaz; yeni pencerede/sekmede taze üretilir → sıradaki boş koltuk.
+  function tabKey() {
+    try {
+      let t = sessionStorage.getItem('gv-tab-id');
+      if (!t) {
+        t = (window.crypto && crypto.randomUUID) ? crypto.randomUUID().slice(0, 8)
+          : Math.random().toString(36).slice(2, 10);
+        sessionStorage.setItem('gv-tab-id', t);
+      }
+      return t;
+    } catch (_) {
+      // Depolama kapalıysa bellek içi kimlik (yine pencere bazında ayrı).
+      if (!window.__gvTabId) window.__gvTabId = Math.random().toString(36).slice(2, 10);
+      return window.__gvTabId;
+    }
+  }
+
   function userKey() {
     const s = state();
     const u = s?.user;
     const stable = u && (u.id || u.userId || u.username || u.email);
+    // Kayıtlı kullanıcı kasti olarak profil genelinde TEK kalır: başka
+    // cihazdan/sekmeden girince koltuğunu devralabilmesi için.
     if (stable) return 'user:' + String(stable);
     let id = localStorage.getItem('gv-chess-guest-id');
     if (!id) {
       id = window.crypto && crypto.randomUUID ? crypto.randomUUID() : 'guest-' + Date.now() + '-' + Math.random().toString(36).slice(2);
       localStorage.setItem('gv-chess-guest-id', id);
     }
-    return 'guest:' + id;
+    return 'guest:' + id + ':' + tabKey();
   }
 
   function isMe(p) {
@@ -296,7 +320,7 @@
       }
       if (document.querySelector('script[data-gv-okey-online]')) return;
       const os = document.createElement('script');
-      os.src = 'js/okey-online.js?v=20260820a';
+      os.src = 'js/okey-online.js?v=20260820b';
       os.dataset.gvOkeyOnline = '1';
       os.async = false;
       let oSettled = false;
@@ -325,7 +349,7 @@
       }
       if (document.querySelector('script[data-gv-tavla-online]')) return;
       const ts = document.createElement('script');
-      ts.src = 'js/tavla-online.js?v=20260819i';
+      ts.src = 'js/tavla-online.js?v=20260820b';
       ts.dataset.gvTavlaOnline = '1';
       ts.async = false;
       let settled = false;
@@ -355,7 +379,7 @@
     }
     if (document.querySelector('script[data-gv-chess-online]')) return;
     const s = document.createElement('script');
-    s.src = 'js/chess-online.js?v=20260819i';
+    s.src = 'js/chess-online.js?v=20260820b';
     s.dataset.gvChessOnline = '1';
     s.async = false;
     document.head.appendChild(s);

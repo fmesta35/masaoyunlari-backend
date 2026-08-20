@@ -106,6 +106,24 @@
     return s?.user?.name || s?.user?.username || localStorage.getItem('gv-user-name') || 'Oyuncu';
   }
 
+  // Sekme/pencere bazlı parça: room-waiting-fix.js ile AYNI mantık. Aynı
+  // profildeki farklı pencereler ayrı koltuk alır; F5 aynı sekmede kaldığı
+  // için (sessionStorage) reconnect eşleşmesi korunur.
+  function tabKey() {
+    try {
+      let t = sessionStorage.getItem('gv-tab-id');
+      if (!t) {
+        t = (window.crypto && crypto.randomUUID) ? crypto.randomUUID().slice(0, 8)
+          : Math.random().toString(36).slice(2, 10);
+        sessionStorage.setItem('gv-tab-id', t);
+      }
+      return t;
+    } catch (_) {
+      if (!window.__gvTabId) window.__gvTabId = Math.random().toString(36).slice(2, 10);
+      return window.__gvTabId;
+    }
+  }
+
   function userKey() {
     const s = getState();
     const u = s?.user;
@@ -118,7 +136,7 @@
       id = (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : 'guest-' + Date.now() + '-' + Math.random().toString(36).slice(2);
     }
     localStorage.setItem('gv-chess-guest-id', id);
-    return 'guest:' + id;
+    return 'guest:' + id + ':' + tabKey();
   }
 
   function loadSocketClient(done) {
