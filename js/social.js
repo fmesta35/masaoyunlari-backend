@@ -117,9 +117,10 @@
     return friendsCache;
   }
 
-  // ---------------- Arkadaş listesi paneli (#friendsList) ----------------
+  // ---------------- Arkadaş listesi (üst bar 👥 penceresi; eski #friendsList yedeği) ----------------
+  function friendsEl() { return document.getElementById('gvFriendsModalList') || document.getElementById('friendsList'); }
   function paintFriends(q) {
-    const el = document.getElementById('friendsList');
+    const el = friendsEl();
     if (!el) return;
     const list = (friendsCache || []).filter(f =>
       !q || f.name.toLowerCase().includes(String(q).toLowerCase()));
@@ -147,7 +148,7 @@
   }
 
   function renderFriendsMember(q) {
-    const el = document.getElementById('friendsList');
+    const el = friendsEl();
     if (!el) return;
     if (!myId()) return; // misafir görünümü index.html'nin kendi fonksiyonunda
     if (friendsCache === null) {
@@ -385,6 +386,21 @@
 
     // İsimle arkadaş ekle (gerçek arama + gerçek kayıt)
     both('addFriend', function (name) { addFriendByName(name); });
+
+    // Üst bardaki 👥 Arkadaşlarım penceresi (sol alt bölümün yerini aldı)
+    both('openFriends', function () {
+      if (!myId()) return showModal('guestPromptModal');
+      window.GV.showModal('friendsModal');
+      renderFriendsMember('');
+      refreshFriends().then(() => renderFriendsMember(''));
+    });
+    both('addFriendFromModal', function () {
+      const inp = document.getElementById('friendsAddInput');
+      const v = (inp && inp.value || '').trim();
+      if (inp) inp.value = '';
+      addFriendByName(v);
+    });
+    both('filterFriends', function (q) { renderFriendsMember(q || ''); });
 
     // Profil: indexteki sahte skorlu modal yerine gerçek profil
     both('openFriendProfile', function (name) {

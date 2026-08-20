@@ -250,10 +250,11 @@
 
   function boot() {
     hook();
+    // Her sayfada lobi soketi kur: genel sohbet (okuma/yazma) ve gerçek
+    // zamanlı oda listesi ana sayfada da çalışsın — önceden soket yalnızca
+    // lobi sayfasındayken açılıyordu, bu yüzden genel sohbete yazılamıyordu.
     const lobby = document.getElementById('pg-lobby');
-    if (lobby && lobby.classList.contains('active')) {
-      subscribe(gameFromDom());
-    }
+    subscribe((lobby && lobby.classList.contains('active')) ? gameFromDom() : (gameFromDom() || 'chess'));
   }
 
   setInterval(hook, 400);

@@ -113,7 +113,7 @@
       '<div class="gc-head"><b id="gvChatTitle">🌐 Genel Sohbet</b><span id="gvChatClose">✕</span></div>' +
       '<div class="gc-list" id="gvChatList"></div>' +
       '<div class="gc-input"><input id="gvChatText" type="text" maxlength="240" placeholder="Mesajınızı yazın..."><button id="gvChatSend" type="button">➤</button></div>' +
-      '<div class="gc-note">💡 Yalnızca üyeler mesaj yazabilir; herkes okuyabilir.</div>';
+      '<div class="gc-note">💡 Mesajlar 1 dk sonra silinir • ard arda en az 5 sn bekleyin • link ve küfür yasaktır. Yalnızca üyeler yazabilir.</div>';
     document.body.appendChild(p);
     p.querySelector('#gvChatClose').addEventListener('click', () => { open = false; p.classList.remove('open'); });
     const send = () => sendNow();
@@ -138,6 +138,8 @@
   function renderList(messages) {
     const list = document.getElementById('gvChatList');
     if (!list) return;
+    // Süresi dolmuş genel sohbet mesajları istemcide de gösterilmez.
+    if (mode === 'global' && messages) messages = messages.filter(m => Date.now() - Number(m.ts || 0) < 60000);
     if (!messages || !messages.length) {
       list.innerHTML = '<div class="gc-empty">Henüz mesaj yok — ilk mesajı siz yazın! 👋</div>';
       return;
@@ -147,7 +149,8 @@
       const hm = ('0' + time.getHours()).slice(-2) + ':' + ('0' + time.getMinutes()).slice(-2);
       const mine = (m.name || '') === myName();
       const uid = Number(m.uid) > 0 ? ` data-uid="${Number(m.uid)}"` : '';
-      return `<div class="gc-msg${mine ? ' mine' : ''}"><span class="gc-nm"${uid}>${esc(m.name)}</span>${esc(m.text)}<span class="gc-tm">${hm}</span></div>`;
+      const ts = Number(m.ts) || Date.now();
+      return `<div class="gc-msg${mine ? ' mine' : ''}" data-ts="${ts}"><span class="gc-nm"${uid}>${esc(m.name)}</span>${esc(m.text)}<span class="gc-tm">${hm}</span></div>`;
     }).join('');
     scrollEnd();
   }
@@ -163,10 +166,23 @@
     const uid = Number(m.uid) > 0 ? ` data-uid="${Number(m.uid)}"` : '';
     const div = document.createElement('div');
     div.className = 'gc-msg' + (mine ? ' mine' : '');
+    div.dataset.ts = Number(m.ts) || Date.now();
     div.innerHTML = `<span class="gc-nm"${uid}>${esc(m.name)}</span>${esc(m.text)}<span class="gc-tm">${hm}</span>`;
     list.appendChild(div);
     scrollEnd();
   }
+
+  // Genel sohbette 60 sn'i geçen mesajları panelden kaldır (sunucu da süzer).
+  function pruneOld() {
+    if (mode !== 'global') return;
+    const list = document.getElementById('gvChatList');
+    if (!list) return;
+    const cutoff = Date.now() - 60 * 1000;
+    list.querySelectorAll('.gc-msg[data-ts]').forEach(el => {
+      if (Number(el.dataset.ts || 0) < cutoff) el.remove();
+    });
+  }
+  setInterval(pruneOld, 4000);
 
   // Oyun sayfasındaki KART sohbetine de yansıt (eski yerel kutunun yerine
   // gerçek oda sohbeti akar; iki arayüz de aynı akışı gösterir).
@@ -240,6 +256,20 @@
     sock.emit('chatMessage', { scope: mode, roomId: curRoomId, text, name: myName(), memberKey: memberKey() });
     inp.value = '';
     inp.focus();
+    // Genel sohbette 5 sn bekleme kuralı: butonu geri sayımla kilitle (sunucu da reddeder).
+    if (mode === 'global') {
+      const btn = document.getElementById('gvChatSend');
+      if (btn) {
+        let left = 5;
+        btn.disabled = true;
+        btn.textContent = String(left);
+        const iv = setInterval(() => {
+          left--;
+          if (left <= 0) { clearInterval(iv); btn.textContent = '➤'; btn.disabled = !isMember(); }
+          else btn.textContent = String(left);
+        }, 1000);
+      }
+    }
   }
 
   // ---------- Durum taraması ----------
@@ -278,6 +308,7 @@
     const sock = pickSocket();
     if (sock && sock !== attachedSock) { attach(sock); attachedSock = sock; }
     if (open) reloadHistory(false);
+    pruneOld();
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => setInterval(tick, 1000), { once: true });

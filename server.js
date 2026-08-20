@@ -51,7 +51,52 @@ const RECONNECT_GRACE_MS = 30000;
 const CHAT_MAX_LEN = 240;
 const CHAT_HISTORY = 50;
 const CHAT_RATE_MS = 1000;
+// Genel sohbet kuralları: 5 sn bekleme + 1 dk otomatik silinme + link/küfür yasağı.
+const CHAT_GLOBAL_RATE_MS = Number(process.env.GV_CHAT_RATE_MS) || 5000;
+const CHAT_GLOBAL_TTL_MS = Number(process.env.GV_CHAT_TTL_MS) || 60000;
 const chatGlobal = [];            // genel sohbet: son N mesaj
+
+// 1 dakikadan eski genel sohbet mesajlarını düşür (liste zamana göre sıralıdır).
+function chatGlobalPrune() {
+  const t = now();
+  while (chatGlobal.length && t - Number(chatGlobal[0].ts || 0) >= CHAT_GLOBAL_TTL_MS) chatGlobal.shift();
+}
+
+// Link paylaşımı engeli: şema, www. ve yaygın alan adı uzantıları.
+const CHAT_LINK_RE = /(https?:\/\/|www\.|discord\.gg|[a-z0-9][a-z0-9-]*\.(com|net|org|tr|gg|io|me|xyz|link|site|online|club|tv|app|dev)\b)/i;
+function chatHasLink(text) { return CHAT_LINK_RE.test(String(text || '')); }
+
+// Türkçe küfür/argo filtresi (leetspeak + Türkçe harf normalizasyonu).
+const CHAT_BAD_EXACT = ['amk', 'aq', 'mk', 'amq', 'oç', 'oc'];
+const CHAT_BAD_PREFIX = ['amcık', 'orospu', 'pezevenk', 'piç', 'siktir', 'sikerim', 'sikece', 'yarrak', 'yarak', 'ibne', 'gerizekal', 'dangalak', 'şerefsiz', 'anasın', 'ananı', 'bacını', 'götveren', 'götün', 'yavşak', 'yavsak'];
+function chatFold(v) {
+  let s = String(v || '').toLocaleLowerCase('tr-TR');
+  s = s.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  s = s.replace(/ı/g, 'i').replace(/0/g, 'o').replace(/1/g, 'i').replace(/3/g, 'e').replace(/4/g, 'a').replace(/5/g, 's').replace(/7/g, 't').replace(/@/g, 'a').replace(/\$/g, 's');
+  return s.replace(/(.)\1{2,}/g, '$1$1');
+}
+function chatHasProfanity(text) {
+  const s = chatFold(text);
+  const tokens = s.split(/[^a-zçşüöği0-9]+/i).filter(Boolean);
+  if (tokens.some(t => CHAT_BAD_EXACT.indexOf(t) !== -1)) return true;
+  for (const t of tokens) {
+    for (const p of CHAT_BAD_PREFIX) { if (t.indexOf(p) === 0) return true; }
+  }
+  // Harf harf yazma kaçışı ("a q", "s i k t i r"): yan yana tek harfli
+  // parçaları birleştirip liste ile karşılaştır (kelime içi yanlış
+  // pozitif olmaması için sadece tek-harf zincirleri birleştirilir).
+  let run = '';
+  for (let i = 0; i <= tokens.length; i++) {
+    const t = tokens[i];
+    if (t && t.length === 1) { run += t; if (i === tokens.length - 1) t = undefined; else continue; }
+    if (run) {
+      const r = run; run = '';
+      if (CHAT_BAD_EXACT.indexOf(r) !== -1) return true;
+      for (const p of CHAT_BAD_PREFIX) { if (r.indexOf(p) === 0) return true; }
+    }
+  }
+  return false;
+}
 const chatRoomHist = new Map();   // roomId -> son N mesaj
 
 function chatSanitize(v) {
@@ -1163,9 +1208,16 @@ io.on('connection', socket => {
     if (!chatIsMember(socket, payload)) {
       return socket.emit('chatRejected', { reason: 'Sohbette yazabilmek için üye girişi yapmalısınız. Mesajları okumaya devam edebilirsiniz.' });
     }
+    if (chatHasLink(text)) {
+      return socket.emit('chatRejected', { reason: '🔗 Link paylaşımı yasaktır.' });
+    }
+    if (chatHasProfanity(text)) {
+      return socket.emit('chatRejected', { reason: '🚫 Küfür ve argo kullanılamaz.' });
+    }
     const t = now();
-    if (socket.__lastChatAt && t - socket.__lastChatAt < CHAT_RATE_MS) {
-      return socket.emit('chatRejected', { reason: 'Çok hızlı gönderiyorsunuz (1 sn sınırı).' });
+    const rateMs = scope === 'global' ? CHAT_GLOBAL_RATE_MS : CHAT_RATE_MS;
+    if (socket.__lastChatAt && t - socket.__lastChatAt < rateMs) {
+      return socket.emit('chatRejected', { reason: 'Çok hızlı gönderiyorsunuz (' + (rateMs / 1000) + ' sn sınırı).' });
     }
     socket.__lastChatAt = t;
 
@@ -1189,6 +1241,7 @@ io.on('connection', socket => {
       pushChat(roomId, msg);
       io.to(roomId).emit('chatMessage', msg);
     } else {
+      chatGlobalPrune();
       chatGlobal.push(msg);
       while (chatGlobal.length > CHAT_HISTORY) chatGlobal.shift();
       io.emit('chatMessage', msg); // genel sohbet herkese açık akar
@@ -1203,6 +1256,7 @@ io.on('connection', socket => {
     if (typeof ack !== 'function') return;
     const scope = payload && payload.scope === 'global' ? 'global' : 'room';
     const rid = String((payload && payload.roomId) || socket.roomId || '');
+    if (scope === 'global') chatGlobalPrune(); // süresi dolan genel mesajlar geçmişe gelmez
     const list = scope === 'global' ? chatGlobal : (chatRoomHist.get(rid) || []);
     ack({ ok: true, scope, messages: list.slice(-CHAT_HISTORY) });
   });

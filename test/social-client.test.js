@@ -97,9 +97,9 @@ async function main() {
   assert.strictEqual(Number(me.id), A.id);
   console.log('  ✓ 1) token\'la sayfa açılınca otomatik üye girişi yapıldı (Ziyaretçi değil)');
 
-  // 2) Gerçek arkadaş listesi
+  // 2) Gerçek arkadaş listesi (üst bar 👥 penceresi konteyneri; eski #friendsList yedeği)
   const fEl = await waitFor(() => {
-    const el = win.document.getElementById('friendsList');
+    const el = win.document.getElementById('gvFriendsModalList') || win.document.getElementById('friendsList');
     return (el && /Dost/.test(el.innerHTML)) ? el : null;
   }, 9000, 'gerçek arkadaş listesi');
   assert.ok(/data-uid="\d+"/.test(fEl.innerHTML), 'arkadaş satırında data-uid olmalı');

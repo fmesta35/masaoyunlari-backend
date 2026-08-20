@@ -648,6 +648,36 @@ html{scrollbar-gutter:stable}
 
 <!-- External Stylesheets -->
 <link rel="stylesheet" href="css/style.css">
+<style id="gv-extra-style">
+/* ===== Sol menü aç/kapa (masaüstü) + mobil uyum ===== */
+.sidebar{position:relative}
+#sbCollapseBtn{position:absolute;top:10px;right:-13px;z-index:1001;width:26px;height:26px;border-radius:50%;border:1px solid var(--border);background:var(--bg2);color:var(--text);cursor:pointer;font-size:.72em;display:flex;align-items:center;justify-content:center;box-shadow:var(--shadow)}
+#sbCollapseBtn:hover{background:var(--bg3)}
+#sbReopen{position:fixed;left:10px;top:66px;z-index:998;width:36px;height:36px;border-radius:10px;border:1px solid var(--border);background:var(--bg2);color:var(--text);cursor:pointer;display:none;align-items:center;justify-content:center;font-size:1.05em;box-shadow:var(--shadow)}
+#sbReopen:hover{background:var(--bg3)}
+body.sb-closed .sidebar{display:none}
+body.sb-closed #sbReopen{display:flex}
+/* Arkadaşlar penceresi satır görünümü (social.js paintFriends) */
+#gvFriendsModalList .friend{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:10px}
+/* ===== Mobil / dar ekran optimizasyonu ===== */
+@media(max-width:800px){
+  body.sb-closed .sidebar{display:block}     /* mobilde off-canvas davranışı korunur */
+  body.sb-closed #sbReopen{display:none}
+  .header{padding:6px 8px;gap:8px;flex-wrap:wrap}
+  .header .logo{font-size:.95em}
+  .header .logo img{height:24px!important;width:24px!important}
+  .nav{order:3;width:100%;overflow-x:auto;gap:6px;padding-bottom:2px;-webkit-overflow-scrolling:touch}
+  .nav-btn{font-size:.75em;padding:5px 8px;white-space:nowrap}
+  .header-right{gap:5px}
+  .icon-btn{width:32px;height:32px;font-size:.95em}
+  .layout{flex-direction:column}
+}
+@media(max-width:480px){
+  #gvChatFab{right:10px;bottom:10px;padding:10px 14px;font-size:13.5px}
+  #gvChatPanel{right:6px;left:6px;width:auto;max-width:none;bottom:62px;height:60vh}
+  .modal{max-width:96vw}
+}
+</style>
 </head>
 <body>
 
@@ -664,7 +694,7 @@ html{scrollbar-gutter:stable}
   </nav>
   <div class="header-right">
     <button class="icon-btn" id="themeBtn" onclick="GV.toggleTheme()">🌙</button>
-    
+    <button class="icon-btn" id="friendsBtn" title="Arkadaşlarım" onclick="GV.openFriends && GV.openFriends()" style="display:none">👥</button>
     <div style="position: relative;">
       <button class="icon-btn" onclick="GV.toggleNotif()">
         <span>🔔</span>
@@ -682,20 +712,18 @@ html{scrollbar-gutter:stable}
     <div id="headerAuthContainer" style="display: flex; gap: 8px;"></div>
   </div>
 </header>
+<button id="sbReopen" title="Oyunlar menüsünü aç" onclick="GV.collapseSidebar(false)">🎮</button>
 
 <!-- ANA SAYFA DÜZENİ -->
 <div class="layout">
   <!-- SOL MENÜ -->
   <aside class="sidebar" id="sidebar">
+    <button id="sbCollapseBtn" title="Menüyü gizle" onclick="GV.collapseSidebar(true)">◀</button>
     <div class="sb-search"><span>🔍</span><input placeholder="Oyun ara..." oninput="GV.searchGames(this.value)"></div>
     <div class="sb-title">🎮 Oyunlar</div>
     <div id="sbGames"></div>
-    <div class="sb-title" style="margin-top:12px">
-      <span>👥 Arkadaşlar</span>
-      <button class="btn btn-sm btn-p" onclick="GV.showModal('addFriendModal')" style="padding:2px 6px;font-size:0.7em">+</button>
-    </div>
-    <div class="sb-search" style="margin-top:6px;"><input placeholder="Arkadaş ara..." oninput="GV.searchFriends(this.value)"></div>
-    <div id="friendsList"></div>
+    <!-- Sol alt arkadaşlar bölümü kaldırıldı: artık üst bardaki 👥 butonu
+         ortadaki Arkadaşlarım penceresini açıyor (js/social.js). -->
   </aside>
 
   <!-- İÇERİK ALANI -->
@@ -909,6 +937,21 @@ html{scrollbar-gutter:stable}
   </div>
 </div>
 
+<!-- Üst bar 👥 butonu: Arkadaşlarım orta penceresi (yalnızca üyeler) -->
+<div class="modal-bg" id="friendsModal">
+  <div class="modal" style="max-width:430px;width:94%;">
+    <button class="modal-x" onclick="GV.hideModal('friendsModal')">✕</button>
+    <h2 style="margin:0 0 4px;">👥 Arkadaşlarım</h2>
+    <div style="display:flex;gap:8px;margin:12px 0;">
+      <input type="text" id="friendsAddInput" placeholder="Kullanıcı adıyla ekle (örn: test2)" style="flex:1;padding:9px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg3);color:var(--text)">
+      <button class="btn btn-p" onclick="GV.addFriendFromModal && GV.addFriendFromModal()">Ekle</button>
+    </div>
+    <input type="text" placeholder="Listede ara..." oninput="GV.filterFriends && GV.filterFriends(this.value)" style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg3);color:var(--text);margin-bottom:10px;box-sizing:border-box;">
+    <div id="gvFriendsModalList" style="max-height:46vh;overflow-y:auto;display:flex;flex-direction:column;gap:6px;"></div>
+    <p style="font-size:.72em;color:var(--text3);margin-top:10px;">İsme tıklayınca profil açılır; profilden çıkarabilir veya özel masana davet edebilirsin.</p>
+  </div>
+</div>
+
 <div class="modal-bg" id="forgotPasswordModal">
   <div class="modal" style="max-width:380px;">
     <button class="modal-x" onclick="GV.hideModal('forgotPasswordModal')">✕</button>
@@ -1086,6 +1129,9 @@ Object.defineProperty(st,'totalScore',{get:function(){return Object.values(this.
 function updateAuthState() {
   const container = document.getElementById('headerAuthContainer');
   if(!container) return;
+  // Arkadaşlar butonu yalnızca üye girişinde görünür.
+  const fb = document.getElementById('friendsBtn');
+  if (fb) fb.style.display = st.isGuest ? 'none' : '';
 
   if (st.isGuest) {
     container.innerHTML = `
@@ -1449,6 +1495,9 @@ function exitToLobby(){
 
 function renderSB(){document.getElementById('sbGames').innerHTML=Object.entries(GAMES).map(([id,g])=>`<div class="sb-item" data-gid="${id}" onclick="GV.openLobby('${id}')"><span>${g.icon}</span>${g.name}<span class="sb-badge">${(g.p/1000).toFixed(1)}K</span></div>`).join('');}
 function toggleSidebar(){document.getElementById('sidebar').classList.toggle('open');}
+// Sol oyunlar menüsü: masaüstünde de açılıp kapanabilir (tercih kalıcıdır).
+function collapseSidebar(v){document.body.classList.toggle('sb-closed',!!v);try{localStorage.setItem('gv-sb-closed',v?'1':'0');}catch(_){}}
+try{if(localStorage.getItem('gv-sb-closed')==='1')document.body.classList.add('sb-closed');}catch(_){}
 function closeSidebar(){document.getElementById('sidebar').classList.remove('open');}
 function searchGames(q){q=q.toLowerCase();document.querySelectorAll('#sbGames .sb-item').forEach(e=>{e.style.display=e.textContent.toLowerCase().includes(q)?'':'none';});}
 function toggleNotif(){const n=document.getElementById('notifPanel'); if(n) n.classList.toggle('show');}
@@ -3674,6 +3723,7 @@ window.renderFriends = renderFriends;
 return {
   page,
   toggleSidebar,
+  collapseSidebar,
   closeSidebar,
   searchGames,
   toggleTheme,
@@ -3763,15 +3813,15 @@ GV.init();
 <script src="js/app.js?v=20260820a" defer></script>
 <script src="js/games.js?v=20260820e" defer></script>
 <script src="js/utils.js?v=20260819c" defer></script>
-<script src="js/lobby-sync.js?v=20260820e" defer></script>
+<script src="js/lobby-sync.js?v=20260820f" defer></script>
 <script src="js/room-waiting-fix.js?v=20260820e" defer></script>
 <script src="js/chess-online.js?v=20260820e" defer></script>
 <script src="js/tavla-online.js?v=20260820e" defer></script>
 <script src="js/okey-online.js?v=20260820e" defer></script>
-<script src="js/chat.js?v=20260820e" defer></script>
+<script src="js/chat.js?v=20260820f" defer></script>
 <script src="js/leave-guard.js?v=20260820e" defer></script>
 <script src="js/auth.js?v=20260820i" defer></script>
-<script src="js/social.js?v=20260820g" defer></script>
+<script src="js/social.js?v=20260820h" defer></script>
 
 <!-- Structured Data for SEO -->
 <script type="application/ld+json">
