@@ -19,6 +19,15 @@ const io = new Server(server, {
 
 const rooms = new Map();
 const MAX_ROOM_PLAYERS = 2;
+// Okey 4 kişilik oynanır; diğerleri ikişer kişilik kalır.
+const MAX_PLAYERS_BY_GAME = { okey: 4, okey101: 4 };
+function maxPlayersFor(gameId) {
+  return MAX_PLAYERS_BY_GAME[gameId] || MAX_ROOM_PLAYERS;
+}
+// 2 kişilik oyunlarda renk atanır (white/black); 4 kişilikte koltuk numarası yeterlidir.
+function seatColorFor(room, idx) {
+  return maxPlayersFor(room.gameId) > 2 ? null : (idx === 0 ? 'white' : 'black');
+}
 const MAX_SPECTATORS = 20;
 // Terk sonrası oda hemen sıfırlanmaz: kalan oyuncu "Kazandınız" ekranını
 // görürken renginin değişmemesi için sonuç bir süre korunur.
@@ -44,24 +53,32 @@ const PRESET_TYPES = [
   ...Array(3).fill({ label: '🧠 Düşünen', durationMinutes: 20 })
 ];
 
-function presetTablesFor(gameId, startId) {
+function presetTablesFor(gameId, startId, opts = {}) {
   return PRESET_TYPES.map((t, i) => ({
     id: String(startId + i),
     gameId,
+    maxPlayers: opts.maxPlayers || 2,
     durationMinutes: t.durationMinutes,
     name: `${t.label} Masa #${startId + i}`
   }));
 }
+// OKEY: yetkili sunucu motoru (okey-engine.js) bu repoya eklendiği anda masalar
+// OTOMATIK açılır; ayrıca GV_OKEY_PRESETS=1 ile önden test edilebilir.
+// (Motor yokken masalar tohumlanmaz: kimse hazır basıp takılı kalmaz.)
+let okeyEngine = null;
+try { okeyEngine = require('./okey-engine.js'); } catch (_) { /* motor henüz yok */ }
+
 const PRESET_TABLES = [
   ...presetTablesFor('chess', 101),
-  ...presetTablesFor('tavla', 201)
+  ...presetTablesFor('tavla', 201),
+  ...((okeyEngine || process.env.GV_OKEY_PRESETS === '1') ? presetTablesFor('okey', 301, { maxPlayers: 4 }) : [])
 ];
 
 function seedPresetTables() {
   for (const t of PRESET_TABLES) {
     const existing = rooms.get(t.id);
     if (existing) { existing.isPreset = true; continue; }
-    const room = createRoom(t.id, t.gameId || 'chess', 2, t.durationMinutes, { name: t.name || ('Masa #' + t.id) });
+    const room = createRoom(t.id, t.gameId || 'chess', t.maxPlayers || 2, t.durationMinutes, { name: t.name || ('Masa #' + t.id) });
     room.isPreset = true;
   }
 }
@@ -94,7 +111,7 @@ function createRoom(id, gameId, maxPlayers, durationMinutes, meta) {
     gameId: gameId || 'chess',
     name,
     isPrivate: !!meta.isPrivate,
-    maxPlayers: Math.min(Number(maxPlayers) || 2, MAX_ROOM_PLAYERS),
+    maxPlayers: Math.min(Number(maxPlayers) || 2, maxPlayersFor(gameId)),
     durationMinutes: duration,
     players: [],
     spectators: [],
@@ -132,7 +149,7 @@ function resetRoomToWaiting(room) {
   if (Array.isArray(room.players)) {
     room.players.forEach((p, idx) => {
       p.isReady = false;
-      p.color = idx === 0 ? 'white' : 'black';
+      p.color = seatColorFor(room, idx);
       p.seat = idx;
     });
   }
@@ -509,6 +526,8 @@ function startRoomGame(room) {
   if (!room) return;
   if (room.gameId === 'tavla') return startTavla(room);
   if (room.gameId === 'chess') return startChess(room);
+  // Okey motoru (okey-engine.js + startOkey) entegre edildiğinde devreye girer.
+  if (room.gameId === 'okey' && typeof startOkey === 'function') return startOkey(room);
 }
 
 function findExistingPlayer(room, socket, userKey) {
@@ -534,19 +553,19 @@ function maybePromoteSpectators(room) {
          room.spectators.some(s => !s.wantsSpectate)) {
     const idx = room.spectators.findIndex(s => !s.wantsSpectate);
     const spec = room.spectators.splice(idx, 1)[0];
-    const color = room.players.length === 0 ? 'white' : 'black';
     const player = {
       id: spec.id,
       userKey: spec.userKey,
       name: spec.name,
-      color,
+      color: seatColorFor(room, room.players.length),
       seat: room.players.length,
       isReady: false
     };
     room.players.push(player);
     io.to(spec.id).emit('promotedToPlayer', {
       roomId: room.id,
-      playerColor: color,
+      playerColor: player.color,
+      seat: player.seat,
       room: publicRoom(room)
     });
   }
@@ -755,12 +774,11 @@ io.on('connection', socket => {
       socket.role = 'spectator';
     } else if (!wantSpectate && room.players.length < room.maxPlayers && room.status === 'waiting') {
       if (spectator) room.spectators = room.spectators.filter(s => s !== spectator);
-      const color = room.players.length === 0 ? 'white' : 'black';
       player = {
         id: socket.id,
         userKey,
         name,
-        color,
+        color: seatColorFor(room, room.players.length),
         seat: room.players.length,
         isReady: false
       };
