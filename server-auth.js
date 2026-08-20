@@ -287,14 +287,74 @@ function installAuth(app, deps) {
     if (!u) return res.status(401).json({ ok: false, error: 'Giriş gerekli.' });
     res.json({ ok: true, friends: friendsOf(u.id) });
   });
-  app.post('/api/friends/add', (req, res) => {
+  // ---- Arkadaşlık istekleri (istek → kabul/red; direkt ekleme YOK) ----
+  function hasPending(a, b) { // a -> b bekleyen istek var mı?
+    return !!db.prepare('SELECT 1 FROM friend_requests WHERE from_id = ? AND to_id = ? LIMIT 1').get(a, b);
+  }
+  function makeFriends(a, b) {
+    db.prepare('INSERT OR IGNORE INTO friends(user_id,friend_id,created_at) VALUES(?,?,?)').run(a, b, now());
+    db.prepare('DELETE FROM friend_requests WHERE (from_id = ? AND to_id = ?) OR (from_id = ? AND to_id = ?)').run(a, b, b, a);
+  }
+  function requestsOf(uid) {
+    const incoming = db.prepare(`
+      SELECT u.id, u.name, r.created_at AS since FROM friend_requests r
+      JOIN users u ON u.id = r.from_id WHERE r.to_id = ? ORDER BY r.created_at DESC
+    `).all(uid).map(r => ({ id: r.id, name: r.name, since: r.since, online: isOnline(r.id) }));
+    const outgoing = db.prepare(`
+      SELECT u.id, u.name, r.created_at AS since FROM friend_requests r
+      JOIN users u ON u.id = r.to_id WHERE r.from_id = ? ORDER BY r.created_at DESC
+    `).all(uid).map(r => ({ id: r.id, name: r.name, since: r.since, online: isOnline(r.id) }));
+    return { incoming, outgoing };
+  }
+
+  app.get('/api/friends/requests', (req, res) => {
+    const u = authFromReq(req);
+    if (!u) return res.status(401).json({ ok: false, error: 'Giriş gerekli.' });
+    res.json({ ok: true, ...requestsOf(u.id) });
+  });
+
+  // İstek gönder — karşı taraftan bekleyen istek varsa otomatik KABUL olur.
+  // (eski /add ucu da buraya bağlı: artık doğrudan arkadaşlık KURULMAZ)
+  const requestHandler = (req, res) => {
     const u = authFromReq(req);
     if (!u) return res.status(401).json({ ok: false, error: 'Giriş gerekli.' });
     const fid = Number(req.body && req.body.friendId);
-    if (!userById(fid)) return res.status(404).json({ ok: false, error: 'Oyuncu bulunamadı.' });
-    if (fid === u.id) return res.status(400).json({ ok: false, error: 'Kendinizi ekleyemezsiniz.' });
-    db.prepare('INSERT OR IGNORE INTO friends(user_id,friend_id,created_at) VALUES(?,?,?)').run(u.id, fid, now());
-    res.json({ ok: true, friends: friendsOf(u.id) });
+    const target = userById(fid);
+    if (!target) return res.status(404).json({ ok: false, error: 'Oyuncu bulunamadı.' });
+    if (fid === u.id) return res.status(400).json({ ok: false, error: 'Kendinize istek gönderemezsiniz.' });
+    if (isFriendPair(u.id, fid)) return res.status(409).json({ ok: false, error: 'Zaten arkadaşsınız. ️' });
+    if (hasPending(fid, u.id)) {
+      makeFriends(u.id, fid);
+      return res.json({ ok: true, accepted: true, toName: target.name, friends: friendsOf(u.id) });
+    }
+    if (hasPending(u.id, fid)) return res.status(409).json({ ok: false, error: 'İstek zaten gönderildi — yanıt bekleniyor.' });
+    db.prepare('INSERT OR IGNORE INTO friend_requests(from_id,to_id,created_at) VALUES(?,?,?)').run(u.id, fid, now());
+    res.json({ ok: true, requested: true, toName: target.name });
+  };
+  app.post('/api/friends/request', requestHandler);
+  app.post('/api/friends/add', requestHandler); // geriye dönük uyumluluk (istek anlamında)
+
+  app.post('/api/friends/accept', (req, res) => {
+    const u = authFromReq(req);
+    if (!u) return res.status(401).json({ ok: false, error: 'Giriş gerekli.' });
+    const fid = Number(req.body && req.body.friendId); // isteği GÖNDEREN kişi
+    const target = userById(fid);
+    if (!target) return res.status(404).json({ ok: false, error: 'Oyuncu bulunamadı.' });
+    if (!hasPending(fid, u.id)) return res.status(404).json({ ok: false, error: 'Bekleyen istek bulunamadı.' });
+    makeFriends(u.id, fid);
+    res.json({ ok: true, accepted: true, fromName: target.name, friends: friendsOf(u.id) });
+  });
+
+  // Gelen isteği reddet VEYA kendi gönderdiğin isteği iptal et
+  app.post('/api/friends/decline', (req, res) => {
+    const u = authFromReq(req);
+    if (!u) return res.status(401).json({ ok: false, error: 'Giriş gerekli.' });
+    const fid = Number(req.body && req.body.friendId);
+    if (!hasPending(fid, u.id) && !hasPending(u.id, fid))
+      return res.status(404).json({ ok: false, error: 'Bekleyen istek bulunamadı.' });
+    db.prepare('DELETE FROM friend_requests WHERE (from_id = ? AND to_id = ?) OR (from_id = ? AND to_id = ?)')
+      .run(u.id, fid, fid, u.id);
+    res.json({ ok: true });
   });
   app.post('/api/friends/remove', (req, res) => {
     const u = authFromReq(req);
@@ -351,6 +411,41 @@ function installAuth(app, deps) {
       if (!socket.userId) return;
       const set = online.get(socket.userId);
       if (set) { set.delete(socket); if (!set.size) online.delete(socket.userId); }
+    });
+
+    // Arkadaşlık isteği anlık bildirimleri (istemci REST'e yazdıktan SONRA ping
+    // atar; burada yalnızca DOĞRULANMIŞ durum karşı tarafa iletilir. Çevrimdışı
+    // kullanıcıya yok — istemci tarafı periyodik taramayla yakalar.)
+    socket.on('friendRequestPing', payload => {
+      const me = socket.userId ? userById(socket.userId) : null;
+      if (!me) return;
+      const targetId = Number(payload && payload.toUserId);
+      const set = online.get(targetId);
+      if (!set || !set.size) return;
+      if (!hasPending(me.id, targetId)) return; // gerçekten bekleyen istek olmalı
+      set.forEach(s => s.emit('friendRequest', { fromId: me.id, fromName: me.name }));
+    });
+    socket.on('friendAcceptPing', payload => {
+      const me = socket.userId ? userById(socket.userId) : null;
+      if (!me) return;
+      const otherId = Number(payload && payload.toUserId);
+      const set = online.get(otherId);
+      if (!set || !set.size) return;
+      if (!isFriendPair(me.id, otherId)) return; // kabul gerçekten oluşmuş olmalı
+      set.forEach(s => s.emit('friendAccepted', { byId: me.id, byName: me.name }));
+    });
+    socket.on('friendDeclinePing', payload => {
+      const me = socket.userId ? userById(socket.userId) : null;
+      if (!me) return;
+      const otherId = Number(payload && payload.toUserId);
+      const set = online.get(otherId);
+      if (!set || !set.size) return;
+      // Ne arkadaşlık ne de herhangi bir yönde bekleyen istek kalmış olmalı
+      if (isFriendPair(me.id, otherId) || hasPending(me.id, otherId) || hasPending(otherId, me.id)) return;
+      set.forEach(s => s.emit('friendDeclined', {
+        byId: me.id, byName: me.name,
+        kind: (payload && payload.kind === 'cancelled') ? 'cancelled' : 'declined'
+      }));
     });
 
     // Oyun daveti: yalnız ÖZEL MASANIN KURUCUSU arkadaş davet edebilir.
@@ -466,6 +561,49 @@ function installRemoteMode(app, deps) {
         accepted: !!(payload && payload.accepted),
         roomId: payload && payload.roomId
       }));
+    });
+
+    // Arkadaşlık isteği anlık bildirimleri — doğrulama PHP üzerinden yapılır.
+    socket.on('friendRequestPing', async payload => {
+      try {
+        if (!socket.userId) return;
+        const me = { id: socket.userId, name: socket.userName || 'Oyuncu' };
+        const targetId = Number(payload && payload.toUserId);
+        const set = online.get(targetId);
+        if (!set || !set.size) return;
+        if (!(await remote.hasRequest(me.id, targetId))) return; // bekleyen istek PHP'de olmalı
+        set.forEach(s => s.emit('friendRequest', { fromId: me.id, fromName: me.name }));
+      } catch (_) {}
+    });
+    socket.on('friendAcceptPing', async payload => {
+      try {
+        if (!socket.userId) return;
+        const me = { id: socket.userId, name: socket.userName || 'Oyuncu' };
+        const otherId = Number(payload && payload.toUserId);
+        const set = online.get(otherId);
+        if (!set || !set.size) return;
+        if (!(await remote.isFriendPair(me.id, otherId))) return; // kabul gerçekleşmiş olmalı
+        set.forEach(s => s.emit('friendAccepted', { byId: me.id, byName: me.name }));
+      } catch (_) {}
+    });
+    socket.on('friendDeclinePing', async payload => {
+      try {
+        if (!socket.userId) return;
+        const me = { id: socket.userId, name: socket.userName || 'Oyuncu' };
+        const otherId = Number(payload && payload.toUserId);
+        const set = online.get(otherId);
+        if (!set || !set.size) return;
+        const [fr, p1, p2] = await Promise.all([
+          remote.isFriendPair(me.id, otherId),
+          remote.hasRequest(me.id, otherId),
+          remote.hasRequest(otherId, me.id)
+        ]);
+        if (fr || p1 || p2) return; // hâlâ bir bağ varsa bildirim gönderme
+        set.forEach(s => s.emit('friendDeclined', {
+          byId: me.id, byName: me.name,
+          kind: (payload && payload.kind === 'cancelled') ? 'cancelled' : 'declined'
+        }));
+      } catch (_) {}
     });
   }
 

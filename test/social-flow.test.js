@@ -4,7 +4,8 @@
  * SOSYAL AKIŞ — profil, arkadaşlık, oyun daveti, maç geçmişi.
  *
  *  A) Profil: üyelik bilgisi + çevrimiçi bayrağı (authHello olmadan çevrimdışı).
- *  B) Arkadaş: ekle/listele/çıkar; çevrimiçi durumu authHello soketiyle yanar.
+ *  B) Arkadaşlık: İSTEK → KABUL akışı (direkt ekleme yok); listele/çıkar;
+ *     çevrimiçi durumu authHello soketiyle yanar.
  *  C) Davet kuralları (sunucu zorunlu tutar):
  *      1. ÖZEL masanın KURUCUSU, ÇEVRİMİÇİ ARKADAŞINI davet edebilir  → gameInvite gider.
  *      2. Arkadaş OLMAYANA davet reddedilir.
@@ -116,14 +117,22 @@ async function main() {
   assert.ok(/üye/i.test(grj.reason), 'misafire üyelik reddi');
   console.log('  ✓ C6) misafir davet gönderemez');
 
-  // ---------- B) Arkadaşlık ----------
-  let r = await api(BASE, '/api/friends/add', { friendId: F.id }, 'POST', C.token);
-  assert.ok(r.ok && r.friends.some(x => x.id === F.id), 'Kral → Dost arkadaş eklendi');
-  assert.strictEqual(r.friends.find(x => x.id === F.id).online, true, 'arkadaş çevrimiçi bayrağı');
-  r = await api(BASE, '/api/friends/add', { friendId: G.id }, 'POST', C.token);
-  assert.ok(r.ok && r.friends.length === 2, 'Kral → Uzak da eklendi');
+  // ---------- B) Arkadaşlık (İSTEK → bildirim → KABUL; direkt ekleme YOK) ----------
+  let r = await api(BASE, '/api/friends/request', { friendId: F.id }, 'POST', C.token);
+  assert.ok(r.ok && r.requested, 'Kral → Dost isteği gönderildi');
+  r = await api(BASE, '/api/friends', null, 'GET', C.token);
+  assert.strictEqual(r.friends.length, 0, 'istek tek başına listeye EKLENMEZ (kabul şart)');
+  r = await api(BASE, '/api/friends/requests', null, 'GET', F.token);
+  assert.ok(r.incoming.some(x => x.id === C.id), 'Dost tarafında gelen istek görünür');
+  r = await api(BASE, '/api/friends/accept', { friendId: C.id }, 'POST', F.token);
+  assert.ok(r.ok && r.friends.some(x => x.id === C.id), 'Dost kabul etti → iki taraf arkadaş');
+  r = await api(BASE, '/api/friends/request', { friendId: G.id }, 'POST', C.token);
+  assert.ok(r.ok && r.requested, 'Kral → Uzak isteği gönderildi');
+  r = await api(BASE, '/api/friends/accept', { friendId: C.id }, 'POST', G.token);
+  assert.ok(r.ok, 'Uzak kabul etti');
   r = await api(BASE, '/api/friends', null, 'GET', C.token);
   assert.strictEqual(r.friends.length, 2, 'liste 2 arkadaş');
+  assert.strictEqual(r.friends.find(x => x.id === F.id).online, true, 'arkadaş çevrimiçi bayrağı');
   assert.strictEqual(r.friends.find(x => x.id === G.id).online, false, 'Uzak çevrimdışı');
   // karşı yönden de görünmeli (UNION)
   r = await api(BASE, '/api/friends', null, 'GET', F.token);
@@ -133,7 +142,7 @@ async function main() {
   assert.ok(r.ok && r.users.some(u => u.id === F.id), 'isim araması Dost\'u bulmalı');
   r = await api(BASE, '/api/users/search?q=dos', null, 'GET'); // token'sız
   assert.strictEqual(r.status, 401, 'aramada giriş zorunlu');
-  console.log('  ✓ B) arkadaş ekle/listele (iki yön) + çevrimiçi durumu + isim arama');
+  console.log('  ✓ B) arkadaşlık isteği → kabul akışı + listeleme (iki yön) + çevrimiçi durumu + isim arama');
 
   // ---------- Özel oda kur (Kral) ----------
   const joinPriv = once(cSock, 'joinedRoom');

@@ -648,33 +648,51 @@ html{scrollbar-gutter:stable}
 <!-- External Stylesheets -->
 <link rel="stylesheet" href="css/style.css">
 <style id="gv-extra-style">
-/* ===== Sol menü aç/kapa (masaüstü) + mobil uyum ===== */
-.sidebar{position:relative}
-#sbCollapseBtn{position:absolute;top:10px;right:-13px;z-index:1001;width:26px;height:26px;border-radius:50%;border:1px solid var(--border);background:var(--bg2);color:var(--text);cursor:pointer;font-size:.72em;display:flex;align-items:center;justify-content:center;box-shadow:var(--shadow)}
+/* ===== Sol menü aç/kapa ===== */
+#sbCollapseBtn{position:absolute;top:10px;z-index:1001;width:26px;height:26px;border-radius:50%;border:1px solid var(--border);background:var(--bg2);color:var(--text);cursor:pointer;font-size:.72em;display:flex;align-items:center;justify-content:center;box-shadow:var(--shadow)}
 #sbCollapseBtn:hover{background:var(--bg3)}
 #sbReopen{position:fixed;left:10px;top:66px;z-index:998;width:36px;height:36px;border-radius:10px;border:1px solid var(--border);background:var(--bg2);color:var(--text);cursor:pointer;display:none;align-items:center;justify-content:center;font-size:1.05em;box-shadow:var(--shadow)}
 #sbReopen:hover{background:var(--bg3)}
-body.sb-closed .sidebar{display:none}
-body.sb-closed #sbReopen{display:flex}
+/* Gizleme davranışı YALNIZ masaüstünde: mobilde ana CSS'in sabit çekmece
+   (drawer) kuralları geçerli kalır — .sidebar'a bu kapsam dışında
+   position:relative vermek çekmeceyi bozar, dikkat! */
+@media(min-width:801px){
+  .sidebar{position:relative}
+  #sbCollapseBtn{right:-13px}
+  body.sb-closed .sidebar{display:none}
+  body.sb-closed #sbReopen{display:flex}
+}
 /* Arkadaşlar penceresi satır görünümü (social.js paintFriends) */
 #gvFriendsModalList .friend{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:10px}
 /* ===== Mobil / dar ekran optimizasyonu ===== */
 @media(max-width:800px){
-  body.sb-closed .sidebar{display:block}     /* mobilde off-canvas davranışı korunur */
+  body.sb-closed .sidebar{display:block}     /* masaüstü gizleme tercihi mobilde çekmeceyi bozmasın */
   body.sb-closed #sbReopen{display:none}
-  .header{padding:6px 8px;gap:8px;flex-wrap:wrap}
-  .header .logo{font-size:.95em}
+  #sbReopen{display:none}                    /* mobilde hamburger kullanılır */
+  #sbCollapseBtn{right:8px}
+  .header{padding:0 8px;gap:6px;flex-wrap:nowrap;height:56px;overflow:visible}
+  .header .logo{font-size:.92em;gap:5px;flex:none;min-width:0}
   .header .logo img{height:24px!important;width:24px!important}
-  .nav{order:3;width:100%;overflow-x:auto;gap:6px;padding-bottom:2px;-webkit-overflow-scrolling:touch}
-  .nav-btn{font-size:.75em;padding:5px 8px;white-space:nowrap}
-  .header-right{gap:5px}
-  .icon-btn{width:32px;height:32px;font-size:.95em}
-  .layout{flex-direction:column}
+  .header-right{gap:5px;flex:none;margin-left:auto}
+  .icon-btn{width:32px;height:32px;min-width:32px;font-size:.95em}
+  #headerAuthContainer{gap:5px!important;flex:none}
+  #headerAuthContainer .btn{padding:6px 10px;font-size:.78em;white-space:nowrap}
+  .user-pill{gap:6px!important;padding:3px 8px!important}
+  .notif-panel{position:fixed;top:58px;right:6px;width:min(320px,94vw)}
+}
+@media(max-width:560px){
+  #themeBtn{display:none}                    /* dar ekranda üst barda yer kazan */
 }
 @media(max-width:480px){
+  #headerAuthContainer .btn{padding:5px 8px;font-size:.72em}
+  .icon-btn{width:30px;height:30px;min-width:30px;font-size:.88em}
+  .user-pill .up-score{display:none}
   #gvChatFab{right:10px;bottom:10px;padding:10px 14px;font-size:13.5px}
   #gvChatPanel{right:6px;left:6px;width:auto;max-width:none;bottom:62px;height:60vh}
   .modal{max-width:96vw}
+}
+@media(max-width:380px){
+  .header .logo .wm{display:none}            /* çok dar ekranda yalnızca logo simgesi */
 }
 </style>
 </head>
@@ -683,7 +701,7 @@ body.sb-closed #sbReopen{display:flex}
 <!-- HEADER -->
 <header class="header">
   <button class="hamburger" onclick="GV.toggleSidebar()">☰</button>
-  <div class="logo" onclick="GV.page('home')" style="display:flex;align-items:center;gap:8px"><img src="assets/logo.png" alt="Masa Oyunları" style="height:30px;width:30px;border-radius:9px;box-shadow:0 2px 8px rgba(108,92,231,.45)"> Masa Oyunları</div>
+  <div class="logo" onclick="GV.page('home')" style="display:flex;align-items:center;gap:8px"><img src="assets/logo.png" alt="Masa Oyunları" style="height:30px;width:30px;border-radius:9px;box-shadow:0 2px 8px rgba(108,92,231,.45)"><span class="wm">Masa Oyunları</span></div>
   <nav class="nav">
     <button class="nav-btn active" data-p="home" onclick="GV.page('home')">🏠 Ana Sayfa</button>
     <button class="nav-btn" data-p="games" onclick="GV.page('games')">🎮 Oyunlar</button>
@@ -693,7 +711,7 @@ body.sb-closed #sbReopen{display:flex}
   </nav>
   <div class="header-right">
     <button class="icon-btn" id="themeBtn" onclick="GV.toggleTheme()">🌙</button>
-    <button class="icon-btn" id="friendsBtn" title="Arkadaşlarım" onclick="GV.openFriends && GV.openFriends()" style="display:none">👥</button>
+    <button class="icon-btn" id="friendsBtn" title="Arkadaşlarım" onclick="GV.openFriends && GV.openFriends()" style="display:none;position:relative">👥<span class="badge-count" id="friendsBadgeCount" style="display:none">0</span></button>
     <div style="position: relative;">
       <button class="icon-btn" onclick="GV.toggleNotif()">
         <span>🔔</span>
@@ -942,12 +960,22 @@ body.sb-closed #sbReopen{display:flex}
     <button class="modal-x" onclick="GV.hideModal('friendsModal')">✕</button>
     <h2 style="margin:0 0 4px;">👥 Arkadaşlarım</h2>
     <div style="display:flex;gap:8px;margin:12px 0;">
-      <input type="text" id="friendsAddInput" placeholder="Kullanıcı adıyla ekle (örn: test2)" style="flex:1;padding:9px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg3);color:var(--text)">
-      <button class="btn btn-p" onclick="GV.addFriendFromModal && GV.addFriendFromModal()">Ekle</button>
+      <input type="text" id="friendsAddInput" placeholder="Kullanıcı adıyla istek gönder (örn: test2)" style="flex:1;padding:9px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg3);color:var(--text)">
+      <button class="btn btn-p" onclick="GV.addFriendFromModal && GV.addFriendFromModal()">İstek Gönder</button>
     </div>
+    <!-- Arkadaşlık İSTEKLERİ — arkadaş listesinden AYRI bölüm (kabul/red burada) -->
+    <div id="gvFrReqSec" style="margin-bottom:12px;">
+      <div style="font-weight:700;font-size:.85em;margin-bottom:6px;display:flex;align-items:center;gap:7px;">
+        📨 Arkadaş İstekleri
+        <span id="gvFrReqCount" style="background:var(--primary);color:#fff;font-size:.72em;font-weight:800;min-width:18px;height:18px;border-radius:9px;display:inline-flex;align-items:center;justify-content:center;padding:0 5px;">0</span>
+      </div>
+      <div id="gvFrReqList" style="display:flex;flex-direction:column;gap:6px;max-height:22vh;overflow-y:auto;"></div>
+    </div>
+    <!-- ARKADAŞ LİSTESİ — ayrı bölüm -->
+    <div style="font-weight:700;font-size:.85em;margin-bottom:6px;">👥 Arkadaş Listesi</div>
     <input type="text" placeholder="Listede ara..." oninput="GV.filterFriends && GV.filterFriends(this.value)" style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg3);color:var(--text);margin-bottom:10px;box-sizing:border-box;">
-    <div id="gvFriendsModalList" style="max-height:46vh;overflow-y:auto;display:flex;flex-direction:column;gap:6px;"></div>
-    <p style="font-size:.72em;color:var(--text3);margin-top:10px;">İsme tıklayınca profil açılır; profilden çıkarabilir veya özel masana davet edebilirsin.</p>
+    <div id="gvFriendsModalList" style="max-height:38vh;overflow-y:auto;display:flex;flex-direction:column;gap:6px;"></div>
+    <p style="font-size:.72em;color:var(--text3);margin-top:10px;">İstek gönderdiğinde karşı tarafa bildirim gider; <b>kabul ederse</b> iki tarafın da listesine eklenir. İsme tıklayınca profil açılır.</p>
   </div>
 </div>
 
@@ -1143,7 +1171,7 @@ function updateAuthState() {
         <div class="avatar">${st.user.name.substring(0,2).toUpperCase()}</div>
         <div style="line-height:1.2">
           <div style="font-size:.82em;font-weight:600">${st.user.name}</div>
-          <div style="font-size:.68em;color:var(--accent)"><span class="online-dot"></span> Lv.${st.user.level} • ${st.totalScore.toLocaleString()} P</div>
+          <div class="up-score" style="font-size:.68em;color:var(--accent)"><span class="online-dot"></span> Lv.${st.user.level} • ${st.totalScore.toLocaleString()} P</div>
         </div>
       </div>
       <button class="btn btn-o btn-sm" style="border-color:var(--danger);color:var(--danger)" onclick="GV.logout()">Çıkış</button>
@@ -1230,9 +1258,10 @@ function addNotification(title, desc, actionData = null){
 
   const list = document.getElementById('notifList');
   if(list) {
+    const NICON = { gameInvite:'🎮', friendRequest:'👥', friendAccepted:'✅', friendDeclined:'🚫' };
     list.innerHTML = st.notifications.map(n => `
       <div class="notif" onclick="GV.clickNotif('${n.id}')">
-        <div class="notif-i" style="background:rgba(108,92,231,.15);color:var(--primary)">🔔</div>
+        <div class="notif-i" style="background:rgba(108,92,231,.15);color:var(--primary)">${NICON[n.actionData && n.actionData.type] || '🔔'}</div>
         <div>
           <div style="font-weight:700">${n.title}</div>
           <div style="font-size:0.8em;color:var(--text2)">${n.desc}</div>
@@ -1281,6 +1310,30 @@ function clickNotif(id){
     if(elapsed > 30) return toast('⏳ Üzgünüz, bu davet süresi dolmuştur!', 'error');
     toast('🎮 Davet kabul edildi, odaya bağlanılıyor...', 'success');
     joinRoom(n.actionData.roomId);
+    return;
+  }
+  // Arkadaşlık bildirimi: bildirimi listeden kaldır + Arkadaşlarım penceresini aç
+  // (istekler bölümü en üstte görünür; kabul/red orada yapılır)
+  if(n.actionData && /friend/.test(n.actionData.type || '')){
+    st.notifications = st.notifications.filter(x => x.id !== id);
+    const badge = document.getElementById('notifBadgeCount');
+    if(badge){ badge.textContent = st.notifications.length; badge.style.display = st.notifications.length > 0 ? 'inline-flex' : 'none'; }
+    const panel = document.getElementById('notifPanel');
+    if(panel) panel.classList.remove('show');
+    const list = document.getElementById('notifList');
+    if(list) {
+      const NICON = { gameInvite:'🎮', friendRequest:'👥', friendAccepted:'✅', friendDeclined:'🚫' };
+      list.innerHTML = st.notifications.length ? st.notifications.map(m => `
+        <div class="notif" onclick="GV.clickNotif('${m.id}')">
+          <div class="notif-i" style="background:rgba(108,92,231,.15);color:var(--primary)">${NICON[m.actionData && m.actionData.type] || '🔔'}</div>
+          <div>
+            <div style="font-weight:700">${m.title}</div>
+            <div style="font-size:0.8em;color:var(--text2)">${m.desc}</div>
+          </div>
+        </div>
+      `).join('') : '<div style="padding:15px;text-align:center;color:var(--text3);font-size:0.85em;">Bildirim yok</div>';
+    }
+    if(window.GV && GV.openFriendRequests) GV.openFriendRequests();
   }
 }
 
@@ -3819,8 +3872,8 @@ GV.init();
 <script src="js/okey-online.js?v=20260820e" defer></script>
 <script src="js/chat.js?v=20260820f" defer></script>
 <script src="js/leave-guard.js?v=20260820e" defer></script>
-<script src="js/auth.js?v=20260820i" defer></script>
-<script src="js/social.js?v=20260820h" defer></script>
+<script src="js/auth.js?v=20260821a" defer></script>
+<script src="js/social.js?v=20260821a" defer></script>
 
 <!-- Structured Data for SEO -->
 <script type="application/ld+json">

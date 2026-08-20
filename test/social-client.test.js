@@ -64,8 +64,12 @@ async function main() {
 
   const A = await verifiedUser(BASE, 'Kral', 'kral@test.com');
   const B = await verifiedUser(BASE, 'Dost', 'dost@test.com');
-  await api(BASE, '/api/friends/add', { friendId: B.id }, 'POST', A.token);
-  console.log('  ✓ hazırlık) Kral + Dost üyeleri hazır, arkadaşlık kuruldu');
+  // Yeni akış: doğrudan ekleme YOK — A istek gönderir, B kabul eder.
+  const rq0 = await api(BASE, '/api/friends/request', { friendId: B.id }, 'POST', A.token);
+  assert.ok(rq0.ok && rq0.requested, 'istek gönderilebilmeli (direkt arkadaşlık KURULMAMALI)');
+  const ac0 = await api(BASE, '/api/friends/accept', { friendId: A.id }, 'POST', B.token);
+  assert.ok(ac0.ok, 'karşı taraf isteği kabul edebilmeli');
+  console.log('  ✓ hazırlık) Kral + Dost üyeleri hazır (istek → bildirim → kabul), arkadaşlık kuruldu');
 
   const vc = new VirtualConsole();
   vc.on('jsdomError', () => {}); // üçüncü-parti script gürültüsünü yut
@@ -86,6 +90,8 @@ async function main() {
   const win = dom.window;
   assert.ok(html.includes('js/auth.js'), 'index.html auth.js yüklüyor');
   assert.ok(html.includes('js/social.js'), 'index.html social.js yüklüyor');
+  assert.ok(html.includes('id="gvFrReqList"') && html.includes('id="gvFriendsModalList"'),
+    'arkadaşlar penceresinde İSTEKLER ve LİSTE ayrı bölümler olmalı');
 
   await waitFor(() => (win.st && win.__gvStartRealRoomWaiting && win.GV ? true : null), 9000, 'sayfa açılışı');
 

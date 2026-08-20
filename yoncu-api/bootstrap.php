@@ -91,6 +91,13 @@ function gv_schema($pdo) {
         created_at BIGINT NOT NULL,
         UNIQUE KEY uk_pair (user_id, friend_id)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci");
+    $pdo->exec("CREATE TABLE IF NOT EXISTS gv_friend_requests(
+        from_id INT NOT NULL,
+        to_id INT NOT NULL,
+        created_at BIGINT NOT NULL,
+        PRIMARY KEY (from_id, to_id),
+        INDEX (to_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci");
     $pdo->exec("CREATE TABLE IF NOT EXISTS gv_matches(
         id INT AUTO_INCREMENT PRIMARY KEY,
         game_id VARCHAR(32) NOT NULL,

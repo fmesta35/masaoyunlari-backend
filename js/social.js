@@ -3,7 +3,10 @@
  *  - İsme tıkla → profil kartı (üyelik tarihi, oyun istatistikleri, son maçlar)
  *    İsimler şuralarda tıklanabilir: sohbet baloncuğu, oyun-içi sohbet kartı,
  *    lobi masa listesindeki oyuncular, bekleme odası koltukları, maç geçmişi.
- *  - Arkadaş ekle/çıkar (gerçek veritabanı: /api/friends).
+ *  - Arkadaşlık: İSTEK → bildirim → KABUL/RED akışı (gerçek veritabanı:
+ *    /api/friends + /api/friends/requests). Doğrudan listeye ekleme YOK;
+ *    istek karşı tarafa bildirim olarak düşer, o kabul ederse arkadaş olunur.
+ *    Anlık uyarı soket ping'iyle, kaçanlar 8 sn'lik taramayla yakalanır.
  *  - Oyun daveti: yalnızca KURDUĞUNUZ ÖZEL masadan, yalnızca ARKADAŞINIZA;
  *    sunucu iki kuralı da zorunlu tutar. Davet alanın bildirimi yanar
  *    (addNotification + davet penceresi), kabulde odaya bağlanır ve gönderene
@@ -55,7 +58,10 @@
     if (m) return PHP + '/auth.php?action=' + m[1];
     if (path === '/api/friends') return PHP + '/social.php?action=friends';
     m = path.match(/^\/api\/friends\/(\w+)$/);
-    if (m) return PHP + '/social.php?action=' + ({ add: 'friendAdd', remove: 'friendRemove' }[m[1]] || m[1]);
+    if (m) return PHP + '/social.php?action=' + ({
+      add: 'friendRequest', request: 'friendRequest', requests: 'friendRequests',
+      accept: 'friendAccept', decline: 'friendDecline', remove: 'friendRemove'
+    }[m[1]] || m[1]);
     return BACKEND + path;
   }
 
@@ -95,6 +101,8 @@
 .gvpf-won{color:#00b894}.gvpf-lost{color:#ff7675}.gvpf-draw{color:#fdcb6e}
 .gvpf-btn{cursor:pointer;border:none;border-radius:9px;padding:9px 13px;font-weight:800;font-size:.84em;color:#fff}
 .gvpf-act{display:flex;gap:8px;margin-top:14px;flex-wrap:wrap}
+.gv-fr-req{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 10px;background:rgba(108,92,231,.10);border:1px solid rgba(108,92,231,.35);border-radius:10px}
+.gv-fr-req .gv-fr-btns{display:flex;gap:6px;flex:none}
 `;
     document.head.appendChild(s);
   }
@@ -115,6 +123,211 @@
     } catch (_) {}
     friendsBusy = false;
     return friendsCache;
+  }
+
+  // ---------------- Arkadaşlık İSTEKLERİ (kabul/red akışı) ----------------
+  //  Akış: A istek gönderir → B'nin 🔔 bildirimi yanar → B 👥 penceresindeki
+  //  "Arkadaş İstekleri" bölümünden Kabul/Reddeder → kabulde iki taraf da
+  //  arkadaş listesine girer, istek silinir. Doğrudan ekleme YOKTUR.
+  let requestsCache = null;      // {incoming:[{id,name,since}], outgoing:[...]}
+  let requestsBusy = false;
+  let snapSeeded = false;        // ilk tarama sessiz tohumlanır (bildirim seli olmasın)
+  let seenIncoming = new Set();  // bilinen gelen istek id'leri
+  let seenOutgoing = new Set();  // bilinen giden istek id'leri
+  const notifiedDone = new Set();// 'acc:<id>' / 'dec:<id>' — aynı sonuç bir kez bildirilir
+
+  function notifyBell(title, desc, actionData) {
+    const addNotif = (window.GV && typeof GV.addNotification === 'function' && GV.addNotification)
+      || (typeof window.addNotification === 'function' && window.addNotification);
+    if (addNotif) addNotif(title, desc, actionData || null);
+    else toast(title + ' — ' + desc, 'info');
+  }
+
+  function nameOf(id) {
+    id = Number(id);
+    const f = (friendsCache || []).find(x => Number(x.id) === id);
+    if (f) return f.name;
+    const rq = requestsCache || { incoming: [], outgoing: [] };
+    const r = rq.incoming.concat(rq.outgoing).find(x => Number(x.id) === id);
+    return r ? r.name : ('Oyuncu #' + id);
+  }
+
+  function reqStateWith(uid) {
+    uid = Number(uid);
+    if (isFriend(uid)) return 'friend';
+    const rq = requestsCache;
+    if (rq && rq.incoming.some(r => Number(r.id) === uid)) return 'in';
+    if (rq && rq.outgoing.some(r => Number(r.id) === uid)) return 'out';
+    return 'none';
+  }
+
+  function updateReqBadge(n) {
+    const b = document.getElementById('friendsBadgeCount');
+    if (!b) return;
+    b.textContent = n;
+    b.style.display = n > 0 ? 'inline-flex' : 'none';
+  }
+
+  // Anlık soket + periyodik tarama ORTAK dedupe: yeni gelen istek → bildirim;
+  // biten giden istek → kabul/red sonucu bildirimi.
+  function digestRequests() {
+    const rq = requestsCache;
+    if (!rq) return;
+    const inIds = new Set(rq.incoming.map(r => Number(r.id)));
+    const outIds = new Set(rq.outgoing.map(r => Number(r.id)));
+    if (!snapSeeded) { snapSeeded = true; seenIncoming = inIds; seenOutgoing = outIds; return; }
+    rq.incoming.forEach(r => {
+      const id = Number(r.id);
+      if (!seenIncoming.has(id)) {
+        seenIncoming.add(id);
+        notifyBell('👥 Arkadaşlık İsteği!',
+          r.name + ' sana arkadaşlık isteği gönderdi — 👥 Arkadaşlarım penceresinden cevaplayabilirsin.',
+          { type: 'friendRequest', fromId: id, fromName: r.name });
+      }
+    });
+    [...seenIncoming].forEach(id => { if (!inIds.has(id) && !isFriend(id)) seenIncoming.delete(id); });
+    [...seenOutgoing].forEach(id => {
+      if (outIds.has(id)) return;
+      seenOutgoing.delete(id);
+      const nm = nameOf(id);
+      if (isFriend(id)) {
+        if (!notifiedDone.has('acc:' + id)) {
+          notifiedDone.add('acc:' + id);
+          notifyBell('✅ İstek kabul edildi', nm + ' arkadaşlık isteğini kabul etti — artık arkadaşsınız! 🎉',
+            { type: 'friendAccepted', fromId: id, fromName: nm });
+        }
+      } else if (!notifiedDone.has('dec:' + id)) {
+        notifiedDone.add('dec:' + id);
+        notifyBell('🚫 İstek yanıtlandı', nm + ' arkadaşlık isteğini kabul etmedi.',
+          { type: 'friendDeclined', fromId: id, fromName: nm });
+      }
+    });
+    outIds.forEach(id => seenOutgoing.add(id));
+  }
+
+  async function refreshRequests() {
+    if (!myId()) { requestsCache = null; updateReqBadge(0); return null; }
+    if (requestsBusy) return requestsCache;
+    requestsBusy = true;
+    try {
+      const r = await api('/api/friends/requests', null, 'GET');
+      if (r.ok) {
+        requestsCache = { incoming: r.incoming || [], outgoing: r.outgoing || [] };
+        digestRequests();
+      }
+    } catch (_) {}
+    requestsBusy = false;
+    updateReqBadge(requestsCache ? requestsCache.incoming.length : 0);
+    return requestsCache;
+  }
+
+  // ---------------- İstek satırları (üst bar 👥 penceresi, üst bölüm) ----------------
+  function paintRequests() {
+    const list = document.getElementById('gvFrReqList');
+    if (!list) return;
+    const sec = document.getElementById('gvFrReqSec');
+    const count = document.getElementById('gvFrReqCount');
+    const rq = requestsCache;
+    const inc = rq ? rq.incoming : [];
+    const out = rq ? rq.outgoing : [];
+    if (count) count.textContent = inc.length;
+    if (!rq) { list.innerHTML = '<div style="padding:6px;text-align:center;color:var(--text3);font-size:.78em;">Yükleniyor...</div>'; return; }
+    let html = '';
+    inc.forEach(r => {
+      html += `<div class="gv-fr-req">
+        <div style="display:flex;align-items:center;gap:8px;min-width:0;cursor:pointer" data-uid="${Number(r.id)}">
+          <div class="avatar sm">${esc(String(r.name).charAt(0))}</div>
+          <div style="min-width:0">
+            <div style="font-weight:700;font-size:.85em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(r.name)}</div>
+            <div style="font-size:.7em;color:var(--text3)">arkadaşlık isteği gönderdi • ${relTime(r.since)}</div>
+          </div>
+        </div>
+        <div class="gv-fr-btns">
+          <button class="btn btn-sm btn-p" style="padding:3px 9px;font-size:.74em" onclick="event.stopPropagation();GVSocial.acceptRequest(${Number(r.id)})">✓ Kabul Et</button>
+          <button class="btn btn-sm btn-d" style="padding:3px 8px;font-size:.74em" onclick="event.stopPropagation();GVSocial.declineRequest(${Number(r.id)})">✗ Reddet</button>
+        </div>
+      </div>`;
+    });
+    out.forEach(r => {
+      html += `<div class="gv-fr-req" style="background:rgba(253,203,110,.06);border-color:rgba(253,203,110,.25)">
+        <div style="display:flex;align-items:center;gap:8px;min-width:0;cursor:pointer" data-uid="${Number(r.id)}">
+          <div class="avatar sm">${esc(String(r.name).charAt(0))}</div>
+          <div style="min-width:0">
+            <div style="font-weight:700;font-size:.85em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(r.name)}</div>
+            <div style="font-size:.7em;color:var(--text3)">⏳ istek gönderildi, yanıt bekleniyor • ${relTime(r.since)}</div>
+          </div>
+        </div>
+        <div class="gv-fr-btns">
+          <button class="btn btn-sm btn-s" style="padding:3px 9px;font-size:.74em" onclick="event.stopPropagation();GVSocial.declineRequest(${Number(r.id)})">İptal</button>
+        </div>
+      </div>`;
+    });
+    list.innerHTML = html || '<div style="padding:6px;text-align:center;color:var(--text3);font-size:.78em;">Bekleyen arkadaşlık isteği yok.</div>';
+  }
+
+  function paintAll() {
+    paintFriends('');
+    paintRequests();
+    if (openUid != null) paintProfile(openUid);
+  }
+
+  // ---------------- İstek eylemleri ----------------
+  function pickSock() {
+    return window.__gvRoomSocket || window.__gvLobbySocket || window.__gvChessSocket || null;
+  }
+  function ping(ev, toUserId, extra) {
+    const s = pickSock();
+    if (s && s.connected) { try { s.emit(ev, { toUserId: Number(toUserId), ...(extra || {}) }); } catch (_) {} }
+  }
+
+  async function sendRequest(uid, knownName) {
+    if (!myId()) return showModal('guestPromptModal');
+    const r = await api('/api/friends/request', { friendId: Number(uid) });
+    if (r.ok && r.accepted) {
+      friendsCache = r.friends || friendsCache;
+      await refreshRequests();
+      toast(`🎉 ${r.toName || knownName || 'Oyuncu'} size zaten istek göndermişti — arkadaş oldunuz!`, 'success');
+    } else if (r.ok) {
+      await refreshRequests();
+      toast(`📨 ${r.toName || knownName || 'Oyuncu'} kullanıcısına arkadaşlık isteği gönderildi — kabul edince listenize eklenecek.`, 'success');
+      ping('friendRequestPing', uid);
+    } else {
+      toast('⚠️ ' + (r.error || 'İstek gönderilemedi.'), 'error');
+    }
+    paintAll();
+  }
+
+  async function acceptRequest(fromId) {
+    if (!myId()) return showModal('guestPromptModal');
+    const r = await api('/api/friends/accept', { friendId: Number(fromId) });
+    if (r.ok) {
+      friendsCache = r.friends || friendsCache;
+      notifiedDone.add('acc:' + Number(fromId));
+      await refreshRequests();
+      toast(`✅ ${r.fromName || nameOf(fromId)} ile arkadaş oldunuz! 🎉`, 'success');
+      ping('friendAcceptPing', fromId);
+    } else {
+      toast('⚠️ ' + (r.error || 'Kabul edilemedi.'), 'error');
+      await refreshRequests();
+    }
+    paintAll();
+  }
+
+  async function declineRequest(otherId) {
+    if (!myId()) return showModal('guestPromptModal');
+    const wasIncoming = reqStateWith(otherId) === 'in';
+    const nm = nameOf(otherId);
+    const r = await api('/api/friends/decline', { friendId: Number(otherId) });
+    if (r.ok) {
+      notifiedDone.add('dec:' + Number(otherId));
+      await refreshRequests();
+      toast(wasIncoming ? `İstek reddedildi (${nm}).` : `İstek iptal edildi (${nm}).`, 'info');
+      ping('friendDeclinePing', otherId, { kind: wasIncoming ? 'declined' : 'cancelled' });
+    } else {
+      toast('⚠️ ' + (r.error || 'İşlem başarısız.'), 'error');
+      await refreshRequests();
+    }
+    paintAll();
   }
 
   // ---------------- Arkadaş listesi (üst bar 👥 penceresi; eski #friendsList yedeği) ----------------
@@ -250,10 +463,18 @@
     let actions = '<div class="gvpf-act">';
     if (!self) {
       if (me) {
-        actions += friend
-          ? `<button class="gvpf-btn" style="background:#3a3d5c" onclick="GVSocial.toggleFriend(${Number(uid)})">🗑 Arkadaşlıktan Çıkar</button>`
-          : `<button class="gvpf-btn" style="background:linear-gradient(135deg,#6c5ce7,#8f7bff)" onclick="GVSocial.toggleFriend(${Number(uid)})">➕ Arkadaş Ekle</button>`;
-        if (p.online) {
+        const rst = reqStateWith(uid);
+        if (rst === 'friend') {
+          actions += `<button class="gvpf-btn" style="background:#3a3d5c" onclick="GVSocial.toggleFriend(${Number(uid)})">🗑 Arkadaşlıktan Çıkar</button>`;
+        } else if (rst === 'out') {
+          actions += `<button class="gvpf-btn" style="background:#5c4a1f" title="İsteği geri çekmek için tıkla" onclick="GVSocial.toggleFriend(${Number(uid)})">⏳ İstek Gönderildi (İptal)</button>`;
+        } else if (rst === 'in') {
+          actions += `<button class="gvpf-btn" style="background:linear-gradient(135deg,#00b894,#00a381)" onclick="GVSocial.acceptRequest(${Number(uid)})">✓ İsteği Kabul Et</button>`;
+          actions += `<button class="gvpf-btn" style="background:#3a3d5c" onclick="GVSocial.declineRequest(${Number(uid)})">✗ Reddet</button>`;
+        } else {
+          actions += `<button class="gvpf-btn" style="background:linear-gradient(135deg,#6c5ce7,#8f7bff)" onclick="GVSocial.toggleFriend(${Number(uid)})">📨 Arkadaşlık İsteği Gönder</button>`;
+        }
+        if (p.online && rst === 'friend') {
           actions += `<button class="gvpf-btn" style="background:linear-gradient(135deg,#00b894,#00a381)" onclick="GVSocial.inviteFriendById(${Number(uid)})">🎮 Oyuna Davet Et</button>`;
         }
       } else {
@@ -292,20 +513,27 @@
     if (openUid === uid) paintProfile(uid);
   }
 
+  // Profil kartındaki tek buton: duruma göre istek gönder / iptal / kabul / çıkar
   async function toggleFriend(uid) {
     if (!myId()) return showModal('guestPromptModal');
-    const r = await api(isFriend(uid) ? '/api/friends/remove' : '/api/friends/add', { friendId: Number(uid) });
-    if (r.ok) {
-      friendsCache = r.friends;
-      toast(isFriend(uid) ? '👥 Arkadaş eklendi!' : 'Arkadaşlıktan çıkarıldı.', isFriend(uid) ? 'success' : 'info');
-      if (openUid === Number(uid)) paintProfile(uid);
-      renderFriendsMember('');
+    const rst = reqStateWith(uid);
+    if (rst === 'friend') {
+      const r = await api('/api/friends/remove', { friendId: Number(uid) });
+      if (r.ok) {
+        friendsCache = r.friends;
+        toast('Arkadaşlıktan çıkarıldı.', 'info');
+      } else toast('⚠️ ' + (r.error || 'İşlem başarısız.'), 'error');
+      paintAll();
+    } else if (rst === 'out') {
+      return declineRequest(uid);       // isteği geri çek
+    } else if (rst === 'in') {
+      return acceptRequest(uid);        // bana gelen isteği kabul et
     } else {
-      toast('⚠️ ' + (r.error || 'İşlem başarısız.'), 'error');
+      return sendRequest(uid);          // yeni istek gönder
     }
   }
 
-  // isimden arkadaş ekle (eski modal kutusu) — önce üye araması yapılır
+  // isimden istek gönder (üst penceredeki ekleme kutusu) — önce üye araması yapılır
   async function addFriendByName(name) {
     if (!myId()) return showModal('guestPromptModal');
     name = String(name || '').trim();
@@ -315,13 +543,12 @@
     const exact = (s.users || []).find(u => u.name.toLowerCase() === name.toLowerCase());
     const target = exact || (s.users || [])[0];
     if (!target) return toast(`"${name}" adında bir üye bulunamadı.`, 'warning');
-    if (isFriend(target.id)) return toast(`${target.name} zaten arkadaş listenizde!`, 'info');
-    const r = await api('/api/friends/add', { friendId: target.id });
-    if (r.ok) {
-      friendsCache = r.friends;
-      renderFriendsMember('');
-      toast(`👥 ${target.name} arkadaş olarak eklendi!`, 'success');
-    } else toast('⚠️ ' + (r.error || 'Eklenemedi.'), 'error');
+    if (Number(target.id) === Number(myId())) return toast('Kendinize istek gönderemezsiniz. 🙂', 'warning');
+    const rst = reqStateWith(target.id);
+    if (rst === 'friend') return toast(`${target.name} zaten arkadaş listenizde!`, 'info');
+    if (rst === 'out') return toast(`⏳ ${target.name} kullanıcısına zaten istek gönderdiniz — yanıt bekleniyor.`, 'info');
+    if (rst === 'in') return acceptRequest(target.id); // bana istek göndermiş → "ekle" = kabul
+    return sendRequest(target.id, target.name);
   }
 
   // ---------------- Davet alma / cevaplama ----------------
@@ -355,6 +582,33 @@
     if (!sock || sock.__gvSocial) return;
     sock.__gvSocial = true;
     sock.on('gameInvite', onGameInvite);
+    // Arkadaşlık isteği anlık bildirimleri (çevrimdışıysa periyodik tarama yakalar)
+    sock.on('friendRequest', p => {
+      if (!p || !p.fromId) return;
+      seenIncoming.add(Number(p.fromId)); // tarama dedupe: ikinci bildirim basılmasın
+      notifyBell('👥 Arkadaşlık İsteği!',
+        p.fromName + ' sana arkadaşlık isteği gönderdi — 👥 Arkadaşlarım penceresinden cevaplayabilirsin.',
+        { type: 'friendRequest', fromId: Number(p.fromId), fromName: p.fromName });
+      refreshRequests().then(paintRequests);
+    });
+    sock.on('friendAccepted', p => {
+      if (!p || !p.byId) return;
+      notifiedDone.add('acc:' + Number(p.byId));
+      notifyBell('✅ İstek kabul edildi', p.byName + ' arkadaşlık isteğini kabul etti — artık arkadaşsınız! 🎉',
+        { type: 'friendAccepted', fromId: Number(p.byId), fromName: p.byName });
+      friendsCache = null;
+      refreshFriends().then(() => refreshRequests()).then(paintAll);
+    });
+    sock.on('friendDeclined', p => {
+      if (!p || !p.byId) return;
+      notifiedDone.add('dec:' + Number(p.byId));
+      const txt = p.kind === 'cancelled'
+        ? p.byName + ' arkadaşlık isteğini geri çekti.'
+        : p.byName + ' arkadaşlık isteğini kabul etmedi.';
+      notifyBell('🚫 İstek yanıtlandı', txt,
+        { type: 'friendDeclined', fromId: Number(p.byId), fromName: p.byName });
+      refreshRequests().then(paintAll);
+    });
     sock.on('inviteRejected', p => toast('⚠️ ' + ((p && p.reason) || 'Davet gönderilemedi.'), 'warning'));
     sock.on('inviteSent', p => toast(`📩 ${(p && p.toName) || 'Arkadaşınız'} oyuna davet edildi! Katılması bekleniyor...`, 'success'));
     sock.on('inviteAnswered', p => {
@@ -388,12 +642,17 @@
     both('addFriend', function (name) { addFriendByName(name); });
 
     // Üst bardaki 👥 Arkadaşlarım penceresi (sol alt bölümün yerini aldı)
-    both('openFriends', function () {
+    const openFriendsReal = function () {
       if (!myId()) return showModal('guestPromptModal');
       window.GV.showModal('friendsModal');
       renderFriendsMember('');
+      paintRequests();
       refreshFriends().then(() => renderFriendsMember(''));
-    });
+      refreshRequests().then(paintRequests);
+    };
+    both('openFriends', openFriendsReal);
+    // 🔔 bildirimine tıklayınca aynı pencere açılır (istekler bölümü üstte)
+    both('openFriendRequests', openFriendsReal);
     both('addFriendFromModal', function () {
       const inp = document.getElementById('friendsAddInput');
       const v = (inp && inp.value || '').trim();
@@ -460,11 +719,14 @@
     };
     both('declineInvitePopup', wrappedDecline);
 
-    // 8 sn'de bir çevrimiçi durumlarını tazele
+    // 8 sn'de bir çevrimiçi durumları + arkadaşlık isteklerini tazele
+    // (anlık soket bildirimi kaçarsa — çevrimdışıydı vs. — buradan yakalanır)
     setInterval(async () => {
       if (!myId()) return;
       await refreshFriends();
+      await refreshRequests();
       paintFriends('');
+      paintRequests();
     }, 8000);
 
     // Bağlanma anında üyeyse listeyi hemen doldur
@@ -486,8 +748,16 @@
       if (friendsCache === null && !friendsBusy) {
         refreshFriends().then(() => paintFriends(''));
       }
-    } else if (friendsCache !== null) {
+      if (requestsCache === null && !requestsBusy) {
+        refreshRequests().then(paintRequests);
+      }
+    } else if (friendsCache !== null || requestsCache !== null) {
       friendsCache = null;
+      requestsCache = null;
+      snapSeeded = false;
+      seenIncoming = new Set();
+      seenOutgoing = new Set();
+      updateReqBadge(0);
     }
   }, 1200);
 
@@ -504,7 +774,9 @@
 
   window.GVSocial = {
     openProfile, inviteFriendById, canInvite, toggleFriend,
-    refreshFriends, isFriend, _test: { paintFriends, renderFriendsMember }
+    refreshFriends, isFriend,
+    sendRequest, acceptRequest, declineRequest, refreshRequests, reqStateWith,
+    _test: { paintFriends, renderFriendsMember, paintRequests, digestRequests }
   };
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', injectCss, { once: true });

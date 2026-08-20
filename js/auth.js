@@ -28,7 +28,10 @@
     if (m) return PHP + '/auth.php?action=' + m[1];
     if (path === '/api/friends') return PHP + '/social.php?action=friends';
     m = path.match(/^\/api\/friends\/(\w+)$/);
-    if (m) return PHP + '/social.php?action=' + ({ add: 'friendAdd', remove: 'friendRemove' }[m[1]] || m[1]);
+    if (m) return PHP + '/social.php?action=' + ({
+      add: 'friendRequest', request: 'friendRequest', requests: 'friendRequests',
+      accept: 'friendAccept', decline: 'friendDecline', remove: 'friendRemove'
+    }[m[1]] || m[1]);
     return BACKEND + path;
   }
 

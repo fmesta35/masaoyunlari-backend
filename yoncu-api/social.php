@@ -5,8 +5,13 @@
  *    GET  ?action=search&q=               → {ok,users[]}             (Bearer zorunlu)
  *    GET  ?action=userPublic&id=N         → {ok,user:{id,name}}      (herkese açık)
  *    GET  ?action=friends                 → {ok,friends[]}           (Bearer)
- *    POST ?action=friendAdd   {friendId}  → {ok,friends[]}           (Bearer)
+ *    GET  ?action=friendRequests          → {ok,incoming[],outgoing[]} (Bearer)
+ *    POST ?action=friendRequest{friendId} → {ok,requested|accepted}  (Bearer)
+ *    POST ?action=friendAdd   {friendId}  → (= friendRequest, eski istemciler) (Bearer)
+ *    POST ?action=friendAccept{friendId}  → {ok,friends[]}           (Bearer)
+ *    POST ?action=friendDecline{friendId} → {ok} (reddet VEYA iptal)  (Bearer)
  *    POST ?action=friendRemove{friendId}  → {ok,friends[]}           (Bearer)
+ *    GET  ?action=hasRequest&a&b          → {ok,has:bool}            (X-GV-Key: Render)
  *    GET  ?action=isFriendPair&a&b        → {ok,friend:bool}         (X-GV-Key: Render)
  *    POST ?action=recordMatch {...}       → {ok}                     (X-GV-Key: Render)
  *    POST ?action=chatLog {...}           → {ok}                     (X-GV-Key: Render)
@@ -86,6 +91,24 @@ if ($action === 'search') {
     gv_json(array('ok' => true, 'users' => $users));
 }
 
+// ---- Arkadaşlık isteği yardımcıları ----
+function gv_req_pending($pdo, $a, $b) { // a -> b bekleyen istek var mı?
+    $s = $pdo->prepare("SELECT 1 FROM gv_friend_requests WHERE from_id = ? AND to_id = ? LIMIT 1");
+    $s->execute(array(intval($a), intval($b)));
+    return (bool)$s->fetch();
+}
+function gv_are_friends($pdo, $a, $b) {
+    $s = $pdo->prepare("SELECT 1 FROM gv_friends WHERE (user_id = ? AND friend_id = ?) OR (user_id = ? AND friend_id = ?) LIMIT 1");
+    $s->execute(array(intval($a), intval($b), intval($b), intval($a)));
+    return (bool)$s->fetch();
+}
+function gv_make_friends($pdo, $a, $b, $now) {
+    $pdo->prepare("INSERT IGNORE INTO gv_friends(user_id,friend_id,created_at) VALUES(?,?,?)")
+        ->execute(array(intval($a), intval($b), $now));
+    $pdo->prepare("DELETE FROM gv_friend_requests WHERE (from_id = ? AND to_id = ?) OR (from_id = ? AND to_id = ?)")
+        ->execute(array(intval($a), intval($b), intval($b), intval($a)));
+}
+
 if ($action === 'userPublic') {
     $id = intval($_GET['id'] ?? 0);
     $pdo = gv_pdo();
@@ -102,17 +125,82 @@ if ($action === 'friends') {
     gv_json(array('ok' => true, 'friends' => gv_friends_of($pdo, intval($u['id']))));
 }
 
-if ($action === 'friendAdd') {
+if ($action === 'friendRequests') {
+    // Bekleyen istekler: gelen (bana) + giden (benim gönderdiklerim)
     $u = gv_require_user();
+    $pdo = gv_pdo();
+    $s = $pdo->prepare("SELECT u.id, u.name, r.created_at AS since FROM gv_friend_requests r
+                        JOIN gv_users u ON u.id = r.from_id WHERE r.to_id = ? ORDER BY r.created_at DESC");
+    $s->execute(array(intval($u['id'])));
+    $incoming = array_map(function ($r) {
+        return array('id' => intval($r['id']), 'name' => $r['name'], 'since' => intval($r['since']));
+    }, $s->fetchAll());
+    $s = $pdo->prepare("SELECT u.id, u.name, r.created_at AS since FROM gv_friend_requests r
+                        JOIN gv_users u ON u.id = r.to_id WHERE r.from_id = ? ORDER BY r.created_at DESC");
+    $s->execute(array(intval($u['id'])));
+    $outgoing = array_map(function ($r) {
+        return array('id' => intval($r['id']), 'name' => $r['name'], 'since' => intval($r['since']));
+    }, $s->fetchAll());
+    gv_json(array('ok' => true, 'incoming' => $incoming, 'outgoing' => $outgoing));
+}
+
+// İstek gönderme — ARTIK DİREKT EKLEME YOK: karşı taraf kabul edince arkadaş olunur.
+// (friendAdd eski istemciler için aynı davranışa bağlıdır.)
+if ($action === 'friendRequest' || $action === 'friendAdd') {
+    $u = gv_require_user();
+    $uid = intval($u['id']);
     $fid = intval($in['friendId'] ?? 0);
     $pdo = gv_pdo();
-    $s = $pdo->prepare("SELECT id FROM gv_users WHERE id = ?");
+    $s = $pdo->prepare("SELECT id, name FROM gv_users WHERE id = ?");
     $s->execute(array($fid));
-    if (!$s->fetch()) gv_json(array('ok' => false, 'error' => 'Oyuncu bulunamadı.'), 404);
-    if ($fid === intval($u['id'])) gv_json(array('ok' => false, 'error' => 'Kendinizi ekleyemezsiniz.'), 400);
-    $pdo->prepare("INSERT IGNORE INTO gv_friends(user_id,friend_id,created_at) VALUES(?,?,?)")
-        ->execute(array($u['id'], $fid, $now));
-    gv_json(array('ok' => true, 'friends' => gv_friends_of($pdo, intval($u['id']))));
+    $t = $s->fetch();
+    if (!$t) gv_json(array('ok' => false, 'error' => 'Oyuncu bulunamadı.'), 404);
+    if ($fid === $uid) gv_json(array('ok' => false, 'error' => 'Kendinize istek gönderemezsiniz.'), 400);
+    if (gv_are_friends($pdo, $uid, $fid)) gv_json(array('ok' => false, 'error' => 'Zaten arkadaşsınız. ️'), 409);
+    if (gv_req_pending($pdo, $fid, $uid)) {
+        // Karşı taraf bana zaten istek göndermiş → ikisi de kabul etmiş sayılır.
+        gv_make_friends($pdo, $uid, $fid, $now);
+        gv_json(array('ok' => true, 'accepted' => true, 'toName' => $t['name'], 'friends' => gv_friends_of($pdo, $uid)));
+    }
+    if (gv_req_pending($pdo, $uid, $fid)) gv_json(array('ok' => false, 'error' => 'İstek zaten gönderildi — yanıt bekleniyor.'), 409);
+    $pdo->prepare("INSERT IGNORE INTO gv_friend_requests(from_id,to_id,created_at) VALUES(?,?,?)")
+        ->execute(array($uid, $fid, $now));
+    gv_json(array('ok' => true, 'requested' => true, 'toName' => $t['name']));
+}
+
+if ($action === 'friendAccept') {
+    // Gelen isteği KABUL: friendId = isteği gönderen kişi
+    $u = gv_require_user();
+    $uid = intval($u['id']);
+    $fid = intval($in['friendId'] ?? 0);
+    $pdo = gv_pdo();
+    $s = $pdo->prepare("SELECT id, name FROM gv_users WHERE id = ?");
+    $s->execute(array($fid));
+    $t = $s->fetch();
+    if (!$t) gv_json(array('ok' => false, 'error' => 'Oyuncu bulunamadı.'), 404);
+    if (!gv_req_pending($pdo, $fid, $uid)) gv_json(array('ok' => false, 'error' => 'Bekleyen istek bulunamadı.'), 404);
+    gv_make_friends($pdo, $uid, $fid, $now);
+    gv_json(array('ok' => true, 'accepted' => true, 'fromName' => $t['name'], 'friends' => gv_friends_of($pdo, $uid)));
+}
+
+if ($action === 'friendDecline') {
+    // Gelen isteği REDDET veya kendi gönderdiğin isteği İPTAL ET
+    $u = gv_require_user();
+    $uid = intval($u['id']);
+    $fid = intval($in['friendId'] ?? 0);
+    $pdo = gv_pdo();
+    if (!gv_req_pending($pdo, $fid, $uid) && !gv_req_pending($pdo, $uid, $fid))
+        gv_json(array('ok' => false, 'error' => 'Bekleyen istek bulunamadı.'), 404);
+    $pdo->prepare("DELETE FROM gv_friend_requests WHERE (from_id = ? AND to_id = ?) OR (from_id = ? AND to_id = ?)")
+        ->execute(array($uid, $fid, $fid, $uid));
+    gv_json(array('ok' => true));
+}
+
+if ($action === 'hasRequest') {
+    // Render soket katmanı anlık bildirimden önce bekleyen isteği buradan doğrular.
+    gv_require_server_key();
+    $a = intval($_GET['a'] ?? 0); $b = intval($_GET['b'] ?? 0);
+    gv_json(array('ok' => true, 'has' => gv_req_pending(gv_pdo(), $a, $b)));
 }
 
 if ($action === 'friendRemove') {

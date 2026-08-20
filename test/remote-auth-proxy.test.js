@@ -34,8 +34,9 @@ function startMockPhp() {
   const users = new Map();   // id -> user
   const sessions = new Map();// token -> userId
   const friends = new Set(); // "a-b"
+  const requests = new Set();// "a-b" (a -> b bekleyen arkadaşlık isteği)
   const state = {
-    users, sessions, friends,
+    users, sessions, friends, requests,
     matches: [], chat: [],
     seenKeys: [], // recordMatch/chatLog isteklerinde gelen X-GV-Key
     nextId: 1
@@ -103,13 +104,58 @@ function startMockPhp() {
             .map(x => ({ id: x.id, name: x.name }));
           return json(res, 200, { ok: true, friends: list });
         }
-        if (action === 'friendAdd') {
+        if (action === 'friendRequests') {
           const usr = byToken(req); if (!usr) return json(res, 401, { ok: false });
-          friends.add(usr.id + '-' + Number(inb.friendId));
+          const inc = [], out = [];
+          for (const key of requests) {
+            const [a, b] = key.split('-').map(Number);
+            if (b === usr.id && users.get(a)) inc.push({ id: a, name: users.get(a).name, since: 1 });
+            if (a === usr.id && users.get(b)) out.push({ id: b, name: users.get(b).name, since: 1 });
+          }
+          return json(res, 200, { ok: true, incoming: inc, outgoing: out });
+        }
+        if (action === 'friendRequest' || action === 'friendAdd') {
+          const usr = byToken(req); if (!usr) return json(res, 401, { ok: false });
+          const fid = Number(inb.friendId);
+          const t = users.get(fid);
+          if (!t) return json(res, 404, { ok: false, error: 'Oyuncu bulunamadı.' });
+          const list = () => [...users.values()].filter(x =>
+            friends.has(usr.id + '-' + x.id) || friends.has(x.id + '-' + usr.id))
+            .map(x => ({ id: x.id, name: x.name }));
+          if (requests.has(fid + '-' + usr.id)) { // karşı istek var → otomatik kabul
+            requests.delete(fid + '-' + usr.id);
+            friends.add(usr.id + '-' + fid);
+            return json(res, 200, { ok: true, accepted: true, toName: t.name, friends: list() });
+          }
+          if (requests.has(usr.id + '-' + fid)) return json(res, 409, { ok: false, error: 'İstek zaten gönderildi.' });
+          requests.add(usr.id + '-' + fid);
+          return json(res, 200, { ok: true, requested: true, toName: t.name });
+        }
+        if (action === 'friendAccept') {
+          const usr = byToken(req); if (!usr) return json(res, 401, { ok: false });
+          const fid = Number(inb.friendId);
+          if (!requests.has(fid + '-' + usr.id)) return json(res, 404, { ok: false, error: 'Bekleyen istek bulunamadı.' });
+          requests.delete(fid + '-' + usr.id);
+          friends.add(usr.id + '-' + fid);
           const list = [...users.values()].filter(x =>
             friends.has(usr.id + '-' + x.id) || friends.has(x.id + '-' + usr.id))
             .map(x => ({ id: x.id, name: x.name }));
-          return json(res, 200, { ok: true, friends: list });
+          return json(res, 200, { ok: true, accepted: true, fromName: (users.get(fid) || {}).name, friends: list });
+        }
+        if (action === 'friendDecline') {
+          const usr = byToken(req); if (!usr) return json(res, 401, { ok: false });
+          const fid = Number(inb.friendId);
+          if (!requests.has(fid + '-' + usr.id) && !requests.has(usr.id + '-' + fid))
+            return json(res, 404, { ok: false, error: 'Bekleyen istek bulunamadı.' });
+          requests.delete(fid + '-' + usr.id);
+          requests.delete(usr.id + '-' + fid);
+          return json(res, 200, { ok: true });
+        }
+        if (action === 'hasRequest') {
+          state.seenKeys.push(['hasRequest', req.headers['x-gv-key']]);
+          if (req.headers['x-gv-key'] !== KEY) return json(res, 403, { ok: false });
+          const a = u.searchParams.get('a'), b = u.searchParams.get('b');
+          return json(res, 200, { ok: true, has: requests.has(a + '-' + b) });
         }
         if (action === 'isFriendPair') {
           state.seenKeys.push(['isFriendPair', req.headers['x-gv-key']]);
@@ -196,9 +242,16 @@ async function main() {
 
   r = await api(BASE, '/api/auth/me', null, 'GET', CTOK);
   assert.ok(r.ok && r.user.id === CID, 'me proxy');
-  r = await api(BASE, '/api/friends/add', { friendId: FID }, 'POST', CTOK);
-  assert.ok(r.ok && r.friends.some(x => x.id === FID), 'arkadaş ekleme proxy');
-  console.log('  ✓ 3) friends proxy');
+  // Yeni akış: add artık İSTEK — direkt arkadaşlık kurulmaz; karşı taraf kabul eder.
+  r = await api(BASE, '/api/friends/request', { friendId: FID }, 'POST', CTOK);
+  assert.ok(r.ok && r.requested && !r.friends, 'istek proxy dönmeli (henüz arkadaş DEĞİL)');
+  r = await api(BASE, '/api/friends', null, 'GET', CTOK);
+  assert.ok(r.ok && !r.friends.some(x => x.id === FID), 'istek tek başına arkadaş listesine EKLEMEZ');
+  r = await api(BASE, '/api/friends/requests', null, 'GET', FTOK);
+  assert.ok(r.ok && r.incoming.some(x => x.id === CID), 'gelen istek karşı tarafta görünmeli');
+  r = await api(BASE, '/api/friends/accept', { friendId: CID }, 'POST', FTOK);
+  assert.ok(r.ok && r.friends.some(x => x.id === CID), 'kabul sonrası arkadaş listesi proxy');
+  console.log('  ✓ 3) friends proxy (istek → kabul akışı; direkt ekleme yok)');
 
   // ---------- Soket katmanı (remote doğrulama) ----------
   function conn(name) {
@@ -275,6 +328,45 @@ async function main() {
   assert.ok(mock.state.chat[0].text === 'selam masaya' && String(mock.state.chat[0].roomId) === '9100', 'sohbet satırı içerik+oda doğru');
   assert.ok(mock.state.seenKeys.some(([a, k]) => a === 'chatLog' && k === KEY), 'chatLog anahtarlı gitmeli');
   console.log('  ✓ 9) oda sohbeti PHP\'ye kalıcı olarak kaydedildi');
+
+  // ---------- arkadaşlık isteği anlık bildirimleri (remote hasRequest doğrulamalı) ----------
+  r = await api(BASE, '/api/friends/request', { friendId: CID }, 'POST', STOK); // Yaban → Kral
+  assert.ok(r.ok && r.requested, 'S → C isteği kurulmalı');
+  const frEv = once(cSock, 'friendRequest');
+  sSock.emit('friendRequestPing', { toUserId: CID });
+  const frp = await frEv;
+  assert.strictEqual(Number(frp.fromId), SID, 'istek bildirimi gönderen id\'si doğru');
+  assert.ok(mock.state.seenKeys.some(([a, k]) => a === 'hasRequest' && k === KEY), 'hasRequest anahtarlı sorulmalı');
+  console.log('  ✓ 10) remote: istek ping\'i PHP-doğrulamalı anlık bildirime döndü');
+
+  // sahte ping: bekleyen istek YOKSA bildirim gitmemeli
+  let ghost = false;
+  fSock.on('friendRequest', () => { ghost = true; });
+  sSock.emit('friendRequestPing', { toUserId: FID }); // S → F bekleyen istek yok
+  await sleep(500);
+  assert.ok(!ghost, 'istek olmadan bildirim GİTMEMELİ (sahte ping engeli)');
+
+  // kabul anlık bildirimi
+  const accEv = once(sSock, 'friendAccepted');
+  r = await api(BASE, '/api/friends/accept', { friendId: SID }, 'POST', CTOK); // Kral kabul ediyor
+  assert.ok(r.ok, 'C kabul edebilmeli');
+  cSock.emit('friendAcceptPing', { toUserId: SID });
+  await accEv;
+  console.log('  ✓ 11) remote: kabul anlık bildirimi istek sahibine ulaştı');
+
+  // red anlık bildirimi (kind=declined)
+  r = await api(BASE, '/api/friends/request', { friendId: FID }, 'POST', STOK); // Yaban → Dost
+  assert.ok(r.ok && r.requested);
+  const frEv2 = once(fSock, 'friendRequest');
+  sSock.emit('friendRequestPing', { toUserId: FID });
+  await frEv2;
+  r = await api(BASE, '/api/friends/decline', { friendId: SID }, 'POST', FTOK); // Dost reddediyor
+  assert.ok(r.ok);
+  const decEv = once(sSock, 'friendDeclined');
+  fSock.emit('friendDeclinePing', { toUserId: SID, kind: 'declined' });
+  const dec = await decEv;
+  assert.strictEqual(dec.kind, 'declined');
+  console.log('  ✓ 12) remote: red anlık bildirimi istek sahibine ulaştı');
 
   // ---------- 6) yanlış anahtar korunur ----------
   assert.ok(!mock.state.seenKeys.some(([, k]) => k !== KEY && k !== undefined), 'yanlış anahtarla hiçbir yazma kabul edilmedi');

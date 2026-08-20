@@ -52,6 +52,12 @@ try {
       created_at INTEGER NOT NULL,
       UNIQUE(user_id, friend_id)
     );
+    CREATE TABLE IF NOT EXISTS friend_requests(
+      from_id INTEGER NOT NULL,
+      to_id INTEGER NOT NULL,
+      created_at INTEGER NOT NULL,
+      UNIQUE(from_id, to_id)
+    );
     CREATE TABLE IF NOT EXISTS matches(
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       game_id TEXT NOT NULL,

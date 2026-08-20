@@ -55,7 +55,11 @@ const MAP = {
   'GET /api/auth/mail-status': '/auth.php?action=mail-status',
   'GET /api/users/search': '/social.php?action=search',
   'GET /api/friends': '/social.php?action=friends',
-  'POST /api/friends/add': '/social.php?action=friendAdd',
+  'GET /api/friends/requests': '/social.php?action=friendRequests',
+  'POST /api/friends/request': '/social.php?action=friendRequest',
+  'POST /api/friends/add': '/social.php?action=friendRequest', // eski istemciler: istek anlamında
+  'POST /api/friends/accept': '/social.php?action=friendAccept',
+  'POST /api/friends/decline': '/social.php?action=friendDecline',
   'POST /api/friends/remove': '/social.php?action=friendRemove'
 };
 
@@ -75,6 +79,8 @@ function installProxy(app, helpers) {
         if (d && d.ok && helpers && helpers.isOnline) {
           if (Array.isArray(d.friends)) d.friends = d.friends.map(f => ({ ...f, online: helpers.isOnline(f.id) }));
           if (Array.isArray(d.users)) d.users = d.users.map(u => ({ ...u, online: helpers.isOnline(u.id) }));
+          if (Array.isArray(d.incoming)) d.incoming = d.incoming.map(f => ({ ...f, online: helpers.isOnline(f.id) }));
+          if (Array.isArray(d.outgoing)) d.outgoing = d.outgoing.map(f => ({ ...f, online: helpers.isOnline(f.id) }));
         }
       } catch (_) {}
       res.status(r.status || 502).json(d);
@@ -113,6 +119,12 @@ function isFriendPair(a, b) {
     .then(r => !!(r.data && r.data.ok && r.data.friend))
     .catch(() => false);
 }
+// a -> b bekleyen arkadaşlık isteği var mı? (anlık bildirim doğrulaması)
+function hasRequest(a, b) {
+  return callJson(REMOTE + `/social.php?action=hasRequest&a=${encodeURIComponent(a)}&b=${encodeURIComponent(b)}`, { key: KEY })
+    .then(r => !!(r.data && r.data.ok && r.data.has))
+    .catch(() => false);
+}
 // yazma işlemleri ateş-unut (Render'ı bekletme)
 function recordMatch(p) {
   callJson(REMOTE + '/social.php?action=recordMatch', { key: KEY, body: p }).then(r => {
@@ -123,4 +135,4 @@ function logChat(m) {
   callJson(REMOTE + '/social.php?action=chatLog', { key: KEY, body: m }).catch(() => {});
 }
 
-module.exports = { enabled, installProxy, me, userPublic, isFriendPair, recordMatch, logChat };
+module.exports = { enabled, installProxy, me, userPublic, isFriendPair, hasRequest, recordMatch, logChat };
