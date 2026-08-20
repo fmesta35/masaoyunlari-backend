@@ -178,11 +178,11 @@ function gv_esc($v) { return htmlspecialchars(strval($v), ENT_QUOTES, 'UTF-8'); 
 
 function gv_send_verify_mail($to, $name, $token) {
     $link = gv_verify_link($token);
-    $subject = '✅ GameVerse Üyelik Onayı';
-    $text = "Merhaba $name,\n\nGameVerse üyeliğinizi onaylamak için bağlantıya tıklayın:\n$link\n\nBu isteği siz yapmadıysanız e-postayı yok sayabilirsiniz.";
+    $subject = '✅ Masa Oyunları Üyelik Onayı';
+    $text = "Merhaba $name,\n\nMasa Oyunları üyeliğinizi onaylamak için bağlantıya tıklayın:\n$link\n\nBu isteği siz yapmadıysanız e-postayı yok sayabilirsiniz.";
     $html =
       '<div style="font-family:Arial,sans-serif;max-width:480px;margin:auto;background:#12122b;color:#fff;padding:28px;border-radius:14px">'
-      . '<h2 style="color:#f9ca24;margin-top:0">🎮 GameVerse</h2>'
+      . '<h2 style="color:#f9ca24;margin-top:0">🎲 Masa Oyunları</h2>'
       . '<p>Merhaba <b>' . gv_esc($name) . '</b>,</p>'
       . '<p>Üyeliğinizi onaylamak için düğmeye tıklayın. Onaylamadan giriş yapamazsınız.</p>'
       . '<p style="text-align:center;margin:26px 0">'
@@ -194,11 +194,11 @@ function gv_send_verify_mail($to, $name, $token) {
 
 function gv_send_reset_mail($to, $name, $token) {
     $link = gv_reset_link($token);
-    $subject = '🔒 GameVerse Şifre Sıfırlama';
+    $subject = '🔒 Masa Oyunları Şifre Sıfırlama';
     $text = "Merhaba $name,\n\nŞifrenizi sıfırlamak için bağlantıya tıklayın (30 dk geçerli):\n$link\n\nBu isteği siz yapmadıysanız e-postayı yok sayabilirsiniz.";
     $html =
       '<div style="font-family:Arial,sans-serif;max-width:480px;margin:auto;background:#12122b;color:#fff;padding:28px;border-radius:14px">'
-      . '<h2 style="color:#f9ca24;margin-top:0">🎮 GameVerse</h2>'
+      . '<h2 style="color:#f9ca24;margin-top:0">🎲 Masa Oyunları</h2>'
       . '<p>Merhaba <b>' . gv_esc($name) . '</b>,</p>'
       . '<p>Şifrenizi sıfırlamak için düğmeye tıklayın. Bağlantı <b>30 dakika</b> geçerlidir.</p>'
       . '<p style="text-align:center;margin:26px 0">'

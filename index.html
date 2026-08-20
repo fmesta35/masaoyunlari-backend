@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
-<title>GameVerse - Çok Oyunculu Oyun Platformu</title>
+<title>Masa Oyunları - Çok Oyunculu Oyun Platformu</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 :root{
@@ -623,14 +623,14 @@ html{scrollbar-gutter:stable}
 }
 </style>
 <!-- SEO Meta Tags -->
-<meta name="description" content="GameVerse - Türkiye'nin en popüler çok oyunculu masa oyunları platformu. Okey, Tavla, Satranç, Dama, 101 Okey, Çanak ve daha fazlası ücretsiz oynayın!">
+<meta name="description" content="Masa Oyunları - Türkiye'nin en popüler çok oyunculu masa oyunları platformu. Okey, Tavla, Satranç, Dama, 101 Okey, Çanak ve daha fazlası ücretsiz oynayın!">
 <meta name="keywords" content="okey, tavla, satranç, dama, okey 101, çanak, masa oyunları, online oyun, multiplayer oyun, bedava oyun">
-<meta name="author" content="GameVerse">
+<meta name="author" content="Masa Oyunları">
 <meta name="robots" content="index, follow">
 
 <!-- Open Graph / Social Media -->
 <meta property="og:type" content="website">
-<meta property="og:title" content="GameVerse - Çok Oyunculu Masa Oyunları Platformu">
+<meta property="og:title" content="Masa Oyunları - Çok Oyunculu Masa Oyunları Platformu">
 <meta property="og:description" content="Okey, Tavla, Satranç ve daha fazlası! Arkadaşlarınla ücretsiz online masa oyunları oyna.">
 <meta property="og:image" content="assets/images/og-image.jpg">
 <meta property="og:url" content="https://gameverse.com">
@@ -654,7 +654,7 @@ html{scrollbar-gutter:stable}
 <!-- HEADER -->
 <header class="header">
   <button class="hamburger" onclick="GV.toggleSidebar()">☰</button>
-  <div class="logo" onclick="GV.page('home')">🎮 GameVerse</div>
+  <div class="logo" onclick="GV.page('home')" style="display:flex;align-items:center;gap:8px"><img src="assets/logo.png" alt="Masa Oyunları" style="height:30px;width:30px;border-radius:9px;box-shadow:0 2px 8px rgba(108,92,231,.45)"> Masa Oyunları</div>
   <nav class="nav">
     <button class="nav-btn active" data-p="home" onclick="GV.page('home')">🏠 Ana Sayfa</button>
     <button class="nav-btn" data-p="games" onclick="GV.page('games')">🎮 Oyunlar</button>
@@ -704,7 +704,7 @@ html{scrollbar-gutter:stable}
     <!-- ANA SAYFA (HOME) -->
     <div class="page active" id="pg-home">
       <div style="background: linear-gradient(135deg, var(--primary3), var(--primary)); padding: 25px; border-radius: var(--r2); margin-bottom: 20px; text-align: center;">
-        <h1 style="color: white; margin-bottom: 8px;" id="welcomeHeading">🎮 GameVerse'e Hoş Geldiniz</h1>
+        <h1 style="color: white; margin-bottom: 8px;" id="welcomeHeading">🎮 Masa Oyunları'na Hoş Geldiniz</h1>
         <p style="color: rgba(255,255,255,0.9); font-size: 0.95em;">Ziyaretçi olarak oynayabilir veya üye olarak puan kazanabilir, arkadaş ekleyebilir ve turnuvalara katılabilirsiniz!</p>
       </div>
 
@@ -887,6 +887,25 @@ html{scrollbar-gutter:stable}
       <input type="password" id="regPass" placeholder="******">
     </div>
     <button class="btn btn-p btn-full" onclick="GV.submitRegister()">Kayıt Ol ve E-Posta Doğrula</button>
+  </div>
+</div>
+
+<!-- Kayıt sonrası: giriş pop-up'ı YERİNE onay bilgilendirme kutusu gösterilir -->
+<div class="modal-bg" id="verifyMailModal">
+  <div class="modal" style="max-width:400px;text-align:center;">
+    <button class="modal-x" onclick="GV.hideModal('verifyMailModal')">✕</button>
+    <div style="font-size:2.6em;margin:4px 0 2px;">📧</div>
+    <h2 style="margin:4px 0 12px;">E-postanı Doğrula</h2>
+    <p style="font-size:0.88em;color:var(--text2);margin:6px 0;">
+      <b id="verifyMailAddr" style="color:var(--accent);"></b> adresine doğrulama bağlantısı gönderdik.
+    </p>
+    <p style="font-size:0.8em;color:var(--text2);margin:10px 0 16px;">
+      Hesabını aktifleştirmek için e-postandaki butona tıkla.<br>
+      Onaylamadan giriş yapamazsın. 🙂
+    </p>
+    <button class="btn btn-p btn-full" onclick="GV.resendVerifyMail()">📥 Maili Tekrar Gönder</button>
+    <button class="btn btn-o btn-full" style="margin-top:8px;justify-content:center;" onclick="GV.hideModal('verifyMailModal');GV.showModal('loginModal')">Zaten onayladım — Giriş Yap</button>
+    <p style="font-size:0.72em;color:var(--text2);margin-top:12px;">Spam klasörünü kontrol etmeyi unutma.</p>
   </div>
 </div>
 
@@ -3741,7 +3760,7 @@ GV.init();
 <!-- External JavaScript Files -->
 <script src="js/config.js?v=20260820f"></script>
 <script src="js/socket.io.min.js?v=20260819c"></script>
-<script src="js/app.js?v=20260819c" defer></script>
+<script src="js/app.js?v=20260820a" defer></script>
 <script src="js/games.js?v=20260820e" defer></script>
 <script src="js/utils.js?v=20260819c" defer></script>
 <script src="js/lobby-sync.js?v=20260820e" defer></script>
@@ -3751,7 +3770,7 @@ GV.init();
 <script src="js/okey-online.js?v=20260820e" defer></script>
 <script src="js/chat.js?v=20260820e" defer></script>
 <script src="js/leave-guard.js?v=20260820e" defer></script>
-<script src="js/auth.js?v=20260820h" defer></script>
+<script src="js/auth.js?v=20260820i" defer></script>
 <script src="js/social.js?v=20260820g" defer></script>
 
 <!-- Structured Data for SEO -->
@@ -3759,7 +3778,7 @@ GV.init();
 {
   "@context": "https://schema.org",
   "@type": "WebSite",
-  "name": "GameVerse",
+  "name": "Masa Oyunları",
   "url": "https://gameverse.com",
   "description": "Türkiye'nin en popüler çok oyunculu masa oyunları platformu",
   "potentialAction": {

@@ -10,7 +10,7 @@ const GVApp = {
   },
 
   init() {
-    console.log('GameVerse v' + this.version + ' başlatılıyor...');
+    console.log('Masa Oyunları v' + this.version + ' başlatılıyor...');
     this.setupEventListeners();
     this.loadUserPreferences();
     this.checkConnection();

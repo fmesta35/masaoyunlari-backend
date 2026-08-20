@@ -141,8 +141,12 @@
     const r = await api('/api/auth/register', { name, email, password });
     if (r.ok) {
       hideModal('registerModal');
+      // Giriş pop-up'ı YERİNE "E-postanı Doğrula" bilgi kutusu (kullanıcılar
+      // onaysız giriş yapmaya çalışmasın).
+      const addr = document.getElementById('verifyMailAddr');
+      if (addr) addr.textContent = email;
+      showModal('verifyMailModal');
       toast(r.message || '📧 Onay bağlantısı e-postanıza gönderildi!', r.mailSent ? 'success' : 'warning');
-      showModal('loginModal');
       return;
     }
     toast('⚠️ ' + (r.error || 'Kayıt başarısız.'), 'error');
@@ -222,6 +226,15 @@
     GV.submitLogin = doLogin;
     GV.submitRegister = doRegister;
     GV.submitForgotPassword = doForgot;
+    // "E-postanı Doğrula" kutusundaki tekrar gönder butonu
+    GV.resendVerifyMail = async function () {
+      const addrEl = document.getElementById('verifyMailAddr');
+      const em = (addrEl && addrEl.textContent || '').trim();
+      if (!em) return toast('⚠️ E-posta adresi bulunamadı.', 'error');
+      toast('📧 Mail gönderiliyor...', 'info');
+      const rr = await api('/api/auth/resend', { email: em });
+      toast(rr.ok ? '📧 Onay bağlantısı yeniden gönderildi. Spam klasörüne de bak!' : ('⚠️ ' + (rr.error || 'Gönderilemedi.')), rr.ok ? 'success' : 'error');
+    };
     // Çıkış: token'ı da temizle
     const origLogout = GV.logout;
     GV.logout = function () {

@@ -27,7 +27,7 @@ define('GV_SERVER_KEY', 'BURAYA_UZUN_RASTGELE_ANAHTAR');
 define('GV_SITE_URL', 'https://www.masaoyunlari.com.tr');
 
 /* Maillerin görünen göndereni (Yöncü panelinde açtığınız kutu) */
-define('GV_MAIL_FROM', 'GameVerse <info@masaoyunlari.com.tr>');
+define('GV_MAIL_FROM', 'Masa Oyunları <info@masaoyunlari.com.tr>');
 define('GV_MAIL_FROM_ADDR', 'info@masaoyunlari.com.tr');
 
 /* SMTP ile gönderim (ÖNERİLİR — teslim oranı PHP mail()'den çok daha yüksek):
