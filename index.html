@@ -1545,7 +1545,12 @@ function createRoom(){
   const isPrivate = typeInp?.value === 'private';
 
   const rRounds = (gid === 'chess' || gid === 'tavla') ? 1 : parseInt(roundsInp?.value || '3');
-  const gameDuration = (gid === 'chess' || gid === 'tavla') ? parseInt(durationInp?.value || '10') : 10;
+  // Okeyde süre ayrıca sorulmaz; el sayısından türetilir (hazır masalarla aynı
+  // ölçek: 3 el=10 dk, 5 el=15 dk, 7 el=20 dk koltuk başına ana süre).
+  const OKEY_ROUND_DUR = { 3: 10, 5: 15, 7: 20 };
+  const gameDuration = (gid === 'chess' || gid === 'tavla')
+    ? parseInt(durationInp?.value || '10')
+    : (OKEY_ROUND_DUR[rRounds] || 10);
 
   if (!ROOMS[gid]) ROOMS[gid] = [];
 
@@ -3721,13 +3726,13 @@ GV.init();
 <script src="js/config.js?v=20260819c"></script>
 <script src="js/socket.io.min.js?v=20260819c"></script>
 <script src="js/app.js?v=20260819c" defer></script>
-<script src="js/games.js?v=20260820b" defer></script>
+<script src="js/games.js?v=20260820c" defer></script>
 <script src="js/utils.js?v=20260819c" defer></script>
-<script src="js/lobby-sync.js?v=20260820b" defer></script>
-<script src="js/room-waiting-fix.js?v=20260820b" defer></script>
-<script src="js/chess-online.js?v=20260820b" defer></script>
-<script src="js/tavla-online.js?v=20260820b" defer></script>
-<script src="js/okey-online.js?v=20260820b" defer></script>
+<script src="js/lobby-sync.js?v=20260820c" defer></script>
+<script src="js/room-waiting-fix.js?v=20260820c" defer></script>
+<script src="js/chess-online.js?v=20260820c" defer></script>
+<script src="js/tavla-online.js?v=20260820c" defer></script>
+<script src="js/okey-online.js?v=20260820c" defer></script>
 
 <!-- Structured Data for SEO -->
 <script type="application/ld+json">

@@ -77,6 +77,7 @@
           <span style="color:var(--accent);font-weight:bold;">#${esc(r.id)}</span>
           <span class="room-name">${r.isPrivate ? '🔒' : '🌐'} ${esc(r.name || ('Masa #' + r.id))}</span>
           <span style="font-size:0.8em;color:var(--text2);">(${maxP} Kişilik)</span>
+          ${r.rounds ? `<span style="font-size:0.78em;color:var(--text2);">🀄 ${Number(r.rounds)} El</span>` : ''}
           ${dur ? `<span style="font-size:0.78em;color:var(--text2);">⏱️ ${dur} dk</span>` : ''}
           ${names ? `<span style="font-size:0.78em;color:var(--text3);">${names}</span>` : ''}
         </div>

@@ -2,7 +2,7 @@
 
 /*
  * OKEY İSTEMCİSİ — gerçek tarayıcı benzeri (jsdom) uçtan uca kanıt.
- *  4 gerçek pencere + 1 izleyici aynı masaya (#301) girer:
+ *  4 gerçek pencere + 1 izleyici aynı masaya (#313, 4 kişilik hazır masa) girer:
  *   - Bekleme lobisi 4 KOLTUKLU görünür (kullanıcının istediği düzen).
  *   - 4×HAZIRIM → her pencerede masa çizilir (ekran görüntüsündeki düzen:
  *     üst/sol/sağ rakip panelleri, deste 48, GÖSTERGE, atık bölgeleri, ıstaka).
@@ -74,10 +74,10 @@ async function main() {
   // Odaya gir
   for (const c of [A, B, C, D]) {
     c.win.st.curGame = 'okey';
-    c.win.GV.joinRoom('301');
+    c.win.GV.joinRoom('313');
   }
   S.win.st.curGame = 'okey';
-  S.win.GV.joinRoom('301', { spectate: true });
+  S.win.GV.joinRoom('313', { spectate: true });
 
   // --- 1) Bekleme lobisi 4 koltuklu ---
   await waitFor(() => A.win.document.querySelectorAll('#gv-real-chess-wait .gvp').length === 4, 8000, '4 koltuk kartı');

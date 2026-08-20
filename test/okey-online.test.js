@@ -3,12 +3,12 @@
 /*
  * OKEY ONLINE — 4 gerçek oyunculu soket uçtan uca testleri.
  *
- *  A) #301: hazırlık→başlama, kişiye özel dağıtım, HAZIRLANMIŞ kazanan el ile
+ *  A) #901 (4 kişilik özel oda, 2 el): hazırlık→başlama, kişiye özel dağıtım, HAZIRLANMIŞ kazanan el ile
  *     1. el bitişi (skor+1), ara bekleme sonrası 2. el, son elde maç 'completed'.
- *  B) #302: tur disiplini reddetmeleri (must_draw / not_your_turn / must_discard),
+ *  B) #902: tur disiplini reddetmeleri (must_draw / not_your_turn / must_discard),
  *     önceki atıktan çekme, SIRA sayacı dolunca OTOMATİK OYNAMA, 3. strike'ta
  *     'disqualified' ile maç bitişi.
- *  C) #303: oyun ortasında oyuncu çıkınca 'player_left' bitiş + odanın
+ *  C) #903: oyun ortasında oyuncu çıkınca 'player_left' bitiş + odanın
  *     evrensel sıfırlayıcıyla bekleme durumuna dönmesi (takılma yok).
  */
 
@@ -71,7 +71,9 @@ function once(socket, event, timeoutMs) {
 function join(socket, roomId) {
   socket.emit('joinRoom', {
     roomId, gameId: 'okey', userName: socket.userName,
-    userKey: 'test:' + socket.userName, maxPlayers: 4, durationMinutes: 10
+    userKey: 'test:' + socket.userName, maxPlayers: 4, durationMinutes: 10,
+    // Özel odada el sayısı kurucudan gelir: bu süit 2 elli maç kurar.
+    rounds: 2
   });
   return once(socket, 'joinedRoom');
 }
@@ -107,8 +109,8 @@ async function main() {
 
   // ============ A) Tam maç: 2 el, ikisi de hazırlanmış kazanç ============
   {
-    const { socks, bySeat, first } = await setupMatch(BASE, '301', 'A');
-    const room = rooms.get('301') || rooms.get(301);
+    const { socks, bySeat, first } = await setupMatch(BASE, '901', 'A');
+    const room = rooms.get('901') || rooms.get(901);
     assert.ok(room, 'oda bulunmalı');
     const starterSeat = first.turn;
 
@@ -150,7 +152,7 @@ async function main() {
 
   // ============ B) Tur disiplini + otomatik oynama + diskalifiye ============
   {
-    const { socks, bySeat, states, first } = await setupMatch(BASE, '302', 'B');
+    const { socks, bySeat, states, first } = await setupMatch(BASE, '902', 'B');
     const order = first.seats.slice(); // [0,1,2,3]
     const turnSeat = first.turn;
     const nextSeat = order[(order.indexOf(turnSeat) + 1) % order.length];
@@ -235,7 +237,7 @@ async function main() {
 
   // ============ C) Oyuncu terki → player_left + oda beklemeye döner ============
   {
-    const { socks } = await setupMatch(BASE, '303', 'C');
+    const { socks } = await setupMatch(BASE, '903', 'C');
     const ended = once(socks[0], 'gameEnded');
     socks[2].emit('leaveRoom'); // 🚪 Ayrıl düğmesi akışı (disconnect 30 sn yeniden-bağlanma payı tanır)
     const ge = await ended;
@@ -243,7 +245,7 @@ async function main() {
     assert.ok(typeof ge.winnerSeat === 'number', 'kalanlardan lider kazanır');
     assert.strictEqual(ge.youWon, ge.seat === ge.winnerSeat, 'youWon kişiye özel');
     await sleep(900); // POST_GAME_HOLD_MS=400 + sıfırlama payı
-    const roomNow = await httpRooms(BASE, 'okey').then(rs => rs.find(r => String(r.id) === '303'));
+    const roomNow = await httpRooms(BASE, 'okey').then(rs => rs.find(r => String(r.id) === '903'));
     assert.strictEqual(roomNow.status, 'waiting', 'oda beklemeye döndü (takılma yok)');
     assert.strictEqual(roomNow.players, 3, 'kalan 3 oyuncu odada');
     console.log('  ✓ C1) player_left bitiş + oda evrensel sıfırlayıcıyla beklemeye döndü');

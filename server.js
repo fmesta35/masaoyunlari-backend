@@ -74,17 +74,43 @@ function presetTablesFor(gameId, startId, opts = {}) {
 let okeyEngine = null;
 try { okeyEngine = require('./okey-engine.js'); } catch (_) { /* motor henüz yok */ }
 
+// OKEY hazır masaları: (2/3/4 kişilik) × (3/5/7 el), her kombinasyondan
+// 2 masa = 18 masa. El sayısını üye masa kurarken seçebilir; hazır masalarda
+// el sayısı arttıkça koltuk başına ana süre uzar: 3 el→10 dk, 5 el→15 dk,
+// 7 el→20 dk. Kimlikler ardıl: #301-#318 (2k=301-306, 3k=307-312, 4k=313-318).
+const OKEY_ROUNDS_DURATION = { 3: 10, 5: 15, 7: 20 };
+function okeyPresetTables(startId) {
+  const out = [];
+  let id = startId;
+  for (const players of [2, 3, 4]) {
+    for (const rounds of [3, 5, 7]) {
+      for (let k = 0; k < 2; k++) {
+        const rid = String(id++);
+        out.push({
+          id: rid,
+          gameId: 'okey',
+          maxPlayers: players,
+          durationMinutes: OKEY_ROUNDS_DURATION[rounds] || 10,
+          rounds,
+          name: `${players} Kişilik • ${rounds} El — Masa #${rid}`
+        });
+      }
+    }
+  }
+  return out;
+}
+
 const PRESET_TABLES = [
   ...presetTablesFor('chess', 101),
   ...presetTablesFor('tavla', 201),
-  ...((okeyEngine || process.env.GV_OKEY_PRESETS === '1') ? presetTablesFor('okey', 301, { maxPlayers: 4 }) : [])
+  ...((okeyEngine || process.env.GV_OKEY_PRESETS === '1') ? okeyPresetTables(301) : [])
 ];
 
 function seedPresetTables() {
   for (const t of PRESET_TABLES) {
     const existing = rooms.get(t.id);
     if (existing) { existing.isPreset = true; continue; }
-    const room = createRoom(t.id, t.gameId || 'chess', t.maxPlayers || 2, t.durationMinutes, { name: t.name || ('Masa #' + t.id) });
+    const room = createRoom(t.id, t.gameId || 'chess', t.maxPlayers || 2, t.durationMinutes, { name: t.name || ('Masa #' + t.id), rounds: t.rounds });
     room.isPreset = true;
   }
 }
@@ -117,8 +143,14 @@ function createRoom(id, gameId, maxPlayers, durationMinutes, meta) {
     gameId: gameId || 'chess',
     name,
     isPrivate: !!meta.isPrivate,
-    maxPlayers: Math.min(Number(maxPlayers) || 2, maxPlayersFor(gameId)),
+    maxPlayers: Math.max(2, Math.min(Number(maxPlayers) || 2, maxPlayersFor(gameId))),
     durationMinutes: duration,
+    // Okey: oda bazlı maç el sayısı (yoksa OKEY_MAX_ROUNDS varsayımı).
+    // Masayı kuranın seçimi (3/5/7 el); 1-99 arası kabul edilir.
+    okeyMaxRounds: (() => {
+      const r = Math.floor(Number(meta.rounds));
+      return (r >= 1 && r <= 99) ? r : undefined;
+    })(),
     players: [],
     spectators: [],
     status: 'waiting',
@@ -196,7 +228,9 @@ function publicRoom(room) {
     players: room.players.map(publicPlayer),
     spectators: spectators.map(publicSpectator),
     spectatorCount: spectators.length,
-    readyCount: room.players.filter(p => p.isReady).length
+    readyCount: room.players.filter(p => p.isReady).length,
+    // Okey masaları: maç el sayısı (lobi "🀄 X El" rozeti basar)
+    rounds: room.okeyMaxRounds || null
   };
 }
 
@@ -213,7 +247,9 @@ function publicLobbyRoom(room) {
     status: room.status,
     isPrivate: !!room.isPrivate,
     duration: room.durationMinutes,
-    durationMinutes: room.durationMinutes
+    durationMinutes: room.durationMinutes,
+    // Okey masaları: maç el sayısı (lobi "🀄 X El" rozeti basar)
+    rounds: room.okeyMaxRounds || null
   };
 }
 
@@ -556,7 +592,7 @@ function startRoomGame(room) {
   if (room.gameId === 'okey' && typeof startOkey === 'function') return startOkey(room);
 }
 
-// ==================== OKEY (4 kişilik, sunucu yetkili) ====================
+// ============== OKEY (2/3/4 kişilik, sunucu yetkili; el sayısı odadan) ==============
 function startOkey(room) {
   if (!okeyEngine) return; // çağıran zaten kontrol eder; güvence
   if (room.status === 'playing') return;
@@ -571,7 +607,8 @@ function startOkey(room) {
   room.okey = {
     roundState: okeyEngine.startRound(1, seats, scores),
     currentRound: 1,
-    maxRounds: OKEY_MAX_ROUNDS,
+    // Oda bazlı el sayısı (masayı kuran / hazır masa tanımı belirler).
+    maxRounds: room.okeyMaxRounds || OKEY_MAX_ROUNDS,
     // Koltuk başına ANA süre (masa süresi 10/15/20 dk, herkesinki ayrı).
     clockMs: Object.fromEntries(seats.map(s => [s, room.durationMinutes * 60 * 1000])),
     clockStartedAt: now(),
@@ -1061,7 +1098,9 @@ io.on('connection', socket => {
     if (!room) {
       room = createRoom(roomId, gameId, data.maxPlayers, data.durationMinutes, {
         name: data.roomName || data.name,
-        isPrivate: !!(data.isPrivate)
+        isPrivate: !!(data.isPrivate),
+        // Okey: masayı kuran oyuncu 3/5/7 el seçimini burada gönderir.
+        rounds: (gameId === 'okey') ? data.rounds : undefined
       });
     } else if (!room.name && (data.roomName || data.name)) {
       room.name = String(data.roomName || data.name).slice(0, 60);

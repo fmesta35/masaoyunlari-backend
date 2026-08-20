@@ -50,8 +50,13 @@
     return g === 'tavla' ? '🎲 Tavla' : g === 'okey' ? '🀄 Okey' : '♟️ Satranç';
   }
 
-  // Okey 4 koltuklu, satranç/tavla 2 koltuklu.
-  function maxSeats() { return activeGame() === 'okey' ? 4 : 2; }
+  // Koltuk sayısı odadan okunur: okey 2/3/4 kişilik olabilir (hazır masaların
+  // ve üyelerin kurduğu masaların kapasitesi sunucudan gelir), satranç/tavla 2.
+  function maxSeats() {
+    const n = Number(room?.maxPlayers) || Number(state()?.roomConfig?.playerCount) || 0;
+    if (n >= 2) return n;
+    return activeGame() === 'okey' ? 4 : 2;
+  }
 
   function isRoomPage() {
     const s = state();
@@ -175,7 +180,8 @@
     const watching = !me && (!!specs.find(isMe) || !!window.__gvIsSpectator);
     const ready = !!me?.isReady;
     const seats = maxSeats();
-    const isOkeyGame = seats === 4;
+    const isOkeyGame = activeGame() === 'okey';
+    const SAYI = { 2: 'iki', 3: 'üç', 4: 'dört' };
     const full = ps.length === seats;
     const allReady = full && ps.every(p => p.isReady);
     window.__gvIsSpectator = watching;
@@ -203,7 +209,7 @@
       : allReady ? '🚀 Oyun başlatılıyor...' : full
         ? (ready ? '⏳ Diğer oyuncuların da "HAZIRIM" demesi bekleniyor...' : '👉 Oyuna başlamak için "HAZIRIM" butonuna basınız.')
         : (isOkeyGame
-          ? ('⌛ ' + ps.length + '/4 oyuncu masada — ' + (seats - ps.length) + ' oyuncu daha bekleniyor...')
+          ? ('⌛ ' + ps.length + '/' + seats + ' oyuncu masada — ' + (seats - ps.length) + ' oyuncu daha bekleniyor...')
           : '⌛ İkinci oyuncu masaya bekleniyor...');
 
     const specLine = specs.length ? '<div class="sub">👁️ ' + specs.length + ' izleyici</div>' : '';
@@ -211,7 +217,7 @@
     const intro = watching
       ? '<div class="spec-banner">👁️ İzleyici modu — hamle yapamazsınız</div>'
       : (isOkeyGame
-        ? '<div class="sub">Oyun, <b>dört oyuncu</b> da <b>HAZIRIM</b> butonuna bastığında başlayacaktır.</div>'
+        ? '<div class="sub">Oyun, <b>' + (SAYI[seats] || seats) + ' oyuncu</b> da <b>HAZIRIM</b> butonuna bastığında başlayacaktır.</div>'
         : '<div class="sub">Oyun, her iki oyuncu da <b>HAZIRIM</b> butonuna bastığında başlayacaktır.</div>');
     const readyBtn = watching ? ''
       : '<button class="gv-ready ' + (ready ? 'ready' : '') + '" type="button">' +
@@ -320,7 +326,7 @@
       }
       if (document.querySelector('script[data-gv-okey-online]')) return;
       const os = document.createElement('script');
-      os.src = 'js/okey-online.js?v=20260820b';
+      os.src = 'js/okey-online.js?v=20260820c';
       os.dataset.gvOkeyOnline = '1';
       os.async = false;
       let oSettled = false;
@@ -349,7 +355,7 @@
       }
       if (document.querySelector('script[data-gv-tavla-online]')) return;
       const ts = document.createElement('script');
-      ts.src = 'js/tavla-online.js?v=20260820b';
+      ts.src = 'js/tavla-online.js?v=20260820c';
       ts.dataset.gvTavlaOnline = '1';
       ts.async = false;
       let settled = false;
@@ -379,7 +385,7 @@
     }
     if (document.querySelector('script[data-gv-chess-online]')) return;
     const s = document.createElement('script');
-    s.src = 'js/chess-online.js?v=20260820b';
+    s.src = 'js/chess-online.js?v=20260820c';
     s.dataset.gvChessOnline = '1';
     s.async = false;
     document.head.appendChild(s);
@@ -491,13 +497,17 @@
   function join() {
     if (!socket?.connected || !roomId || !isChess()) return;
     localStorage.setItem('gv-room-id', roomId);
+    // Okey: masayı kuranın seçtiği el sayısı (3/5/7) yeni odaya taşınır;
+    // mevcut (hazır) masalarda sunucu kendi rounds değerini korur.
+    const rCfg = Number(room?.rounds || state()?.roomConfig?.rounds) || 0;
     socket.emit('joinRoom', {
       roomId,
       userName: userName(),
       userKey: userKey(),
-      maxPlayers: maxSeats(), // okey 4, satranç/tavla 2 (kalıcı masalarda sunucu kendi değerini korur)
+      maxPlayers: maxSeats(), // okey 2/3/4, satranç/tavla 2 (kalıcı masalarda sunucu kendi değerini korur)
       durationMinutes: Number(room?.duration || room?.durationMinutes || 10),
       gameId: activeGame(), // 'chess' | 'tavla' | 'okey'
+      rounds: rCfg > 0 ? rCfg : undefined,
       roomName: room?.name,
       isPrivate: !!room?.isPrivate,
       asSpectator: !!window.__gvJoinAsSpectator || !!window.__gvIsSpectator

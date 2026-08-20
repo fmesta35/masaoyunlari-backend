@@ -147,25 +147,40 @@
   }
 
   // ---------- Koltuk ↔ görünüm konumu (0=Sen, 1=Sol, 2=Karşı, 3=Sağ) ----------
-  // Sunucu sırası koltuk sıralamasını izler (0→1→2→3). Bana GÖRE önceki oyuncu
+  // Sunucu sırası koltuk sıralamasını izler (0→1→2→…). Bana GÖRE önceki oyuncu
   // (atığını alabileceğim) SOLDA, sonraki SAĞDA gösterilir — yerel masa
   // düzeniyle ve gerçek okey (saat yönünün tersi) akışıyla aynı.
+  // Masa 2/3/4 kişilik olabilir:
+  //   4 kişi → Sol+Karşı+Sağ (klasik düzen)
+  //   3 kişi → Sol (önceki) + Sağ (sonraki); Karşı boş kalır
+  //   2 kişi → rakip Karşı'da (Sol/Sağ boş)
   function seatMapping() {
-    const seats = (gameState && gameState.seats) ? gameState.seats.slice() : [0, 1, 2, 3];
+    const seats = (gameState && gameState.seats && gameState.seats.length) ? gameState.seats.slice() : [0, 1, 2, 3];
+    const N = seats.length;
     const anchor = (mySeat !== null && seats.includes(mySeat)) ? mySeat : seats[0];
     const idx = seats.indexOf(anchor);
+    // Tur-ofseti → görünüm pozisyonu: ofset 0 = ben; 1 = sıradaki oyuncu
+    // (sağım), N-1 = önceki oyuncu (solum — atığından çekebildiğim).
+    const POS_BY_OFFSET = N === 2 ? [0, 2] : N === 3 ? [0, 3, 1] : [0, 3, 2, 1];
     return {
-      seats, anchor,
+      seats, anchor, N,
       seatAt(pos) {
         if (pos === 0) return anchor;
-        return seats[(idx + (4 - pos)) % seats.length];
+        const off = POS_BY_OFFSET.indexOf(pos);
+        if (off <= 0) return null;
+        return seats[(idx + off) % N];
       },
       posOf(seat) {
         if (seat === anchor) return 0;
         const i = seats.indexOf(seat);
         if (i === -1) return -1;
-        return (4 + idx - i) % seats.length || 0;
-      }
+        const off = (i - idx + N) % N;
+        return off < POS_BY_OFFSET.length ? POS_BY_OFFSET[off] : -1;
+      },
+      activePositions() { return POS_BY_OFFSET.slice(0, N); },
+      // Atığını alabileceğim oyuncu (tur sırasında benden bir önceki).
+      prevSeat() { return seats[(idx + N - 1) % N]; },
+      nextSeat() { return seats[(idx + 1) % N]; }
     };
   }
 
@@ -224,13 +239,13 @@
     const pCounts = {}, scores = {}, piles = {};
     [0, 1, 2, 3].forEach(pos => {
       const seat = map.seatAt(pos);
-      pCounts[pos] = (gs.handCounts && gs.handCounts[seat]) || 0;
-      scores[pos] = (gs.scores && gs.scores[seat]) || 0;
-      piles[pos] = (gs.discardPiles && gs.discardPiles[seat]) ? gs.discardPiles[seat].slice() : [];
+      pCounts[pos] = (seat === null || seat === undefined) ? 0 : ((gs.handCounts && gs.handCounts[seat]) || 0);
+      scores[pos] = (seat === null || seat === undefined) ? 0 : ((gs.scores && gs.scores[seat]) || 0);
+      piles[pos] = (seat !== null && seat !== undefined && gs.discardPiles && gs.discardPiles[seat]) ? gs.discardPiles[seat].slice() : [];
     });
     return {
-      pCount: 4,
-      activePositions: [0, 1, 2, 3],
+      pCount: map.N,
+      activePositions: map.activePositions(),
       rack,
       deck: { length: gs.deckCount || 0 },     // çizici yalnız .length kullanır
       indicator: gs.indicator,
@@ -277,12 +292,15 @@
 
     h += `<div class="ok-turn-timer${ok.turnTime <= 10 && !ok.gameEnded ? ' urgent' : ''}"><span class="tt-label">SIRA</span><span id="okTimerVal">${ok.turnTime}</span></div>`;
 
-    const sTxt = [0, 1, 2, 3].map(p => POS_LABEL[p] + ':' + ok.scores[p]).join(' | ');
-    h += `<div style="position:absolute;top:8px;left:10px;z-index:9;background:rgba(0,0,0,.7);color:var(--text);padding:4px 10px;border-radius:10px;font-size:.7em;border:1px solid var(--border)">El ${ok.currentRound}/${ok.maxRounds} (4 Kişilik) • <span style="color:var(--gold)">${sTxt}</span></div>`;
+    const sTxt = map.activePositions().map(p => POS_LABEL[p] + ':' + ok.scores[p]).join(' | ');
+    h += `<div style="position:absolute;top:8px;left:10px;z-index:9;background:rgba(0,0,0,.7);color:var(--text);padding:4px 10px;border-radius:10px;font-size:.7em;border:1px solid var(--border)">El ${ok.currentRound}/${ok.maxRounds} (${map.N} Kişilik) • <span style="color:var(--gold)">${sTxt}</span></div>`;
 
-    // Rakip panelleri: üst=Karşı(2), sol=Sol(1), sağ=Sağ(3)
+    // Rakip panelleri: üst=Karşı(2), sol=Sol(1), sağ=Sağ(3) — yalnızca
+    // masadaki GERÇEK koltuklar çizilir (2 kişilikte yalnız Karşı,
+    // 3 kişilikte Sol+Sağ).
     [['top', 2, 'c1'], ['left', 1, 'c2'], ['right', 3, 'c3']].forEach(([pos, pIdx, cCls]) => {
       const seat = map.seatAt(pIdx);
+      if (seat === null || seat === undefined) return;
       const turnCls = ok.turnIndex === pIdx ? ' turn' : '';
       const nm = POS_LABEL[pIdx] + ' • ' + esc(playerName(seat));
       const clock = `<span class="ok-pclock" data-okey-clock="${seat}">🕐 ${fmt(gs.clockMs ? gs.clockMs[seat] : 0)}</span>`;
@@ -301,14 +319,19 @@
 
     h += '<div class="ok-throw-zone" id="okThrowZone"><span class="ok-throw-label">📤 TAŞ AT</span><span class="ok-throw-empty">Sürükle</span></div>';
 
-    // Atık bölgeleri (görünüm konumları 0..3)
-    const DISC_LABEL = ['Sen', '← Sol', 'Karşı', 'Sağ'];
-    [0, 1, 2, 3].forEach(pos => {
+    // Atık bölgeleri (aktif görünüm konumları). Önceki oyuncunun (tur
+    // sırasında benden bir önce oturanın) en üst atığı TIKLANABİLİR —
+    // 2/3/4 kişide bu oyuncunun ekran konumu değişir, tıklama her zaman
+    // 'left' (prev) eylemine gider.
+    const prevPos = map.posOf(map.prevSeat());
+    map.activePositions().forEach(pos => {
       const pile = ok.discardPiles[pos] || [];
       const topTile = pile.length ? pile[pile.length - 1] : null;
-      const canTake = pos === 1 && topTile && ok.myTurn && ok.phase === 'draw';
+      const isPrevZone = pos === prevPos && pos !== 0;
+      const canTake = isPrevZone && topTile && ok.myTurn && ok.phase === 'draw';
       const attrs = canTake ? ` onmousedown="GV._okPointerDown(event, 'left')" ontouchstart="GV._okPointerDown(event, 'left')" style="cursor:grab"` : '';
-      h += `<div class="ok-disc-zone${canTake ? ' active-take' : ''}" data-pos="${pos}"${attrs}><span class="ok-disc-label">${DISC_LABEL[pos]}</span>`;
+      const lbl = (isPrevZone ? '← ' : '') + POS_LABEL[pos];
+      h += `<div class="ok-disc-zone${canTake ? ' active-take' : ''}" data-pos="${pos}"${attrs}><span class="ok-disc-label">${lbl}</span>`;
       if (topTile) {
         const cc = tileColor(topTile);
         h += `<div class="ok-disc-tile ${cc}"><div class="dt-num">${topTile.n}</div><div class="dt-dot"></div></div>`;
@@ -677,8 +700,8 @@
         if (type !== 'tile') {
           if (!myTurnNow()) { toast('⏳ Sıra sizde değil!', 'warning'); return; }
           if (gameState.phase !== 'draw') { toast('📤 Önce taş atmalısınız!', 'warning'); return; }
-          if (type === 'left' && !(gameState.discardPiles?.[seatMapping().seatAt(1)] || []).length) {
-            toast('⚠️ Sol oyuncunun atığı yok — orta desteden çekin.', 'warning'); return;
+          if (type === 'left' && !(gameState.discardPiles?.[seatMapping().prevSeat()] || []).length) {
+            toast('⚠️ Önceki oyuncunun atığı yok — orta desteden çekin.', 'warning'); return;
           }
         }
         // Sürükle-bırak görselliği yerel motora aittir; commit noktaları
