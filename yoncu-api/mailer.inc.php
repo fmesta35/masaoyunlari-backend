@@ -39,20 +39,14 @@ function gv_mime_parts($text, $html) {
 
 // Doğrulanmış SMTP gönderimi (Yöncü mail sunucusu, info@ kutusu).
 // mail() "gönderdim" diyip teslim edemiyorsa kalıcı çözüm budur.
-// Döner: true = gönderildi, false = denendi ama hata, null = SMTP tanımsız.
-function gv_smtp_send($to, $subject, $text, $html) {
-    if (!defined('GV_SMTP_USER') || !GV_SMTP_USER) return null;
-    if (!defined('GV_SMTP_PASS') || !GV_SMTP_PASS || strpos(GV_SMTP_PASS, 'BURAYA') !== false || strpos(GV_SMTP_PASS, 'ŞİFRE') !== false) return null;
-    $host = defined('GV_SMTP_HOST') ? GV_SMTP_HOST : 'mail.masaoyunlari.com.tr';
-    $port = defined('GV_SMTP_PORT') ? intval(GV_SMTP_PORT) : 465;
+// Döner: true = gönderildi, false = tüm yollar denendi hata, null = SMTP tanımsız.
+
+// Tek bir SMTP denemesi. Başarı: true; hata: açıklama metni (string).
+function gv_smtp_one($host, $port, $to, $subject, $text, $html) {
     $errno = 0; $errstr = '';
-    $conn = @fsockopen(($port === 465 ? 'ssl://' : '') . $host, $port, $errno, $errstr, 15);
-    if (!$conn) {
-        gv_mail_set_error("SMTP bağlanamadı: $errstr ($errno)");
-        gv_mail_log("SMTP-BAGLANTI-HATASI -> $to :: $errstr ($errno)");
-        return false;
-    }
-    stream_set_timeout($conn, 15);
+    $conn = @fsockopen(($port === 465 ? 'ssl://' : '') . $host, $port, $errno, $errstr, 12);
+    if (!$conn) return "bağlantı yok ($host:$port): $errstr ($errno)";
+    stream_set_timeout($conn, 12);
     $read = function () use ($conn) {
         $d = '';
         while (($l = fgets($conn, 515)) !== false) { $d .= $l; if (strlen($l) >= 4 && $l[3] === ' ') break; }
@@ -60,21 +54,41 @@ function gv_smtp_send($to, $subject, $text, $html) {
     };
     $ok25 = function () use ($read) { $r = $read(); return (strpos($r, '25') === 0) ? $r : false; };
     $say = function ($c) use ($conn) { fwrite($conn, $c . "\r\n"); };
-    $die = function ($why) use ($conn, $to) {
-        gv_mail_set_error('SMTP: ' . $why);
-        gv_mail_log("SMTP-HATA -> $to :: $why");
-        @fwrite($conn, "QUIT\r\n");
-        fclose($conn);
-        return false;
-    };
+    $out = function ($why) use ($conn) { @fwrite($conn, "QUIT\r\n"); fclose($conn); return $why; };
+
+    // EHLO kimliği: gönderen adresinin alan adı (masaoyunlari.com.tr)
+    $helo = 'localhost';
+    if (defined('GV_MAIL_FROM_ADDR') && strpos(GV_MAIL_FROM_ADDR, '@') !== false) {
+        $helo = substr(strrchr(GV_MAIL_FROM_ADDR, '@'), 1);
+    }
     $read(); // 220 karşılama
-    $say('EHLO ' . $host);               if (!$ok25()) return $die('EHLO reddedildi');
-    $say('AUTH LOGIN');                  if (strpos($read(), '334') !== 0) return $die('AUTH LOGIN desteklenmiyor');
-    $say(base64_encode(GV_SMTP_USER));   if (strpos($read(), '334') !== 0) return $die('SMTP kullanıcı adı reddedildi');
-    $say(base64_encode(GV_SMTP_PASS));   if (strpos($read(), '235') !== 0) return $die('SMTP kimlik doğrulama başarısız (config.php şifresini kontrol edin)');
-    $say('MAIL FROM:<' . GV_SMTP_USER . '>'); if (!$ok25()) return $die('MAIL FROM reddedildi');
-    $say('RCPT TO:<' . $to . '>');       if (!$ok25()) return $die('RCPT TO reddedildi');
-    $say('DATA');                        if (strpos($read(), '354') !== 0) return $die('DATA reddedildi');
+    $say("EHLO $helo"); if (!$ok25()) return $out('EHLO reddedildi');
+
+    // 587 = STARTTLS zorunlu (465 doğrudan SSL; 25 düz)
+    if ($port === 587) {
+        $say('STARTTLS'); if (strpos($read(), '220') !== 0) return $out('STARTTLS reddedildi');
+        if (!@stream_socket_enable_crypto($conn, true, STREAM_CRYPTO_METHOD_TLS_CLIENT)) return $out('TLS başlatılamadı');
+        $say("EHLO $helo"); if (!$ok25()) return $out('TLS sonrası EHLO reddedildi');
+    }
+
+    // Kimlik doğrulama (yerel MTA'da AUTH ilan edilmeyebilir — o zaman kimliksiz dene)
+    $from = GV_SMTP_USER;
+    $say('AUTH LOGIN');
+    $r = $read();
+    if (strpos($r, '334') === 0) {
+        $say(base64_encode(GV_SMTP_USER));
+        if (strpos($read(), '334') !== 0) return $out('SMTP kullanıcı adı reddedildi');
+        $say(base64_encode(GV_SMTP_PASS));
+        if (strpos($read(), '235') !== 0) return $out('SMTP kimlik doğrulama başarısız (config.php şifresini kontrol edin)');
+    } else {
+        $local = ($host === '127.0.0.1' || $host === 'localhost');
+        if (!$local) return $out('AUTH LOGIN desteklenmiyor');
+        if (defined('GV_MAIL_FROM_ADDR')) $from = GV_MAIL_FROM_ADDR; // yerel MTA kimliksiz kabul
+    }
+
+    $say('MAIL FROM:<' . $from . '>'); if (!$ok25()) return $out('MAIL FROM reddedildi');
+    $say('RCPT TO:<' . $to . '>');     if (!$ok25()) return $out('RCPT TO reddedildi');
+    $say('DATA');                      if (strpos($read(), '354') !== 0) return $out('DATA reddedildi');
 
     list($mimeH, $mimeB) = gv_mime_parts($text, $html);
     $msg  = 'From: ' . GV_MAIL_FROM . "\r\n";
@@ -82,15 +96,37 @@ function gv_smtp_send($to, $subject, $text, $html) {
     $msg .= 'To: <' . $to . ">\r\n";
     $msg .= 'Subject: ' . gv_b64_subject($subject) . "\r\n";
     $msg .= 'Date: ' . date('r') . "\r\n";
-    $msg .= 'Message-ID: <gv' . bin2hex(random_bytes(8)) . '@masaoyunlari.com.tr>' . "\r\n";
+    $msg .= 'Message-ID: <gv' . bin2hex(random_bytes(8)) . '@' . $helo . '>' . "\r\n";
     $msg .= $mimeH . "\r\n" . $mimeB;
     $msg = preg_replace('/\r?\n/', "\r\n", $msg);  // CRLF normalleştir
     $msg = preg_replace('/^\./m', '..', $msg);     // dot-stuffing
     fwrite($conn, $msg . "\r\n.\r\n");
-    if (!$ok25()) return $die('ileti gövdesi kabul edilmedi');
+    if (!$ok25()) return $out('ileti gövdesi kabul edilmedi');
     $say('QUIT');
     fclose($conn);
     return true;
+}
+
+function gv_smtp_send($to, $subject, $text, $html) {
+    if (!defined('GV_SMTP_USER') || !GV_SMTP_USER) return null;
+    if (!defined('GV_SMTP_PASS') || !GV_SMTP_PASS || strpos(GV_SMTP_PASS, 'BURAYA') !== false || strpos(GV_SMTP_PASS, 'ŞİFRE') !== false) return null;
+    $host = defined('GV_SMTP_HOST') ? GV_SMTP_HOST : 'mail.masaoyunlari.com.tr';
+    $port = defined('GV_SMTP_PORT') ? intval(GV_SMTP_PORT) : 465;
+    // Deneme sırası: yapılandırılan → aynı host 587/STARTTLS → yerel MTA (127.0.0.1:25).
+    // Yöncü gibi paylaşımlı hostlarda DIŞ portlar güvenlik duvarına takılabiliyor;
+    // yerel MTA ise aynı makinede olduğu için en sağlam yoldur.
+    $tries = array(array($host, $port));
+    if ($port === 465) $tries[] = array($host, 587);
+    $tries[] = array('127.0.0.1', 25);
+    $errs = array();
+    foreach ($tries as $t) {
+        $r = gv_smtp_one($t[0], $t[1], $to, $subject, $text, $html);
+        if ($r === true) return true;
+        $errs[] = $r;
+    }
+    gv_mail_set_error('SMTP: ' . implode(' | ', $errs));
+    gv_mail_log("SMTP-HATA -> $to :: " . implode(' | ', $errs));
+    return false;
 }
 
 function gv_send_mail($to, $subject, $text, $html) {
