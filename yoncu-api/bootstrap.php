@@ -15,7 +15,12 @@ header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
 if (($_SERVER['REQUEST_METHOD'] ?? '') === 'OPTIONS') { http_response_code(204); exit; }
 
 function gv_json($data, $code = 200) {
-    http_response_code($code);
+    // NOT: oPanel gibi hosting panelleri 4xx/5xx yanıt GÖVDELERİNİ kendi hata
+    // sayfalarıyla değiştirebiliyor; JSON mesajının istemciye her zaman
+    // ulaşması için HTTP kodu 200 tutulur, asıl kod gövdede "status" alanıdır.
+    if (!isset($data['status'])) $data['status'] = $code;
+    http_response_code(200);
+    header('Content-Type: application/json; charset=utf-8');
     echo json_encode($data, JSON_UNESCAPED_UNICODE);
     exit;
 }

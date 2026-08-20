@@ -53,6 +53,7 @@
         401: 'Kullanıcı adı/e-posta veya şifre hatalı.',
         403: 'E-posta adresiniz onay bekliyor olabilir — gelen kutusunu ve spam klasörünü kontrol edin.',
         404: 'Sunucudaki uygulama eski sürümde görünüyor.',
+        409: 'Bu kullanıcı adı veya e-posta zaten kayıtlı.',
         500: 'Sunucu hatası (500).',
         503: 'Sunucu geçici olarak hizmet veremiyor (bakım veya veritabanı).'
       };
