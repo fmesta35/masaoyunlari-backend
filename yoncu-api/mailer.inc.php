@@ -44,7 +44,15 @@ function gv_mime_parts($text, $html) {
 // Tek bir SMTP denemesi. Başarı: true; hata: açıklama metni (string).
 function gv_smtp_one($host, $port, $to, $subject, $text, $html) {
     $errno = 0; $errstr = '';
-    $conn = @fsockopen(($port === 465 ? 'ssl://' : '') . $host, $port, $errno, $errstr, 12);
+    // Paylaşımlı hostlarda sertifika çoğu zaman panelin kendi adına (örn.
+    // mail.yoncu.com) kayıtlıdır; katı peer doğrulaması TLS'i bozuyordu.
+    // Bağlantı yine şifrelidir — yalnızca sertifika adı zorlaması esnetilir.
+    $ctx = stream_context_create(array('ssl' => array(
+        'verify_peer' => false,
+        'verify_peer_name' => false,
+        'allow_self_signed' => true
+    )));
+    $conn = @stream_socket_client(($port === 465 ? 'ssl' : 'tcp') . '://' . $host . ':' . $port, $errno, $errstr, 12, STREAM_CLIENT_CONNECT, $ctx);
     if (!$conn) return "bağlantı yok ($host:$port): $errstr ($errno)";
     stream_set_timeout($conn, 12);
     $read = function () use ($conn) {
