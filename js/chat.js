@@ -68,11 +68,16 @@
     const s = document.createElement('style');
     s.id = 'gv-chat-style';
     s.textContent = `
-      #gvChatFab{position:fixed;right:18px;bottom:18px;z-index:2147482000;background:linear-gradient(135deg,#6c5ce7,#4834d4);color:#fff;border:none;border-radius:50px;padding:12px 18px;font-size:15px;font-weight:800;cursor:pointer;box-shadow:0 8px 24px rgba(0,0,0,.5);display:flex;align-items:center;gap:8px}
-      #gvChatFab:hover{transform:translateY(-2px)}
-      #gvChatFab .gv-chat-badge{background:#e74c3c;border-radius:20px;padding:1px 7px;font-size:.75em;display:none}
-      #gvChatPanel{position:fixed;right:18px;bottom:74px;z-index:2147482000;width:320px;max-width:92vw;height:390px;max-height:70vh;background:#12122b;border:1px solid rgba(255,255,255,.14);border-radius:14px;box-shadow:0 18px 50px rgba(0,0,0,.65);display:none;flex-direction:column;overflow:hidden}
-      #gvChatPanel.open{display:flex}
+      /* MİNİK BALONCUK: yalnız ikon, sağ kenara yapışık sekme. Büyük mor
+         "Sohbet" hapı masa satırlarının (Katıl düğmesinin) üstüne binip
+         tıklamayı engelliyordu; 42px'lik kenar sekmesi bu sorunu bitirir. */
+      #gvChatFab{position:fixed;right:0;bottom:96px;z-index:2147482000;background:linear-gradient(135deg,#6c5ce7,#4834d4);color:#fff;border:none;border-radius:13px 0 0 13px;width:42px;height:48px;padding:0;font-size:19px;font-weight:800;cursor:pointer;box-shadow:0 6px 18px rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;opacity:.95;transition:transform .18s ease,opacity .18s ease}
+      #gvChatFab:hover{opacity:1;transform:translateX(-3px)}
+      #gvChatFab .gv-chat-badge{position:absolute;top:-7px;left:-7px;background:#e74c3c;border:2px solid #12122b;border-radius:20px;padding:1px 6px;font-size:.62em;line-height:1.35;display:none}
+      /* SAĞDAN ÇEKMECE PANEL: sağ kenara dayalı, x ekseninde kayarak açılır/
+         kapanır. Kapalıyken ekranın dışında durur; hiçbir şeyin üstünü örtmez. */
+      #gvChatPanel{position:fixed;right:0;top:0;bottom:0;height:100vh;height:100dvh;z-index:2147482001;width:340px;max-width:94vw;background:#12122b;border-left:1px solid rgba(255,255,255,.14);border-radius:0;box-shadow:-18px 0 50px rgba(0,0,0,.65);display:flex;flex-direction:column;overflow:hidden;transform:translateX(106%);visibility:hidden;transition:transform .28s ease,visibility 0s linear .28s}
+      #gvChatPanel.open{transform:translateX(0);visibility:visible;transition:transform .28s ease}
       #gvChatPanel .gc-head{padding:10px 12px;background:rgba(255,255,255,.05);display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid rgba(255,255,255,.08)}
       #gvChatPanel .gc-head b{font-size:.95em}
       #gvChatPanel .gc-head span{cursor:pointer;color:#9aa0b4;font-size:1.1em}
@@ -88,6 +93,10 @@
       #gvChatPanel .gc-input button{background:linear-gradient(135deg,#00b894,#00a381);border:none;color:#fff;border-radius:8px;padding:0 14px;font-weight:800;cursor:pointer}
       #gvChatPanel .gc-input button:disabled{opacity:.45;cursor:not-allowed}
       #gvChatPanel .gc-note{font-size:.68em;color:#7d8197;padding:0 10px 8px}
+      /* Son masa satırı, kenardaki sohbet sekmesinin bandından yukarı
+         kaydırılabilsin — "Katıl düğmesine tıklanamıyor" şikayetinin kök
+         nedeni listenin sonunda baloncuğun satırın üstünde kalmasıydı. */
+      .rooms-list{padding-bottom:132px;scroll-padding-bottom:132px}
     `;
     document.head.appendChild(s);
   }
@@ -99,7 +108,9 @@
     const fab = document.createElement('button');
     fab.id = 'gvChatFab';
     fab.type = 'button';
-    fab.innerHTML = '💬 Sohbet <span class="gv-chat-badge" id="gvChatBadge"></span>';
+    fab.innerHTML = '💬<span class="gv-chat-badge" id="gvChatBadge"></span>';
+    fab.title = 'Sohbeti aç/kapat';
+    fab.setAttribute('aria-label', 'Sohbet panelini aç/kapat');
     fab.addEventListener('click', () => {
       open = !open;
       panel().classList.toggle('open', open);

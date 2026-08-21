@@ -689,8 +689,9 @@ html{scrollbar-gutter:stable}
   .icon-btn{width:30px;height:30px;min-width:30px;font-size:.88em}
   /* Üye rozeti küçük ekranda yalnız avatar: marka + butonlar sığsın diye */
   .user-pill > div:nth-child(2){display:none}
-  #gvChatFab{right:10px;bottom:10px;padding:10px 14px;font-size:13.5px}
-  #gvChatPanel{right:6px;left:6px;width:auto;max-width:none;bottom:62px;height:60vh}
+  /* Sohbet: minik kenar baloncuğu + sağdan tam ekran çekmece (mobil) */
+  #gvChatFab{right:0;bottom:88px;width:40px;height:46px;font-size:18px}
+  #gvChatPanel{width:100vw;max-width:100vw}
   .modal{max-width:96vw}
 }
 </style>
@@ -3891,7 +3892,7 @@ GV.init();
 <script src="js/chess-online.js?v=20260820e" defer></script>
 <script src="js/tavla-online.js?v=20260820e" defer></script>
 <script src="js/okey-online.js?v=20260820e" defer></script>
-<script src="js/chat.js?v=20260820f" defer></script>
+<script src="js/chat.js?v=20260821c" defer></script>
 <script src="js/leave-guard.js?v=20260820e" defer></script>
 <script src="js/auth.js?v=20260821a" defer></script>
 <script src="js/social.js?v=20260821b" defer></script>
