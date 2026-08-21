@@ -137,6 +137,12 @@
       .ok-spec-lock{pointer-events:none!important;opacity:.45!important;filter:grayscale(.4)}
       .ok-turn-timer.urgent{color:#ff6b81!important;border-color:#ff6b81!important;animation:gvOkeyDanger .5s infinite alternate}
       @keyframes gvOkeyDanger{from{box-shadow:0 0 0 rgba(255,71,87,0)}to{box-shadow:0 0 14px rgba(255,71,87,.65)}}
+      /* Sırası gelen oyuncunun ANA SAATİ yanar — ayrı yüzen SIRA kutusu kaldırıldı. */
+      .ok-player.turn{border-color:#f9ca24!important;box-shadow:0 0 0 2px #f9ca24,0 0 18px rgba(249,202,36,.5)!important}
+      .ok-me.turn .ok-me-name{color:#f9ca24;font-weight:800}
+      .ok-turntime{display:inline-block;margin-left:6px;background:rgba(249,202,36,.14);border:1px solid #f9ca24;color:#f9ca24;border-radius:8px;padding:0 6px;font-weight:800;font-variant-numeric:tabular-nums}
+      .ok-turntime::before{content:'⏱ '}
+      .ok-turntime.urgent{color:#ff6b81;border-color:#ff6b81;background:rgba(255,71,87,.14);animation:gvOkeyDanger .5s infinite alternate}
       .chess-end-overlay{position:fixed;inset:0;z-index:2147483000;display:flex;align-items:center;justify-content:center;background:rgba(6,7,20,0.88);backdrop-filter:blur(12px)}
       .chess-end-modal{background:#111128;border:1px solid rgba(255,255,255,0.15);padding:28px;border-radius:18px;text-align:center;color:#fff;box-shadow:0 20px 60px rgba(0,0,0,0.7);max-width:430px;width:92%}
       .chess-end-modal h2{margin:12px 0 8px;font-size:1.5rem;color:#f9ca24}
@@ -290,7 +296,10 @@
         '</div></div>';
     }
 
-    h += `<div class="ok-turn-timer${ok.turnTime <= 10 && !ok.gameEnded ? ' urgent' : ''}"><span class="tt-label">SIRA</span><span id="okTimerVal">${ok.turnTime}</span></div>`;
+    // SIRA sayacı artık ayrı yüzen kutu DEĞİL; sırası gelen oyuncunun
+    // ana saatinin İÇİNDE yanar (kutu için: updateClock #okTimerVal'i tıklar).
+    const turnChip = (pIdx) => (ok.turnIndex === pIdx && !ok.gameEnded)
+      ? `<span class="ok-turntime${ok.turnTime <= 10 ? ' urgent' : ''}" id="okTimerVal">${ok.turnTime}</span>` : '';
 
     const sTxt = map.activePositions().map(p => POS_LABEL[p] + ':' + ok.scores[p]).join(' | ');
     h += `<div style="position:absolute;top:8px;left:10px;z-index:9;background:rgba(0,0,0,.7);color:var(--text);padding:4px 10px;border-radius:10px;font-size:.7em;border:1px solid var(--border)">El ${ok.currentRound}/${ok.maxRounds} (${map.N} Kişilik) • <span style="color:var(--gold)">${sTxt}</span></div>`;
@@ -304,7 +313,7 @@
       const turnCls = ok.turnIndex === pIdx ? ' turn' : '';
       const nm = POS_LABEL[pIdx] + ' • ' + esc(playerName(seat));
       const clock = `<span class="ok-pclock" data-okey-clock="${seat}">🕐 ${fmt(gs.clockMs ? gs.clockMs[seat] : 0)}</span>`;
-      h += `<div class="ok-player ${pos} ${cCls}${turnCls}"><div class="p-ava">👤</div><div><div class="p-name">${nm}</div><div class="p-count">${ok.pCounts[pIdx]} taş • ${clock}</div></div></div>`;
+      h += `<div class="ok-player ${pos} ${cCls}${turnCls}"><div class="p-ava">👤</div><div><div class="p-name">${nm}</div><div class="p-count">${ok.pCounts[pIdx]} taş • ${clock}${turnChip(pIdx)}</div></div></div>`;
       h += `<div class="ok-opp-rack ${pos}">`;
       for (let i = 0; i < ok.pCounts[pIdx]; i++) h += '<div class="ok-opp-t"></div>';
       h += '</div>';
@@ -349,7 +358,7 @@
     const meLabel = isSpectator ? '👁️ İzleyici' : 'Sen • ' + esc(playerName(map.anchor));
     const meClock = (mySeat !== null && gs.clockMs)
       ? `<span class="ok-pclock" data-okey-clock="${map.anchor}">🕐 ${fmt(gs.clockMs[map.anchor])}</span>` : '';
-    h += `<div class="ok-me${meTurn}"><div class="ok-me-ava">👤</div><div class="ok-me-name">${meLabel} ${meClock}</div></div>`;
+    h += `<div class="ok-me${meTurn}"><div class="ok-me-ava">👤</div><div class="ok-me-name">${meLabel} ${meClock}${turnChip(0)}</div></div>`;
 
     // Kendi ıstakam (izleyicide boş)
     h += '<div class="ok-rack-wrap"><div class="ok-rack">';
@@ -439,8 +448,8 @@
       const remain = Math.max(0, Number(gs.turnRemainingMs || 0) - (playing ? sincePack : 0));
       const secs = Math.ceil(remain / 1000);
       setText(el, String(secs));
-      const wrap = el.closest('.ok-turn-timer');
-      if (wrap) wrap.classList.toggle('urgent', playing && secs <= 10);
+      // Sayaç taşı Kendi saatinde yanar; süre azalınca kırmızı yanıp söner.
+      el.classList.toggle('urgent', playing && secs <= 10);
       // Sıramsa ve süre azalıyorsa tur başına bir kez uyar
       if (playing && myTurnNow() && secs <= 10) {
         const key = gs.round + ':' + gs.turn + ':' + Math.ceil(Number(gs.turnRemainingMs || 0) / 1000);

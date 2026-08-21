@@ -41,7 +41,27 @@
     sock.on('playerLeft', () => { /* maç bitişi gameEnded ile de gelebilir; bekçiyi kapatma, oyun sürüyor olabilir (okey 3-4 kişi) */ });
     sock.on('okeyMatchEnded', () => { inGame = false; closeModal(); });
     sock.on('roomClosed', () => { inGame = false; closeModal(); });
+    // Masaya hiç alınmadıysak ya da atıldıysak "oyunda" sayılmayız — bayat bayrak kalmasın.
+    sock.on('joinDenied', () => { inGame = false; closeModal(); });
+    sock.on('kickedFromRoom', () => { inGame = false; closeModal(); });
     sock.on('disconnect', () => { inGame = false; closeModal(); });
+  }
+
+  // Gerçekten oda bağlamında mıyız? (oyun sayfası aktif ya da bekleme maskesi
+  // görünür). Değilse inGame bayrağı bayattır: oyuncu çoktan çıktıysa bekçi
+  // "Oyunda Kal" diye yapışmamalı.
+  function inRoomContext() {
+    try {
+      if (window.st && st.curPage === 'room') return true;
+      const pg = document.getElementById('pg-room');
+      if (pg && pg.classList.contains('active')) return true;
+      const wait = document.getElementById('gv-real-chess-wait');
+      if (wait && wait.isConnected && wait.style.display !== 'none') return true;
+    } catch (_) {}
+    return false;
+  }
+  function dropStaleFlag() {
+    if (inGame && !inRoomContext()) { inGame = false; closeModal(); }
   }
   function scanSock() {
     const s = window.__gvRoomSocket;
@@ -197,6 +217,6 @@
     get: () => ({ inGame, askLeave, closeModal, active })
   });
 
-  setInterval(() => { scanSock(); wrapNav(); }, 800);
+  setInterval(() => { scanSock(); wrapNav(); dropStaleFlag(); }, 800);
   scanSock(); wrapNav();
 })();

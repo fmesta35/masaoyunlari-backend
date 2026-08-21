@@ -42,7 +42,7 @@
 
     var availW = Math.max(300, area.clientWidth || window.innerWidth);
     var availH = Math.max(340, window.innerHeight - 150); // üst bar + oda başlığı payı
-    var s = Math.min(availW / DESIGN_W, availH / DESIGN_H, 1.15); // hafif büyütmeye izin
+    var s = Math.min(availW / DESIGN_W, availH / DESIGN_H, 1.35); // geniş ekranlarda masa büyüyebilir (oran korunur)
 
     tbl.style.width = DESIGN_W + 'px';
     tbl.style.height = DESIGN_H + 'px';
