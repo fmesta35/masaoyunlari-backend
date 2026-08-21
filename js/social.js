@@ -344,21 +344,34 @@
         : '<div style="padding:8px;text-align:center;color:var(--text3);font-size:0.8em;">Henüz arkadaşınız yok — bir oyuncunun ismine tıklayıp profilinden ekleyin! 👥</div>';
       return;
     }
-    el.innerHTML = list.map(f => `
-    <div class="friend">
+    // Online durumunu ÇOK net göster: büyük nokta + renk + emoji + yazı.
+    // Eskiden 8px nokta + renkli yazı kullanılıyordu, küçük ekranda veya
+    // CSS override'ında fark edilmiyordu ("kırmızı yeşil renk olarak
+    // sorgulamıyor" hatası). Şimdi: 12px disk + arka plan + emoji + metin.
+    el.innerHTML = list.map(f => {
+      const onl = !!f.online;
+      const dotColor = onl ? '#00b894' : '#8a8fa3';          // yeşil / gri
+      const dotGlow = onl ? 'box-shadow:0 0 8px rgba(0,184,148,.6)' : 'none';
+      const lblColor = onl ? '#00b894' : 'var(--text3)';
+      const lblEmoji = onl ? '🟢' : '⚪';
+      const lblText = onl ? 'Çevrimiçi' : 'Çevrimdışı';
+      return `
+    <div class="friend" data-uid="${Number(f.id)}">
       <div style="display:flex;align-items:center;gap:8px;cursor:pointer" data-uid="${Number(f.id)}">
         <div class="avatar sm">${esc(String(f.name).charAt(0))}</div>
         <div>
           <div style="font-weight:600;font-size:.85em" data-uid="${Number(f.id)}">${esc(f.name)}</div>
-          <div style="font-size:.72em;color:${f.online ? 'var(--success)' : 'var(--text3)'}">
-            <span class="${f.online ? 'online-dot' : 'offline-dot'}"></span> ${f.online ? 'Çevrimiçi' : 'Çevrimdışı'}
+          <div style="font-size:.78em;color:${lblColor};display:flex;align-items:center;gap:5px;margin-top:2px">
+            <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${dotColor};${dotGlow}"></span>
+            <span>${lblEmoji} ${lblText}</span>
           </div>
         </div>
       </div>
-      <button class="btn btn-sm ${f.online ? 'btn-a' : 'btn-s'}" style="padding:2px 6px;font-size:0.7em;"
-        ${f.online ? '' : 'disabled style="opacity:0.4"'}
+      <button class="btn btn-sm ${onl ? 'btn-a' : 'btn-s'}" style="padding:2px 6px;font-size:0.7em;"
+        ${onl ? '' : 'disabled style="opacity:0.4"'}
         onclick="event.stopPropagation();window.GVSocial && GVSocial.inviteFriendById(${Number(f.id)})">Davet Et</button>
-    </div>`).join('');
+    </div>`;
+    }).join('');
   }
 
   function renderFriendsMember(q) {

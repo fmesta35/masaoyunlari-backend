@@ -90,14 +90,24 @@ function installProxy(app, helpers) {
       let url = REMOTE + MAP[k];
       if (k === 'GET /api/users/search' && req.query.q) url += '&q=' + encodeURIComponent(String(req.query.q));
       const r = await callJson(url, { body: method === 'POST' ? req.body : null, bearer });
-      // Çevrimiçi bayraklarını yerel soket haritasından zenginleştir
+      // Çevrimiçi bayraklarını zenginleştir.
+      // ÖNEMLİ: PHP'nin döndürdüğü `online` alanını da koru, sadece Render
+      // socket haritasıyla override ETME. Arkadaş başka bir cihazda/sunucuda
+      // online ise PHP onu online işaretlemiş olabilir, ama Render soket
+      // haritasında kayıtlı olmayabilir — yine de online göstermemiz
+      // gerekir. Her iki kaynağı VEYA'la: phpOnline || renderOnline.
       const d = r.data;
       try {
         if (d && d.ok && helpers && helpers.isOnline) {
-          if (Array.isArray(d.friends)) d.friends = d.friends.map(f => ({ ...f, online: helpers.isOnline(f.id) }));
-          if (Array.isArray(d.users)) d.users = d.users.map(u => ({ ...u, online: helpers.isOnline(u.id) }));
-          if (Array.isArray(d.incoming)) d.incoming = d.incoming.map(f => ({ ...f, online: helpers.isOnline(f.id) }));
-          if (Array.isArray(d.outgoing)) d.outgoing = d.outgoing.map(f => ({ ...f, online: helpers.isOnline(f.id) }));
+          const merge = (arr) => Array.isArray(arr) ? arr.map(item => {
+            const phpOnline = !!item.online;
+            const renderOnline = !!helpers.isOnline(item.id);
+            return { ...item, online: phpOnline || renderOnline };
+          }) : arr;
+          if (Array.isArray(d.friends)) d.friends = merge(d.friends);
+          if (Array.isArray(d.users)) d.users = merge(d.users);
+          if (Array.isArray(d.incoming)) d.incoming = merge(d.incoming);
+          if (Array.isArray(d.outgoing)) d.outgoing = merge(d.outgoing);
         }
       } catch (_) {}
       res.status(r.status || 502).json(d);
@@ -107,7 +117,12 @@ function installProxy(app, helpers) {
   app.get('/api/users/:id/profile', async (req, res) => {
     const id = Number(req.params.id);
     const r = await callJson(REMOTE + '/social.php?action=profile&id=' + encodeURIComponent(id));
-    if (r.data && r.data.ok && helpers && helpers.isOnline) r.data.online = helpers.isOnline(id);
+    if (r.data && r.data.ok && helpers && helpers.isOnline) {
+      // Profil: PHP'nin online alanı varsa onu da koru (VEYA)
+      const phpOnline = !!r.data.online;
+      const renderOnline = !!helpers.isOnline(id);
+      r.data.online = phpOnline || renderOnline;
+    }
     res.status(r.status || 502).json(r.data);
   });
   console.log('🔀 Üyelik REST uçları Yöncü PHP API\'sine proxyleniyor: ' + REMOTE);
