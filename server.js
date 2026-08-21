@@ -1489,7 +1489,12 @@ io.on('connection', socket => {
     }
 
     // Özel masanın kurucusu (davet hakkı onundur): ilk koltuk alan ÜYE kaydedilir.
-    if (player && player.userId && room.isPrivate && !room.creatorId) {
+    // Eğer oyuncu daha önce userId'siz kaydedildiyse (PHP timeout yarışı
+    // sırasında) ve şimdi socket.userId yazıldıysa, creatorId'yi de
+    // güncelleriz. Eski creatorId farklı bir user ise (logout/login
+    // sonrası eski oturumdan kalan oda) ve oyuncu zaten odadaysa, yeni
+    // userId'yi creatorId yap — yani odanın yeni sahibi bu oyuncu olur.
+    if (player && player.userId && room.isPrivate && (!room.creatorId || room.creatorId !== player.userId)) {
       room.creatorId = player.userId;
     }
 
