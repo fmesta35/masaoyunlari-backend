@@ -1292,7 +1292,10 @@ io.on('connection', socket => {
   async function ensureSocketIdentity(data) {
     if (socket.userId) return true;
     if (!authApi || typeof authApi.verifyToken !== 'function') return false;
-    const t = data && typeof data.memberToken === 'string' ? data.memberToken : '';
+    const handshakeToken = socket.handshake && socket.handshake.auth && socket.handshake.auth.token;
+    const t = data && typeof data.memberToken === 'string'
+      ? data.memberToken
+      : (typeof handshakeToken === 'string' ? handshakeToken : '');
     if (!t || t.length > 256) return false;
     try {
       const uid = await authApi.verifyToken(t);

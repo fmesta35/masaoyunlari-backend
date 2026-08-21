@@ -455,6 +455,9 @@
 
     if (!socket) {
       socket = window.io(BACKEND, {
+        // Tokenı Socket.IO el sıkışmasına da koy: authHello/joinRoom sırası
+        // yarışsa bile Render bağlantısı üyeyi tanıyabilsin.
+        auth: { token: memberToken() || '' },
         transports: ['websocket', 'polling'],
         reconnection: true,
         reconnectionAttempts: Infinity,
