@@ -451,7 +451,16 @@
       window.__gvRoomSocket = socket;
       window.__gvChessSocket = socket;
 
-      socket.on('connect', join);
+      // Soket bağlandığında join() çağrılmadan ÖNCE authHello gönder — üye
+      // ise socket.userId hemen yazılır, yoksa oluşacak yarış durumunu
+      // ("Özel masa kurmak için üye girişi gerekli" yanlışlığı) önler.
+      // Misafirlerde token yok, auth.js zaten boş geçer.
+      socket.on('connect', () => {
+        try { if (window.GVAuth && typeof GVAuth.authHello === 'function' && window.GVAuth.token && window.GVAuth.token()) {
+          window.GVAuth.authHello(socket);
+        } } catch (_) {}
+        join();
+      });
       socket.on('roomUpdated', r => {
         if (!r || String(r.id) !== roomId || !isChess()) return;
         room = r;
@@ -550,7 +559,43 @@
     join();
   }
 
-  function join() {
+  // Kimlik hazır mı? Üye ise ve socket'e authHello henüz ulaşıp userId
+  // yazılmadıysa, authHello'yu YENİDEN gönderip kısa süre bekle. Bu, özel
+  // oda kurma yarış durumunu ("Özel masa kurmak için üye girişi gerekli"
+  // hatasının asıl kökü) çözer: authHello her 1.5 sn'de çağrılıyor ama
+  // kullanıcı oda kur'a basarsa henüz ulaşmamış olabilir.
+  function ensureAuthedForPrivate() {
+    return new Promise(resolve => {
+      const tok = (window.GVAuth && typeof GVAuth.token === 'function') ? (GVAuth.token() || '') : '';
+      const s = state();
+      const isMember = s && !s.isGuest && s.user && s.user.id;
+      if (!isMember || !tok) return resolve(true); // misafir: sunucu zaten reddeder
+      if (socket && socket.userId) return resolve(true); // hazır
+      // authHello'yu şimdi gönder (sayfa yüklendikten sonra setInterval
+      // tetiklenmemiş olabilir). Sunucu authReady ile cevap verir.
+      let settled = false;
+      const onReady = (p) => {
+        if (settled) return;
+        if (!p || p.ok) { settled = true; socket.off('authReady', onReady); resolve(true); }
+      };
+      try {
+        socket.on('authReady', onReady);
+        socket.emit('authHello', { token: tok });
+      } catch (_) { return resolve(false); }
+      // authReady 1.5 sn'de gelmezse: sunucu tarafında PHP soğuk başlangıcı
+      // veya token reddedilmiş olabilir; yine de join() denenir (sunucu
+      // memberToken yedeği ile reddederse retryAfterAuthDeny zaten devreye
+      // girer ve join'i tekrar çağırır).
+      setTimeout(() => {
+        if (settled) return;
+        settled = true;
+        try { socket.off('authReady', onReady); } catch (_) {}
+        resolve(false);
+      }, 1500);
+    });
+  }
+
+  async function join() {
     if (!socket?.connected || !roomId || !isChess()) return;
     localStorage.setItem('gv-room-id', roomId);
     // Okey: masayı kuranın seçtiği el sayısı (3/5/7) yeni odaya taşınır;
@@ -561,6 +606,13 @@
     // artık geçerli değil" reddi döner.
     const viaInvite = !!window.__gvJoinViaInvite;
     window.__gvJoinViaInvite = false;
+    // ÖZEL ODA yarış durumu: kullanıcı üye ama socket.userId henüz yazılmamış
+    // olabilir (authHello periyodu 1.5 sn, kullanıcı daha hızlı basmış
+    // olabilir). join()'i göndermeden önce kimliği hazırla; başarısız olursa
+    // bile sunucudaki memberToken yedeği + retryAfterAuthDeny devreye girer.
+    if (room && room.isPrivate) {
+      await ensureAuthedForPrivate();
+    }
     socket.emit('joinRoom', {
       memberToken: (window.GVAuth && GVAuth.token ? (GVAuth.token() || undefined) : undefined),
       roomId,

@@ -424,12 +424,26 @@ window.addEventListener('gv:makeMove', event => {
                 // oda kapandıysa sunucu yeni oda açmak yerine "geçersiz" döner.
                 const viaInvite = !!window.__gvJoinViaInvite;
                 window.__gvJoinViaInvite = false;
+                // ÖZEL ODA yarış durumu: kullanıcı üye ama socket.userId henüz
+                // yazılmamış olabilir. authHello'yu şimdi gönder ve kısa süre
+                // userId yazılmasını bekle — yoksa sunucu "Özel masa kurmak
+                // için üye girişi gerekli" reddi verir (auth yarışı).
+                const sock = window.__gvRoomSocket;
+                if (r && r.isPrivate && sock && !sock.userId) {
+                    const tok = (window.GVAuth && typeof GVAuth.token === 'function') ? (GVAuth.token() || '') : '';
+                    if (tok) {
+                        try { sock.emit('authHello', { token: tok }); } catch (_) {}
+                    }
+                }
+                if (!window.__gvRoomSocket) return;
                 window.__gvRoomSocket.emit('joinRoom', {
       memberToken: (window.GVAuth && GVAuth.token ? (GVAuth.token() || undefined) : undefined),
                     roomId: r.id,
                     userName: username,
                     maxPlayers: r.maxPlayers || maxPlayers,
                     gameId: (typeof st !== 'undefined' && st.curGame) ? st.curGame : 'chess',
+                    roomName: r.name,
+                    isPrivate: !!r.isPrivate,
                     viaInvite
                 });
             }

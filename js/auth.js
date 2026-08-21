@@ -255,7 +255,7 @@
         try { origLogout.apply(this, arguments); } catch (_) {}
       }
     };
-    window.GVAuth = { token: getToken, user: () => (st8().isGuest ? null : st8().user), login: doLogin, logout: () => GV.logout(), api, authHelloAll };
+    window.GVAuth = { token: getToken, user: () => (st8().isGuest ? null : st8().user), login: doLogin, logout: () => GV.logout(), api, authHelloAll, authHello };
     hook.done = true;
   }
   hook.done = false;
