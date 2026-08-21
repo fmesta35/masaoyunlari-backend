@@ -21,11 +21,12 @@ function enabled() { return !!REMOTE; }
 
 async function callJson(url, opts, timeoutMs) {
   const ctrl = new AbortController();
-  // PHP soğuk başlangıcı 10 sn'ye kadar sürebilir. 18 sn'de tutmak
-  // kullanıcıyı gereksiz yere bekletiyordu; auth.js paralel authHello
-  // gönderdiği için 10 sn yeterli. Soğuk başlangıçta arka plan doğrulaması
-  // hâlâ çalışır (sunucu tarafı arka plana atıyor).
-  const t = setTimeout(() => ctrl.abort(), timeoutMs || 10000);
+  // PHP çağrıları 3 sn'de timeout olmalı. Hata durumunda meCache sadece
+  // başarılı sonuçları 5 sn tutacak; timeout / hata durumunda hemen
+  // tekrar denenir. Soğuk başlangıç senaryoları için auth.js zaten 1.5
+  // sn'de authHello gönderiyor, böylece PHP cevap verir vermez cache
+  // dolar.
+  const t = setTimeout(() => ctrl.abort(), timeoutMs || 3000);
   try {
     const headers = { 'Content-Type': 'application/json' };
     // FastCGI (Yöncü) Authorization'ı kırpabilir → jeton ÜÇ kanaldan gider:
@@ -130,22 +131,21 @@ function installProxy(app, helpers) {
 
 // ---------------- soket yardımcıları ----------------
 // authHello periyodunda her 1.5 sn'de gelen isteklerde PHP'ye tekrar
-// gidilmesin diye başarılı sonuçları 30 sn cache'leriz. Ancak başarısız
-// sonuçları CACHE'LEMIYORUZ: token expired veya PHP timeout olmuşsa,
-// her denemede PHP'ye tekrar gidip gerçek cevabı öğreniriz (5 sn'lik
-// başarısız cache, "Özel masa kurmak için üye girişi gerekli" yarış
-// durumuna yol açıyordu: bir kez timeout olan token 5 sn boyunca hep
-// null dönüyor, socket.userId hiç yazılamıyordu).
+// gidilmesin diye başarılı sonuçları 5 sn cache'leriz (eski 30 sn çok
+// uzundu: bir kez timeout olan token 30 sn boyunca null dönüyordu,
+// "Üyelik doğrulanamadı" uyarısına yol açıyordu). 5 sn sonra otomatik
+// PHP'ye tekrar sorulur; 1.5 sn'de bir gelen authHello ping'leriyle
+// zaten yenileme yapılıyor.
 const meCache = new Map(); // token -> {u, at}
 function me(token) {
   if (!token) return Promise.resolve(null);
   const c = meCache.get(token);
-  if (c && c.u && Date.now() - c.at < 30000) return Promise.resolve(c.u);
+  if (c && c.u && Date.now() - c.at < 5000) return Promise.resolve(c.u);
   // Jeton ÜÇ kanaldan gider: Authorization + X-GV-Token başlıkları (callJson
   // içinde) VE POST gövdesi. FastCGI/Yöncü başlıkları kırpsa bile gövde PHP'ye
   // her zaman ulaşır (gv_bearer'ın gövde yedeği) — üyelik doğrulaması artık
   // sunucu başlık ayarlarına bağımlı değil.
-  return callJson(REMOTE + '/auth.php?action=me', { bearer: token, body: { token } }).then(r => {
+  return callJson(REMOTE + '/auth.php?action=me', { bearer: token, body: { token } }, 5000).then(r => {
     const u = r.data && r.data.ok && r.data.user ? r.data.user : null;
     if (u) meCache.set(token, { u, at: Date.now() });
     if (meCache.size > 2000) meCache.delete(meCache.keys().next().value);

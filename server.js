@@ -9,7 +9,18 @@ const tavlaEngine = require('./tavla-engine');
 const app = express();
 app.use(cors({ origin: true, credentials: true }));
 app.use(express.json());
-app.use(express.static(__dirname));
+// PWA manifest: Content-Type kesin application/manifest+json olmalı
+// (eski default text/plain yerine). Ayrıca static dosyalar cache'ini
+// kapat ki deploy sonrası eski manifest.json tarayıcıda kalmasın.
+app.get('/manifest.json', (_req, res) => {
+  res.set('Content-Type', 'application/manifest+json');
+  res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
+  res.sendFile(require('path').join(__dirname, 'manifest.json'));
+});
+app.use(express.static(__dirname, { setHeaders: (res, path) => {
+  if (path.endsWith('.json')) res.set('Content-Type', 'application/json');
+  if (path.endsWith('.js')) res.set('Content-Type', 'application/javascript');
+}}));
 
 const server = http.createServer(app);
 const io = new Server(server, {
