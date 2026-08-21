@@ -182,14 +182,23 @@
     const ps = Array.isArray(room.players) ? room.players : [];
     const specs = Array.isArray(room.spectators) ? room.spectators : [];
     const me = ps.find(isMe);
-    const watching = !me && (!!specs.find(isMe) || !!window.__gvIsSpectator);
+    // watching: kullanıcı GERÇEKTEN izleyici mi? Yalnızca specs listesinde
+    // görünüyorsa VEYA sunucu onu spectator olarak atamışsa. Oyuncu
+    // henüz join etmediği için `me` null olabilir; bu durumda watching
+    // false kalmalı (tarayıcı yenilenince socket.id değişir, eski oyuncu
+    // koltukta kalır, yeni socket ile me null olur, ama bu izleyici
+    // moduna geçtiği anlamına gelmez).
+    const watching = !me && (!!specs.find(isMe) || socket.role === 'spectator');
     const ready = !!me?.isReady;
     const seats = maxSeats();
     const isOkeyGame = activeGame() === 'okey';
     const SAYI = { 2: 'iki', 3: 'üç', 4: 'dört' };
     const full = ps.length === seats;
     const allReady = full && ps.every(p => p.isReady);
-    window.__gvIsSpectator = watching;
+    // watching'i sadece gerçekten izleyici olduğunda set et; aksi halde
+    // oyuncu olarak yeniden join etmesi gerekir.
+    if (watching) window.__gvIsSpectator = true;
+    else if (socket && socket.id && ps.some(p => isMe(p))) window.__gvIsSpectator = false;
 
     // Özel masada kurucu: boş ➕ koltuk tıklanabilir (arkadaş daveti) ve
     // dolu koltuktaki oyuncuyu masadan ATABİLİR.
@@ -633,6 +642,13 @@
     if (room && room.isPrivate) {
       await ensureAuthedForPrivate();
     }
+    // asSpectator: yalnızca kullanıcı GERÇEKTEN izleme moduna geçtiyse
+    // (örn. dolu masada "İzle" butonuna bastığında) true olmalı. Sayfa
+    // yenilenmesi veya socket yeniden bağlanması sırasında __gvIsSpectator
+    // stale true olabilir, bu da oyuncunun yanlışlıkla izleyici olarak
+    // girmesine neden olur. Burada oda henüz kurulmadıysa veya oyuncu
+    // listesinde ben yoksa bile asla spectator olma.
+    const wasSpectator = !!window.__gvJoinAsSpectator;
     socket.emit('joinRoom', {
       memberToken, // her durumda doğru token (undefined olabilir ama auth.js yüklüyse dolu)
       roomId,
@@ -644,7 +660,9 @@
       rounds: rCfg > 0 ? rCfg : undefined,
       roomName: room?.name,
       isPrivate: !!room?.isPrivate,
-      asSpectator: !!window.__gvJoinAsSpectator || !!window.__gvIsSpectator,
+      // Kullanıcı açıkça "İzle" diyerek bu bayrağı koyduysa veya zaten izleyici
+      // olarak odada kayıtlıysa spectator olarak devam et; aksi halde oyuncu.
+      asSpectator: wasSpectator,
       viaInvite
     });
   }
