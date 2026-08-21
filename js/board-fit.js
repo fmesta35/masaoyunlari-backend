@@ -1,74 +1,82 @@
-/* Masa Oyunları — Masa görünümünü her ekrana ORANTILI sığdır (okey + 101).
- *
- *  Sorun: .okey-table genişliği kabına göre akışkandı ama iç parçalar (ıstaka,
- *  atık bölgeleri, deste) sabit px değerler taşıdığı için kenar çubuğu aç/kapa
- *  ya da pencere boyutu değişince görünüm "kayabiliyordu".
- *
- *  Çözüm: masa 1050×640 tasarım tuvaline sabitlenir ve kullanılabilir alana
- *  transform: scale ile ölçeklenir. Böylece:
- *   - İç geometri ve oranlar HER ZAMAN birebir korunur (kayma/bozulma yok).
- *   - Yazılar/vektörler net kalır (görüntü kalitesi düşmez).
- *   - PC / tablet / telefon, kenar çubuğu açık-kapalı: hepsine otomatik sığar.
- *
- *  Sürükle-bırak mekanikleri getBoundingClientRect kullandığı için ölçekli
- *  görünümle uyumludur (rect'ler ölçek sonrası koordinatları döndürür).
- *
- *  Yalnızca .okey-table hedeflenir; satranç/tavla tahtaları kendi akışkan
- *  oranlarıyla çalışmaya devam eder (çalışan sistemlere dokunulmaz).
- */
+/* GameVerse - tüm masa görünümlerini oranı bozmadan kullanılabilir alana sığdırır. */
 (function () {
   'use strict';
+  var DESIGN_W = 1050;
+  var DESIGN_H = 640;
+  var raf = 0;
 
-  var DESIGN_W = 1050;   // .okey-table max-width ile uyumlu tasarım genişliği
-  var DESIGN_H = 640;    // masa yüksekliği (560-720 bandının güvenli ortası)
-
-  function areaEl() { return document.getElementById('boardArea'); }
-
-  function fit() {
-    var area = areaEl();
+  function fitOkey() {
+    var area = document.getElementById('boardArea');
     if (!area) return;
-    var tbl = area.querySelector('.okey-table');
-    if (!tbl) return;
+    var table = area.querySelector('.okey-table');
+    if (!table) return;
 
-    // Masa sabit-boyut sarıcıya alınır (sayfa yerleşiminin alanı budur).
     var wrap = document.getElementById('gvBoardFit');
-    if (!wrap || !wrap.contains(tbl)) {
+    if (!wrap || !wrap.contains(table)) {
       wrap = document.createElement('div');
       wrap.id = 'gvBoardFit';
-      wrap.style.cssText = 'position:relative;margin:0 auto;overflow:hidden';
-      tbl.parentNode.insertBefore(wrap, tbl);
-      wrap.appendChild(tbl);
+      wrap.style.cssText = 'position:relative;margin:0 auto;overflow:hidden;max-width:100%';
+      table.parentNode.insertBefore(wrap, table);
+      wrap.appendChild(table);
     }
 
-    var availW = Math.max(300, area.clientWidth || window.innerWidth);
-    var availH = Math.max(340, window.innerHeight - 150); // üst bar + oda başlığı payı
-    var s = Math.min(availW / DESIGN_W, availH / DESIGN_H, 1.35); // geniş ekranlarda masa büyüyebilir (oran korunur)
+    /* boardArea'ın clientWidth'i sidebar animasyonunun ilk karesinde eski
+       kalabilir. Birkaç piksel güvenlik payı, yatay kaydırma oluşmasını önler. */
+    var width = Math.max(1, area.clientWidth || area.getBoundingClientRect().width || window.innerWidth);
+    /* wrapper yüksekliği ölçeklenmiş yüksekliğe eşit olduğu için onu tekrar
+       ölçmek her çağrıda küçülme üretir; dikey kapasiteyi viewporttan al. */
+    var height = Math.max(320, window.innerHeight - 150);
+    var availableW = Math.max(240, width - 2);
+    var availableH = Math.max(280, height - 2);
+    var scale = Math.min(availableW / DESIGN_W, availableH / DESIGN_H, 1.35);
 
-    tbl.style.width = DESIGN_W + 'px';
-    tbl.style.height = DESIGN_H + 'px';
-    tbl.style.maxWidth = 'none';
-    tbl.style.maxHeight = 'none';
-    tbl.style.minHeight = '0';
-    tbl.style.transformOrigin = 'top left';
-    tbl.style.transform = 'scale(' + s + ')';
-    wrap.style.width = (DESIGN_W * s) + 'px';
-    wrap.style.height = (DESIGN_H * s) + 'px';
+    table.style.width = DESIGN_W + 'px';
+    table.style.height = DESIGN_H + 'px';
+    table.style.maxWidth = 'none';
+    table.style.maxHeight = 'none';
+    table.style.minHeight = '0';
+    table.style.transformOrigin = 'top left';
+    table.style.transform = 'scale(' + scale + ')';
+    wrap.style.width = (DESIGN_W * scale) + 'px';
+    wrap.style.height = (DESIGN_H * scale) + 'px';
   }
 
-  var mo = null, ro = null;
+  function fitOtherBoards() {
+    /* Satranç, tavla ve diğer oyunlar zaten max-width/aspect-ratio ile
+       akışkandır. Bu sınıf, boardArea flex çocuğunun dar ekranda taşmasını
+       garanti altına alır; hiçbir oyun motorunun koordinatını değiştirmez. */
+    var area = document.getElementById('boardArea');
+    if (!area) return;
+    area.style.minWidth = '0';
+    area.style.maxWidth = '100%';
+    Array.prototype.forEach.call(area.children, function (child) {
+      if (!child.id || child.id !== 'gvBoardFit') {
+        child.style.maxWidth = '100%';
+        child.style.boxSizing = 'border-box';
+      }
+    });
+  }
+
+  function fit() {
+    if (raf) cancelAnimationFrame(raf);
+    raf = requestAnimationFrame(function () { raf = 0; fitOkey(); fitOtherBoards(); });
+  }
+
   function boot() {
-    var area = areaEl();
-    if (!area) { setTimeout(boot, 400); return; }
-    // Render'lar innerHTML'ı tepeden değiştirir: yeni masayı yakala + sığdır.
-    mo = new MutationObserver(function () { fit(); });
-    mo.observe(area, { childList: true, subtree: false });
-    if (window.ResizeObserver) { ro = new ResizeObserver(function () { fit(); }); ro.observe(area); }
-    window.addEventListener('resize', fit);
-    window.addEventListener('orientationchange', fit);
-    // Kenar çubuğu 0.3 sn animasyonla kapanır/açılır: geçiş sonrası kesin oturtma
-    // + seyrek güvenlik taraması (ucuzdur; hiçbir DOM değişikliği üretmez, yalnız stil).
-    setInterval(fit, 1200);
-    fit();
+    var area = document.getElementById('boardArea');
+    if (!area) { setTimeout(boot, 300); return; }
+    new MutationObserver(fit).observe(area, { childList: true, subtree: true });
+    if (window.ResizeObserver) new ResizeObserver(fit).observe(area);
+    /* Sidebar display:none değişimi boardArea boyunu her tarayıcıda Resize
+       Observer ile bildirmeyebilir. Body class'ını da izleyip geçiş sonrası
+       yeniden ölçüyoruz. */
+    new MutationObserver(fit).observe(document.body, { attributes: true, attributeFilter: ['class'] });
+    window.addEventListener('resize', fit, { passive: true });
+    window.addEventListener('orientationchange', fit, { passive: true });
+    if (window.visualViewport) window.visualViewport.addEventListener('resize', fit, { passive: true });
+    setTimeout(fit, 0);
+    setTimeout(fit, 350);
+    setTimeout(fit, 700);
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot, { once: true });

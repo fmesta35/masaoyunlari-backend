@@ -68,6 +68,18 @@
     return s?.user?.name || s?.user?.username || localStorage.getItem('gv-user-name') || 'Oyuncu';
   }
 
+  // auth.js gecikmeli yüklenirse bile özel oda kurma paketinde token kaybolmasın.
+  // GVAuth yalnızca kolaylık arayüzüdür; kalıcı tokenın asıl kaynağı localStorage'dır.
+  function memberToken() {
+    try {
+      if (window.GVAuth && typeof window.GVAuth.token === 'function') {
+        const t = window.GVAuth.token();
+        if (t) return t;
+      }
+      return localStorage.getItem('gv-auth-token') || '';
+    } catch (_) { return ''; }
+  }
+
   // Sekme/pencere bazlı parça: aynı tarayıcı PROFİLİNDEKİ her pencere aynı
   // localStorage misafir kimliğini paylaştığı için (bkz. "4 tarayıcı lobide
   // buluşamıyor" hatası: sunucu 2.-4. pencereyi rejoin sanıp oda 1/4'te
@@ -562,7 +574,7 @@
     const viaInvite = !!window.__gvJoinViaInvite;
     window.__gvJoinViaInvite = false;
     socket.emit('joinRoom', {
-      memberToken: (window.GVAuth && GVAuth.token ? (GVAuth.token() || undefined) : undefined),
+      memberToken: memberToken() || undefined,
       roomId,
       userName: userName(),
       userKey: userKey(),
@@ -685,6 +697,7 @@
     roomId = String(r?.id || roomIdNow() || '');
     room = r || { id: roomId, name: gameLabel() + ' Masası #' + roomId, maxPlayers: maxSeats(), duration: 10, players: [], status: 'waiting' };
     started = false;
+    window.__gvRoomJoined = false;
     window.__gvActiveRoomId = roomId;
     window.__gvActiveRoom = room;
     if (activeGame() === 'tavla') window.__gvTavlaOnlineRequested = true;
