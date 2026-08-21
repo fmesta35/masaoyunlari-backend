@@ -116,19 +116,25 @@ function installProxy(app, helpers) {
 }
 
 // ---------------- soket yardımcıları ----------------
-// authHello 1.5 sn'de bir tekrarlanır → PHP'yi yormamak için kısa önbellek.
+// authHello periyodunda her 1.5 sn'de gelen isteklerde PHP'ye tekrar
+// gidilmesin diye başarılı sonuçları 30 sn cache'leriz. Ancak başarısız
+// sonuçları CACHE'LEMIYORUZ: token expired veya PHP timeout olmuşsa,
+// her denemede PHP'ye tekrar gidip gerçek cevabı öğreniriz (5 sn'lik
+// başarısız cache, "Özel masa kurmak için üye girişi gerekli" yarış
+// durumuna yol açıyordu: bir kez timeout olan token 5 sn boyunca hep
+// null dönüyor, socket.userId hiç yazılamıyordu).
 const meCache = new Map(); // token -> {u, at}
 function me(token) {
   if (!token) return Promise.resolve(null);
   const c = meCache.get(token);
-  if (c && Date.now() - c.at < (c.u ? 30000 : 5000)) return Promise.resolve(c.u);
+  if (c && c.u && Date.now() - c.at < 30000) return Promise.resolve(c.u);
   // Jeton ÜÇ kanaldan gider: Authorization + X-GV-Token başlıkları (callJson
   // içinde) VE POST gövdesi. FastCGI/Yöncü başlıkları kırpsa bile gövde PHP'ye
   // her zaman ulaşır (gv_bearer'ın gövde yedeği) — üyelik doğrulaması artık
   // sunucu başlık ayarlarına bağımlı değil.
   return callJson(REMOTE + '/auth.php?action=me', { bearer: token, body: { token } }).then(r => {
     const u = r.data && r.data.ok && r.data.user ? r.data.user : null;
-    meCache.set(token, { u, at: Date.now() });
+    if (u) meCache.set(token, { u, at: Date.now() });
     if (meCache.size > 2000) meCache.delete(meCache.keys().next().value);
     return u;
   });
