@@ -391,6 +391,15 @@
     else if (Number(r.creatorId) !== Number(myId())) toast('⚠️ Daveti yalnızca masayı kuran oyuncu gönderebilir.', 'warning');
     else toast('⚠️ Şu an davet gönderilemez.', 'warning');
   }
+  // Bu masada kimlere davet GÖNDERDİK — pencerede "⏳ Davetli" rozeti basılır.
+  let invitedMarks = { roomId: null, set: new Set() };
+  function marksForRoom() {
+    const r = currentRoom();
+    const rid = r ? String(r.id) : null;
+    if (invitedMarks.roomId !== rid) invitedMarks = { roomId: rid, set: new Set() };
+    return invitedMarks.set;
+  }
+
   function inviteFriendById(uid) {
     if (!myId()) return showModal('guestPromptModal');
     if (!canInvite()) return explainNoInvite();
@@ -399,6 +408,38 @@
     const r = currentRoom();
     sock.emit('gameInvite', { toUserId: Number(uid), roomId: String(r.id) });
     // Sonuç 'inviteSent' / 'inviteRejected' olaylarıyla bildirilecek.
+  }
+
+  // Özel masadan davet penceresinin içeriği (birden fazla kişi davet edilebilir,
+  // ilk katılan koltuğu alır; masa dolunca sunucu da daveti reddeder.)
+  async function fillInviteList() {
+    const el = document.getElementById('inviteFriendList');
+    if (!el) return;
+    await refreshFriends();
+    const list = friendsCache || [];
+    const r = currentRoom();
+    const full = r && Array.isArray(r.players) && r.players.length >= Number(r.maxPlayers || 99);
+    const markSet = marksForRoom();
+    const head = full
+      ? '<div style="padding:8px 10px;text-align:center;color:#fdcb6e;font-size:.8em;background:rgba(253,203,110,.08);border:1px solid rgba(253,203,110,.25);border-radius:8px;margin-bottom:6px;">⚠️ Masa dolu — yeni davet gönderilemez.</div>'
+      : '<div style="padding:0 2px 8px;color:var(--text3);font-size:.75em;">Birden fazla arkadaşa davet gönderebilirsin — <b>ilk katılan</b> koltuğu alır. 🎮</div>';
+    el.innerHTML = head + (list.length ? list.map(f => {
+      const invited = markSet.has(Number(f.id));
+      const can = f.online && !full;
+      return `
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:8px;background:var(--bg3);border-radius:8px">
+          <div style="display:flex;align-items:center;gap:8px;cursor:pointer" data-uid="${Number(f.id)}">
+            <div class="avatar sm">${esc(String(f.name).charAt(0))}</div>
+            <span style="font-weight:600;font-size:0.9em">${esc(f.name)} ${f.online ? '🟢' : '🔴'}</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:6px">
+            ${invited ? '<span style="font-size:.72em;color:var(--accent);font-weight:700">⏳ Davetli</span>' : ''}
+            <button class="btn btn-sm ${invited ? 'btn-o' : 'btn-p'}" ${can ? '' : 'disabled style="opacity:0.4"'}
+              onclick="window.GVSocial && GVSocial.inviteFriendById(${Number(f.id)})">${invited ? 'Yenile' : 'Davet Gönder'}</button>
+          </div>
+        </div>`;
+    }).join('')
+      : '<div style="padding:10px;text-align:center;color:var(--text3);font-size:.85em">Henüz arkadaşınız yok — önce 👥 penceresinden istek gönderin; kabul edince burada görünür!</div>');
   }
 
   // ---------------- Profil penceresi ----------------
@@ -610,7 +651,13 @@
       refreshRequests().then(paintAll);
     });
     sock.on('inviteRejected', p => toast('⚠️ ' + ((p && p.reason) || 'Davet gönderilemedi.'), 'warning'));
-    sock.on('inviteSent', p => toast(`📩 ${(p && p.toName) || 'Arkadaşınız'} oyuna davet edildi! Katılması bekleniyor...`, 'success'));
+    sock.on('inviteSent', p => {
+      if (p && p.toUserId) marksForRoom().add(Number(p.toUserId));
+      toast(`📩 ${(p && p.toName) || 'Arkadaşınız'} oyuna davet edildi! Katılması bekleniyor...`, 'success');
+      // Pencere açıkken "⏳ Davetli" rozetine dönüştür (çoklu davet akışı)
+      const m = document.getElementById('inviteFriendModal');
+      if (m && m.classList.contains('show')) fillInviteList();
+    });
     sock.on('inviteAnswered', p => {
       if (!p) return;
       toast(p.accepted
@@ -680,24 +727,10 @@
       explainNoInvite();
     });
 
-    // Özel masadan davet penceresi: gerçek arkadaş listesiyle doldur
+    // Özel masadan davet penceresi: gerçek arkadaş listesi (+⏳ Davetli işaretleri)
     const realShowInvite = async function () {
       if (!myId()) return showModal('guestPromptModal');
-      const el = document.getElementById('inviteFriendList');
-      if (el) {
-        await refreshFriends();
-        const list = friendsCache || [];
-        el.innerHTML = list.length ? list.map(f => `
-        <div style="display:flex;justify-content:space-between;align-items:center;padding:8px;background:var(--bg3);border-radius:8px">
-          <div style="display:flex;align-items:center;gap:8px;cursor:pointer" data-uid="${Number(f.id)}">
-            <div class="avatar sm">${esc(String(f.name).charAt(0))}</div>
-            <span style="font-weight:600;font-size:0.9em">${esc(f.name)} ${f.online ? '🟢' : '🔴'}</span>
-          </div>
-          <button class="btn btn-sm btn-p" ${f.online ? '' : 'disabled style="opacity:0.4"'}
-            onclick="window.GVSocial && GVSocial.inviteFriendById(${Number(f.id)})">Davet Gönder</button>
-        </div>`).join('')
-          : '<div style="padding:10px;text-align:center;color:var(--text3);font-size:.85em">Henüz arkadaşınız yok. Bir profilden arkadaş ekleyin!</div>';
-      }
+      await fillInviteList();
       showModal('inviteFriendModal');
     };
     both('showInviteModal', realShowInvite);

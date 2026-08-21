@@ -240,6 +240,10 @@ function createRoom(id, gameId, maxPlayers, durationMinutes, meta) {
     spectators: [],
     status: 'waiting',
     isPreset: false,
+    // Özel oda davet hakları: bir davet = bir giriş hakkı. Kurucu yeni davet
+    // gönderdiğinde kickBan'daki oyuncu tekrar girme hakkı kazanır.
+    invited: new Map(),   // userId -> {ts}
+    kickBan: new Set(),   // masadan atılan userId'ler (yeniden davet edilene kadar)
     chess: null,
     tavla: null,
     whiteTimeMs: duration * 60 * 1000,
@@ -278,6 +282,14 @@ function resetRoomToWaiting(room) {
       p.seat = idx;
     });
   }
+  // Davet hakları MASAYA aittir, maça değil: masa beklemeye döndüğünde (oyuncu
+  // ayrıldı/atıldı ya da maç bitip rövanş kuruldu) cevaplanmamış davetler CANLI
+  // kalır. Davetlinin giriş hakkı yalnız şu yollarla kapanır: kurucu onu atar
+  // (kickBan), masa kapanır ya da oyun başlar (join anındaki 'stale'/'full'
+  // denetimleri). Atılanlar (kickBan) ÖZELLİKLE korunur: yeniden davet edilmeden
+  // giremezler. (Aksi halde bir oyuncuyu atmak DİĞER davetlilerin hakkını da
+  // silerdi — removePlayerFromRoom bekleyen masada bile buradan geçer.)
+  // invited haritasına bilinçli olarak dokunulmaz.
 }
 
 function publicPlayer(p) {
@@ -1281,6 +1293,16 @@ io.on('connection', socket => {
     const gameId = data.gameId || 'chess';
     let room = rooms.get(roomId);
     if (!room) {
+      // Davet bildirimine tıklanıp gelindi ama masa artık yok → geçersiz davet.
+      if (data.viaInvite) {
+        socket.emit('joinDenied', { roomId, code: 'stale', reason: 'Bu davet artık geçerli değil — masa kapanmış.' });
+        return;
+      }
+      // ÖZEL masa kurmak üyelik ister (misafirler yalnızca genel masa kurabilir).
+      if (data.isPrivate && !socket.userId) {
+        socket.emit('joinDenied', { roomId, code: 'auth', reason: 'Özel masa kurmak için üye girişi gerekli.' });
+        return;
+      }
       room = createRoom(roomId, gameId, data.maxPlayers, data.durationMinutes, {
         name: data.roomName || data.name,
         isPrivate: !!(data.isPrivate),
@@ -1312,6 +1334,36 @@ io.on('connection', socket => {
     // "sıra sizde değil" hatası buradan geliyordu.
     if (wantSpectate && player && player.id !== socket.id) {
       player = null;
+    }
+
+    // ===== ÖZEL ODA KİLİDİ: kurucu + davetli üyeler dışında kimse giremez =====
+    //  Halen koltukta olanın (reconnect/rejoin) hakkı dokunulmaz. Yeni gelenlerde
+    //  kimlik YALNIZ token doğrulamalı üyeliktir (socket.userId; userKey güvenilmez).
+    if (room.isPrivate && !player) {
+      if (!room.invited || typeof room.invited.has !== 'function') room.invited = new Map();
+      if (!room.kickBan || typeof room.kickBan.has !== 'function') room.kickBan = new Set();
+      const uid = socket.userId || null;
+      let deny = null;
+      if (!uid) deny = { code: 'auth', reason: 'Bu masa özel — yalnızca üyeler ve davetliler girebilir.' };
+      // Kurucu serbest; henüz kurucusu YOKSA (yeni kurulmuş boş masa) ilk oturan
+      // üye kurucu olur — bootstrap girişi de serbesttir.
+      else if (Number(uid) === Number(room.creatorId) || !room.creatorId) { /* kurucu */ }
+      else if (room.kickBan.has(Number(uid)) && !room.invited.has(Number(uid)))
+        deny = { code: 'kicked', reason: 'Bu masadan atıldınız — kurucu yeniden davet edene kadar giremezsiniz.' };
+      else if (!room.invited.has(Number(uid)))
+        deny = { code: 'policy', reason: 'Bu masa özel — yalnızca davetli üyeler girebilir.' };
+      else if (!wantSpectate && room.status !== 'waiting')
+        deny = { code: 'stale', reason: 'Bu davet artık geçerli değil — masa oyunda.' };
+      else if (!wantSpectate && room.players.length >= room.maxPlayers)
+        deny = { code: 'full', reason: 'Oda dolu — masada yer kalmadı.' };
+      if (deny) {
+        socket.emit('joinDenied', { roomId, ...deny });
+        socket.leave(roomId);
+        socket.roomId = null;
+        socket.userKey = null;
+        socket.role = null;
+        return;
+      }
     }
 
     if (player) {
@@ -1690,6 +1742,38 @@ io.on('connection', socket => {
     socket.role = null;
     if (player) removePlayerFromRoom(room, player, 'Rakip oyundan ayrıldı.');
     else if (spectator) removeSpectator(room, spectator);
+  });
+
+  // Kurucunun özel masadan oyuncu ATMA yetkisi. Atılan oyuncu, kurucu ona
+  // yeniden davet gönderene kadar odaya giremez (kickBan); her yeni davet
+  // yeni bir giriş hakkı açar (gameInvite kickBan'i temizler).
+  socket.on('kickPlayer', payload => {
+    const roomId = String((payload && payload.roomId) || socket.roomId || '');
+    const room = rooms.get(roomId);
+    const tell = (ok, reason, extra) => socket.emit('kickResult', Object.assign({ ok, reason: reason || null }, extra || {}));
+    if (!room) return tell(false, 'Masa bulunamadı.');
+    if (!room.isPrivate) return tell(false, 'Atma yalnızca özel masalarda geçerlidir.');
+    const meId = socket.userId || (authApi ? authApi.uidFromUserKey(socket.userKey) : null);
+    if (!meId || Number(room.creatorId) !== Number(meId)) return tell(false, 'Yalnızca masanın kurucusu oyuncu atabilir.');
+    const targetId = Number(payload && payload.userId);
+    if (!targetId || targetId === Number(meId)) return tell(false, 'Kendinizi atamazsınız.');
+    const tp = (room.players || []).find(p => Number(p.userId) === targetId);
+    if (!tp) return tell(false, 'Oyuncu masada değil.');
+    if (!room.kickBan || typeof room.kickBan.add !== 'function') room.kickBan = new Set();
+    room.kickBan.add(targetId);
+    if (room.invited && typeof room.invited.delete === 'function') room.invited.delete(targetId);
+    const mePlayer = (room.players || []).find(p => Number(p.userId) === Number(meId));
+    const tSock = io.sockets.sockets.get(tp.id);
+    if (tSock) {
+      try {
+        tSock.emit('kickedFromRoom', { roomId: room.id, byName: (mePlayer && mePlayer.name) || 'Kurucu' });
+        tSock.leave(room.id);
+        if (tSock.roomId === room.id) tSock.roomId = null;
+        tSock.role = null;
+      } catch (_) {}
+    }
+    removePlayerFromRoom(room, tp, 'Kurucu oyuncuyu masadan attı.');
+    tell(true, null, { name: tp.name, userId: targetId });
   });
 
   socket.on('disconnect', () => {

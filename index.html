@@ -1308,6 +1308,9 @@ function clickNotif(id){
     const elapsed = (Date.now() - n.time) / 1000;
     if(elapsed > 30) return toast('⏳ Üzgünüz, bu davet süresi dolmuştur!', 'error');
     toast('🎮 Davet kabul edildi, odaya bağlanılıyor...', 'success');
+    // Davetle gelindiğini sunucuya bildir: masa kapandıysa yeni oda AÇILMAZ,
+    // "davet artık geçerli değil / oda dolu" gerçek cevabı döner.
+    window.__gvJoinViaInvite = true;
     joinRoom(n.actionData.roomId);
     return;
   }
@@ -1769,6 +1772,9 @@ function renderWaitingTableUI() {
   const { room, seats, maxPlayers } = st.roomWaitingState;
   const currentCount = seats.filter(s => s.occupied).length;
   const isMeReady = seats[0].isReady;
+  // Özel masada kurucu: boş koltuk tıklanabilir (davet), dolu koltuk atılabilir
+  const myMemberId = (!st.isGuest && st.user && st.user.id) ? Number(st.user.id) : null;
+  const amCreator = !!(room && room.isPrivate && myMemberId && Number(room.creatorId || 0) > 0 && Number(room.creatorId) === myMemberId);
 
   let chairsHtml = '';
   seats.forEach((seat, idx) => {
@@ -1779,12 +1785,17 @@ function renderWaitingTableUI() {
 
     let avatarContent = seat.occupied ? (seat.isMe ? '👤' : seat.name.charAt(0)) : '➕';
     let statusText = seat.occupied ? (seat.isReady ? '✅ Hazır' : '⏳ Bekliyor') : 'Boş';
+    const emptyClick = (!seat.occupied && room.isPrivate && myMemberId)
+      ? ' style="cursor:pointer" onclick="GV.showInviteModal && GV.showInviteModal()" title="Arkadaşını davet et"' : '';
+    const kickBtn = (amCreator && seat.occupied && !seat.isMe && Number(seat.uid) > 0)
+      ? `<button class="btn btn-sm" style="margin-top:4px;padding:2px 8px;font-size:0.68em;border:1px solid var(--danger);color:var(--danger);background:transparent;border-radius:7px;cursor:pointer" onclick="event.stopPropagation();GV.kickFromRoom(${Number(seat.uid)})">🚪 At</button>` : '';
 
     chairsHtml += `
-      <div class="${chairClass}">
+      <div class="${chairClass}"${emptyClick}>
         <div class="sim-avatar">${avatarContent}</div>
         <div class="sim-name">${seat.occupied ? seat.name : 'Sandalye ' + (idx + 1)}</div>
         <div class="sim-status">${statusText}</div>
+        ${kickBtn}
       </div>
     `;
   });
@@ -1828,6 +1839,16 @@ function toggleMeReady() {
   toast(me.isReady ? '✅ Hazır durumuna geçtiniz!' : '⏳ Hazır durumu iptal edildi.', me.isReady ? 'success' : 'info');
   renderWaitingTableUI();
   checkAllReady();
+}
+
+// Kurucunun masadan atma eylemi (özel masalar; sunucu yetkiyi yeniden doğrular)
+function kickFromRoom(uid){
+  if(!st.roomWaitingState) return;
+  if(!confirm('Bu oyuncu masadan atılsın mı? Yeniden davet edene kadar bu masaya giremez.')) return;
+  const s = window.__gvRoomSocket || window.__gvLobbySocket || window.__gvChessSocket;
+  if(!s || !s.connected) return toast('⚠️ Sunucu bağlantısı yok — birazdan tekrar deneyin.', 'error');
+  const rid = st.roomWaitingState.room && st.roomWaitingState.room.id;
+  s.emit('kickPlayer', { roomId: String(rid || ''), userId: Number(uid) });
 }
 
 function checkIsAllReady() {
@@ -3806,6 +3827,7 @@ return {
   inviteFriend,
   showInviteModal,
   toggleMeReady,
+  kickFromRoom,
   submitLogin,
   submitRegister,
   submitForgotPassword,
@@ -3862,17 +3884,17 @@ GV.init();
 <script src="js/config.js?v=20260820f"></script>
 <script src="js/socket.io.min.js?v=20260819c"></script>
 <script src="js/app.js?v=20260820a" defer></script>
-<script src="js/games.js?v=20260820e" defer></script>
+<script src="js/games.js?v=20260821b" defer></script>
 <script src="js/utils.js?v=20260819c" defer></script>
 <script src="js/lobby-sync.js?v=20260820f" defer></script>
-<script src="js/room-waiting-fix.js?v=20260820e" defer></script>
+<script src="js/room-waiting-fix.js?v=20260821b" defer></script>
 <script src="js/chess-online.js?v=20260820e" defer></script>
 <script src="js/tavla-online.js?v=20260820e" defer></script>
 <script src="js/okey-online.js?v=20260820e" defer></script>
 <script src="js/chat.js?v=20260820f" defer></script>
 <script src="js/leave-guard.js?v=20260820e" defer></script>
 <script src="js/auth.js?v=20260821a" defer></script>
-<script src="js/social.js?v=20260821a" defer></script>
+<script src="js/social.js?v=20260821b" defer></script>
 
 <!-- Structured Data for SEO -->
 <script type="application/ld+json">

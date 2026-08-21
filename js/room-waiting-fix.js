@@ -148,6 +148,11 @@
 .spin{width:28px;height:28px;margin:15px auto;border:3px solid var(--border2,rgba(255,255,255,.15));border-top-color:var(--primary,#6c5ce7);border-radius:50%;animation:gv-spin .8s linear infinite}
 @keyframes gv-spin{to{transform:rotate(360deg)}}
 #gv-real-chess-wait .spec-banner{margin:0 0 12px;padding:8px 12px;border-radius:10px;background:rgba(108,92,231,.15);border:1px solid rgba(108,92,231,.35);color:var(--primary2,#a29bfe);text-align:center;font-weight:700;font-size:.9rem}
+.gvp.gvp-inv{cursor:pointer;border-style:dashed}
+.gvp.gvp-inv:hover{border-color:var(--primary,#6c5ce7);background:rgba(108,92,231,.14)}
+.gvp.gvp-inv .st{color:var(--primary,#6c5ce7)}
+.gvp-kick{margin-top:9px;padding:5px 12px;border:1px solid rgba(255,118,117,.5);background:rgba(255,118,117,.12);color:#ff7675;border-radius:8px;cursor:pointer;font-weight:700;font-size:.8rem}
+.gvp-kick:hover{background:rgba(255,118,117,.25)}
 @media(max-width:650px){#gv-real-chess-wait .players{grid-template-columns:1fr}}
 `;
     document.head.appendChild(stl);
@@ -186,12 +191,20 @@
     const allReady = full && ps.every(p => p.isReady);
     window.__gvIsSpectator = watching;
 
+    // Özel masada kurucu: boş ➕ koltuk tıklanabilir (arkadaş daveti) ve
+    // dolu koltuktaki oyuncuyu masadan ATABİLİR.
+    const myMemberId = (() => { const s = state(); return (s && !s.isGuest && s.user && s.user.id) ? Number(s.user.id) : null; })();
+    const amCreator = !!(room && room.isPrivate && myMemberId && Number(room.creatorId || 0) > 0 && Number(room.creatorId) === myMemberId);
+
     // Okeyde koltuk renkleri masa görünümüyle uyumlu: turuncu/mavi/kırmızı/mor.
     const seatAva = ['🟠', '🔵', '🔴', '🟣'];
     const player = (i) => {
       const p = ps[i];
       if (!p) {
         const emptyTxt = isOkeyGame ? ('Sandalye ' + (i + 1) + ' — oyuncu bekleniyor...') : 'Rakip bekleniyor...';
+        if (amCreator && !watching) {
+          return '<div class="gvp gvp-inv" data-gv-invite="1" title="Arkadaşını davet et"><div class="av">➕</div><div class="nm">' + emptyTxt + '</div><div class="st">📩 Davet Gönder</div></div>';
+        }
         return '<div class="gvp"><div class="av">➕</div><div class="nm">' + emptyTxt + '</div><div class="st">Boş Sandalye</div></div>';
       }
       const ava = isOkeyGame
@@ -200,10 +213,14 @@
       const nmHtml = Number(p.uid) > 0 && !isMe(p)
         ? '<span class="gv-u" data-uid="' + Number(p.uid) + '">' + esc(p.name || 'Oyuncu') + '</span>'
         : esc(p.name || 'Oyuncu');
+      const kickBtn = (amCreator && !isMe(p) && Number(p.uid) > 0)
+        ? '<button class="gvp-kick" type="button" data-gv-kick="' + Number(p.uid) + '" data-gv-kname="' + esc(p.name || 'Oyuncu') + '">🚪 Masadan At</button>'
+        : '';
       return '<div class="gvp ' + (p.isReady ? 'ready' : '') + '">' +
         '<div class="av">' + ava + '</div>' +
         '<div class="nm">' + nmHtml + (isMe(p) ? ' <b>(Siz)</b>' : '') + '</div>' +
         '<div class="st">' + (p.isReady ? '✅ HAZIR' : '⏳ BEKLİYOR') + '</div>' +
+        kickBtn +
         '</div>';
     };
 
@@ -249,6 +266,21 @@
     if (e.__gvLastHtml === html) return;
     e.__gvLastHtml = html;
     e.innerHTML = html;
+
+    // Boş ➕ koltuk (özel masanın kurucusu): arkadaş davet penceresini aç —
+    // birden fazla kişi davet edilebilir, ilk katılan koltuğu alır.
+    e.querySelectorAll('[data-gv-invite]').forEach(el => el.addEventListener('click', () => {
+      if (window.GV && typeof GV.showInviteModal === 'function') GV.showInviteModal();
+    }));
+    // Kurucunun "Masadan At" butonları (sunucu tekrar doğrular).
+    e.querySelectorAll('[data-gv-kick]').forEach(btn => btn.addEventListener('click', ev => {
+      ev.stopPropagation();
+      const uid = Number(btn.getAttribute('data-gv-kick'));
+      const nm = btn.getAttribute('data-gv-kname') || 'Oyuncu';
+      if (!(uid > 0)) return;
+      if (!confirm(nm + ' masadan atılsın mı? Yeniden davet edene kadar bu masaya giremez.')) return;
+      if (socket && socket.connected) socket.emit('kickPlayer', { roomId, userId: uid });
+    }));
 
     e.querySelector('.gv-ready')?.addEventListener('click', () => {
       if (watching) return;
@@ -487,11 +519,32 @@
 
       socket.on('roomFull', p => {
         if (!isChess()) return;
-        const e = overlay();
-        e.innerHTML = '<div class="card"><h2>' + gameLabel() + '</h2><div class="sub">' +
-          esc(p?.message || 'Bu oda dolu.') +
-          '</div><button class="gv-leave" type="button">🚪 Lobiye Dön</button></div>';
-        e.querySelector('.gv-leave')?.addEventListener('click', leave);
+        showBlockOverlay(p?.message || 'Bu oda dolu.');
+      });
+
+      // Özel oda kilidi: kurucu/davetli değilsen, masa doluysa veya davet
+      // geçersizse sunucu girişi reddeder — sebebi kart üzerinde göster.
+      socket.on('joinDenied', p => {
+        if (!p || String(p.roomId) !== roomId || !isChess()) return;
+        if (retryAfterAuthDeny(p)) return; // authHello yarışı — sessizce yeniden dene
+        showBlockOverlay(p.reason || 'Bu masaya girilmedi.');
+      });
+      socket.on('joinedRoom', () => { authRetry = 0; });
+
+      // Kurucu masadan attıysa: odadan düş + kalıcı bilgi (yeniden davet şart)
+      socket.on('kickedFromRoom', p => {
+        if (!p || String(p.roomId) !== String(roomId)) return;
+        try { window.GV && GV.toast && GV.toast('🚪 Kurucu sizi masadan attı — yeniden davet edilmeden giremezsiniz.', 'warning', 6000); } catch (_) {}
+        leave();
+      });
+      // Atma işleminin sonucu (kurucunun ekranına düşer)
+      socket.on('kickResult', p => {
+        if (!p) return;
+        try {
+          window.GV && GV.toast && GV.toast(
+            p.ok ? ('🚪 ' + (p.name || 'Oyuncu') + ' masadan atıldı.') : ('⚠️ ' + (p.reason || 'Atılamadı.')),
+            p.ok ? 'success' : 'warning');
+        } catch (_) {}
       });
     }
     join();
@@ -503,6 +556,11 @@
     // Okey: masayı kuranın seçtiği el sayısı (3/5/7) yeni odaya taşınır;
     // mevcut (hazır) masalarda sunucu kendi rounds değerini korur.
     const rCfg = Number(room?.rounds || state()?.roomConfig?.rounds) || 0;
+    // Davet bildiriminden GELİNDİYSE ilk katılımda viaInvite taşınır (tek
+    // kullanımlık): oda artık yoksa sunucu yeni oda AÇMAK yerine "davet
+    // artık geçerli değil" reddi döner.
+    const viaInvite = !!window.__gvJoinViaInvite;
+    window.__gvJoinViaInvite = false;
     socket.emit('joinRoom', {
       roomId,
       userName: userName(),
@@ -513,8 +571,31 @@
       rounds: rCfg > 0 ? rCfg : undefined,
       roomName: room?.name,
       isPrivate: !!room?.isPrivate,
-      asSpectator: !!window.__gvJoinAsSpectator || !!window.__gvIsSpectator
+      asSpectator: !!window.__gvJoinAsSpectator || !!window.__gvIsSpectator,
+      viaInvite
     });
+  }
+
+  // Özel masa kilidi "code:'auth'" ile reddederse: büyük olasılıkla authHello
+  // yarışı (soket açıldı ama üye kimliği henüz PHP/SQLite'tan dönmedi). Üyeyse
+  // kısa aralıklarla birkaç kez yeniden dene; misafirse / hak etmişse reddetme.
+  let authRetry = 0;
+  function retryAfterAuthDeny(p) {
+    if (!p || p.code !== 'auth') return false;
+    const s = state();
+    const isMember = s && !s.isGuest && s.user && s.user.id;
+    if (!isMember || authRetry >= 5) return false;
+    authRetry++;
+    try { window.GVAuth && GVAuth.authHelloAll && GVAuth.authHelloAll(); } catch (_) {}
+    setTimeout(join, 900);
+    return true;
+  }
+  function showBlockOverlay(msg) {
+    const e = overlay();
+    e.innerHTML = '<div class="card"><h2>' + gameLabel() + '</h2><div class="sub">' +
+      esc(msg || 'Bu masaya girilmedi.') +
+      '</div><button class="gv-leave" type="button">🚪 Lobiye Dön</button></div>';
+    e.querySelector('.gv-leave')?.addEventListener('click', leave);
   }
 
   function leave() {

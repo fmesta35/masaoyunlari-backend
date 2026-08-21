@@ -419,11 +419,16 @@ window.addEventListener('gv:makeMove', event => {
 
             function joinServerRoom(r) {
                 const username = (typeof st !== 'undefined' && st.user && st.user.name) ? st.user.name : 'Oyuncu';
+                // Davet bildiriminden gelindiyse tek kullanımlık bayrak:
+                // oda kapandıysa sunucu yeni oda açmak yerine "geçersiz" döner.
+                const viaInvite = !!window.__gvJoinViaInvite;
+                window.__gvJoinViaInvite = false;
                 window.__gvRoomSocket.emit('joinRoom', {
                     roomId: r.id,
                     userName: username,
                     maxPlayers: r.maxPlayers || maxPlayers,
-                    gameId: (typeof st !== 'undefined' && st.curGame) ? st.curGame : 'chess'
+                    gameId: (typeof st !== 'undefined' && st.curGame) ? st.curGame : 'chess',
+                    viaInvite
                 });
             }
 
@@ -439,6 +444,7 @@ window.addEventListener('gv:makeMove', event => {
                         isMe: !!socketId && p.id === socketId,
                         isReady: !!p.isReady,
                         id: p.id,
+                        uid: p.uid || null,
                         color: p.color
                     } : { occupied: false, name: '', isMe: false, isReady: false });
                 }

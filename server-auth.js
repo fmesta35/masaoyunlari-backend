@@ -457,19 +457,27 @@ function installAuth(app, deps) {
       if (!room) return rej('Masa bulunamadı.');
       if (!room.isPrivate) return rej('Davet yalnızca ÖZEL masalardan gönderilebilir.');
       if (room.creatorId !== me.id) return rej('Daveti yalnızca masayı kuran oyuncu gönderebilir.');
+      if (room.status !== 'waiting') return rej('Oyun başladı — yeni davet gönderilemez.');
+      if ((room.players || []).length >= room.maxPlayers) return rej('Masa dolu — davet gönderilemez.');
       const target = userById(Number(payload && payload.toUserId));
       if (!target) return rej('Oyuncu bulunamadı.');
       if (target.id === me.id) return rej('Kendinizi davet edemezsiniz.');
+      if ((room.players || []).some(p => Number(p.userId) === Number(target.id))) return rej('Oyuncu zaten masada.');
       if (!isFriendPair(me.id, target.id)) return rej('Yalnızca arkadaş listenizdeki oyuncuları davet edebilirsiniz.');
+      if (!room.invited || typeof room.invited.set !== 'function') room.invited = new Map();
+      if (room.invited.size >= 15) return rej('Bekleyen davet sınırına ulaşıldı — biri katılmadan yeni davet gönderilemez.');
       const set = online.get(target.id);
       if (!set || !set.size) return rej('Arkadaşınız şu an çevrimiçi değil.');
+      // Davet = giriş hakkı; atılmışsa yeni davetle hak yeniden açılır (kickBan temizlenir).
+      room.invited.set(target.id, { ts: now() });
+      if (room.kickBan && typeof room.kickBan.delete === 'function') room.kickBan.delete(target.id);
       const invite = {
         inviteId: 'inv-' + now() + '-' + Math.floor(Math.random() * 1e5),
         fromId: me.id, fromName: me.name,
         roomId: String(room.id), roomName: room.name, gameId: room.gameId, ts: now()
       };
       set.forEach(s => s.emit('gameInvite', invite));
-      socket.emit('inviteSent', { ok: true, toName: target.name });
+      socket.emit('inviteSent', { ok: true, toName: target.name, toUserId: target.id });
     });
 
     // Davet kabul/ret geri bildirimi (gönderenin ekranına düşer)
@@ -531,21 +539,29 @@ function installRemoteMode(app, deps) {
         if (!room) return rej('Masa bulunamadı.');
         if (!room.isPrivate) return rej('Davet yalnızca ÖZEL masalardan gönderilebilir.');
         if (room.creatorId !== me.id) return rej('Daveti yalnızca masayı kuran oyuncu gönderebilir.');
+        if (room.status !== 'waiting') return rej('Oyun başladı — yeni davet gönderilemez.');
+        if ((room.players || []).length >= room.maxPlayers) return rej('Masa dolu — davet gönderilemez.');
         const targetId = Number(payload && payload.toUserId);
         if (targetId === me.id) return rej('Kendinizi davet edemezsiniz.');
+        if ((room.players || []).some(p => Number(p.userId) === Number(targetId))) return rej('Oyuncu zaten masada.');
         const target = await remote.userPublic(targetId);
         if (!target) return rej('Oyuncu bulunamadı.');
         const friends = await remote.isFriendPair(me.id, targetId);
         if (!friends) return rej('Yalnızca arkadaş listenizdeki oyuncuları davet edebilirsiniz.');
+        if (!room.invited || typeof room.invited.set !== 'function') room.invited = new Map();
+        if (room.invited.size >= 15) return rej('Bekleyen davet sınırına ulaşıldı — biri katılmadan yeni davet gönderilemez.');
         const set = online.get(targetId);
         if (!set || !set.size) return rej('Arkadaşınız şu an çevrimiçi değil.');
+        // Davet = giriş hakkı; atılmışsa yeni davetle hak yeniden açılır.
+        room.invited.set(targetId, { ts: now() });
+        if (room.kickBan && typeof room.kickBan.delete === 'function') room.kickBan.delete(targetId);
         const invite = {
           inviteId: 'inv-' + now() + '-' + Math.floor(Math.random() * 1e5),
           fromId: me.id, fromName: me.name,
           roomId: String(room.id), roomName: room.name, gameId: room.gameId, ts: now()
         };
         set.forEach(s => s.emit('gameInvite', invite));
-        socket.emit('inviteSent', { ok: true, toName: target.name });
+        socket.emit('inviteSent', { ok: true, toName: target.name, toUserId: targetId });
       } catch (e) {
         rej('Üyelik sunucusuna ulaşılamadı, sonra deneyin.');
       }
