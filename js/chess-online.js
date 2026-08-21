@@ -158,6 +158,7 @@
     if (!roomId) return;
     localStorage.setItem('gv-room-id', roomId);
     socket.emit('joinRoom', {
+      memberToken: (window.GVAuth && GVAuth.token ? (GVAuth.token() || undefined) : undefined),
       roomId,
       userName: getUserName(),
       userKey: userKey(),

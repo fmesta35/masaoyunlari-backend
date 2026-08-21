@@ -147,6 +147,7 @@
         renderRoom(room, sock);
         const userName = (typeof st !== 'undefined' && st.user && st.user.name) ? st.user.name : 'Oyuncu';
         sock.emit('joinRoom', {
+      memberToken: (window.GVAuth && GVAuth.token ? (GVAuth.token() || undefined) : undefined),
           roomId: String(room.id),
           userName,
           maxPlayers: Number(room.maxPlayers || 2),

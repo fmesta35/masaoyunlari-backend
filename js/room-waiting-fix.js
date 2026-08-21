@@ -562,6 +562,7 @@
     const viaInvite = !!window.__gvJoinViaInvite;
     window.__gvJoinViaInvite = false;
     socket.emit('joinRoom', {
+      memberToken: (window.GVAuth && GVAuth.token ? (GVAuth.token() || undefined) : undefined),
       roomId,
       userName: userName(),
       userKey: userKey(),

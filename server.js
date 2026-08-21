@@ -1285,7 +1285,23 @@ io.on('connection', socket => {
     socket.emit('roomsUpdated', { gameId, rooms: listPublicRooms(gameId) });
   });
 
-  socket.on('joinRoom', payload => {
+  // Üyelik kanıtını soket mesajının İÇİNDEN doğrula. authHello'nun bu sokete
+  // düşmesini beklemeye gerek kalmaz (yarış); ayrıca HTTP başlığı hiç
+  // kullanılmadığı için FastCGI kırpmasından da bağımsızdır. Özel oda kapısı
+  // bunu çağırır; başarılıysa socket.userId anında yazılır.
+  async function ensureSocketIdentity(data) {
+    if (socket.userId) return true;
+    if (!authApi || typeof authApi.verifyToken !== 'function') return false;
+    const t = data && typeof data.memberToken === 'string' ? data.memberToken : '';
+    if (!t || t.length > 256) return false;
+    try {
+      const uid = await authApi.verifyToken(t);
+      if (uid) { socket.userId = Number(uid); socket.userKey = 'user:' + Number(uid); return true; }
+    } catch (_) {}
+    return false;
+  }
+
+  socket.on('joinRoom', async payload => {
     const data = payload || {};
     if (!data.roomId) return;
 
@@ -1299,9 +1315,14 @@ io.on('connection', socket => {
         return;
       }
       // ÖZEL masa kurmak üyelik ister (misafirler yalnızca genel masa kurabilir).
+      // Kimlik önce authHello'dan; yoksa bu mesajdaki memberToken ile anında
+      // doğrulanır — üye asla "giriş gerekli" duvarına takılmaz.
       if (data.isPrivate && !socket.userId) {
-        socket.emit('joinDenied', { roomId, code: 'auth', reason: 'Özel masa kurmak için üye girişi gerekli.' });
-        return;
+        await ensureSocketIdentity(data);
+        if (!socket.userId) {
+          socket.emit('joinDenied', { roomId, code: 'auth', reason: 'Özel masa kurmak için üye girişi gerekli.' });
+          return;
+        }
       }
       room = createRoom(roomId, gameId, data.maxPlayers, data.durationMinutes, {
         name: data.roomName || data.name,
@@ -1340,6 +1361,8 @@ io.on('connection', socket => {
     //  Halen koltukta olanın (reconnect/rejoin) hakkı dokunulmaz. Yeni gelenlerde
     //  kimlik YALNIZ token doğrulamalı üyeliktir (socket.userId; userKey güvenilmez).
     if (room.isPrivate && !player) {
+      // Davetli girişinde de aynı anında-doğrulama yedeği çalışır.
+      await ensureSocketIdentity(data);
       if (!room.invited || typeof room.invited.has !== 'function') room.invited = new Map();
       if (!room.kickBan || typeof room.kickBan.has !== 'function') room.kickBan = new Set();
       const uid = socket.userId || null;
@@ -1964,6 +1987,17 @@ app.get('/health', (_req, res) => res.json({
 app.get('/api/rooms', (req, res) => {
   const gameId = String(req.query.gameId || req.query.game_id || 'chess');
   res.json({ ok: true, gameId, rooms: listPublicRooms(gameId) });
+});
+
+// Kamuya açık teşhis nabzı: üyelik katmanının hangi modda çalıştığını söyler
+// (gizli veri yok). "Özel masa kurulamıyor" gibi vakalarda uzaktan bakım için.
+app.get('/api/gv-health', (req, res) => {
+  res.json({
+    ok: true,
+    memberReady: !!(authApi && typeof authApi.verifyToken === 'function'),
+    privateRooms: true,
+    time: Date.now()
+  });
 });
 
 function start(port) {

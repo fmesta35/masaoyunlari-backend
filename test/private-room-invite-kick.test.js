@@ -116,6 +116,24 @@ async function main() {
     console.log('  ✓ A) genel oda herkese açık kaldı (gerileme yok)');
   }
 
+  // ---------- A2) memberToken (soket yükü) ile özel oda — authHello yarışı yok ----------
+  {
+    const fresh = await conn(BASE, 'freshD'); // authHello GÖNDERMEZ — kimlik yarışı simülasyonu
+    const j = once(fresh, 'joinedRoom');
+    fresh.emit('joinRoom', mk(D, { roomId: '6002', isPrivate: true, memberToken: D.token }));
+    assert.strictEqual((await j).role, 'player', 'memberToken ile özel oda kurulabilmeli (authHello beklemeden)');
+    const r2 = serverModule.rooms.get('6002');
+    assert.ok(r2 && r2.isPrivate && Number(r2.creatorId) === D.id, 'creatorId token kanıtıyla kurucuya yazılır');
+    fresh.emit('leaveRoom');
+    await sleep(120);
+    const bad = await conn(BASE, 'badTok');
+    const d2 = once(bad, 'joinDenied');
+    bad.emit('joinRoom', { roomId: '6003', gameId: 'chess', userName: 'Sahte', userKey: 'guest:x:t', isPrivate: true, memberToken: 'bozuk-jeton-123' });
+    assert.strictEqual((await d2).code, 'auth', 'bozuk jeton hâlâ reddedilir');
+    fresh.disconnect(); bad.disconnect();
+    console.log('  ✓ A2) memberToken (soket yükü) ile özel oda kurma — authHello yarışı önemsiz');
+  }
+
   // ---------- Özel oda kur (A) ----------
   const ja = once(aS, 'joinedRoom');
   aS.emit('joinRoom', mk(A, { isPrivate: true, roomName: 'Özel Masa' }));

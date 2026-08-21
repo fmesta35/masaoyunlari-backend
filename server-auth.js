@@ -75,7 +75,7 @@ function installAuth(app, deps) {
   if (!db) {
     app.all('/api/auth/*', (_req, res) => res.status(503).json({ ok: false, error: 'Üyelik katmanı (veritabanı) bu sunucuda devre dışı.' }));
     console.warn('⚠️  Auth endpoints 503 (db yok).');
-    return { isOnline: () => false, uidFromUserKey, recordMatch: () => {}, attachSocket: () => {} };
+    return { isOnline: () => false, uidFromUserKey, recordMatch: () => {}, attachSocket: () => {}, verifyToken: async () => null };
   }
 
   // ---- SMTP tanı (girişsiz; şifre asla dönmez) ----
@@ -496,7 +496,9 @@ function installAuth(app, deps) {
   }
 
   console.log('👤 Üyelik & sosyal katman aktif (auth + profil + arkadaş + davet).');
-  return { isOnline, uidFromUserKey, recordMatch, attachSocket, userById };
+  return { isOnline, uidFromUserKey, recordMatch, attachSocket, userById,
+    // Soket mesajıyla gelen üyelik jetonunu doğrular (oda kapısında anında kimlik).
+    verifyToken: async (t) => { const u = t ? userByToken(String(t)) : null; return u ? Number(u.id) : null; } };
 }
 
 // ================== UZAK MOD (Yöncü PHP/MySQL) ==================
@@ -630,7 +632,9 @@ function installRemoteMode(app, deps) {
   function logChat(m) { remote.logChat(m); }
 
   console.log('👤 Üyelik UZAK modda: Yöncü PHP/MySQL — Render sadece soket/proxy.');
-  return { isOnline, uidFromUserKey, recordMatch, attachSocket, logChat, userById: () => null };
+  return { isOnline, uidFromUserKey, recordMatch, attachSocket, logChat, userById: () => null,
+    // Uzak modda jeton Yöncü PHP'de doğrulanır (3 kanallı me çağrısı).
+    verifyToken: async (t) => { const u = t ? await remote.me(String(t)) : null; return (u && u.id) ? Number(u.id) : null; } };
 }
 
 module.exports = { installAuth, uidFromUserKey };

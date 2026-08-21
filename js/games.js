@@ -270,6 +270,7 @@ const GVGames = {
         if (this.isDedicatedOnlineGame()) return; // satranç/tavla: özel istemci katılır
         const user = this.getCurrentUser();
         this.socket.emit('joinRoom', {
+      memberToken: (window.GVAuth && GVAuth.token ? (GVAuth.token() || undefined) : undefined),
             roomId: this.roomId,
             userName: user?.name || user?.username || localStorage.getItem('gv-user-name') || 'Oyuncu',
             maxPlayers: 2,
@@ -424,6 +425,7 @@ window.addEventListener('gv:makeMove', event => {
                 const viaInvite = !!window.__gvJoinViaInvite;
                 window.__gvJoinViaInvite = false;
                 window.__gvRoomSocket.emit('joinRoom', {
+      memberToken: (window.GVAuth && GVAuth.token ? (GVAuth.token() || undefined) : undefined),
                     roomId: r.id,
                     userName: username,
                     maxPlayers: r.maxPlayers || maxPlayers,
