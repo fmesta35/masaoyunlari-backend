@@ -670,8 +670,9 @@ html{scrollbar-gutter:stable}
   body.sb-closed #sbReopen{display:none}
   #sbReopen{display:none}                    /* mobilde hamburger kullanılır */
   #sbCollapseBtn{right:8px}
-  .header{padding:0 8px;gap:6px;flex-wrap:nowrap;height:56px;overflow:visible}
-  .header .logo{font-size:.92em;gap:5px;flex:none;min-width:0}
+  .header{padding:0 8px;gap:6px;flex-wrap:nowrap;height:56px;overflow:visible;justify-content:flex-start}
+  /* Marka HER ZAMAN okunaklı ve SOLDA — küçük ekranda da gizlenmez */
+  .header .logo{font-size:1.02em;gap:6px;flex:none;min-width:0;white-space:nowrap}
   .header .logo img{height:24px!important;width:24px!important}
   .header-right{gap:5px;flex:none;margin-left:auto}
   .icon-btn{width:32px;height:32px;min-width:32px;font-size:.95em}
@@ -686,13 +687,11 @@ html{scrollbar-gutter:stable}
 @media(max-width:480px){
   #headerAuthContainer .btn{padding:5px 8px;font-size:.72em}
   .icon-btn{width:30px;height:30px;min-width:30px;font-size:.88em}
-  .user-pill .up-score{display:none}
+  /* Üye rozeti küçük ekranda yalnız avatar: marka + butonlar sığsın diye */
+  .user-pill > div:nth-child(2){display:none}
   #gvChatFab{right:10px;bottom:10px;padding:10px 14px;font-size:13.5px}
   #gvChatPanel{right:6px;left:6px;width:auto;max-width:none;bottom:62px;height:60vh}
   .modal{max-width:96vw}
-}
-@media(max-width:380px){
-  .header .logo .wm{display:none}            /* çok dar ekranda yalnızca logo simgesi */
 }
 </style>
 </head>
