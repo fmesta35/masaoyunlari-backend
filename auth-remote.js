@@ -21,13 +21,11 @@ function enabled() { return !!REMOTE; }
 
 async function callJson(url, opts, timeoutMs) {
   const ctrl = new AbortController();
-  // PHP soğuk başlangıcı sırasında 8 sn timeout yetmiyor; "Özel masa kurmak
-  // için üye girişi gerekli" yarış durumuna yol açıyordu (joinRoom sırasında
-  // verifyToken hâlâ bekliyorken joinDenied dönüyordu). 18 sn'ye çıkardık:
-  // auth.js zaten 1.5 sn'de authHello gönderiyor, böylece çoğu durumda
-  // PHP'ye iki kez gidilmiyor; bu uzun timeout sadece tek istekte yarışı
-  // kazandırıyor.
-  const t = setTimeout(() => ctrl.abort(), timeoutMs || 18000);
+  // PHP soğuk başlangıcı 10 sn'ye kadar sürebilir. 18 sn'de tutmak
+  // kullanıcıyı gereksiz yere bekletiyordu; auth.js paralel authHello
+  // gönderdiği için 10 sn yeterli. Soğuk başlangıçta arka plan doğrulaması
+  // hâlâ çalışır (sunucu tarafı arka plana atıyor).
+  const t = setTimeout(() => ctrl.abort(), timeoutMs || 10000);
   try {
     const headers = { 'Content-Type': 'application/json' };
     // FastCGI (Yöncü) Authorization'ı kırpabilir → jeton ÜÇ kanaldan gider:

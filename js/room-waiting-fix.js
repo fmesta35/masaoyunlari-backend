@@ -128,7 +128,11 @@
     const stl = document.createElement('style');
     stl.id = 'gv-real-wait-css';
     stl.textContent = `
-#gv-real-chess-wait{position:fixed;inset:0;z-index:2147483000;display:flex;align-items:center;justify-content:center;padding:20px;background:rgba(6,7,20,.88);backdrop-filter:blur(12px)}
+/* z-index: 1800 — index.html'deki .modal-bg (z-index:2000) ve .toast-wrap
+   (z-index:3000) ile aynı seviyede DEĞİL; böylece "📩 Davet Gönder" penceresi
+   ve toast bildirimleri bekleme odası overlay'inin ÜZERİNDE görünür.
+   Davet/arkadaş modalı açıldığında kullanıcı modal içeriğini görebilir. */
+#gv-real-chess-wait{position:fixed;inset:0;z-index:1800;display:flex;align-items:center;justify-content:center;padding:20px;background:rgba(6,7,20,.88);backdrop-filter:blur(12px)}
 #gv-real-chess-wait .card{width:min(92vw,620px);background:var(--bg2,#111128);color:var(--text,#fff);border:1px solid var(--border2,rgba(255,255,255,.15));border-radius:18px;padding:24px;box-shadow:0 24px 80px rgba(0,0,0,.65)}
 #gv-real-chess-wait h2{margin:0 0 7px;font-size:1.35rem;color:var(--primary,#6c5ce7);text-align:center}
 #gv-real-chess-wait .sub{color:var(--text2,#aaa);font-size:.9rem;margin-bottom:18px;text-align:center}
@@ -574,13 +578,12 @@
   //  - auth.js yüklenene kadar kısa süre bekler,
   //  - authHello'yu gönderir (sunucu tarafında socket.userId yazılır),
   //  - memberToken'ın dolu olduğundan emin olur.
-  // PHP soğuk başlangıcı 18 sn sürebilir, ama sunucu tarafında yaptığımız
-  // yeni politika: özel odaya girişte memberToken varsa 2 sn'lik hızlı
-  // bekleme sonrası userId hâlâ yoksa bile oyuncuyu kabul edip arka
-  // planda userId çözüyor. Bu yüzden istemci burada UZUN BEKLEMEK
-  // yerine kısa (1.2 sn) bir pencere açıyor; çoğu istek bu kadar
-  // sürede çözülür, geri kalanlar sunucu tarafında arka planda
-  // çözülüp oyuncu zaten odada olduğu için userId atanır.
+  // PHP soğuk başlangıcı 10 sn'ye kadar sürebilir, ama sunucu tarafında
+  // yaptığımız politika: özel odaya girişte memberToken varsa 800 ms'lik
+  // kısa bekleme sonrası userId hâlâ yoksa bile oyuncuyu kabul edip
+  // arka planda userId çözüyor. Bu yüzden istemci burada 600 ms bekler;
+  // çoğu istek bu kadar sürede çözülür, geri kalanlar sunucu tarafında
+  // arka planda çözülüp oyuncu zaten odada olduğu için userId atanır.
   function ensureAuthedForPrivate() {
     return new Promise(resolve => {
       const tok = (window.GVAuth && typeof GVAuth.token === 'function') ? (GVAuth.token() || '') : '';
@@ -600,7 +603,7 @@
         socket.on('authReady', onReady);
         socket.emit('authHello', { token: tok });
       } catch (_) { return resolve(false); }
-      // 1.2 sn'lik kısa bekleme: çoğu PHP cevabı bu kadar sürede gelir.
+      // 600 ms'lik kısa bekleme: çoğu PHP cevabı bu kadar sürede gelir.
       // Gelen cevapla çoğu kullanıcı bekleme odasını sorunsuz açar;
       // gelmezse yine de join'i gönder — sunucu memberToken yedeğiyle
       // arka planda çözecek (joinDenied'a düşmek yerine).
@@ -609,7 +612,7 @@
         settled = true;
         try { socket.off('authReady', onReady); } catch (_) {}
         resolve(false);
-      }, 1200);
+      }, 600);
     });
   }
 

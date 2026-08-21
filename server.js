@@ -1422,13 +1422,15 @@ io.on('connection', socket => {
       // oyuncu zaten odada olacak, sadece userId atanacak + kurucu
       // hakları aktif olacak. Token yoksa (misafir) geleneksel red.
       const hasToken = data.memberToken && typeof data.memberToken === 'string' && data.memberToken.length > 0;
-      // 2 sn'lik hızlı bekleme: çoğu istek bu kadar sürede çözülür, await
-      // join'i bloklamaz. Promise.race ile yarış güvenliği.
+      // 800 ms'lik hızlı bekleme: çoğu istek bu kadar sürede çözülür.
+      // Promise.race ile yarış güvenliği. 18 sn'lik auth-remote.js timeout
+      // aşılmadan yarışı çözüyoruz; userId gelmezse memberToken varsa arka
+      // planda çözeceğiz.
       if (!socket.userId) {
         try {
           await Promise.race([
             ensureSocketIdentity(data),
-            new Promise(res => setTimeout(res, 2000))
+            new Promise(res => setTimeout(res, 800))
           ]);
         } catch (_) {}
       }
