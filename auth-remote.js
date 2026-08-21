@@ -131,24 +131,40 @@ function installProxy(app, helpers) {
 
 // ---------------- soket yardımcıları ----------------
 // authHello periyodunda her 1.5 sn'de gelen isteklerde PHP'ye tekrar
-// gidilmesin diye başarılı sonuçları 5 sn cache'leriz (eski 30 sn çok
-// uzundu: bir kez timeout olan token 30 sn boyunca null dönüyordu,
-// "Üyelik doğrulanamadı" uyarısına yol açıyordu). 5 sn sonra otomatik
-// PHP'ye tekrar sorulur; 1.5 sn'de bir gelen authHello ping'leriyle
-// zaten yenileme yapılıyor.
-const meCache = new Map(); // token -> {u, at}
+// gidilmesin diye başarılı sonuçları 60 sn cache'leriz. auth.js 1.5 sn'de
+// authHello gönderiyor ama verifyToken (me) sadece cache MISS olunca PHP'ye
+// gider. PHP timeout/başarısız durumda null dönerse 5 sn cooldown
+// (meFailCooldown) uygularız: aynı token için 5 sn boyunca PHP'ye
+// tekrar sorulmaz. Bu, PHP yavaşsa Render'ı boğmadan soğumayı bekler.
+const meCache = new Map();         // token -> {u, at}
+const meFailCooldown = new Map();  // token -> at (son başarısız deneme)
+const ME_CACHE_TTL_MS = 60000;     // başarılı: 60 sn cache
+const ME_FAIL_TTL_MS = 5000;       // başarısız: 5 sn cooldown
 function me(token) {
   if (!token) return Promise.resolve(null);
+  const now = Date.now();
+  // Önce "fail cooldown" kontrolü: token son 5 sn'de başarısız olduysa null
+  // dön ve PHP'ye gitme. Bu hem PHP'yi korur hem de gereksiz timeout'ları
+  // önler (5 sn'de 20 yerine 1 istek = %95 tasarruf).
+  const failAt = meFailCooldown.get(token);
+  if (failAt && now - failAt < ME_FAIL_TTL_MS) return Promise.resolve(null);
+  // Sonra başarılı cache.
   const c = meCache.get(token);
-  if (c && c.u && Date.now() - c.at < 5000) return Promise.resolve(c.u);
+  if (c && c.u && now - c.at < ME_CACHE_TTL_MS) return Promise.resolve(c.u);
   // Jeton ÜÇ kanaldan gider: Authorization + X-GV-Token başlıkları (callJson
   // içinde) VE POST gövdesi. FastCGI/Yöncü başlıkları kırpsa bile gövde PHP'ye
   // her zaman ulaşır (gv_bearer'ın gövde yedeği) — üyelik doğrulaması artık
   // sunucu başlık ayarlarına bağımlı değil.
   return callJson(REMOTE + '/auth.php?action=me', { bearer: token, body: { token } }, 5000).then(r => {
     const u = r.data && r.data.ok && r.data.user ? r.data.user : null;
-    if (u) meCache.set(token, { u, at: Date.now() });
+    if (u) {
+      meCache.set(token, { u, at: Date.now() });
+      meFailCooldown.delete(token); // başarılı: cooldown kaldır
+    } else {
+      meFailCooldown.set(token, Date.now());
+    }
     if (meCache.size > 2000) meCache.delete(meCache.keys().next().value);
+    if (meFailCooldown.size > 2000) meFailCooldown.delete(meFailCooldown.keys().next().value);
     return u;
   });
 }

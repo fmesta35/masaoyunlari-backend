@@ -2128,6 +2128,23 @@ app.get('/api/gv-health', (req, res) => {
   });
 });
 
+// PHP bağlantı testi: arkadaş listesi neden boş sorusunu yanıtlar.
+// 3 sn'de timeout olur; istemci bu route'u çağırarak PHP'nin canlı
+// olup olmadığını teyit edebilir.
+app.get('/api/_php_probe', async (req, res) => {
+  if (!authApi || !authApi.verifyToken) return res.json({ ok: false, reason: 'auth not ready' });
+  const auth = String(req.headers.authorization || '').match(/^Bearer\s+(.+)$/i);
+  const token = auth && auth[1] ? String(auth[1]) : (req.headers['x-gv-token'] ? String(req.headers['x-gv-token']) : '');
+  if (!token) return res.json({ ok: false, reason: 'no token' });
+  const t0 = Date.now();
+  try {
+    const uid = await authApi.verifyToken(token);
+    res.json({ ok: !!uid, uid: uid || null, ms: Date.now() - t0, tokenLen: token.length });
+  } catch (e) {
+    res.json({ ok: false, error: e && e.message, ms: Date.now() - t0 });
+  }
+});
+
 function start(port) {
   // Kalıcı hazır masalar sunucu ayağa kalkarken oluşturulur.
   seedPresetTables();
