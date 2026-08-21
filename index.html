@@ -1219,17 +1219,10 @@ function checkAuthState(){
   if(usEl) usEl.textContent = st.isGuest ? '0 (Ziyaretçi Modu)' : st.totalScore.toLocaleString();
 }
 
+// Gerçek giriş akışı js/auth.js tarafından sağlanır. Bu güvenli yedek,
+// auth.js yüklenmezse kullanıcıyı sahte üye gibi göstermemelidir.
 function submitLogin(){
-  const u = document.getElementById('loginUser').value.trim() || ('Ahmet K.');
-  st.isGuest = false;
-  st.user = { name: u, score: 14540, level: 42 };
-  st.scores = {chess:1756,tavla:1420,dama:1180,turkdamasi:1050,okey:2150,okey101:1890,pisti:980,batak:1340,reversi:850,gomoku:720,connect4:1050,bilardo:640};
-  checkAuthState();
-  updateAuthState();
-  updateScoreUI();
-  renderFriends();
-  hideModal('loginModal');
-  toast(`🎉 Hoş geldiniz, ${st.user.name}!`, 'success');
+  toast('⚠️ Üyelik servisi yüklenemedi. Sayfayı yenileyip tekrar deneyin.', 'error');
 }
 function submitRegister(){
   const e = document.getElementById('regEmail').value.trim();
@@ -1634,7 +1627,14 @@ function genRooms(gid){
 }
 
 function openCreateRoomModal(){
-  if(st.isGuest) return showModal('guestPromptModal');
+  // Görsel olarak üye görünmek tek başına yeterli değildir: özel oda için
+  // sunucunun doğrulayabileceği gerçek oturum tokenı bulunmalıdır.
+  let authToken = '';
+  try { authToken = localStorage.getItem('gv-auth-token') || ''; } catch(_) {}
+  if(st.isGuest || !authToken) {
+    if (typeof toast === 'function') toast('🔐 Özel oda kurmak için gerçek üyelik hesabınızla giriş yapmalısınız.', 'warning');
+    return showModal('loginModal');
+  }
   const gid = st.curGame || 'okey';
   const isTwoPlayer = TWO_PLAYER_GAMES.includes(gid);
   const pcSelect = document.getElementById('crPlayerCount');
