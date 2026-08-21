@@ -70,7 +70,8 @@
     if (window.GVAuth && typeof GVAuth.api === 'function') return GVAuth.api(path, body, method);
     const headers = { 'Content-Type': 'application/json' };
     const t = tok();
-    if (t) headers.Authorization = 'Bearer ' + t;
+    // Authorization + X-GV-Token çift yol (FastCGI başlık kırpmasına karşı yedek).
+    if (t) { headers.Authorization = 'Bearer ' + t; headers['X-GV-Token'] = t; }
     const r = await fetch(urlFor(path), {
       method: method || (body ? 'POST' : 'GET'),
       headers, body: body ? JSON.stringify(body) : undefined

@@ -41,7 +41,9 @@
   async function api(path, body, method) {
     const headers = { 'Content-Type': 'application/json' };
     const tok = getToken();
-    if (tok) headers.Authorization = 'Bearer ' + tok;
+    // cPanel/FastCGI kurulumlarda Authorization başlığı PHP'ye geçmeyebilir;
+    // bu yüzden aynı jetonu özel X-GV-Token başlığıyla da yollarız (yedek yol).
+    if (tok) { headers.Authorization = 'Bearer ' + tok; headers['X-GV-Token'] = tok; }
     const r = await fetch(urlFor(path), {
       method: method || (body ? 'POST' : 'GET'),
       headers,

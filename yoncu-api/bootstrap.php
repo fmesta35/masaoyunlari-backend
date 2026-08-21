@@ -10,7 +10,7 @@ require_once __DIR__ . '/config.php';
 
 header('Content-Type: application/json; charset=utf-8');
 header('Access-Control-Allow-Origin: *');
-header('Access-Control-Allow-Headers: Content-Type, Authorization, X-GV-Key');
+header('Access-Control-Allow-Headers: Content-Type, Authorization, X-GV-Key, X-GV-Token');
 header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
 if (($_SERVER['REQUEST_METHOD'] ?? '') === 'OPTIONS') { http_response_code(204); exit; }
 
@@ -33,13 +33,24 @@ function gv_input() {
 }
 
 function gv_bearer() {
+    // Yöncü/cPanel FastCGI kurulumları Authorization başlığını PHP'ye
+    // GEÇİRMEYEBİLİR (CGI standardı). O yüzden istemci ve oyun sunucusu aynı
+    // jetonu özel X-GV-Token başlığıyla da yollar; zincir tüm yolları dener.
     $h = $_SERVER['HTTP_AUTHORIZATION'] ?? '';
+    if ($h === '' && !empty($_SERVER['REDIRECT_HTTP_AUTHORIZATION'])) $h = $_SERVER['REDIRECT_HTTP_AUTHORIZATION'];
+    if ($h === '' && function_exists('getallheaders')) {
+        foreach ((array)call_user_func('getallheaders') as $gk => $gvh) {
+            if (strcasecmp(strval($gk), 'Authorization') === 0) { $h = strval($gvh); break; }
+        }
+    }
     if (function_exists('apache_request_headers')) {
         $all = apache_request_headers();
         if (empty($h) && !empty($all['Authorization'])) $h = $all['Authorization'];
         if (empty($h) && !empty($all['authorization'])) $h = $all['authorization'];
     }
     if (preg_match('/Bearer\s+(.+)/i', $h, $m)) return trim($m[1]);
+    // Başlığı kırpan kurulumlar için özel yedek başlık (ham jeton):
+    if (!empty($_SERVER['HTTP_X_GV_TOKEN'])) return trim(strval($_SERVER['HTTP_X_GV_TOKEN']));
     return null;
 }
 

@@ -1,0 +1,14 @@
+# Üyelik API'si — Apache/FastCGI kurulumlarında Authorization başlığının
+# PHP'ye ulaşmasını garanti eder (aksi halde "oturum geçersiz" hataları ve
+# yenilemede ziyaretçiye düşme sorunu yaşanır). PHP tarafında ayrıca
+# X-GV-Token yedeği de vardır (bootstrap.php gv_bearer); bu dosya çift katman
+# koruma sağlar. Mevcut kuralları BOZMAZ, yalnızca ortam değişkeni ekler.
+<IfModule mod_rewrite.c>
+RewriteEngine On
+RewriteCond %{HTTP:Authorization} .
+RewriteRule ^ - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+</IfModule>
+
+<IfModule mod_cgi.c>
+CGIPassAuth On
+</IfModule>

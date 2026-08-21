@@ -39,6 +39,7 @@ function startMockPhp() {
     users, sessions, friends, requests,
     matches: [], chat: [],
     seenKeys: [], // recordMatch/chatLog isteklerinde gelen X-GV-Key
+    stripAuth: false, // Yöncü/FastCGI simülasyonu: Authorization PHP'ye ulaşmasın
     nextId: 1
   };
 
@@ -48,9 +49,16 @@ function startMockPhp() {
   }
   const tok = () => 'tok-' + Math.random().toString(36).slice(2) + Date.now().toString(36);
   const byToken = req => {
-    const m = String(req.headers.authorization || '').match(/^Bearer\s+(.+)$/i);
-    if (!m) return null;
-    const uid = sessions.get(m[1]);
+    // Gerçek PHP (gv_bearer) gibi: Authorization + X-GV-Token yedeği.
+    // stripAuth=true iken Authorization yok sayılır (FastCGI kırpması simülasyonu).
+    let tk = null;
+    if (!state.stripAuth) {
+      const m = String(req.headers.authorization || '').match(/^Bearer\s+(.+)$/i);
+      if (m) tk = m[1];
+    }
+    if (!tk && req.headers['x-gv-token']) tk = String(req.headers['x-gv-token']);
+    if (!tk) return null;
+    const uid = sessions.get(tk);
     return uid ? users.get(uid) : null;
   };
 
@@ -202,7 +210,7 @@ async function waitFor(fn, ms, label) {
 }
 async function api(base, p, body, method, token) {
   const headers = { 'Content-Type': 'application/json' };
-  if (token) headers.Authorization = 'Bearer ' + token;
+  if (token) { headers.Authorization = 'Bearer ' + token; headers['X-GV-Token'] = token; }
   const r = await fetch(base + p, { method: method || (body ? 'POST' : 'GET'), headers, body: body ? JSON.stringify(body) : undefined });
   return { status: r.status, ...(await r.json().catch(() => ({}))) };
 }
@@ -367,6 +375,25 @@ async function main() {
   const dec = await decEv;
   assert.strictEqual(dec.kind, 'declined');
   console.log('  ✓ 12) remote: red anlık bildirimi istek sahibine ulaştı');
+
+  // ---------- 7) FastCGI başlık kırpmasına dayanıklılık (Yöncü simülasyonu) ----------
+  // Authorization PHP'ye hiç ulaşmasa bile X-GV-Token yedeği kimliği taşımalı.
+  {
+    mock.state.stripAuth = true; // PHP artık Authorization'ı "görmüyor"
+    const rs = await api(BASE, '/api/auth/me', null, 'GET', CTOK);
+    assert.ok(rs.ok && rs.user && rs.user.id === CID, 'Authorization kırpılsa bile REST me çalışmalı');
+    // Soket katmanında meCache'i atlatacak TAZE token (4. kullanıcı):
+    const reg4 = await api(BASE, '/api/auth/register', { name: 'Yedek', email: 'yedek@t.com', password: 'x' });
+    await api(BASE, '/api/auth/verify', { token: 'vt' + reg4.userId });
+    const lg4 = await api(BASE, '/api/auth/login', { email: 'yedek@t.com', password: 'x' });
+    const ySock = await conn('Y');
+    ySock.emit('authHello', { token: lg4.token });
+    const yr = await once(ySock, 'authReady');
+    assert.ok(yr.ok && yr.user && yr.user.name === 'Yedek', 'soket kimliği X-GV-Token yedeğiyle doğrulanmalı');
+    ySock.disconnect();
+    mock.state.stripAuth = false;
+  }
+  console.log('  ✓ 13) FastCGI/Yöncü: Authorization kırpılsa bile REST + soket kimliği X-GV-Token ile çalışıyor');
 
   // ---------- 6) yanlış anahtar korunur ----------
   assert.ok(!mock.state.seenKeys.some(([, k]) => k !== KEY && k !== undefined), 'yanlış anahtarla hiçbir yazma kabul edilmedi');

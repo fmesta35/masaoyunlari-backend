@@ -24,7 +24,8 @@ async function callJson(url, opts, timeoutMs) {
   const t = setTimeout(() => ctrl.abort(), timeoutMs || 8000);
   try {
     const headers = { 'Content-Type': 'application/json' };
-    if (opts && opts.bearer) headers.Authorization = 'Bearer ' + opts.bearer;
+    // FastCGI (Yöncü) Authorization'ı kırpabilir → X-GV-Token yedeği de gönder.
+    if (opts && opts.bearer) { headers.Authorization = 'Bearer ' + opts.bearer; headers['X-GV-Token'] = opts.bearer; }
     if (opts && opts.key) headers['X-GV-Key'] = opts.key;
     const r = await fetch(url, {
       method: (opts && opts.body) ? 'POST' : 'GET',
@@ -69,7 +70,9 @@ function installProxy(app, helpers) {
   for (const k of Object.keys(MAP)) {
     const [method, path] = k.split(' ');
     app[method.toLowerCase()](path, async (req, res) => {
-      const bearer = (String(req.headers.authorization || '').match(/^Bearer\s+(.+)$/i) || [])[1];
+      // İstemci jetonu Authorization veya (FastCGI yedeği) X-GV-Token ile gelebilir.
+      const bearer = (String(req.headers.authorization || '').match(/^Bearer\s+(.+)$/i) || [])[1]
+        || (req.headers['x-gv-token'] ? String(req.headers['x-gv-token']) : undefined);
       let url = REMOTE + MAP[k];
       if (k === 'GET /api/users/search' && req.query.q) url += '&q=' + encodeURIComponent(String(req.query.q));
       const r = await callJson(url, { body: method === 'POST' ? req.body : null, bearer });
