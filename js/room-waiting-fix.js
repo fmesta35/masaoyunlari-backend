@@ -535,6 +535,7 @@
       // geçersizse sunucu girişi reddeder — sebebi kart üzerinde göster.
       socket.on('joinDenied', p => {
         if (!p || String(p.roomId) !== roomId || !isChess()) return;
+        try { console.warn('[GV-DBG] joinDenied geldi:', p); } catch (_) {}
         if (retryAfterAuthDeny(p)) return; // authHello yarışı — sessizce yeniden dene
         showBlockOverlay(p.reason || 'Bu masaya girilmedi.');
       });
@@ -559,21 +560,18 @@
     join();
   }
 
-  // Kimlik hazır mı? Üye ise ve socket.userId (sunucu tarafında yazılır,
-  // istemcide undefined) henüz sunucuya işlenmemiş olabilir. Bu, "Özel masa
-  // kurmak için üye girişi gerekli" yarış durumunu çözer: authHello
-  // gönderildikten sonra join() denenir; sunucu tarafı data.memberToken'ı
-  // doğrulayarak socket.userId'yi anında yazar. İstemcide yazılı olmasa
-  // bile join başarılı olur.
+  // Kimlik hazır mı? Üye ise ve auth.js henüz yüklenmediyse (window.GVAuth
+  // undefined olabilir), üye token'ını taşıyamayız. Bu fonksiyon:
+  //  - auth.js yüklenene kadar kısa süre bekler,
+  //  - authHello'yu gönderir (sunucu tarafında socket.userId yazılır),
+  //  - memberToken'ın dolu olduğundan emin olur.
   function ensureAuthedForPrivate() {
     return new Promise(resolve => {
       const tok = (window.GVAuth && typeof GVAuth.token === 'function') ? (GVAuth.token() || '') : '';
       const s = state();
       const isMember = s && !s.isGuest && s.user && s.user.id;
       if (!isMember || !tok) return resolve(true); // misafir: sunucu zaten reddeder
-      // authHello'yu şimdi gönder; sunucu authReady ile cevap verir.
-      // socket.userId istemcide yazılmaz, ama sunucu tarafı yazar; bu yüzden
-      // sadece authReady'yi dinlemek veya kısa süre beklemek yeterli.
+      // authHello gönder; sunucu authReady ile cevap verir.
       let settled = false;
       const onReady = (p) => {
         if (settled) return;
@@ -585,9 +583,10 @@
         socket.on('authReady', onReady);
         socket.emit('authHello', { token: tok });
       } catch (_) { return resolve(false); }
-      // authReady gecikirse sunucu tarafında memberToken doğrulaması zaten
-      // yedek olarak çalışıyor; yine de join'i 2 sn sonra deneyelim ki
-      // PHP soğuk başlangıcı sırasında bile accept edilsin.
+      // authReady 2 sn'de gelmezse yine de join'i dene (sunucu memberToken
+      // yedeği ile doğrular). PHP soğuk başlangıcı sırasında 18 sn
+      // beklenebilir, ama joinRoom await etmediği için bekleme odası
+      // hemen açılır.
       setTimeout(() => {
         if (settled) return;
         settled = true;
@@ -608,15 +607,34 @@
     // artık geçerli değil" reddi döner.
     const viaInvite = !!window.__gvJoinViaInvite;
     window.__gvJoinViaInvite = false;
+
+    // memberToken burada bir kez hesaplanır (auth.js yüklendikten sonra
+    // doğru döner; yarış durumunda boş olabilir ama sunucu tarafı yine
+    // doğrulamayı dener).
+    const memberToken = (window.GVAuth && typeof GVAuth.token === 'function' && window.GVAuth.token())
+      ? String(window.GVAuth.token())
+      : undefined;
+
+    // DEBUG: Bu log'lar özel oda kurma sorununu teşhis için. Kullanıcı F12
+    // konsolundan bunları görebilir; auth yarışı sırasında sunucudan gelen
+    // cevapları takip edebiliriz.
+    try {
+      const s = state();
+      console.log('[GV-DBG] join() başladı', {
+        roomId, isPrivate: !!(room && room.isPrivate),
+        hasMemberToken: !!memberToken, tokenLen: memberToken ? memberToken.length : 0,
+        hasGVAuth: !!window.GVAuth,
+        isGuest: !!(s && s.isGuest), userId: s && s.user && s.user.id
+      });
+    } catch (_) {}
+
     // ÖZEL ODA yarış durumu: kullanıcı üye ama socket.userId henüz yazılmamış
-    // olabilir (authHello periyodu 1.5 sn, kullanıcı daha hızlı basmış
-    // olabilir). join()'i göndermeden önce kimliği hazırla; başarısız olursa
-    // bile sunucudaki memberToken yedeği + retryAfterAuthDeny devreye girer.
+    // olabilir. authHello gönder, 2 sn authReady bekle, sonra join() gönder.
     if (room && room.isPrivate) {
       await ensureAuthedForPrivate();
     }
     socket.emit('joinRoom', {
-      memberToken: (window.GVAuth && GVAuth.token ? (GVAuth.token() || undefined) : undefined),
+      memberToken, // her durumda doğru token (undefined olabilir ama auth.js yüklüyse dolu)
       roomId,
       userName: userName(),
       userKey: userKey(),

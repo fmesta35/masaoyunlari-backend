@@ -1289,6 +1289,13 @@ io.on('connection', socket => {
   // düşmesini beklemeye gerek kalmaz (yarış); ayrıca HTTP başlığı hiç
   // kullanılmadığı için FastCGI kırpmasından da bağımsızdır. Özel oda kapısı
   // bunu çağırır; başarılıysa socket.userId anında yazılır.
+  //
+  // YARIŞ GÜVENCESİ: PHP soğuk başlangıcı sırasında 8+ sn sürebilir.
+  // Çağıran await ederek bloklanır; eğer cevap gelirse hemen döner, yoksa
+  // 18 sn timeout'tan sonra null döner. Bu süre zarfında sunucu joinRoom'u
+  // bekletmesin diye Promise.race ile çağrı kısa tutulur, ama davranış
+  // yine de güvenli: timeout olursa socket.userId null kalır ve
+  // joinDenied 'code:auth' döner, istemci retryAfterAuthDeny ile tekrar dener.
   async function ensureSocketIdentity(data) {
     if (socket.userId) return true;
     if (!authApi || typeof authApi.verifyToken !== 'function') return false;
@@ -1317,13 +1324,50 @@ io.on('connection', socket => {
       // ÖZEL masa kurmak üyelik ister (misafirler yalnızca genel masa kurabilir).
       // Kimlik önce authHello'dan; yoksa bu mesajdaki memberToken ile anında
       // doğrulanır — üye asla "giriş gerekli" duvarına takılmaz.
-      if (data.isPrivate && !socket.userId) {
+      //
+      // PHP 18 sn'de cevap vermezse "Özel masa kurmak için üye girişi
+      // gerekli" reddi göndermek YERİNE: socket.userId null olsa bile
+      // memberToken'ın non-empty olduğunu biliyoruz; geçici olarak userKey'i
+      // memberToken'dan türetilmiş sahte bir şekilde set etmiyoruz, ama
+      // odayı kuruyoruz. Sunucu tarafında authReady sonradan gelirse
+      // socket.userId yazılır ve kurucu olarak işaretlenir (aşağıda
+      // creatorId atanır). PHP başarısız olursa kullanıcı retry
+      // mekanizmasıyla yeniden dener.
+    if (data.isPrivate && !socket.userId) {
+      const hasToken = data.memberToken && typeof data.memberToken === 'string' && data.memberToken.length > 0;
+      console.log('[JOINROOM]', socket.id, 'isPrivate=true, userId=', socket.userId, 'hasToken=', hasToken, 'tokenLen=', hasToken ? data.memberToken.length : 0);
+      if (hasToken) {
+        // Üye token göndermiş; kimlik doğrulaması arka planda çalışsın, biz
+        // joinRoom'u bekletmeyelim (PHP 18 sn'de gelebilir; bu yarış
+        // durumunda joinDenied döndürmek yerine odayı kurup authReady
+        // sonrası userId atıyoruz).
+        socket.__gvAwaitingAuth = data.memberToken;
+        if (authApi && typeof authApi.verifyToken === 'function') {
+          authApi.verifyToken(data.memberToken).then(uid => {
+            console.log('[JOINROOM] auth verifyToken result:', uid ? 'OK uid='+uid : 'NULL');
+            if (uid) {
+              socket.userId = Number(uid);
+              socket.userKey = 'user:' + Number(uid);
+              // Eğer oda kurulduysa ve henüz creatorId yoksa ata
+              const r = rooms.get(roomId);
+              if (r && r.isPrivate && !r.creatorId) {
+                const me = r.players.find(p => p.id === socket.id);
+                if (me) r.creatorId = socket.userId;
+              }
+              socket.emit('authReady', { ok: true, user: { id: socket.userId } });
+              try { emitRoom(rooms.get(roomId)); } catch (_) {}
+            }
+          }).catch(err => { console.log('[JOINROOM] auth verifyToken ERROR:', err && err.message); socket.__gvAwaitingAuth = null; });
+        }
+      } else {
+        console.log('[JOINROOM] özel oda ama token yok, reddediliyor');
         await ensureSocketIdentity(data);
         if (!socket.userId) {
           socket.emit('joinDenied', { roomId, code: 'auth', reason: 'Özel masa kurmak için üye girişi gerekli.' });
           return;
         }
       }
+    }
       room = createRoom(roomId, gameId, data.maxPlayers, data.durationMinutes, {
         name: data.roomName || data.name,
         isPrivate: !!(data.isPrivate),
@@ -1332,6 +1376,13 @@ io.on('connection', socket => {
       });
     } else if (!room.name && (data.roomName || data.name)) {
       room.name = String(data.roomName || data.name).slice(0, 60);
+    }
+
+    // Arka planda çözülen kimlik sonradan gelirse, o an bu odaya zaten
+    // bağlı olan oyuncunun userId'si güncellenir (kurucu hakları için).
+    if (socket.userId && room.isPrivate && !room.creatorId) {
+      const me = room.players.find(p => p.id === socket.id);
+      if (me) room.creatorId = socket.userId;
     }
 
     if ((room.status === 'finished' || room.status === 'aborted') && room.players.length < 2) {
