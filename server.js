@@ -1469,17 +1469,15 @@ io.on('connection', socket => {
         if (authApi && typeof authApi.verifyToken === 'function') {
           authApi.verifyToken(data.memberToken).then(verifiedUid => {
             if (!verifiedUid) {
-              // Token gerçekten geçersiz → oyuncuyu odadan at
-              try {
-                const meP = (room.players || []).find(p => p.id === socket.id);
-                if (meP) removePlayerFromRoom(room, meP, 'Üyelik doğrulanamadı.');
-                if (socket.roomId === roomId) {
-                  socket.leave(roomId);
-                  socket.roomId = null;
-                  socket.role = null;
-                }
-                socket.emit('joinDenied', { roomId, code: 'auth', reason: 'Üyelik doğrulanamadı — lütfen tekrar giriş yapın.' });
-              } catch (_) {}
+              // Token gerçekten geçersiz — kullanıcıyı ODADAN ATMA, sadece
+              // userId boş kalır. Zaten odada bir oyuncu olarak kayıtlı;
+              // kickBan/davet gibi member-only işlemler otomatik başarısız
+              // olur (sunucu tarafı yetki denetimi yapıyor), ama oyunu
+              // oynamaya devam edebilir. Eski davranış: oyuncuyu atıp
+              // "Üyelik doğrulanamadı" göstermekti; bu, PHP soğuk başlangıcı
+              // sırasında GERÇEK ÜYELERİ yanlışlıkla atıyordu.
+              console.log('[JOINROOM] arka plan verifyToken NULL — token gerçekten geçersiz veya PHP timeout. Oyuncu odada kalır (üyelik yetkileri verilemedi).');
+              try { socket.emit('authPending', { ok: false, reason: 'Üyelik doğrulanamadı (PHP cevap vermedi). Davet gönderme gibi işlemler çalışmayabilir; sayfayı yenileyin.' }); } catch (_) {}
               return;
             }
             // socket artık başka bir odaya geçmiş olabilir; yalnız bu
@@ -1495,7 +1493,10 @@ io.on('connection', socket => {
             }
             try { socket.emit('authReady', { ok: true, user: { id: socket.userId } }); } catch (_) {}
             try { emitRoom(room); } catch (_) {}
-          }).catch(_ => {});
+          }).catch(_ => {
+            console.log('[JOINROOM] arka plan verifyToken HATA — oyuncu odada kalır.');
+            try { socket.emit('authPending', { ok: false, reason: 'PHP bağlantı hatası. Sayfayı yenileyin.' }); } catch (_) {}
+          });
         }
       }
     }

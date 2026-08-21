@@ -552,6 +552,13 @@
         if (retryAfterAuthDeny(p)) return; // authHello yarışı — sessizce yeniden dene
         showBlockOverlay(p.reason || 'Bu masaya girilmedi.');
       });
+      // Arka plan verifyToken başarısız oldu (PHP timeout veya gerçekten
+      // geçersiz token) — oyuncu ODADAN ATILMAZ, sadece uyarı verilir; sayfa
+      // yenilenince PHP cevap verirse normal çalışır.
+      socket.on('authPending', p => {
+        if (!p) return;
+        try { window.GV && GV.toast && GV.toast('⚠️ ' + (p.reason || 'Üyelik henüz doğrulanamadı. Sayfa yenilenirse normalleşir.'), 'warning', 6000); } catch (_) {}
+      });
       socket.on('joinedRoom', () => { authRetry = 0; });
 
       // Kurucu masadan attıysa: odadan düş + kalıcı bilgi (yeniden davet şart)
