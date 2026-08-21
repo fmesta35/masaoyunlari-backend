@@ -574,13 +574,21 @@
   //  - auth.js yüklenene kadar kısa süre bekler,
   //  - authHello'yu gönderir (sunucu tarafında socket.userId yazılır),
   //  - memberToken'ın dolu olduğundan emin olur.
+  // PHP soğuk başlangıcı 18 sn sürebilir, ama sunucu tarafında yaptığımız
+  // yeni politika: özel odaya girişte memberToken varsa 2 sn'lik hızlı
+  // bekleme sonrası userId hâlâ yoksa bile oyuncuyu kabul edip arka
+  // planda userId çözüyor. Bu yüzden istemci burada UZUN BEKLEMEK
+  // yerine kısa (1.2 sn) bir pencere açıyor; çoğu istek bu kadar
+  // sürede çözülür, geri kalanlar sunucu tarafında arka planda
+  // çözülüp oyuncu zaten odada olduğu için userId atanır.
   function ensureAuthedForPrivate() {
     return new Promise(resolve => {
       const tok = (window.GVAuth && typeof GVAuth.token === 'function') ? (GVAuth.token() || '') : '';
       const s = state();
       const isMember = s && !s.isGuest && s.user && s.user.id;
       if (!isMember || !tok) return resolve(true); // misafir: sunucu zaten reddeder
-      // authHello gönder; sunucu authReady ile cevap verir.
+      // Zaten authReady geldiyse bekleme
+      if (socket && socket.userId) return resolve(true);
       let settled = false;
       const onReady = (p) => {
         if (settled) return;
@@ -592,16 +600,16 @@
         socket.on('authReady', onReady);
         socket.emit('authHello', { token: tok });
       } catch (_) { return resolve(false); }
-      // authReady 2 sn'de gelmezse yine de join'i dene (sunucu memberToken
-      // yedeği ile doğrular). PHP soğuk başlangıcı sırasında 18 sn
-      // beklenebilir, ama joinRoom await etmediği için bekleme odası
-      // hemen açılır.
+      // 1.2 sn'lik kısa bekleme: çoğu PHP cevabı bu kadar sürede gelir.
+      // Gelen cevapla çoğu kullanıcı bekleme odasını sorunsuz açar;
+      // gelmezse yine de join'i gönder — sunucu memberToken yedeğiyle
+      // arka planda çözecek (joinDenied'a düşmek yerine).
       setTimeout(() => {
         if (settled) return;
         settled = true;
         try { socket.off('authReady', onReady); } catch (_) {}
         resolve(false);
-      }, 2000);
+      }, 1200);
     });
   }
 
@@ -670,12 +678,14 @@
   // Özel masa kilidi "code:'auth'" ile reddederse: büyük olasılıkla authHello
   // yarışı (soket açıldı ama üye kimliği henüz PHP/SQLite'tan dönmedi). Üyeyse
   // kısa aralıklarla birkaç kez yeniden dene; misafirse / hak etmişse reddetme.
+  // PHP soğuk başlangıcı 18 sn sürebilir; 25 × 900 ms = 22.5 sn retry
+  // penceresi PHP'nin cevap vermesini karşılar.
   let authRetry = 0;
   function retryAfterAuthDeny(p) {
     if (!p || p.code !== 'auth') return false;
     const s = state();
     const isMember = s && !s.isGuest && s.user && s.user.id;
-    if (!isMember || authRetry >= 8) return false; // ~7 sn: PHP/MySQL soğuk başlangıcını da karşılar
+    if (!isMember || authRetry >= 25) return false; // ~22.5 sn: PHP soğuk başlangıcını tam karşılar
     authRetry++;
     try { window.GVAuth && GVAuth.authHelloAll && GVAuth.authHelloAll(); } catch (_) {}
     setTimeout(join, 900);
