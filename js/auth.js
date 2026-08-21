@@ -219,7 +219,12 @@
     // Otomatik oturum
     if (getToken()) {
       const r = await api('/api/auth/me', null, 'GET');
-      if (r.ok && r.user) applyUser(r.user);
+      if (r.ok && r.user) {
+        applyUser(r.user);
+        // Yenilemede sessiz geri yükleme yerine kısa bir karşılama — kullanıcı
+        // üyeliğinin korunduğunu hemen görsün (yanıltıcı "ziyaretçi" hissi yok).
+        toast('👋 Tekrar hoş geldiniz, ' + (r.user.name || 'üye') + '!', 'success', 3500);
+      }
       else setToken(null);
     }
   }

@@ -1193,7 +1193,11 @@ function init(){
   startLive();
   updateScoreUI();
   updateAuthState();
-  toast(`${st.user.name} olarak bağlandınız! 🎮`,'info');
+  // Kimlik bildirimi: üyelik anahtarı (token) varsa oturum az sonra auth.js
+  // tarafından geri yüklenir; yer tutucu "Ziyaretçi#..." adıyla yanıltıcı
+  // bildirim atma. Yalnızca gerçek misafir bu bildirimi görür.
+  let __tok = null; try { __tok = localStorage.getItem('gv-auth-token'); } catch (_) {}
+  if (!__tok) toast(`${st.user.name} olarak bağlandınız! 🎮`,'info');
 }
 
 function checkAuthState(){
@@ -3894,7 +3898,7 @@ GV.init();
 <script src="js/okey-online.js?v=20260820e" defer></script>
 <script src="js/chat.js?v=20260821c" defer></script>
 <script src="js/leave-guard.js?v=20260820e" defer></script>
-<script src="js/auth.js?v=20260821d" defer></script>
+<script src="js/auth.js?v=20260821e" defer></script>
 <script src="js/social.js?v=20260821d" defer></script>
 
 <!-- Structured Data for SEO -->
