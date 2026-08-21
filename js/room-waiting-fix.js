@@ -559,39 +559,41 @@
     join();
   }
 
-  // Kimlik hazır mı? Üye ise ve socket'e authHello henüz ulaşıp userId
-  // yazılmadıysa, authHello'yu YENİDEN gönderip kısa süre bekle. Bu, özel
-  // oda kurma yarış durumunu ("Özel masa kurmak için üye girişi gerekli"
-  // hatasının asıl kökü) çözer: authHello her 1.5 sn'de çağrılıyor ama
-  // kullanıcı oda kur'a basarsa henüz ulaşmamış olabilir.
+  // Kimlik hazır mı? Üye ise ve socket.userId (sunucu tarafında yazılır,
+  // istemcide undefined) henüz sunucuya işlenmemiş olabilir. Bu, "Özel masa
+  // kurmak için üye girişi gerekli" yarış durumunu çözer: authHello
+  // gönderildikten sonra join() denenir; sunucu tarafı data.memberToken'ı
+  // doğrulayarak socket.userId'yi anında yazar. İstemcide yazılı olmasa
+  // bile join başarılı olur.
   function ensureAuthedForPrivate() {
     return new Promise(resolve => {
       const tok = (window.GVAuth && typeof GVAuth.token === 'function') ? (GVAuth.token() || '') : '';
       const s = state();
       const isMember = s && !s.isGuest && s.user && s.user.id;
       if (!isMember || !tok) return resolve(true); // misafir: sunucu zaten reddeder
-      if (socket && socket.userId) return resolve(true); // hazır
-      // authHello'yu şimdi gönder (sayfa yüklendikten sonra setInterval
-      // tetiklenmemiş olabilir). Sunucu authReady ile cevap verir.
+      // authHello'yu şimdi gönder; sunucu authReady ile cevap verir.
+      // socket.userId istemcide yazılmaz, ama sunucu tarafı yazar; bu yüzden
+      // sadece authReady'yi dinlemek veya kısa süre beklemek yeterli.
       let settled = false;
       const onReady = (p) => {
         if (settled) return;
-        if (!p || p.ok) { settled = true; socket.off('authReady', onReady); resolve(true); }
+        settled = true;
+        try { socket.off('authReady', onReady); } catch (_) {}
+        resolve(true);
       };
       try {
         socket.on('authReady', onReady);
         socket.emit('authHello', { token: tok });
       } catch (_) { return resolve(false); }
-      // authReady 1.5 sn'de gelmezse: sunucu tarafında PHP soğuk başlangıcı
-      // veya token reddedilmiş olabilir; yine de join() denenir (sunucu
-      // memberToken yedeği ile reddederse retryAfterAuthDeny zaten devreye
-      // girer ve join'i tekrar çağırır).
+      // authReady gecikirse sunucu tarafında memberToken doğrulaması zaten
+      // yedek olarak çalışıyor; yine de join'i 2 sn sonra deneyelim ki
+      // PHP soğuk başlangıcı sırasında bile accept edilsin.
       setTimeout(() => {
         if (settled) return;
         settled = true;
         try { socket.off('authReady', onReady); } catch (_) {}
         resolve(false);
-      }, 1500);
+      }, 2000);
     });
   }
 
