@@ -24,13 +24,23 @@ async function callJson(url, opts, timeoutMs) {
   const t = setTimeout(() => ctrl.abort(), timeoutMs || 8000);
   try {
     const headers = { 'Content-Type': 'application/json' };
-    // FastCGI (Yöncü) Authorization'ı kırpabilir → X-GV-Token yedeği de gönder.
-    if (opts && opts.bearer) { headers.Authorization = 'Bearer ' + opts.bearer; headers['X-GV-Token'] = opts.bearer; }
+    // FastCGI (Yöncü) Authorization'ı kırpabilir → jeton ÜÇ kanaldan gider:
+    // Authorization + X-GV-Token başlıkları, ayrıca POST'ta gövde {token}
+    // alanı / GET'te ?token= parametresi (PHP tarafı gv_bearer zincirinde
+    // hepsini dener). Böylece üyelik doğrulaması sunucu başlık ayarlarına
+    // hiç bağımlı kalmaz.
+    let body = opts && opts.body ? opts.body : null;
+    if (opts && opts.bearer) {
+      headers.Authorization = 'Bearer ' + opts.bearer;
+      headers['X-GV-Token'] = opts.bearer;
+      if (body) body = { ...body, token: opts.bearer };
+      else url += (url.indexOf('?') === -1 ? '?' : '&') + 'token=' + encodeURIComponent(opts.bearer);
+    }
     if (opts && opts.key) headers['X-GV-Key'] = opts.key;
     const r = await fetch(url, {
-      method: (opts && opts.body) ? 'POST' : 'GET',
+      method: body ? 'POST' : 'GET',
       headers,
-      body: opts && opts.body ? JSON.stringify(opts.body) : undefined,
+      body: body ? JSON.stringify(body) : undefined,
       signal: ctrl.signal
     });
     let data = null;
@@ -106,7 +116,11 @@ function me(token) {
   if (!token) return Promise.resolve(null);
   const c = meCache.get(token);
   if (c && Date.now() - c.at < (c.u ? 30000 : 5000)) return Promise.resolve(c.u);
-  return callJson(REMOTE + '/auth.php?action=me', { bearer: token }).then(r => {
+  // Jeton ÜÇ kanaldan gider: Authorization + X-GV-Token başlıkları (callJson
+  // içinde) VE POST gövdesi. FastCGI/Yöncü başlıkları kırpsa bile gövde PHP'ye
+  // her zaman ulaşır (gv_bearer'ın gövde yedeği) — üyelik doğrulaması artık
+  // sunucu başlık ayarlarına bağımlı değil.
+  return callJson(REMOTE + '/auth.php?action=me', { bearer: token, body: { token } }).then(r => {
     const u = r.data && r.data.ok && r.data.user ? r.data.user : null;
     meCache.set(token, { u, at: Date.now() });
     if (meCache.size > 2000) meCache.delete(meCache.keys().next().value);

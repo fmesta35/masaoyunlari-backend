@@ -584,7 +584,7 @@
     if (!p || p.code !== 'auth') return false;
     const s = state();
     const isMember = s && !s.isGuest && s.user && s.user.id;
-    if (!isMember || authRetry >= 5) return false;
+    if (!isMember || authRetry >= 8) return false; // ~7 sn: PHP/MySQL soğuk başlangıcını da karşılar
     authRetry++;
     try { window.GVAuth && GVAuth.authHelloAll && GVAuth.authHelloAll(); } catch (_) {}
     setTimeout(join, 900);

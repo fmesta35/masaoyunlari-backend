@@ -40,6 +40,7 @@ function startMockPhp() {
     matches: [], chat: [],
     seenKeys: [], // recordMatch/chatLog isteklerinde gelen X-GV-Key
     stripAuth: false, // Yöncü/FastCGI simülasyonu: Authorization PHP'ye ulaşmasın
+    stripAll: false,  // daha serti: iki başlık da (Authorization + X-GV-Token) kırpılsın
     nextId: 1
   };
 
@@ -48,15 +49,19 @@ function startMockPhp() {
     res.end(JSON.stringify(obj));
   }
   const tok = () => 'tok-' + Math.random().toString(36).slice(2) + Date.now().toString(36);
+  let curBody = {}; let curQuery = null;
   const byToken = req => {
-    // Gerçek PHP (gv_bearer) gibi: Authorization + X-GV-Token yedeği.
-    // stripAuth=true iken Authorization yok sayılır (FastCGI kırpması simülasyonu).
+    // Gerçek PHP (gv_bearer) zinciri: Authorization → X-GV-Token → ?token= → gövde {token}.
+    // stripAuth=true: Authorization yok sayılır (FastCGI kırpması).
+    // stripAll=true: İKİ başlık da yok sayılır (en sert kırpma simülasyonu).
     let tk = null;
-    if (!state.stripAuth) {
+    if (!state.stripAuth && !state.stripAll) {
       const m = String(req.headers.authorization || '').match(/^Bearer\s+(.+)$/i);
       if (m) tk = m[1];
     }
-    if (!tk && req.headers['x-gv-token']) tk = String(req.headers['x-gv-token']);
+    if (!tk && !state.stripAll && req.headers['x-gv-token']) tk = String(req.headers['x-gv-token']);
+    if (!tk && curQuery && curQuery.get('token')) tk = String(curQuery.get('token'));
+    if (!tk && curBody && curBody.token) tk = String(curBody.token);
     if (!tk) return null;
     const uid = sessions.get(tk);
     return uid ? users.get(uid) : null;
@@ -70,6 +75,7 @@ function startMockPhp() {
     req.on('end', () => {
       let inb = {};
       try { inb = JSON.parse(body || '{}'); } catch (_) {}
+      curBody = inb; curQuery = u.searchParams;
       if (u.pathname === '/auth.php') {
         if (action === 'register') {
           const id = state.nextId++;
@@ -394,6 +400,25 @@ async function main() {
     mock.state.stripAuth = false;
   }
   console.log('  ✓ 13) FastCGI/Yöncü: Authorization kırpılsa bile REST + soket kimliği X-GV-Token ile çalışıyor');
+
+  // ---------- 8) EN SERT senaryo: İKİ başlık da PHP'ye ulaşmıyor ----------
+  // Yalnızca gövde/query jetonu kaldığında bile kimlik doğrulanabilmeli.
+  {
+    mock.state.stripAll = true;
+    const rs2 = await api(BASE, '/api/auth/me', null, 'GET', CTOK);
+    assert.ok(rs2.ok && rs2.user && rs2.user.id === CID, 'başlıklar kırpıkken REST me (?token=) çalışmalı');
+    const reg5 = await api(BASE, '/api/auth/register', { name: 'Gövde', email: 'govde@t.com', password: 'x' });
+    await api(BASE, '/api/auth/verify', { token: 'vt' + reg5.userId });
+    const lg5 = await api(BASE, '/api/auth/login', { email: 'govde@t.com', password: 'x' });
+    assert.ok(lg5.ok && lg5.token, '4. kullanıcı girişi');
+    const zSock = await conn('Z');
+    zSock.emit('authHello', { token: lg5.token });
+    const zr = await once(zSock, 'authReady');
+    assert.ok(zr.ok && zr.user && zr.user.name === 'Gövde', 'başlıklar kırpıkken soket kimliği gövde jetonuyla doğrulanmalı');
+    zSock.disconnect();
+    mock.state.stripAll = false;
+  }
+  console.log('  ✓ 14) başlıklar tamamen kırpılsa bile jeton gövde/query kanalından ulaşıyor');
 
   // ---------- 6) yanlış anahtar korunur ----------
   assert.ok(!mock.state.seenKeys.some(([, k]) => k !== KEY && k !== undefined), 'yanlış anahtarla hiçbir yazma kabul edilmedi');

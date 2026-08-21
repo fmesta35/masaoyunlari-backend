@@ -51,6 +51,17 @@ function gv_bearer() {
     if (preg_match('/Bearer\s+(.+)/i', $h, $m)) return trim($m[1]);
     // Başlığı kırpan kurulumlar için özel yedek başlık (ham jeton):
     if (!empty($_SERVER['HTTP_X_GV_TOKEN'])) return trim(strval($_SERVER['HTTP_X_GV_TOKEN']));
+    // Son çare: jeton istek GÖVDESİNDE (JSON {"token":"..."}) ya da query'de
+    // gelebilir — oyun sunucusu (Render) me doğrulamasını gövdeyle yollar.
+    // Bu yol başlık kırpmasından tümüyle bağımsızdır.
+    if (!empty($_GET['token'])) return trim(strval($_GET['token']));
+    static $gvBody = null;
+    if ($gvBody === null) {
+        $gvBody = array();
+        $raw = file_get_contents('php://input');
+        if ($raw) { $d = json_decode($raw, true); if (is_array($d)) $gvBody = $d; }
+    }
+    if (!empty($gvBody['token'])) return trim(strval($gvBody['token']));
     return null;
 }
 
