@@ -450,19 +450,30 @@
     else if (Number(r.creatorId) !== Number(myId())) toast('⚠️ Daveti yalnızca masayı kuran oyuncu gönderebilir.', 'warning');
     else toast('⚠️ Şu an davet gönderilemez.', 'warning');
   }
-  // Bu masada kimlere davet GÖNDERDİK — pencerede "⏳ Davetli" rozeti basılır.
-  let invitedMarks = { roomId: null, set: new Set() };
+  // Bu masadaki davet DURUMLARI — pencerede rozet olarak basılır:
+  //   'pending'  → ⏳ Davetli (cevap bekleniyor, "Yenile")
+  //   'accepted' → ✅ Kabul edildi (masaya geliyor)
+  //   'rejected' → ❌ Reddedildi (tekrar "Davet Gönder" serbest)
+  // inviteAnswered olayı durumu günceller; pencere açıksa yeniden boyanır.
+  let invitedMarks = { roomId: null, map: new Map() };
   function marksForRoom() {
     const r = currentRoom();
     const rid = r ? String(r.id) : null;
-    if (invitedMarks.roomId !== rid) invitedMarks = { roomId: rid, set: new Set() };
-    return invitedMarks.set;
+    if (invitedMarks.roomId !== rid) invitedMarks = { roomId: rid, map: new Map() };
+    return invitedMarks.map;
+  }
+  function setInviteMark(roomId, uid, status) {
+    const rid = roomId ? String(roomId) : null;
+    if (invitedMarks.roomId !== rid) invitedMarks = { roomId: rid, map: new Map() };
+    invitedMarks.map.set(Number(uid), status);
   }
 
   async function inviteFriendById(uid, knownName) {
     if (!myId()) return showModal('guestPromptModal');
     if (!canInvite()) return explainNoInvite();
-    const sock = window.__gvRoomSocket;
+    // Herhangi KİMLİKLE BAĞLI soket yeter (davet, socket.userId'ye göre
+    // doğrulanır): bekleme odası yoksa lobi/satranç soketi üzerinden gider.
+    const sock = window.__gvRoomSocket || window.__gvLobbySocket || window.__gvChessSocket;
     if (!sock || !sock.connected) return toast('⚠️ Sunucu bağlantısı yok — birazdan tekrar deneyin.', 'error');
     const r = currentRoom();
     // İmzalı arkadaşlık belgesi (PHP, tarayıcı üzerinden): sunucu imzayı
@@ -499,8 +510,17 @@
       ? '<div style="padding:8px 10px;text-align:center;color:#fdcb6e;font-size:.8em;background:rgba(253,203,110,.08);border:1px solid rgba(253,203,110,.25);border-radius:8px;margin-bottom:6px;">⚠️ Masa dolu — yeni davet gönderilemez.</div>'
       : '<div style="padding:0 2px 8px;color:var(--text3);font-size:.75em;">Birden fazla arkadaşa davet gönderebilirsin — <b>ilk katılan</b> koltuğu alır. 🎮</div>';
     el.innerHTML = head + (list.length ? list.map(f => {
-      const invited = markSet.has(Number(f.id));
-      const can = f.online && !full;
+      const mark = markSet.get(Number(f.id)); // 'pending' | 'accepted' | 'rejected' | undefined
+      const badge = mark === 'pending'
+        ? '<span style="font-size:.72em;color:var(--accent);font-weight:700">⏳ Davetli</span>'
+        : mark === 'accepted'
+          ? '<span style="font-size:.72em;color:#00b894;font-weight:700">✅ Kabul edildi</span>'
+          : mark === 'rejected'
+            ? '<span style="font-size:.72em;color:#ff7675;font-weight:700">❌ Reddedildi</span>'
+            : '';
+      // Reddedilen yeniden davet edilebilir; kabul edilen zaten geliyor.
+      const can = f.online && !full && mark !== 'accepted';
+      const btnLabel = mark === 'pending' ? 'Yenile' : (mark === 'accepted' ? 'Masaya geliyor' : 'Davet Gönder');
       return `
         <div style="display:flex;justify-content:space-between;align-items:center;padding:8px;background:var(--bg3);border-radius:8px">
           <div style="display:flex;align-items:center;gap:8px;cursor:pointer" data-uid="${Number(f.id)}">
@@ -508,9 +528,9 @@
             <span style="font-weight:600;font-size:0.9em">${esc(f.name)} ${f.online ? '🟢' : '🔴'}</span>
           </div>
           <div style="display:flex;align-items:center;gap:6px">
-            ${invited ? '<span style="font-size:.72em;color:var(--accent);font-weight:700">⏳ Davetli</span>' : ''}
-            <button class="btn btn-sm ${invited ? 'btn-o' : 'btn-p'}" ${can ? '' : 'disabled style="opacity:0.4"'}
-              onclick="window.GVSocial && GVSocial.inviteFriendById(${Number(f.id)})">${invited ? 'Yenile' : 'Davet Gönder'}</button>
+            ${badge}
+            <button class="btn btn-sm ${mark === 'pending' ? 'btn-o' : 'btn-p'}" ${can ? '' : 'disabled style="opacity:0.4"'}
+              onclick="window.GVSocial && GVSocial.inviteFriendById(${Number(f.id)})">${btnLabel}</button>
           </div>
         </div>`;
     }).join('')
@@ -732,17 +752,25 @@
     });
     sock.on('inviteRejected', p => toast('⚠️ ' + ((p && p.reason) || 'Davet gönderilemedi.'), 'warning'));
     sock.on('inviteSent', p => {
-      if (p && p.toUserId) marksForRoom().add(Number(p.toUserId));
+      // Davet gitti → "⏳ Davetli" (cevap bekleniyor)
+      if (p && p.toUserId) marksForRoom().set(Number(p.toUserId), 'pending');
       toast(`📩 ${(p && p.toName) || 'Arkadaşınız'} oyuna davet edildi! Katılması bekleniyor...`, 'success');
-      // Pencere açıkken "⏳ Davetli" rozetine dönüştür (çoklu davet akışı)
+      // Pencere açıkken rozeti tazele (çoklu davet akışı)
       const m = document.getElementById('inviteFriendModal');
       if (m && m.classList.contains('show')) fillInviteList();
     });
     sock.on('inviteAnswered', p => {
       if (!p) return;
+      // Kabul/ret SONUCU davet edene düşer: rozet güncellenir
+      // (pending → accepted "✅ Kabul edildi" / rejected "❌ Reddedildi").
+      const rid = (p && p.roomId) ? String(p.roomId)
+        : (currentRoom() ? String(currentRoom().id) : null);
+      setInviteMark(rid, Number(p.byId), p.accepted ? 'accepted' : 'rejected');
       toast(p.accepted
         ? `✅ ${p.byName} davetinizi kabul etti, masaya geliyor!`
         : `❌ ${p.byName} davetinizi reddetti.`, p.accepted ? 'success' : 'info');
+      const m = document.getElementById('inviteFriendModal');
+      if (m && m.classList.contains('show')) fillInviteList();
     });
   }
   setInterval(() => {
@@ -818,9 +846,10 @@
     // Davet popup'ı kabul/ret → gönderene geri bildirim
     const origAccept = GV.acceptInvitePopup;
     const wrappedAccept = function () {
+      // Süre sınırı yok (sunucu davetin geçerliliğine bakar); kabul sonucu
+      // daima davet edene iletilir ki rozet "✅ Kabul edildi" olsun.
       const n = st8().activeInviteData;
-      const fresh = n && (Date.now() - Number(n.time || 0)) / 1000 <= 30;
-      if (fresh) emitInviteResponse(n.actionData, true);
+      if (n) emitInviteResponse(n.actionData, true);
       if (typeof origAccept === 'function') return origAccept.apply(this, arguments);
     };
     both('acceptInvitePopup', wrappedAccept);
@@ -889,7 +918,7 @@
     openProfile, inviteFriendById, canInvite, toggleFriend,
     refreshFriends, isFriend,
     sendRequest, acceptRequest, declineRequest, refreshRequests, reqStateWith,
-    _test: { paintFriends, renderFriendsMember, paintRequests, digestRequests }
+    _test: { paintFriends, renderFriendsMember, paintRequests, digestRequests, fillInviteList, setInviteMark }
   };
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', injectCss, { once: true });

@@ -1318,8 +1318,10 @@ function clickNotif(id){
   const n = st.notifications.find(x => x.id === id);
   if(!n) return;
   if(n.actionData && n.actionData.type === 'gameInvite'){
-    const elapsed = (Date.now() - n.time) / 1000;
-    if(elapsed > 30) return toast('⏳ Üzgünüz, bu davet süresi dolmuştur!', 'error');
+    // Süre sınırı YOK: davetin geçerliliği SUNUCUDA (invited/kickBan/full/
+    // stale kuralları) — masa kapanmışsa "davet artık geçerli değil / oda
+    // dolu" gerçek cevabı düşer. Eski 30 sn istemci sınırı, geç kabulü
+    // "süre doldu" diye haksız yere engelliyordu.
     toast('🎮 Davet kabul edildi, odaya bağlanılıyor...', 'success');
     // Davetle gelindiğini sunucuya bildir: masa kapandıysa yeni oda AÇILMAZ,
     // "davet artık geçerli değil / oda dolu" gerçek cevabı döner.
@@ -3805,6 +3807,10 @@ window.checkAuthState = checkAuthState;
 window.updateAuthState = updateAuthState;
 window.updateScoreUI = updateScoreUI;
 window.renderFriends = renderFriends;
+// KRİTİK: social.js (davet/arkadaşlık bildirimleri) bu fonksiyonu window
+// üzerinden arıyordu; IIFE içinde kalmıştı → davet/istek bildirimleri
+// istemcide SESSİZCE DÜŞÜYORDU (sunucu yolluyordu, kimse görmüyordu).
+window.addNotification = addNotification;
 return {
   page,
   toggleSidebar,
@@ -4000,7 +4006,7 @@ GV.init();
 <script src="js/chat.js?v=20260821c" defer></script>
 <script src="js/leave-guard.js?v=20260821h" defer></script>
 <script src="js/auth.js?v=20260823b" defer></script>
-<script src="js/social.js?v=20260823c" defer></script>
+<script src="js/social.js?v=20260823d" defer></script>
 
 <!-- Structured Data for SEO -->
 <script type="application/ld+json">
