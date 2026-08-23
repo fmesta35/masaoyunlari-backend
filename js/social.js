@@ -47,21 +47,17 @@
     return Math.floor(h / 24) + ' gün önce';
   }
 
-  const PHP = (window.GV_PHP_API || '').replace(/\/+$/, '');
+  // Yöncü PHP bağımlılığı kaldırıldı: tüm istekler Render Node uçlarına
+  // (/api/auth/..., /api/friends/..., /api/users/...) gider. server.js
+  // installAuth() ile bu uçları KURULU (yerel SQLite veya uzak mod
+  // installProxy) — her iki modda da /api/* doğru çalışır. Yöncü DDoS
+  // koruması veya PHP timeout gibi dış bağımlılık sorunları bu yol sayesinde
+  // üyelik/arkadaş/davet akışını ENGELLEMEZ.
+  //
+  // Eski davranış (geriye uyumluluk): GV_PHP_API doluysa PHP'ye proxy
+  // atılıyordu. Bu YÖNCÜ DDoS'sinde takılıyordu → "Üyelik sunucusundan
+  // boş cevap" hatası. Yeni davranış: HER ZAMAN Render backend uçları.
   function urlFor(path) {
-    if (!PHP) return BACKEND + path;
-    let m = path.match(/^\/api\/users\/(\d+)\/profile$/);
-    if (m) return PHP + '/social.php?action=profile&id=' + m[1];
-    m = path.match(/^\/api\/users\/search\?q=(.*)$/);
-    if (m) return PHP + '/social.php?action=search&q=' + m[1];
-    m = path.match(/^\/api\/auth\/(\w+)$/);
-    if (m) return PHP + '/auth.php?action=' + m[1];
-    if (path === '/api/friends') return PHP + '/social.php?action=friends';
-    m = path.match(/^\/api\/friends\/(\w+)$/);
-    if (m) return PHP + '/social.php?action=' + ({
-      add: 'friendRequest', request: 'friendRequest', requests: 'friendRequests',
-      accept: 'friendAccept', decline: 'friendDecline', remove: 'friendRemove'
-    }[m[1]] || m[1]);
     return BACKEND + path;
   }
 
