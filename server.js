@@ -31,9 +31,12 @@ const io = new Server(server, {
 const rooms = new Map();
 
 // ---- Üyelik & Sosyal katman (server-auth.js): DB yoksa güvenle devre dışı ----
+// emitRoom: kimlik authHello ile sonradan çözülünce (backend soğuk başlangıcı)
+// oda kaydının üye alanlarının güncellenmesi gerekir; auth katmanı bunu
+// yalnızca DEĞİŞİM anında yayınlar (fonksiyon bildirimi — yukarıda hoist).
 let authApi = null;
 try {
-  authApi = require('./server-auth').installAuth(app, { io, rooms });
+  authApi = require('./server-auth').installAuth(app, { io, rooms, emitRoom, removePlayerFromRoom });
 } catch (e) {
   console.warn('⚠️  server-auth yüklenemedi (üyelik katmanı kapalı):', e.message);
 }
@@ -1015,7 +1018,8 @@ function maybePromoteSpectators(room) {
     const player = {
       id: spec.id,
       userKey: spec.userKey,
-      userId: spec.userId || (authApi ? authApi.uidFromUserKey(spec.userKey) : null),
+      // Özel odada userKey yedeği yok (bkz. joinRoom koltuk alanları).
+      userId: spec.userId || (room.isPrivate ? null : (authApi ? authApi.uidFromUserKey(spec.userKey) : null)),
       name: spec.name,
       color: seatColorFor(room, room.players.length),
       seat: room.players.length,
@@ -1326,6 +1330,10 @@ io.on('connection', socket => {
     const roomId = String(data.roomId);
     const gameId = data.gameId || 'chess';
     let room = rooms.get(roomId);
+    // Bu joinRoom çağrısında oda yeni KURULDUYSA ve özel oda kilidi oyuncuyu
+    // reddederse (misafir / geçersiz jeton), boş kabuk odanın kalması için
+    // reddedilişte derhal kapatılır.
+    let justCreated = false;
     if (!room) {
       // Davet bildirimine tıklanıp gelindi ama masa artık yok → geçersiz davet.
       if (data.viaInvite) {
@@ -1333,51 +1341,24 @@ io.on('connection', socket => {
         return;
       }
       // ÖZEL masa kurmak üyelik ister (misafirler yalnızca genel masa kurabilir).
-      // Kimlik önce authHello'dan; yoksa bu mesajdaki memberToken ile anında
-      // doğrulanır — üye asla "giriş gerekli" duvarına takılmaz.
-      //
-      // PHP 18 sn'de cevap vermezse "Özel masa kurmak için üye girişi
-      // gerekli" reddi göndermek YERİNE: socket.userId null olsa bile
-      // memberToken'ın non-empty olduğunu biliyoruz; geçici olarak userKey'i
-      // memberToken'dan türetilmiş sahte bir şekilde set etmiyoruz, ama
-      // odayı kuruyoruz. Sunucu tarafında authReady sonradan gelirse
-      // socket.userId yazılır ve kurucu olarak işaretlenir (aşağıda
-      // creatorId atanır). PHP başarısız olursa kullanıcı retry
-      // mekanizmasıyla yeniden dener.
+      // Kimlik önce authHello'dan; yoksa bu mesajdaki memberToken ile
+      // doğrulanır. Token YOKSA (misafir) oda KURULMAZ ve 'auth' reddi
+      // döner. Token varsa doğrulama aşağıdaki özel oda kilidinde (en fazla
+      // 3 sn) beklenir: kesin GEÇERSİZ token'da oda kurulur ama oyuncu
+      // reddedilir ve boş oda derhal kapatılır; PHP soğuk başlangıcı gibi
+      // "bilinmeyen" durumlarda oyuncu şartlı kabul edilir (eski davranış).
     if (data.isPrivate && !socket.userId) {
       const hasToken = data.memberToken && typeof data.memberToken === 'string' && data.memberToken.length > 0;
       console.log('[JOINROOM]', socket.id, 'isPrivate=true, userId=', socket.userId, 'hasToken=', hasToken, 'tokenLen=', hasToken ? data.memberToken.length : 0);
-      if (hasToken) {
-        // Üye token göndermiş; kimlik doğrulaması arka planda çalışsın, biz
-        // joinRoom'u bekletmeyelim (PHP 18 sn'de gelebilir; bu yarış
-        // durumunda joinDenied döndürmek yerine odayı kurup authReady
-        // sonrası userId atıyoruz).
-        socket.__gvAwaitingAuth = data.memberToken;
-        if (authApi && typeof authApi.verifyToken === 'function') {
-          authApi.verifyToken(data.memberToken).then(uid => {
-            console.log('[JOINROOM] auth verifyToken result:', uid ? 'OK uid='+uid : 'NULL');
-            if (uid) {
-              socket.userId = Number(uid);
-              socket.userKey = 'user:' + Number(uid);
-              // Eğer oda kurulduysa ve henüz creatorId yoksa ata
-              const r = rooms.get(roomId);
-              if (r && r.isPrivate && !r.creatorId) {
-                const me = r.players.find(p => p.id === socket.id);
-                if (me) r.creatorId = socket.userId;
-              }
-              socket.emit('authReady', { ok: true, user: { id: socket.userId } });
-              try { emitRoom(rooms.get(roomId)); } catch (_) {}
-            }
-          }).catch(err => { console.log('[JOINROOM] auth verifyToken ERROR:', err && err.message); socket.__gvAwaitingAuth = null; });
-        }
-      } else {
-        console.log('[JOINROOM] özel oda ama token yok, reddediliyor');
+      if (!hasToken) {
         await ensureSocketIdentity(data);
         if (!socket.userId) {
           socket.emit('joinDenied', { roomId, code: 'auth', reason: 'Özel masa kurmak için üye girişi gerekli.' });
           return;
         }
       }
+      // Token var: kimlik çözümünü özel oda kilidi bekletir; odayı kuruyoruz,
+      // reddedilirse hemen aşağıda kapatılır (boş özel oda lobide kalmaz).
     }
       room = createRoom(roomId, gameId, data.maxPlayers, data.durationMinutes, {
         name: data.roomName || data.name,
@@ -1385,6 +1366,7 @@ io.on('connection', socket => {
         // Okey: masayı kuran oyuncu 3/5/7 el seçimini burada gönderir.
         rounds: (gameId === 'okey') ? data.rounds : undefined
       });
+      justCreated = true;
     } else if (!room.name && (data.roomName || data.name)) {
       room.name = String(data.roomName || data.name).slice(0, 60);
     }
@@ -1411,6 +1393,21 @@ io.on('connection', socket => {
     let player = findExistingPlayer(room, socket, userKey);
     let spectator = findExistingSpectator(room, socket, userKey);
 
+    // ÖZEL oda KOLTUK DEVRALMA KORUMASI: istemci userKey'siyle (p.id !==
+    // socket.id) bir koltuğa/izleyiciliğe DEVRALMA deniyorsa ve sunucuda
+    // doğrulanmış kimlik başkasına aitsse devralma reddedilir — başka üyenin
+    // oturumu ele geçirilemez. Doğrulanmamış soket (aynı kullanıcının ikinci
+    // sekmesi / auth yarışı) serbest: kimlik doğrulandığında kendi uid'si
+    // eşleşirse oturum devam eder.
+    if (room.isPrivate && player && player.id !== socket.id && player.userId &&
+        socket.userId && Number(player.userId) !== Number(socket.userId)) {
+      player = null;
+    }
+    if (room.isPrivate && spectator && spectator.id !== socket.id && spectator.userId &&
+        socket.userId && Number(spectator.userId) !== Number(socket.userId)) {
+      spectator = null;
+    }
+
     // "İzle" ile gelen bağlantı ASLA koltuk almaz / koltuk geri kazanmaz.
     // Aynı tarayıcı (aynı userKey) ikinci sekmede izlemek istediğinde sunucu
     // eskiden onu oyuncu koltuğuna reconnect ediyordu; "Siyah (Siz)" +
@@ -1422,22 +1419,21 @@ io.on('connection', socket => {
     // ===== ÖZEL ODA KİLİDİ: kurucu + davetli üyeler dışında kimse giremez =====
     //  Halen koltukta olanın (reconnect/rejoin) hakkı dokunulmaz. Yeni gelenlerde
     //  kimlik YALNIZ token doğrulamalı üyeliktir (socket.userId; userKey güvenilmez).
+    //  "İlk bağlanan katılır": çoklu davette ilk oturana koltuk gider; masa
+    //  dolunca sonraki davetli 'full' reddi alır (aşağıdaki sıralama).
     if (room.isPrivate && !player) {
-      // Davetli girişinde de aynı anında-doğrulama yedeği çalışır.
-      // NOT: PHP soğuk başlangıcı 18 sn'ye kadar sürebilir. await edersek
-      // bu süre boyunca istemci "Bu masa özel" reddi alır ve sinir olur.
-      // YENİ YAKLAŞIM: 2 sn'de kısa bir await dene — çoğu durumda PHP bu
-      // kadar sürede cevap verir. Hâlâ userId yoksa memberToken varsa
-      // arka planda çözmeyi başlat VE join'i "şartlı" geçir: aynı
-      // token'a sahip başarılı kimlik çözümü sonradan geldiğinde
-      // oyuncu zaten odada olacak, sadece userId atanacak + kurucu
-      // hakları aktif olacak. Token yoksa (misafir) geleneksel red.
+      if (!room.invited || typeof room.invited.has !== 'function') room.invited = new Map();
+      if (!room.kickBan || typeof room.kickBan.has !== 'function') room.kickBan = new Set();
       const hasToken = data.memberToken && typeof data.memberToken === 'string' && data.memberToken.length > 0;
-      // 800 ms'lik hızlı bekleme: çoğu istek bu kadar sürede çözülür.
-      // Promise.race ile yarış güvenliği. 18 sn'lik auth-remote.js timeout
-      // aşılmadan yarışı çözüyoruz; userId gelmezse memberToken varsa arka
-      // planda çözeceğiz.
-      if (!socket.userId) {
+      const lockStart = Date.now();
+      // Kimlik doğrulaması (en fazla 3 sn) beklenirken oda BOŞ kalabilir;
+      // 5 sn'lik süpürücü bu boşluğu görüp odayı silmesin. Her bekleyen
+      // katılımda sayaç artar, sonuçta (red/kabul) azaltılır.
+      room.__pendingJoints = (room.__pendingJoints || 0) + 1;
+
+      // 1) Hızlı yol: authHello işlenmişse 800 ms'lik yarış çoğu durumda hiç
+      //    tüketilmez (token anında çözülür).
+      if (!socket.userId && hasToken) {
         try {
           await Promise.race([
             ensureSocketIdentity(data),
@@ -1445,78 +1441,131 @@ io.on('connection', socket => {
           ]);
         } catch (_) {}
       }
-      if (!room.invited || typeof room.invited.has !== 'function') room.invited = new Map();
-      if (!room.kickBan || typeof room.kickBan.has !== 'function') room.kickBan = new Set();
-      const uid = socket.userId || null;
-      const hasPendingAuth = !uid && hasToken; // üye token göndermiş, PHP yavaş → arka planda çözülecek
+      let uid = socket.userId || null;
+
+      // 2) KARARLI KARAR: token var ama kimlik hâlâ çözülemediyse üyelik
+      //    katmanından en fazla 3 sn beklenir (toplam bütçe). Sonuç:
+      //      - üye bulundu       → normal doğrulanmış giriş
+      //      - kesin GEÇERSİZ     → 'auth' reddi (sahte jetonlu kullanıcı
+      //                             özel odaya GİREMEZ, oda kurulduysa kapatılır)
+      //      - BİLİNMEYEN (PHP soğuk başlangıcı gibi cevap gelmedi) → eski
+      //        "şartlı kabul": oyuncu arka planda çözülür; sonuç geçerliyse
+      //        yetkiler verilir, kesin geçersiz çıkarsa masadan alınır.
+      //    Yalnızca kesin geçersizlikte 3 sn sınırının AŞILMASI söz konusu
+      //    değildir; "bilinmeyen" durumunda oyuncu 3 sn sonra yine de kabul
+      //    edilir — böylece yavaş PHP, gerçek üyeyi reddetmiş olmaz.
       let deny = null;
-      if (!uid && !hasPendingAuth) deny = { code: 'auth', reason: 'Bu masa özel — yalnızca üyeler ve davetliler girebilir.' };
-      // Kurucu serbest; henüz kurucusu YOKSA (yeni kurulmuş boş masa) ilk oturan
-      // üye kurucu olur — bootstrap girişi de serbesttir.
-      else if (!hasPendingAuth && Number(uid) === Number(room.creatorId)) { /* kurucu */ }
-      else if (!hasPendingAuth && !room.creatorId) { /* bootstrap: ilk oturan kurucu olur */ }
-      else if (!hasPendingAuth && room.kickBan.has(Number(uid)) && !room.invited.has(Number(uid)))
-        deny = { code: 'kicked', reason: 'Bu masadan atıldınız — kurucu yeniden davet edene kadar giremezsiniz.' };
-      else if (!hasPendingAuth && !room.invited.has(Number(uid)))
-        deny = { code: 'policy', reason: 'Bu masa özel — yalnızca davetli üyeler girebilir.' };
-      else if (!hasPendingAuth && !wantSpectate && room.status !== 'waiting')
-        deny = { code: 'stale', reason: 'Bu davet artık geçerli değil — masa oyunda.' };
-      else if (!hasPendingAuth && !wantSpectate && room.players.length >= room.maxPlayers)
-        deny = { code: 'full', reason: 'Oda dolu — masada yer kalmadı.' };
+      if (!uid && hasToken && authApi && typeof authApi.verifyTokenFull === 'function') {
+        const budgetLeft = Math.max(50, 3000 - (Date.now() - lockStart));
+        let full = null;
+        try {
+          full = await Promise.race([
+            authApi.verifyTokenFull(data.memberToken),
+            new Promise(res => setTimeout(() => res(null), budgetLeft))
+          ]);
+        } catch (_) { full = null; }
+        if (full && full.uid) {
+          socket.userId = Number(full.uid);
+          socket.userKey = 'user:' + Number(full.uid);
+          uid = socket.userId;
+        } else if (full && full.status === 'invalid') {
+          deny = {
+            code: 'auth',
+            reason: justCreated
+              ? 'Özel masa kurmak için üye girişi gerekli.'
+              : 'Üyelik doğrulanamadı — bu özel masaya giremezsiniz.'
+          };
+        }
+      }
+      const hasPendingAuth = !uid && hasToken; // token var, sonuç BİLİNMEYEN → şartlı kabul
+
+      if (!deny) {
+        if (!uid && !hasPendingAuth) deny = { code: 'auth', reason: 'Bu masa özel — yalnızca üyeler ve davetliler girebilir.' };
+        // Kurucu serbest; henüz kurucusu YOKSA (yeni kurulmuş boş masa) ilk oturan
+        // üye kurucu olur — bootstrap girişi de serbesttir.
+        else if (!hasPendingAuth && Number(uid) === Number(room.creatorId)) { /* kurucu */ }
+        else if (!hasPendingAuth && !room.creatorId) { /* bootstrap: ilk oturan kurucu olur */ }
+        else if (!hasPendingAuth && room.kickBan.has(Number(uid)) && !room.invited.has(Number(uid)))
+          deny = { code: 'kicked', reason: 'Bu masadan atıldınız — kurucu yeniden davet edene kadar giremezsiniz.' };
+        else if (!hasPendingAuth && !room.invited.has(Number(uid)))
+          deny = { code: 'policy', reason: 'Bu masa özel — yalnızca davetli üyeler girebilir.' };
+        else if (!hasPendingAuth && !wantSpectate && room.status !== 'waiting')
+          deny = { code: 'stale', reason: 'Bu davet artık geçerli değil — masa oyunda.' };
+        else if (!hasPendingAuth && !wantSpectate && room.players.length >= room.maxPlayers)
+          deny = { code: 'full', reason: 'Oda dolu — masada yer kalmadı.' };
+      }
       if (deny) {
+        room.__pendingJoints = Math.max(0, (room.__pendingJoints || 0) - 1);
         socket.emit('joinDenied', { roomId, ...deny });
+        // Bu bağlantı için YENİ kurulmuş oda reddedildiyse boş kabuk kalmasın
+        // (oda haritasında ölü özel oda kalmaz; lobi listesi de temiz kalır).
+        if (justCreated) { try { destroyRoom(room); } catch (_) { rooms.delete(roomId); } }
         socket.leave(roomId);
         socket.roomId = null;
         socket.userKey = null;
         socket.role = null;
         return;
       }
-      // hasPendingAuth: üye token göndermiş ama userId henüz çözülmedi
-      // → arka planda verifyToken çalıştır, sonucu işle. Aşağıdaki
-      // oyuncu ekleme akışı normal devam eder; userId sonradan gelince
-      // yukarıdaki `.then()` içinde yetkiler atanır.
+      // hasPendingAuth: üye token göndermiş ama sonuç BİLİNMEYEN (örn. PHP
+      // soğuk başlangıcı) → arka planda doğrula, sonucu işle. Aşağıdaki
+      // oyuncu ekleme akışı normal devam eder; sonuç gelince:
+      //   - GEÇERLİ  → yetkiler verilir (userId, kurucu vb.)
+      //   - GEÇERSİZ → kullanıcı üye DEĞİL: özel masadan ALINIR (joinFailed)
+      //   - cevap yok → 'authPending' uyarısı (eski davranış)
       if (hasPendingAuth) {
-        console.log('[JOINROOM] mevcut oda, hasToken ama userId henüz yok; arka plan verifyToken başlatılıyor.');
-        if (authApi && typeof authApi.verifyToken === 'function') {
-          authApi.verifyToken(data.memberToken).then(verifiedUid => {
-            if (!verifiedUid) {
-              // Token gerçekten geçersiz — kullanıcıyı ODADAN ATMA, sadece
-              // userId boş kalır. Zaten odada bir oyuncu olarak kayıtlı;
-              // kickBan/davet gibi member-only işlemler otomatik başarısız
-              // olur (sunucu tarafı yetki denetimi yapıyor), ama oyunu
-              // oynamaya devam edebilir. Eski davranış: oyuncuyu atıp
-              // "Üyelik doğrulanamadı" göstermekti; bu, PHP soğuk başlangıcı
-              // sırasında GERÇEK ÜYELERİ yanlışlıkla atıyordu.
-              console.log('[JOINROOM] arka plan verifyToken NULL — token gerçekten geçersiz veya PHP timeout. Oyuncu odada kalır (üyelik yetkileri verilemedi).');
+        console.log('[JOINROOM] token var ama sonuç BİLİNMEYEN — arka plan verifyTokenFull başlatılıyor.');
+        if (authApi && typeof authApi.verifyTokenFull === 'function') {
+          authApi.verifyTokenFull(data.memberToken).then(full => {
+            if (socket.roomId !== roomId) return; // socket başka odaya geçmiş
+            const rNow = rooms.get(roomId);
+            if (!rNow) return;
+            if (full && full.uid) {
+              socket.userId = Number(full.uid);
+              socket.userKey = 'user:' + Number(full.uid);
+              const me = rNow.players.find(p => p.id === socket.id);
+              if (me) me.userId = socket.userId;
+              // Eğer bu oyuncu ilk oturan ve oda hâlâ kurucusuzsa, kurucu yap.
+              if (rNow.isPrivate && !rNow.creatorId && me) {
+                rNow.creatorId = socket.userId;
+              }
+              try { socket.emit('authReady', { ok: true, user: { id: socket.userId } }); } catch (_) {}
+              try { emitRoom(rNow); } catch (_) {}
+            } else if (full && full.status === 'invalid') {
+              // Kesin sonuç: bu token GEÇERSİZ — oyuncu ne üye ne davetli.
+              // Eski davranış ("odada kalır") özel masaya sahte jetonla
+              // girişe yol açıyordu; şimdi masadan alınır.
+              console.log('[JOINROOM] arka plan verifyTokenFull GEÇERSİZ — oyuncu özel masadan alınıyor.');
+              const me = rNow.players.find(p => p.id === socket.id);
+              try { socket.leave(roomId); } catch (_) {}
+              socket.roomId = null;
+              socket.role = null;
+              if (me) {
+                try { removePlayerFromRoom(rNow, me, 'Üyelik doğrulanamadı.'); } catch (_) {}
+              }
+              try { socket.emit('joinFailed', { roomId, code: 'auth', reason: 'Üyelik doğrulanamadı — bu özel masada kalamazsınız. Lütfen yeniden giriş yapın.' }); } catch (_) {}
+            } else {
+              console.log('[JOINROOM] arka plan verifyTokenFull BİLİNMEYEN (PHP cevap vermedi) — oyuncu odada kalır.');
               try { socket.emit('authPending', { ok: false, reason: 'Üyelik doğrulanamadı (PHP cevap vermedi). Davet gönderme gibi işlemler çalışmayabilir; sayfayı yenileyin.' }); } catch (_) {}
-              return;
             }
-            // socket artık başka bir odaya geçmiş olabilir; yalnız bu
-            // odaya bağlı olan userId set et.
-            if (socket.roomId !== roomId) return;
-            socket.userId = Number(verifiedUid);
-            socket.userKey = 'user:' + Number(verifiedUid);
-            const me = room.players.find(p => p.id === socket.id);
-            if (me) me.userId = socket.userId;
-            // Eğer bu oyuncu ilk oturan ve oda hâlâ kurucusuzsa, kurucu yap.
-            if (room.isPrivate && !room.creatorId && me) {
-              room.creatorId = socket.userId;
-            }
-            try { socket.emit('authReady', { ok: true, user: { id: socket.userId } }); } catch (_) {}
-            try { emitRoom(room); } catch (_) {}
           }).catch(_ => {
-            console.log('[JOINROOM] arka plan verifyToken HATA — oyuncu odada kalır.');
-            try { socket.emit('authPending', { ok: false, reason: 'PHP bağlantı hatası. Sayfayı yenileyin.' }); } catch (_) {}
+            console.log('[JOINROOM] arka plan verifyTokenFull HATA — oyuncu odada kalır.');
+            try { socket.emit('authPending', { ok: false, reason: 'Bağlantı hatası. Sayfayı yenileyin.' }); } catch (_) {}
           });
         }
       }
+      // Katılım kararı verildi (kabul) — süpürücü koruması sona erer.
+      room.__pendingJoints = Math.max(0, (room.__pendingJoints || 0) - 1);
     }
 
     if (player) {
       player.id = socket.id;
       player.name = name || player.name;
       player.userKey = userKey || player.userKey;
-      player.userId = player.userId || socket.userId || (authApi ? authApi.uidFromUserKey(userKey) : null);
+      // ÖZEL odada kullanıcı kimliği SADECE doğrulanmış jetondan gelir
+      // (socket.userId). İstemcinin 'user:N' userKey'si KANİT değildir:
+      // sahte N kurucu/maç kayıtlarına sızmıştı (bkz. creatorId hırsızlığı).
+      // Genel odada eski userKey yedeği korunur.
+      player.userId = player.userId || socket.userId || (room.isPrivate ? null : (authApi ? authApi.uidFromUserKey(userKey) : null));
       player.disconnectedAt = null;
       cancelDisconnectTimer(roomId, player);
       if (spectator) room.spectators = room.spectators.filter(s => s !== spectator);
@@ -1531,7 +1580,7 @@ io.on('connection', socket => {
       player = {
         id: socket.id,
         userKey,
-        userId: socket.userId || (authApi ? authApi.uidFromUserKey(userKey) : null),
+        userId: socket.userId || (room.isPrivate ? null : (authApi ? authApi.uidFromUserKey(userKey) : null)),
         name,
         color: seatColorFor(room, room.players.length),
         seat: room.players.length,
@@ -1549,24 +1598,27 @@ io.on('connection', socket => {
         return;
       }
       if (!spectator) {
-        spectator = { id: socket.id, userKey, userId: socket.userId || (authApi ? authApi.uidFromUserKey(userKey) : null), name };
+        spectator = { id: socket.id, userKey, userId: socket.userId || (room.isPrivate ? null : (authApi ? authApi.uidFromUserKey(userKey) : null)), name };
         room.spectators.push(spectator);
       } else {
         spectator.id = socket.id;
         spectator.name = name || spectator.name;
         spectator.userKey = userKey || spectator.userKey;
-        spectator.userId = spectator.userId || socket.userId || (authApi ? authApi.uidFromUserKey(userKey) : null);
+        spectator.userId = spectator.userId || socket.userId || (room.isPrivate ? null : (authApi ? authApi.uidFromUserKey(userKey) : null));
       }
       socket.role = 'spectator';
     }
 
-    // Özel masanın kurucusu (davet hakkı onundur): ilk koltuk alan ÜYE kaydedilir.
-    // Eğer oyuncu daha önce userId'siz kaydedildiyse (PHP timeout yarışı
-    // sırasında) ve şimdi socket.userId yazıldıysa, creatorId'yi de
-    // güncelleriz. Eski creatorId farklı bir user ise (logout/login
-    // sonrası eski oturumdan kalan oda) ve oyuncu zaten odadaysa, yeni
-    // userId'yi creatorId yap — yani odanın yeni sahibi bu oyuncu olur.
-    if (player && player.userId && room.isPrivate && (!room.creatorId || room.creatorId !== player.userId)) {
+    // Özel masanın kurucusu (davet + atma hakkı onundur): YALNIZCA henüz
+    // kurucusu yoksa, ilk koltuk alan üye kaydedilir. creatorId SONRAKİ
+    // katılımlarda ASLA değiştirilmez — bir arkadaş katıldığı anda kurucu
+    // haklarını devralıyordu (davet/atma yetkisi çalınıyordu; "sadece masa
+    // kurucusu davet edebilir" kuralı bozuluyordu). Aynı üye yeniden
+    // bağlansa bile aynı uid olduğu için bu kuralı ihlal etmez; kurucusuz
+    // kalması tek olası yol, PHP timeout yarışında userId'siz oturan kurucunun
+    // doğrulamasının sonradan gelmesidir (o da yukarıdaki .then() içinde
+    // `!room.creatorId` korumasıyla atanır).
+    if (player && player.userId && room.isPrivate && !room.creatorId) {
       room.creatorId = player.userId;
     }
 
@@ -2014,7 +2066,9 @@ const clockTimer = setInterval(() => {
       }
       if ((room.status === 'finished' || room.status === 'aborted') && !room.resetTimer) {
         scheduleRoomReset(room);
-      } else if (!room.isPreset && room.players.length === 0 && !(room.spectators || []).length) {
+      } else if (!room.isPreset && room.players.length === 0 && !(room.spectators || []).length && !(room.__pendingJoints > 0)) {
+        // __pendingJoints: özel oda kilidinde kimlik doğrulaması bekleyen
+        // katılım varken (en fazla 3 sn) oda "geçici boş" kalır; silinmez.
         destroyRoom(room);
       }
     }

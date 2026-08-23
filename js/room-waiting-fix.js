@@ -552,9 +552,19 @@
         if (retryAfterAuthDeny(p)) return; // authHello yarışı — sessizce yeniden dene
         showBlockOverlay(p.reason || 'Bu masaya girilmedi.');
       });
-      // Arka plan verifyToken başarısız oldu (PHP timeout veya gerçekten
-      // geçersiz token) — oyuncu ODADAN ATILMAZ, sadece uyarı verilir; sayfa
-      // yenilenince PHP cevap verirse normal çalışır.
+      // Sonradan ODAKİ oyuncunun jetonunun KESİN geçersiz olduğunun anlaşıldığı
+      // durum (sunucu arka planda doğruladı): retry YOK — jeton geçersiz,
+      // kullanıcı yeniden giriş yapmalı.
+      socket.on('joinFailed', p => {
+        if (!p || String(p.roomId) !== roomId || !isChess()) return;
+        try { console.warn('[GV-DBG] joinFailed geldi:', p); } catch (_) {}
+        showBlockOverlay(p.reason || 'Bu masaya girilmedi.');
+      });
+      // Arka plan doğrulama HÂLÂ cevap vermedi (PHP soğuk başlangıcı) —
+      // oyuncu odada KALIR, sadece uyarı verilir; PHP cevap verince
+      // yetkiler otomatik aktifleşir (authHello/sinkronizasyon). Kesin
+      // GEÇERSİZ token'da sunucu 'joinFailed' gönderir ve oyuncuyu
+      // masadan alır (yukarıdaki joinFailed handler'ı).
       socket.on('authPending', p => {
         if (!p) return;
         try { window.GV && GV.toast && GV.toast('⚠️ ' + (p.reason || 'Üyelik henüz doğrulanamadı. Sayfa yenilenirse normalleşir.'), 'warning', 6000); } catch (_) {}

@@ -168,6 +168,29 @@ function me(token) {
     return u;
   });
 }
+// Kararlı kimlik sorgusu: { user, status: 'ok' | 'invalid' | 'unknown' }
+//  - 'ok'      : PHP 200 + üye döndürdü
+//  - 'invalid' : PHP kesin reddetti (401/403/404 → jeton geçersiz)
+//  - 'unknown' : ağ hatası / timeout (örn. PHP soğuk başlangıcı) — jetonun
+//                durumu BİLİNMİYOR; sahte jeton sayılmaz, gerçek üye
+//                yanlışlıkla reddedilmez.
+// Başarılı sonuçlar meCache ile paylaşılır; meFailCooldown'a dokunmaz
+// (o harita me() cooldown mantığına aittir).
+async function meFull(token) {
+  if (!token) return { user: null, status: 'invalid' };
+  const now = Date.now();
+  const c = meCache.get(token);
+  if (c && c.u && now - c.at < ME_CACHE_TTL_MS) return { user: c.u, status: 'ok' };
+  const r = await callJson(REMOTE + '/auth.php?action=me', { bearer: token, body: { token } }, 2800);
+  const u = r.data && r.data.ok && r.data.user ? r.data.user : null;
+  if (u) {
+    meCache.set(token, { u, at: Date.now() });
+    if (meCache.size > 2000) meCache.delete(meCache.keys().next().value);
+    return { user: u, status: 'ok' };
+  }
+  if (r.status === 401 || r.status === 403 || r.status === 404) return { user: null, status: 'invalid' };
+  return { user: null, status: 'unknown' };
+}
 function userPublic(id) {
   return callJson(REMOTE + '/social.php?action=userPublic&id=' + encodeURIComponent(id))
     .then(r => (r.data && r.data.ok ? r.data.user : null));
@@ -193,4 +216,4 @@ function logChat(m) {
   callJson(REMOTE + '/social.php?action=chatLog', { key: KEY, body: m }).catch(() => {});
 }
 
-module.exports = { enabled, installProxy, me, userPublic, isFriendPair, hasRequest, recordMatch, logChat, REMOTE };
+module.exports = { enabled, installProxy, me, meFull, userPublic, isFriendPair, hasRequest, recordMatch, logChat, REMOTE };

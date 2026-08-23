@@ -62,6 +62,24 @@ function uidFromUserKey(userKey) {
 }
 function isOnline(userId) { const s = online.get(Number(userId)); return !!(s && s.size); }
 
+// Kimlik authHello ile SONRADAN çözüldüyse (join anında üyelik backend'i
+// yavaştı), soket bir odaysa oda kaydındaki üye alanlarını güncelle:
+// userId'siz oturan üyenin üye yetkileri (özel masada kurucu kaydı dahil)
+// sayfa yenilenmeden de aktifleşir. Yalnızca DEĞİŞEN alanda yayın yapılır.
+// (Yerel + uzak modun ikisinde de çağrılır — modül seviyesinde tanımlı.)
+function syncRoomIdentity(sock, rooms, emitRoom) {
+  const rid = sock && sock.roomId;
+  if (!rid || !sock || !sock.userId) return;
+  const r = rooms.get(String(rid));
+  if (!r || !Array.isArray(r.players)) return;
+  const me = r.players.find(p => p.id === sock.id);
+  if (!me) return;
+  let changed = false;
+  if (!me.userId) { me.userId = sock.userId; changed = true; }
+  if (r.isPrivate && !r.creatorId) { r.creatorId = sock.userId; changed = true; }
+  if (changed && emitRoom) { try { emitRoom(r); } catch (_) {} }
+}
+
 // ---------------- REST kurulumu ----------------
 function installAuth(app, deps) {
   const io = deps.io;
@@ -69,13 +87,18 @@ function installAuth(app, deps) {
 
   // ==== UZAK MOD: kalıcı veri Yöncü MySQL/PHP'de — Render sadece soket ====
   if (remote.enabled()) {
-    return installRemoteMode(app, { io, rooms });
+    // Tüm deps (emitRoom, removePlayerFromRoom dahil) uzak moda da aktarılır:
+    // şartlı kabul/sonradan kimlik akışları uzak modda da yayın + masadan
+    // alma yapabilmeli.
+    return installRemoteMode(app, { io, rooms, emitRoom: deps.emitRoom, removePlayerFromRoom: deps.removePlayerFromRoom });
   }
 
   if (!db) {
     app.all('/api/auth/*', (_req, res) => res.status(503).json({ ok: false, error: 'Üyelik katmanı (veritabanı) bu sunucuda devre dışı.' }));
     console.warn('⚠️  Auth endpoints 503 (db yok).');
-    return { isOnline: () => false, uidFromUserKey, recordMatch: () => {}, attachSocket: () => {}, verifyToken: async () => null };
+    // DB yoksa hiçbir üye mevcut değil → jetonlar kesin geçersizdir.
+    return { isOnline: () => false, uidFromUserKey, recordMatch: () => {}, attachSocket: () => {},
+      verifyToken: async () => null, verifyTokenFull: async () => ({ uid: null, status: 'invalid' }) };
   }
 
   // ---- SMTP tanı (girişsiz; şifre asla dönmez) ----
@@ -399,12 +422,14 @@ function installAuth(app, deps) {
     socket.on('authHello', payload => {
       const u = userByToken(payload && payload.token);
       if (!u) return socket.emit('authReady', { ok: false, error: 'Oturum geçersiz.' });
+      const identityChanged = socket.userId !== u.id;
       socket.userId = u.id;
       socket.userKey = 'user:' + u.id;
       let set = online.get(u.id);
       if (!set) { set = new Set(); online.set(u.id, set); }
       set.add(socket);
       socket.emit('authReady', { ok: true, user: publicUser(u) });
+      if (identityChanged) syncRoomIdentity(socket, rooms, deps.emitRoom);
     });
 
     socket.on('disconnect', () => {
@@ -498,7 +523,11 @@ function installAuth(app, deps) {
   console.log('👤 Üyelik & sosyal katman aktif (auth + profil + arkadaş + davet).');
   return { isOnline, uidFromUserKey, recordMatch, attachSocket, userById,
     // Soket mesajıyla gelen üyelik jetonunu doğrular (oda kapısında anında kimlik).
-    verifyToken: async (t) => { const u = t ? userByToken(String(t)) : null; return u ? Number(u.id) : null; } };
+    verifyToken: async (t) => { const u = t ? userByToken(String(t)) : null; return u ? Number(u.id) : null; },
+    // Kararlı kimlik kontrolü: yerel DB'de oturum YOKSA sonuç kesindir
+    // (status:'invalid') — 'unknown' yalnızca uzak (PHP) modda mümkündür.
+    // Özel oda kilidi bu ayrımı sahte jetonu kesin reddetmek için kullanır.
+    verifyTokenFull: async (t) => { const u = t ? userByToken(String(t)) : null; return u ? { uid: Number(u.id), status: 'ok' } : { uid: null, status: 'invalid' }; } };
 }
 
 // ================== UZAK MOD (Yöncü PHP/MySQL) ==================
@@ -508,11 +537,63 @@ function installRemoteMode(app, deps) {
   const rooms = deps.rooms;
   remote.installProxy(app, { isOnline });
 
+  // PHP soğuk başlangıcı sırasında "BİLİNMEYEN" sonucuyla ŞARTLI kabul
+  // edilen ve userId'siz oturan oyuncu için: sonraki authHello'da me()
+  // boş dönerse (cooldown/timeout) bu kez KESİN cevap sorulur (meFull):
+  //   - 'ok'      → kimlik + kurucu yetkisi aktifleşir (self-healing)
+  //   - 'invalid' → token GEÇERSİZ: oyuncu özel masadan ALINIR
+  //   - 'unknown' → PHP hâlâ ayakta değil: dokunulmaz, sonraki authHello
+  //                 tekrar dener. Böylece "özel oyuna sadece doğrulanmış,
+  //                 davetli üye girer" kuralı soğuk başlangıçta da korunur.
+  function resolvePrivatePending(sock, token) {
+    const rid = sock && sock.roomId;
+    if (!rid || !token) return;
+    const r = rooms.get(String(rid));
+    if (!r || !r.isPrivate) return;
+    const me = (r.players || []).find(p => p.id === sock.id);
+    if (!me || me.userId) return; // yalnızca şartlı kabuldeki oyuncu
+    remote.meFull(token).then(f => {
+      if (!f || sock.roomId !== rid) return;
+      const rNow = rooms.get(rid);
+      if (!rNow) return;
+      const meNow = (rNow.players || []).find(p => p.id === sock.id);
+      if (!meNow) return;
+      if (f.status === 'ok' && f.user) {
+        sock.userId = Number(f.user.id);
+        sock.userName = f.user.name;
+        sock.userEmail = f.user.email;
+        sock.userKey = 'user:' + sock.userId;
+        meNow.userId = sock.userId;
+        if (!rNow.creatorId) rNow.creatorId = sock.userId;
+        let set = online.get(sock.userId);
+        if (!set) { set = new Set(); online.set(sock.userId, set); }
+        set.add(sock);
+        try { sock.emit('authReady', { ok: true, user: { id: sock.userId, name: f.user.name, email: f.user.email } }); } catch (_) {}
+        try { deps.emitRoom(rNow); } catch (_) {}
+      } else if (f.status === 'invalid') {
+        console.log('[AUTH] şartlı kabuldeki oyuncunun jetonu KESİN geçersiz — özel masadan alınıyor.');
+        try { sock.leave(rid); } catch (_) {}
+        sock.roomId = null;
+        sock.role = null;
+        if (deps.removePlayerFromRoom) {
+          try { deps.removePlayerFromRoom(rNow, meNow, 'Üyelik doğrulanamadı.'); } catch (_) {}
+        }
+        try { sock.emit('joinFailed', { roomId: rid, code: 'auth', reason: 'Üyelik doğrulanamadı — bu özel masada kalamazsınız. Lütfen yeniden giriş yapın.' }); } catch (_) {}
+      }
+      // 'unknown': PHP hâlâ cevap vermiyor — oyuncu odada kalır (eski davranış).
+    }).catch(_ => {});
+  }
+
   function attachSocket(socket) {
     socket.on('authHello', payload => {
       const token = payload && payload.token;
       remote.me(token).then(u => {
-        if (!u) return socket.emit('authReady', { ok: false, error: 'Oturum geçersiz.' });
+        if (!u) {
+          socket.emit('authReady', { ok: false, error: 'Oturum geçersiz.' });
+          resolvePrivatePending(socket, token);
+          return;
+        }
+        const identityChanged = socket.userId !== Number(u.id);
         socket.userId = Number(u.id);
         socket.userName = u.name;
         socket.userEmail = u.email;
@@ -521,7 +602,13 @@ function installRemoteMode(app, deps) {
         if (!set) { set = new Set(); online.set(socket.userId, set); }
         set.add(socket);
         socket.emit('authReady', { ok: true, user: { id: socket.userId, name: u.name, email: u.email } });
-      }).catch(() => socket.emit('authReady', { ok: false, error: 'Üyelik sunucusuna ulaşılamadı.' }));
+        // PHP soğuk başlangıcı sırasında userId'siz oturan üye: kimlik
+        // çözüldüğü anda oda kaydı (kurucu dahil) güncellenir.
+        if (identityChanged) syncRoomIdentity(socket, rooms, deps.emitRoom);
+      }).catch(() => {
+        socket.emit('authReady', { ok: false, error: 'Üyelik sunucusuna ulaşılamadı.' });
+        resolvePrivatePending(socket, token);
+      });
     });
 
     socket.on('disconnect', () => {
@@ -634,7 +721,15 @@ function installRemoteMode(app, deps) {
   console.log('👤 Üyelik UZAK modda: Yöncü PHP/MySQL — Render sadece soket/proxy.');
   return { isOnline, uidFromUserKey, recordMatch, attachSocket, logChat, userById: () => null,
     // Uzak modda jeton Yöncü PHP'de doğrulanır (3 kanallı me çağrısı).
-    verifyToken: async (t) => { const u = t ? await remote.me(String(t)) : null; return (u && u.id) ? Number(u.id) : null; } };
+    verifyToken: async (t) => { const u = t ? await remote.me(String(t)) : null; return (u && u.id) ? Number(u.id) : null; },
+    // Kararlı sonuç: 401 → 'invalid' (kesin), timeout/ağ → 'unknown'.
+    // Özel oda kilidi 'unknown'da oyuncuyu şartlı kabul eder, 'invalid'da
+    // kesin reddeder — sahte jeton özel masaya giremez.
+    verifyTokenFull: async (t) => {
+      if (!t) return { uid: null, status: 'invalid' };
+      const r = await remote.meFull(String(t));
+      return { uid: r.user && r.user.id ? Number(r.user.id) : null, status: r.status };
+    } };
 }
 
 module.exports = { installAuth, uidFromUserKey };
