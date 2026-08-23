@@ -2188,6 +2188,38 @@ app.get('/api/rooms', (req, res) => {
   res.json({ ok: true, gameId, rooms: listPublicRooms(gameId) });
 });
 
+// Çevrimiçi durum haritalaması (arkadaş listesi / profil bayrakları).
+// NEDEN BURADA: çevrimiçi durum Render'ın soket haritasında yaşar; Yöncü
+// PHP'si bunu bilemez. Yeni mimaride tarayıcı üyelik uçlarına PHP'ye
+// doğrudan gittiği için eskiden Render proxy'sinin yaptığı online
+// birleştirmesi ISTEMCİ tarafına taşındı: istemci /api/friends (PHP) +
+// bu uç (Render) yan yana çağırıp bayrakları kendisi birleştirir.
+// Bu uç hiçbir PHP çağrısı yapmaz → DDoS korumasından etkilenmez.
+// Yetki: doğrulanmış üye (öncelik: imzalı attest belgesi; yedek: token).
+app.post('/api/online-status', async (req, res) => {
+  const ids = Array.isArray(req.body && req.body.ids)
+    ? req.body.ids.map(x => Number(x)).filter(n => Number.isInteger(n) && n > 0).slice(0, 100)
+    : [];
+  const online = {};
+  if (!ids.length || !authApi || typeof authApi.isOnline !== 'function') {
+    return res.json({ ok: true, online });
+  }
+  // Kimlik doğrulaması (attest PHP'siz çalışır; token yedek).
+  let member = null;
+  if (authApi && typeof authApi.verifyIdentityFull === 'function') {
+    try {
+      const full = await authApi.verifyIdentityFull({
+        token: (req.body && req.body.token) || null,
+        attestation: (req.body && req.body.attestation) || null
+      });
+      member = full && full.uid ? full.uid : null;
+    } catch (_) {}
+  }
+  if (!member) return res.json({ ok: true, online }); // üyesiz: boş harita (bayraklar sızmasın)
+  ids.forEach(id => { online[id] = authApi.isOnline(id); });
+  res.json({ ok: true, online });
+});
+
 // Kamuya açık teşhis nabzı: üyelik katmanının hangi modda çalıştığını söyler
 // (gizli veri yok). "Özel masa kurulamıyor" gibi vakalarda uzaktan bakım için.
 app.get('/api/gv-health', (req, res) => {

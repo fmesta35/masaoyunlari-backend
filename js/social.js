@@ -140,13 +140,32 @@
 
   function isFriend(id) { return (friendsCache || []).some(f => Number(f.id) === Number(id)); }
 
+  // Çevrimiçi durum Render'ın soket haritasında yaşar (PHP bilemez).
+  // Bu uç PHP çağrısı YAPMAZ → DDoS korumasından etkilenmez; istemci
+  // PHP'den gelen listeye Render'dan aldığı bayrakları kendisi çalar.
+  async function fetchOnlineStatus(ids) {
+    const list = (Array.isArray(ids) ? ids : []).map(Number).filter(n => Number.isInteger(n) && n > 0);
+    if (!list.length) return {};
+    try {
+      const t = tok();
+      const att = (window.GVAuth && typeof GVAuth.attestation === 'function') ? GVAuth.attestation() : null;
+      const r = await api('/api/online-status', { ids: list.slice(0, 100), token: t || undefined, attestation: att || undefined }, 'POST');
+      if (r && r.ok && r.online) return r.online;
+    } catch (_) {}
+    return {};
+  }
+
   async function refreshFriends() {
     if (!myId()) { friendsCache = null; return null; }
     if (friendsBusy) return friendsCache;
     friendsBusy = true;
     try {
       const r = await api('/api/friends', null, 'GET');
-      if (r.ok) friendsCache = r.friends || [];
+      if (r.ok) {
+        const list = r.friends || [];
+        const online = await fetchOnlineStatus(list.map(f => Number(f.id)));
+        friendsCache = list.map(f => Object.assign({}, f, { online: !!online[Number(f.id)] }));
+      }
     } catch (_) {}
     friendsBusy = false;
     return friendsCache;
@@ -605,7 +624,12 @@
     ov.style.display = 'flex';
     if (!profileCache[uid]) paintProfile(uid); // yükleme placeholder'ı
     const r = await api('/api/users/' + uid + '/profile', null, 'GET');
-    if (r.ok && r.user) profileCache[uid] = r;
+    if (r.ok && r.user) {
+      // Çevrimiçi bayrağı Render'dan al (PHP'de bu bilgi yok):
+      const online = await fetchOnlineStatus([uid]);
+      r.online = !!online[uid];
+      profileCache[uid] = r;
+    }
     else profileCache[uid] = { error: r.error || 'Profil yüklenemedi.' };
     if (openUid === uid) paintProfile(uid);
   }

@@ -18,7 +18,8 @@
  *    GET  ?action=chatHistory&scope&roomId→ {ok,messages[]}          (herkese açık)
  *
  *  Çevrimiçi/çevrimdışı bilgisi Render'da tutulur (socket); buradaki
- *  "friends" yanıtı online bayrağı OLMADAN döner — bayrağı Render ekler.
+ *  "friends" yanıtı online bayrağı OLMADAN döner — bayrağı ISTEMCİ
+ *  Render'dan /api/online-status ile alıp birleştirir (DDoS'a dayanıklı yol).
  */
 
 require_once __DIR__ . '/bootstrap.php';
@@ -72,7 +73,7 @@ if ($action === 'profile') {
     gv_json(array(
         'ok' => true,
         'user' => array('id' => intval($u['id']), 'name' => $u['name'], 'createdAt' => intval($u['created_at'])),
-        'online' => false, // Render soket katmanı gerçek bayrağı ekler (proxy modunda)
+        'online' => false, // Istemci Render /api/online-status ile gerçek bayrağı alır
         'stats' => (object)$stats,
         'recent' => $recent
     ));
