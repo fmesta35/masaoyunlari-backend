@@ -3907,16 +3907,13 @@ window.GV = GV;
   // anlamlı hata döner (404 yerine teşhis yapılabilir).
   var RENDER_BACKEND = 'https://masaoyunlari-backend.onrender.com';
   window.GV_BACKEND_URL = RENDER_BACKEND;
-  // PHP API adresi: boş bırakırsak social.js urlFor() otomatik olarak
-  // BACKEND + path (yani Render + /api/...) döndürür. config.js defer ile
-  // sonra yüklendiğinde tekrar Yöncü'ye set etmesin diye burada zorla
-  // Render'a yönlendiriyoruz (Yöncü'ye bakan bir değeri eziyoruz).
-  try {
-    var curPhp = window.GV_PHP_API;
-    if (!curPhp || /masaoyunlari\.com\.tr/.test(String(curPhp))) {
-      window.GV_PHP_API = RENDER_BACKEND + '/api';
-    }
-  } catch (_) { window.GV_PHP_API = RENDER_BACKEND + '/api'; }
+  // PHP API adresi: social.js urlFor() PHP boşsa BACKEND + path (yani
+  // Render + /api/...) döndürür; PHP doluysa oraya gider. Render'daki
+  // installProxy zaten /api/* uçlarını Yöncü PHP'sine proxy eder, dolayısıyla
+  // DOĞRU adres HER ZAMAN Render'dır. PHP'yi BOŞ bırakmak urlFor()'yu
+  // Render'a yönlendirir. config.js defer ile sonra yüklendiğinde de aynı
+  // kararı (Yöncü için boş bırak) veriyor — bkz. config.js.
+  try { window.GV_PHP_API = ''; } catch (_) {}
   // Socket.io dahili fetch kullanır; XHR da kullanılır (auth.js dahil). İkisini de override et.
   var _fetch = window.fetch;
   window.fetch = function (url, opts) {
