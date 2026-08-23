@@ -3889,12 +3889,67 @@ return {
 // senkronu, izleyici bayrağı gibi tüm yamalar sessizce devre dışı kalıyordu.
 window.GV = GV;
 
+// ============================================================
+//  API fetch override — Yöncü'de yayınlansa bile tüm istekler
+//  Render backend'ine gitsin. Sayfa www.masaoyunlari.com.tr'de
+//  yüklendiğinde relative URL'ler Yöncü'ye gider (404); bu override
+//  her fetch ve XHR'ı absolute Render URL'ine çevirir.
+// ============================================================
+(function () {
+  var h = window.location.hostname;
+  var isLocal = h === 'localhost' || h === '127.0.0.1' || /[?&]dev=1\b/.test(window.location.search);
+  if (isLocal) return;
+  // Hard-coded Render backend URL (Yöncü reverse-proxy beklemeden de çalışsın)
+  // Hem socket/oyun trafiği (GV_BACKEND_URL) hem de Yöncü originli absolute
+  // istekler (örn. eski config.js / sosyal.js'in ürettiği www.masaoyunlari.com.tr
+  // URL'leri) Render'a yönlendirilir — Render'daki installProxy zaten gerekli
+  // uçları Yöncü PHP'sine proxy eder; Yöncü'de PHP yoksa 503/redirect olarak
+  // anlamlı hata döner (404 yerine teşhis yapılabilir).
+  var RENDER_BACKEND = 'https://masaoyunlari-backend.onrender.com';
+  window.GV_BACKEND_URL = RENDER_BACKEND;
+  // PHP API adresi: boş bırakırsak social.js urlFor() otomatik olarak
+  // BACKEND + path (yani Render + /api/...) döndürür. config.js defer ile
+  // sonra yüklendiğinde tekrar Yöncü'ye set etmesin diye burada zorla
+  // Render'a yönlendiriyoruz (Yöncü'ye bakan bir değeri eziyoruz).
+  try {
+    var curPhp = window.GV_PHP_API;
+    if (!curPhp || /masaoyunlari\.com\.tr/.test(String(curPhp))) {
+      window.GV_PHP_API = RENDER_BACKEND + '/api';
+    }
+  } catch (_) { window.GV_PHP_API = RENDER_BACKEND + '/api'; }
+  // Socket.io dahili fetch kullanır; XHR da kullanılır (auth.js dahil). İkisini de override et.
+  var _fetch = window.fetch;
+  window.fetch = function (url, opts) {
+    if (typeof url === 'string') {
+      if (url.charAt(0) === '/' && url.charAt(1) !== '/' && url.indexOf('://') === -1) {
+        // Relative URL → Render
+        url = window.GV_BACKEND_URL + url;
+      } else if (url.indexOf('://www.masaoyunlari.com.tr') !== -1) {
+        // Yöncü originli absolute URL → Render
+        url = url.replace('https://www.masaoyunlari.com.tr', RENDER_BACKEND);
+      }
+    }
+    return _fetch.call(this, url, opts);
+  };
+  var _xhrOpen = XMLHttpRequest.prototype.open;
+  XMLHttpRequest.prototype.open = function (method, url) {
+    if (typeof url === 'string') {
+      if (url.charAt(0) === '/' && url.charAt(1) !== '/' && url.indexOf('://') === -1) {
+        arguments[1] = window.GV_BACKEND_URL + url;
+      } else if (url.indexOf('://www.masaoyunlari.com.tr') !== -1) {
+        arguments[1] = url.replace('https://www.masaoyunlari.com.tr', RENDER_BACKEND);
+      }
+    }
+    return _xhrOpen.apply(this, arguments);
+  };
+})();
+
 // UYGULAMAYI BAŞLAT
 GV.init();
 </script>
 
 <!-- External JavaScript Files -->
-<script src="js/config.js?v=20260820f"></script>
+<script src="js/config.js?v=20260821i"></script>
 <script src="js/socket.io.min.js?v=20260819c"></script>
 <script src="js/app.js?v=20260820a" defer></script>
 <script src="js/games.js?v=20260821g" defer></script>
