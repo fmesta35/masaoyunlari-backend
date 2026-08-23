@@ -3915,15 +3915,47 @@ window.GV = GV;
   // kararı (Yöncü için boş bırak) veriyor — bkz. config.js.
   try { window.GV_PHP_API = ''; } catch (_) {}
   // Socket.io dahili fetch kullanır; XHR da kullanılır (auth.js dahil). İkisini de override et.
+  // Yöncü originli (https://www.masaoyunlari.com.tr) absolute URL'ler:
+  //   - /api/...   → Render /api/... (Node endpoint'leri, installAuth kurulu)
+  //   - /api/*.php → Render /api/<action> (Yöncü PHP'si yerine Render Node)
+  //   - /api/*.php?action=X → Render /api/X
+  // Böylece eski config.js Yöncü'ye PHP'ye proxy atasa bile tarayıcı
+  // tarafında Render Node uçlarına çevrilir; auth.php?action=login gibi
+  // adresler Render'da 404 yerine /api/login olarak çalışır.
+  function fixYoncuUrl(u) {
+    if (typeof u !== 'string') return u;
+    if (u.indexOf('://www.masaoyunlari.com.tr') === -1 &&
+        u.indexOf('://masaoyunlari.com.tr') === -1) {
+      return u;
+    }
+    var YONCU = u.indexOf('://www.masaoyunlari.com.tr') !== -1
+      ? 'https://www.masaoyunlari.com.tr'
+      : 'https://masaoyunlari.com.tr';
+    var rest = u.slice(YONCU.length); // "/api/auth.php?action=login" gibi
+    // /api/foo.php?action=bar → /api/bar
+    var m = rest.match(/^\/api\/([a-zA-Z0-9_\-]+)\.php\?action=([a-zA-Z0-9_\-]+)/);
+    if (m) return RENDER_BACKEND + '/api/' + m[2];
+    // /api/foo.php?action=bar&x=y → /api/bar?x=y
+    m = rest.match(/^\/api\/([a-zA-Z0-9_\-]+)\.php\?action=([a-zA-Z0-9_\-]+)(&.*)$/);
+    if (m) return RENDER_BACKEND + '/api/' + m[2] + m[3];
+    // /api/foo.php (action yok) → /api/foo
+    m = rest.match(/^\/api\/([a-zA-Z0-9_\-]+)\.php$/);
+    if (m) return RENDER_BACKEND + '/api/' + m[1];
+    // Diğer /api/... → olduğu gibi Render'a
+    if (rest.indexOf('/api/') === 0) return RENDER_BACKEND + rest;
+    // Yöncü kaynakları (görsel/css) — yine Render'a yönlendir ki relative
+    // asset yolları da çalışsın (Render'da aynı dosyalar var).
+    return RENDER_BACKEND + rest;
+  }
   var _fetch = window.fetch;
   window.fetch = function (url, opts) {
     if (typeof url === 'string') {
       if (url.charAt(0) === '/' && url.charAt(1) !== '/' && url.indexOf('://') === -1) {
         // Relative URL → Render
         url = window.GV_BACKEND_URL + url;
-      } else if (url.indexOf('://www.masaoyunlari.com.tr') !== -1) {
-        // Yöncü originli absolute URL → Render
-        url = url.replace('https://www.masaoyunlari.com.tr', RENDER_BACKEND);
+      } else if (url.indexOf('://www.masaoyunlari.com.tr') !== -1 ||
+                 url.indexOf('://masaoyunlari.com.tr') !== -1) {
+        url = fixYoncuUrl(url);
       }
     }
     return _fetch.call(this, url, opts);
@@ -3933,8 +3965,9 @@ window.GV = GV;
     if (typeof url === 'string') {
       if (url.charAt(0) === '/' && url.charAt(1) !== '/' && url.indexOf('://') === -1) {
         arguments[1] = window.GV_BACKEND_URL + url;
-      } else if (url.indexOf('://www.masaoyunlari.com.tr') !== -1) {
-        arguments[1] = url.replace('https://www.masaoyunlari.com.tr', RENDER_BACKEND);
+      } else if (url.indexOf('://www.masaoyunlari.com.tr') !== -1 ||
+                 url.indexOf('://masaoyunlari.com.tr') !== -1) {
+        arguments[1] = fixYoncuUrl(url);
       }
     }
     return _xhrOpen.apply(this, arguments);
