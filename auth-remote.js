@@ -193,4 +193,4 @@ function logChat(m) {
   callJson(REMOTE + '/social.php?action=chatLog', { key: KEY, body: m }).catch(() => {});
 }
 
-module.exports = { enabled, installProxy, me, userPublic, isFriendPair, hasRequest, recordMatch, logChat };
+module.exports = { enabled, installProxy, me, userPublic, isFriendPair, hasRequest, recordMatch, logChat, REMOTE };

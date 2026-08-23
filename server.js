@@ -2145,6 +2145,43 @@ app.get('/api/_php_probe', async (req, res) => {
   }
 });
 
+// PHP bağlantı testi (TOKEN GEREKTİRMEYEN): istemci giriş yapmasa bile
+// PHP'nin canlı olup olmadığını ve ne cevap verdiğini görsün. PHP URL'si
+// yanlışsa veya PHP çalışmıyorsa kök neden budur. F12'de:
+//   fetch('/api/_php_ping').then(r=>r.json()).then(console.log)
+app.get('/api/_php_ping', async (req, res) => {
+  const remote = require('./auth-remote');
+  if (!remote.enabled() || !remote.REMOTE) {
+    return res.json({ ok: false, reason: 'GV_AUTH_API env tanımsız veya boş', remote: '' });
+  }
+  const t0 = Date.now();
+  try {
+    // PHP'ye basit bir GET — action=ping yoksa 400/404 döner, ama
+    // bağlantının canlı olduğunu gördüğümüzde sorun PHP'nin iç mantığında.
+    const r = await fetch(remote.REMOTE + '/auth.php?action=ping', {
+      method: 'GET',
+      signal: AbortSignal.timeout(4000)
+    });
+    let body = '';
+    try { body = await r.text(); } catch (_) {}
+    res.json({
+      ok: r.ok,
+      status: r.status,
+      contentType: r.headers.get('content-type') || '',
+      bodyPreview: String(body).slice(0, 200),
+      ms: Date.now() - t0,
+      remote: remote.REMOTE
+    });
+  } catch (e) {
+    res.json({
+      ok: false,
+      error: e.name === 'TimeoutError' || e.name === 'AbortError' ? 'PHP timeout (4 sn)' : (e.message || String(e)),
+      ms: Date.now() - t0,
+      remote: remote.REMOTE
+    });
+  }
+});
+
 function start(port) {
   // Kalıcı hazır masalar sunucu ayağa kalkarken oluşturulur.
   seedPresetTables();
