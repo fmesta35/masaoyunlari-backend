@@ -1258,6 +1258,34 @@ function logout(){
   page('home');
   toast('Çıkış yapıldı. Ziyaretçi moduna geçildi.', 'info');
 }
+// Bildirim listesi tek yerden boyanır (addNotification + aksiyonlar sonrası).
+// ARKADAŞLIK İSTEKLERİNDE bildirim ÜZERİNDE "✓ Kabul Et / ✗ Reddet" butonları
+// basılır — kullanıcı pencere açmadan bildirimi yanıtlayabilir.
+function renderNotifList(){
+  const list = document.getElementById('notifList');
+  if(!list) return;
+  const NICON = { gameInvite:'🎮', friendRequest:'👥', friendAccepted:'✅', friendDeclined:'🚫' };
+  list.innerHTML = st.notifications.length ? st.notifications.map(n => {
+    let actions = '';
+    if(n.actionData && n.actionData.type === 'friendRequest'){
+      actions = `
+        <div style="display:flex;gap:6px;margin-top:8px" onclick="event.stopPropagation()">
+          <button class="btn btn-sm btn-p" style="flex:1;padding:4px 10px;font-size:0.72em;justify-content:center" onclick="GV.friendNotifAction('${n.id}','accept')">✓ Kabul Et</button>
+          <button class="btn btn-sm btn-d" style="flex:1;padding:4px 10px;font-size:0.72em;justify-content:center" onclick="GV.friendNotifAction('${n.id}','decline')">✗ Reddet</button>
+        </div>`;
+    }
+    return `
+      <div class="notif" onclick="GV.clickNotif('${n.id}')">
+        <div class="notif-i" style="background:rgba(108,92,231,.15);color:var(--primary)">${NICON[n.actionData && n.actionData.type] || '🔔'}</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:700">${n.title}</div>
+          <div style="font-size:0.8em;color:var(--text2)">${n.desc}</div>
+          ${actions}
+        </div>
+      </div>`;
+  }).join('') : '<div style="padding:15px;text-align:center;color:var(--text3);font-size:0.85em;">Bildirim yok</div>';
+}
+
 function addNotification(title, desc, actionData = null){
   const badge = document.getElementById('notifBadgeCount');
   const notifObj = { id: 'notif_' + Date.now(), title, desc, actionData, time: Date.now() };
@@ -1268,19 +1296,7 @@ function addNotification(title, desc, actionData = null){
     badge.style.display = st.notifications.length > 0 ? 'inline-flex' : 'none';
   }
 
-  const list = document.getElementById('notifList');
-  if(list) {
-    const NICON = { gameInvite:'🎮', friendRequest:'👥', friendAccepted:'✅', friendDeclined:'🚫' };
-    list.innerHTML = st.notifications.map(n => `
-      <div class="notif" onclick="GV.clickNotif('${n.id}')">
-        <div class="notif-i" style="background:rgba(108,92,231,.15);color:var(--primary)">${NICON[n.actionData && n.actionData.type] || '🔔'}</div>
-        <div>
-          <div style="font-weight:700">${n.title}</div>
-          <div style="font-size:0.8em;color:var(--text2)">${n.desc}</div>
-        </div>
-      </div>
-    `).join('');
-  }
+  renderNotifList();
 
   if(actionData && actionData.type === 'gameInvite'){
     st.activeInviteData = { ...notifObj };
@@ -1292,6 +1308,26 @@ function addNotification(title, desc, actionData = null){
     showModal('invitePopupModal');
   } else {
     toast(`🔔 ${title}`, 'info');
+  }
+}
+
+// Bildirim ÜZERİNDEKİ butonlardan arkadaşlık isteğine yanıt: bildirimi
+// listeden kaldırır, sonra sosyal katman işi yapar (REST + karşı tarafa
+// anlık bildirim). Sonuç bildirimi (friendAccepted/friendDeclined) soketten
+// geri gelir ve kendi bildirimini basar.
+function friendNotifAction(id, action){
+  const n = st.notifications.find(x => x.id === id);
+  if(!n || !n.actionData || n.actionData.type !== 'friendRequest') return;
+  const uid = Number(n.actionData.fromId);
+  st.notifications = st.notifications.filter(x => x.id !== id);
+  const badge = document.getElementById('notifBadgeCount');
+  if(badge){ badge.textContent = st.notifications.length; badge.style.display = st.notifications.length > 0 ? 'inline-flex' : 'none'; }
+  renderNotifList();
+  if(window.GVSocial){
+    if(action === 'decline') GVSocial.declineRequest(uid);
+    else GVSocial.acceptRequest(uid);
+  } else {
+    toast('⚠️ Sosyal katman henüz hazır değil, tekrar deneyin.', 'warning');
   }
 }
 
@@ -1330,26 +1366,15 @@ function clickNotif(id){
     return;
   }
   // Arkadaşlık bildirimi: bildirimi listeden kaldır + Arkadaşlarım penceresini aç
-  // (istekler bölümü en üstte görünür; kabul/red orada yapılır)
+  // (istekler bölümü en üstte görünür; kabul/red hem burada hem bildirimin
+  // üzerindeki butonlardan yapılabilir — bkz. friendNotifAction)
   if(n.actionData && /friend/.test(n.actionData.type || '')){
     st.notifications = st.notifications.filter(x => x.id !== id);
     const badge = document.getElementById('notifBadgeCount');
     if(badge){ badge.textContent = st.notifications.length; badge.style.display = st.notifications.length > 0 ? 'inline-flex' : 'none'; }
     const panel = document.getElementById('notifPanel');
     if(panel) panel.classList.remove('show');
-    const list = document.getElementById('notifList');
-    if(list) {
-      const NICON = { gameInvite:'🎮', friendRequest:'👥', friendAccepted:'✅', friendDeclined:'🚫' };
-      list.innerHTML = st.notifications.length ? st.notifications.map(m => `
-        <div class="notif" onclick="GV.clickNotif('${m.id}')">
-          <div class="notif-i" style="background:rgba(108,92,231,.15);color:var(--primary)">${NICON[m.actionData && m.actionData.type] || '🔔'}</div>
-          <div>
-            <div style="font-weight:700">${m.title}</div>
-            <div style="font-size:0.8em;color:var(--text2)">${m.desc}</div>
-          </div>
-        </div>
-      `).join('') : '<div style="padding:15px;text-align:center;color:var(--text3);font-size:0.85em;">Bildirim yok</div>';
-    }
+    renderNotifList();
     if(window.GV && GV.openFriendRequests) GV.openFriendRequests();
   }
 }
@@ -3821,6 +3846,8 @@ return {
   toggleNotif,
   clearNotifs,
   clickNotif,
+  friendNotifAction,
+  renderNotifList,
   openLobby,
   exitToLobby,
   genRooms,
@@ -4006,7 +4033,7 @@ GV.init();
 <script src="js/chat.js?v=20260821c" defer></script>
 <script src="js/leave-guard.js?v=20260821h" defer></script>
 <script src="js/auth.js?v=20260823b" defer></script>
-<script src="js/social.js?v=20260823d" defer></script>
+<script src="js/social.js?v=20260823e" defer></script>
 
 <!-- Structured Data for SEO -->
 <script type="application/ld+json">

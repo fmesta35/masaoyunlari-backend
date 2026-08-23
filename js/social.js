@@ -412,11 +412,34 @@
           </div>
         </div>
       </div>
-      <button class="btn btn-sm ${onl ? 'btn-a' : 'btn-s'}" style="padding:2px 6px;font-size:0.7em;"
-        ${onl ? '' : 'disabled style="opacity:0.4"'}
-        onclick="event.stopPropagation();window.GVSocial && GVSocial.inviteFriendById(${Number(f.id)})">Davet Et</button>
+      <div style="display:flex;gap:4px;align-items:center">
+        <button class="btn btn-sm ${onl ? 'btn-a' : 'btn-s'}" style="padding:2px 6px;font-size:0.7em;"
+          ${onl ? '' : 'disabled style="opacity:0.4"'}
+          onclick="event.stopPropagation();window.GVSocial && GVSocial.inviteFriendById(${Number(f.id)})">Davet Et</button>
+        <!-- Arkadaşlardan çıkar (karşı tarafın listesi 8 sn'lik taramada tazelenir) -->
+        <button class="btn btn-sm btn-s" title="Arkadaşlardan çıkar"
+          style="padding:2px 6px;font-size:0.7em;border-color:rgba(255,118,117,.5);color:var(--danger,#ff7675)"
+          onclick="event.stopPropagation();window.GVSocial && GVSocial.removeFriend(${Number(f.id)})">🗑</button>
+      </div>
     </div>`;
     }).join('');
+  }
+
+  // Arkadaş listesinden ÇIKAR: onay sorulur, REST ile silinir, liste
+  // yeniden boyanır. Karşı tarafın listesi de kendi periyodik taramasında
+  // (8 sn) tazellenir; arkadaşlık her iki yönden de kalkar.
+  async function removeFriend(uid) {
+    if (!myId()) return showModal('guestPromptModal');
+    const nm = nameOf(uid);
+    if (!confirm(nm + ' arkadaşlarından çıkarılsın mı?')) return;
+    const r = await api('/api/friends/remove', { friendId: Number(uid) });
+    if (r.ok) {
+      friendsCache = Array.isArray(r.friends) ? r.friends : friendsCache;
+      toast('🗑 ' + nm + ' arkadaşlarından çıkarıldı.', 'info');
+    } else {
+      toast('⚠️ ' + (r.error || 'İşlem başarısız.'), 'error');
+    }
+    paintAll();
   }
 
   function renderFriendsMember(q) {
@@ -915,7 +938,7 @@
   });
 
   window.GVSocial = {
-    openProfile, inviteFriendById, canInvite, toggleFriend,
+    openProfile, inviteFriendById, canInvite, toggleFriend, removeFriend,
     refreshFriends, isFriend,
     sendRequest, acceptRequest, declineRequest, refreshRequests, reqStateWith,
     _test: { paintFriends, renderFriendsMember, paintRequests, digestRequests, fillInviteList, setInviteMark }
