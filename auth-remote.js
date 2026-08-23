@@ -206,6 +206,27 @@ function hasRequest(a, b) {
     .then(r => !!(r.data && r.data.ok && r.data.has))
     .catch(() => false);
 }
+// hasRequest'in "bilinmiyor" farkında versiyonu: PHP kesin cevap verirse
+// true/false; ağ hatası/timeout/DDoS engeli (HTML) durumunda null.
+// Anlık bildirimler: kesin "yok"sa bildirim gitmez, bilinmezse yine gider
+// (alıcının listesi 8 sn'lik taramayla PHP'den kendiliğinden doğrulanır).
+function hasRequestOrNull(a, b) {
+  return callJson(REMOTE + `/social.php?action=hasRequest&a=${encodeURIComponent(a)}&b=${encodeURIComponent(b)}`, { key: KEY }, 1500)
+    .then(r => {
+      if (r.status === 200 && r.data && r.data.ok !== false) return !!r.data.has;
+      return null; // erişilemedi / engellendi → bilinmiyor
+    })
+    .catch(() => null);
+}
+// isFriendPair'in "bilinmiyor" farkında versiyonu (hasRequestOrNull gibi).
+function isFriendPairOrNull(a, b) {
+  return callJson(REMOTE + `/social.php?action=isFriendPair&a=${encodeURIComponent(a)}&b=${encodeURIComponent(b)}`, { key: KEY }, 1500)
+    .then(r => {
+      if (r.status === 200 && r.data && r.data.ok !== false) return !!r.data.friend;
+      return null;
+    })
+    .catch(() => null);
+}
 // yazma işlemleri ateş-unut (Render'ı bekletme)
 function recordMatch(p) {
   callJson(REMOTE + '/social.php?action=recordMatch', { key: KEY, body: p }).then(r => {
@@ -216,4 +237,4 @@ function logChat(m) {
   callJson(REMOTE + '/social.php?action=chatLog', { key: KEY, body: m }).catch(() => {});
 }
 
-module.exports = { enabled, installProxy, me, meFull, userPublic, isFriendPair, hasRequest, recordMatch, logChat, REMOTE };
+module.exports = { enabled, installProxy, me, meFull, userPublic, isFriendPair, hasRequest, hasRequestOrNull, isFriendPairOrNull, recordMatch, logChat, REMOTE };

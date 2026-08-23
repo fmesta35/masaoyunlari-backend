@@ -26,6 +26,60 @@ const remote = require('./auth-remote');
 const now = () => Date.now();
 const online = new Map(); // userId -> Set<socket>
 
+// ---------------- İmzalı belgeler (Yöncü DDoS korumasına karşı) ----------------
+// Yöncü'nün DDoS/anti-bot koruması Render'ın SUNUCU-SUNUCU PHP isteklerini
+// 303 + HTML ile engelliyor; tarayıcı istekleri ise sorunsuz geçiyor.
+// Bu yüzden: üyelik REST'i tarayıcıdan doğrudan Yöncü PHP'sine gider, Render
+// soket katmanı ise PHP'nin GV_SERVER_KEY ile İMZA'ladığı kısa ömürlü
+// belgeleri (attest = kimlik, friendProof = arkadaşlık) YERİNDE doğrular.
+// Render → PHP çağrısı sıcak yolda KALMAMALI (yalnızca yedek olarak).
+const ATTEST_TTL_MS = 10 * 60 * 1000; // PHP ile aynı: 10 dk
+const CLOCK_SKEW_MS = 30 * 1000;      // saat farkı toleransı
+
+function hmacSha256Hex(msg, key) {
+  return crypto.createHmac('sha256', String(key || '')).update(String(msg)).digest('hex');
+}
+function sigMatches(msg, sig) {
+  const key = process.env.GV_SERVER_KEY || '';
+  if (!key || !sig) return false;
+  const expect = hmacSha256Hex(msg, key);
+  const a = Buffer.from(expect);
+  const b = Buffer.from(String(sig));
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+}
+function windowOk(ts, exp) {
+  const t = Date.now();
+  const n = Number(ts), x = Number(exp);
+  if (!Number.isFinite(n) || !Number.isFinite(x)) return false;
+  if (x <= t) return false;              // süresi dolmuş
+  if (n > t + CLOCK_SKEW_MS) return false; // gelecekte (saat salınımı)
+  if (x - n > ATTEST_TTL_MS + 60 * 1000) return false; // anormal uzun
+  return true;
+}
+// auth.php?action=attest çıktısı: { id, name, ts, exp, sig }
+// Geçerliyse uid'yi, değilse null döner.
+function verifyAttestation(att) {
+  if (!att || typeof att !== 'object') return null;
+  const id = Number(att.id);
+  if (!Number.isInteger(id) || id <= 0) return null;
+  if (!windowOk(att.ts, att.exp)) return null;
+  const msg = id + '|' + String(att.name == null ? '' : att.name) + '|' + Number(att.ts) + '|' + Number(att.exp);
+  if (!sigMatches(msg, att.sig)) return null;
+  return { uid: id, name: String(att.name == null ? '' : att.name) };
+}
+// social.php?action=friendProof çıktısı: { a, b, ts, exp, sig }
+// (a,b) çifti için imza geçerliyse true.
+function verifyFriendProof(proof, expectA, expectB) {
+  if (!proof || typeof proof !== 'object') return false;
+  const a = Number(proof.a), b = Number(proof.b);
+  if (!Number.isInteger(a) || !Number.isInteger(b)) return false;
+  if (Number.isInteger(expectA) && a !== Number(expectA)) return false;
+  if (Number.isInteger(expectB) && b !== Number(expectB)) return false;
+  if (!windowOk(proof.ts, proof.exp)) return false;
+  const msg = 'friend|' + a + '|' + b + '|' + Number(proof.ts) + '|' + Number(proof.exp);
+  return sigMatches(msg, proof.sig);
+}
+
 // ---------------- yardımcılar ----------------
 function emailOk(e) { return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(String(e || '').trim()); }
 function cleanName(v) { return String(v == null ? '' : v).replace(/[<>"'`]/g, '').replace(/\s+/g, ' ').trim().slice(0, 24); }
@@ -98,7 +152,8 @@ function installAuth(app, deps) {
     console.warn('⚠️  Auth endpoints 503 (db yok).');
     // DB yoksa hiçbir üye mevcut değil → jetonlar kesin geçersizdir.
     return { isOnline: () => false, uidFromUserKey, recordMatch: () => {}, attachSocket: () => {},
-      verifyToken: async () => null, verifyTokenFull: async () => ({ uid: null, status: 'invalid' }) };
+      verifyToken: async () => null, verifyTokenFull: async () => ({ uid: null, status: 'invalid' }),
+      verifyIdentityFull: async () => ({ uid: null, status: 'invalid' }) };
   }
 
   // ---- SMTP tanı (girişsiz; şifre asla dönmez) ----
@@ -527,7 +582,15 @@ function installAuth(app, deps) {
     // Kararlı kimlik kontrolü: yerel DB'de oturum YOKSA sonuç kesindir
     // (status:'invalid') — 'unknown' yalnızca uzak (PHP) modda mümkündür.
     // Özel oda kilidi bu ayrımı sahte jetonu kesin reddetmek için kullanır.
-    verifyTokenFull: async (t) => { const u = t ? userByToken(String(t)) : null; return u ? { uid: Number(u.id), status: 'ok' } : { uid: null, status: 'invalid' }; } };
+    verifyTokenFull: async (t) => { const u = t ? userByToken(String(t)) : null; return u ? { uid: Number(u.id), status: 'ok' } : { uid: null, status: 'invalid' }; },
+    // Birleşik kimlik: önce imzalı belge (PHP gerekmez), sonra token (yerel DB).
+    verifyIdentityFull: async (cred) => {
+      cred = cred || {};
+      const att = verifyAttestation(cred.attestation);
+      if (att) return { uid: att.uid, status: 'ok' };
+      const u = cred.token ? userByToken(String(cred.token)) : null;
+      return u ? { uid: Number(u.id), status: 'ok' } : { uid: null, status: 'invalid' };
+    } };
 }
 
 // ================== UZAK MOD (Yöncü PHP/MySQL) ==================
@@ -587,6 +650,24 @@ function installRemoteMode(app, deps) {
   function attachSocket(socket) {
     socket.on('authHello', payload => {
       const token = payload && payload.token;
+      // 1) İmzalı kimlik belgesi (auth.php?action=attest): PHP'ye ulaşmadan,
+      //    Render'da yerinde doğrulanır. Yöncü DDoS koruması Render→PHP'yi
+      //    kapattığında bile kimlik doğrulaması çalışır.
+      const att = verifyAttestation(payload && payload.attestation);
+      if (att) {
+        const identityChanged = socket.userId !== att.uid;
+        socket.userId = att.uid;
+        socket.userName = att.name || 'Oyuncu';
+        socket.userEmail = null;
+        socket.userKey = 'user:' + att.uid;
+        let set = online.get(att.uid);
+        if (!set) { set = new Set(); online.set(att.uid, set); }
+        set.add(socket);
+        socket.emit('authReady', { ok: true, user: { id: att.uid, name: att.name, email: null } });
+        if (identityChanged) syncRoomIdentity(socket, rooms, deps.emitRoom);
+        return;
+      }
+      // 2) Klasik yol: PHP me (DDoS engellemedikçe / önbellek sıcakken).
       remote.me(token).then(u => {
         if (!u) {
           socket.emit('authReady', { ok: false, error: 'Oturum geçersiz.' });
@@ -617,8 +698,10 @@ function installRemoteMode(app, deps) {
       if (set) { set.delete(socket); if (!set.size) online.delete(socket.userId); }
     });
 
-    // Oyun daveti: kurallar (kendi özel masası + arkadaş + çevrimiçi) burada;
-    // üyelik doğrulamaları PHP'den sorulur.
+    // Oyun daveti: kurallar (kendi özel masası + arkadaş + çevrimiçi) burada.
+    // ARKADAŞLIK KONTROLÜ: öncelik PHP'nin imzaladığı friendProof belgesine
+    // (Render'da yerinde doğrulanır — DDoS Render→PHP'yi kapatsa bile çalışır).
+    // Belge yoksa PHP'ye düşülür (DDoS izin veriyorsa); o da erişilemezse red.
     socket.on('gameInvite', async payload => {
       const rej = reason => socket.emit('inviteRejected', { reason });
       try {
@@ -631,16 +714,20 @@ function installRemoteMode(app, deps) {
         if (room.status !== 'waiting') return rej('Oyun başladı — yeni davet gönderilemez.');
         if ((room.players || []).length >= room.maxPlayers) return rej('Masa dolu — davet gönderilemez.');
         const targetId = Number(payload && payload.toUserId);
+        if (!Number.isInteger(targetId) || targetId <= 0) return rej('Oyuncu bulunamadı.');
         if (targetId === me.id) return rej('Kendinizi davet edemezsiniz.');
         if ((room.players || []).some(p => Number(p.userId) === Number(targetId))) return rej('Oyuncu zaten masada.');
-        const target = await remote.userPublic(targetId);
-        if (!target) return rej('Oyuncu bulunamadı.');
-        const friends = await remote.isFriendPair(me.id, targetId);
-        if (!friends) return rej('Yalnızca arkadaş listenizdeki oyuncuları davet edebilirsiniz.');
-        if (!room.invited || typeof room.invited.set !== 'function') room.invited = new Map();
-        if (room.invited.size >= 15) return rej('Bekleyen davet sınırına ulaşıldı — biri katılmadan yeni davet gönderilemez.');
+        // Hedefin çevrimiçi olması = kimliği (attest/me) doğrulanmış üyedir;
+        // ayrıca arkadaşlık belgesi hedefi kimliğe bağlar.
         const set = online.get(targetId);
         if (!set || !set.size) return rej('Arkadaşınız şu an çevrimiçi değil.');
+        let friendOk = verifyFriendProof(payload && payload.friendProof, me.id, targetId);
+        if (!friendOk) {
+          try { friendOk = await remote.isFriendPair(me.id, targetId); } catch (_) { friendOk = false; }
+        }
+        if (!friendOk) return rej('Yalnızca arkadaş listenizdeki oyuncuları davet edebilirsiniz.');
+        if (!room.invited || typeof room.invited.set !== 'function') room.invited = new Map();
+        if (room.invited.size >= 15) return rej('Bekleyen davet sınırına ulaşıldı — biri katılmadan yeni davet gönderilemez.');
         // Davet = giriş hakkı; atılmışsa yeni davetle hak yeniden açılır.
         room.invited.set(targetId, { ts: now() });
         if (room.kickBan && typeof room.kickBan.delete === 'function') room.kickBan.delete(targetId);
@@ -650,9 +737,11 @@ function installRemoteMode(app, deps) {
           roomId: String(room.id), roomName: room.name, gameId: room.gameId, ts: now()
         };
         set.forEach(s => s.emit('gameInvite', invite));
-        socket.emit('inviteSent', { ok: true, toName: target.name, toUserId: targetId });
+        // İsim, gönderen istemcinin arkadaş listesinden gelir (görseldir).
+        const toName = (payload && typeof payload.toName === 'string' && payload.toName.trim()) || 'Arkadaşınız';
+        socket.emit('inviteSent', { ok: true, toName, toUserId: targetId });
       } catch (e) {
-        rej('Üyelik sunucusuna ulaşılamadı, sonra deneyin.');
+        rej('Davet gönderilemedi, sonra deneyin.');
       }
     });
 
@@ -668,7 +757,14 @@ function installRemoteMode(app, deps) {
       }));
     });
 
-    // Arkadaşlık isteği anlık bildirimleri — doğrulama PHP üzerinden yapılır.
+    // Arkadaşlık anlık bildirimleri (ping): gerçek durum DEĞİŞİKLİKLERİ
+    // tarayıcı → Yöncü PHP REST'i üzerinden yapılır (istemci bunu zaten
+    // yaptı); ping yalnızca "şimdi bildir" yönlendirmesidir. Kural:
+    //   - PHP KESİN cevap veriyorsa (erişilebilir): cevaba uy — "yok"sa
+    //     bildirim gitmez (X-GV-Key ile sorulur).
+    //   - PHP erişilemiyorsa (DDoS 303/timeout): bildirim yine iletilir;
+    //     alıcının listesi 8 sn'lik taramayla PHP'den kendiliğinden
+    //     doğrulanır. Gönderici zaten doğrulanmış üyedir (attest/me).
     socket.on('friendRequestPing', async payload => {
       try {
         if (!socket.userId) return;
@@ -676,7 +772,8 @@ function installRemoteMode(app, deps) {
         const targetId = Number(payload && payload.toUserId);
         const set = online.get(targetId);
         if (!set || !set.size) return;
-        if (!(await remote.hasRequest(me.id, targetId))) return; // bekleyen istek PHP'de olmalı
+        const has = await remote.hasRequestOrNull(me.id, targetId);
+        if (has === false) return; // PHP kesin dedi: bekleyen istek yok
         set.forEach(s => s.emit('friendRequest', { fromId: me.id, fromName: me.name }));
       } catch (_) {}
     });
@@ -687,7 +784,8 @@ function installRemoteMode(app, deps) {
         const otherId = Number(payload && payload.toUserId);
         const set = online.get(otherId);
         if (!set || !set.size) return;
-        if (!(await remote.isFriendPair(me.id, otherId))) return; // kabul gerçekleşmiş olmalı
+        const fr = await remote.isFriendPairOrNull(me.id, otherId);
+        if (fr === false) return; // PHP kesin dedi: arkadaşlık oluşmamış
         set.forEach(s => s.emit('friendAccepted', { byId: me.id, byName: me.name }));
       } catch (_) {}
     });
@@ -698,12 +796,13 @@ function installRemoteMode(app, deps) {
         const otherId = Number(payload && payload.toUserId);
         const set = online.get(otherId);
         if (!set || !set.size) return;
+        // Üçü de "kesin bağ var"sa bildirim gitmez; erişilemezse (null) gider.
         const [fr, p1, p2] = await Promise.all([
-          remote.isFriendPair(me.id, otherId),
-          remote.hasRequest(me.id, otherId),
-          remote.hasRequest(otherId, me.id)
+          remote.isFriendPairOrNull(me.id, otherId),
+          remote.hasRequestOrNull(me.id, otherId),
+          remote.hasRequestOrNull(otherId, me.id)
         ]);
-        if (fr || p1 || p2) return; // hâlâ bir bağ varsa bildirim gönderme
+        if ((fr === true || p1 === true || p2 === true)) return;
         set.forEach(s => s.emit('friendDeclined', {
           byId: me.id, byName: me.name,
           kind: (payload && payload.kind === 'cancelled') ? 'cancelled' : 'declined'
@@ -729,7 +828,17 @@ function installRemoteMode(app, deps) {
       if (!t) return { uid: null, status: 'invalid' };
       const r = await remote.meFull(String(t));
       return { uid: r.user && r.user.id ? Number(r.user.id) : null, status: r.status };
+    },
+    // Birleşik kimlik: önce imzalı belge (Render'da yerinde, PHP GEREKSİZ),
+    // sonra token → PHP meFull (401=kesin geçersiz, timeout=bilinmiyor).
+    verifyIdentityFull: async (cred) => {
+      cred = cred || {};
+      const att = verifyAttestation(cred.attestation);
+      if (att) return { uid: att.uid, status: 'ok' };
+      if (!cred.token) return { uid: null, status: 'invalid' };
+      const r = await remote.meFull(String(cred.token));
+      return { uid: r.user && r.user.id ? Number(r.user.id) : null, status: r.status };
     } };
 }
 
-module.exports = { installAuth, uidFromUserKey };
+module.exports = { installAuth, uidFromUserKey, verifyAttestation, verifyFriendProof, hmacSha256Hex };

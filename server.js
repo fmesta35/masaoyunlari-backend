@@ -1313,7 +1313,21 @@ io.on('connection', socket => {
   // joinDenied 'code:auth' döner, istemci retryAfterAuthDeny ile tekrar dener.
   async function ensureSocketIdentity(data) {
     if (socket.userId) return true;
-    if (!authApi || typeof authApi.verifyToken !== 'function') return false;
+    if (!authApi) return false;
+    // 1) İmzalı kimlik belgesi (auth.php attest) — PHP'ye GEREK DUYMADAN
+    //    Render'da yerinde doğrulanır (Yöncü DDoS korumasına bağışıklık).
+    const att = data && data.memberAttestation;
+    if (att && typeof att === 'object' && typeof authApi.verifyIdentityFull === 'function') {
+      try {
+        const full = await authApi.verifyIdentityFull({ attestation: att });
+        if (full && full.uid) {
+          socket.userId = Number(full.uid);
+          socket.userKey = 'user:' + Number(full.uid);
+          return true;
+        }
+      } catch (_) {}
+    }
+    // 2) Token (yerel DB / PHP önbelleği sıcakken).
     const t = data && typeof data.memberToken === 'string' ? data.memberToken : '';
     if (!t || t.length > 256) return false;
     try {
@@ -1349,15 +1363,18 @@ io.on('connection', socket => {
       // "bilinmeyen" durumlarda oyuncu şartlı kabul edilir (eski davranış).
     if (data.isPrivate && !socket.userId) {
       const hasToken = data.memberToken && typeof data.memberToken === 'string' && data.memberToken.length > 0;
-      console.log('[JOINROOM]', socket.id, 'isPrivate=true, userId=', socket.userId, 'hasToken=', hasToken, 'tokenLen=', hasToken ? data.memberToken.length : 0);
-      if (!hasToken) {
+      const hasAttestation = !!(data.memberAttestation && typeof data.memberAttestation === 'object');
+      const hasCred = hasToken || hasAttestation;
+      console.log('[JOINROOM]', socket.id, 'isPrivate=true, userId=', socket.userId, 'hasToken=', hasToken, 'hasAttestation=', hasAttestation, 'tokenLen=', hasToken ? data.memberToken.length : 0);
+      if (!hasCred) {
         await ensureSocketIdentity(data);
         if (!socket.userId) {
           socket.emit('joinDenied', { roomId, code: 'auth', reason: 'Özel masa kurmak için üye girişi gerekli.' });
           return;
         }
       }
-      // Token var: kimlik çözümünü özel oda kilidi bekletir; odayı kuruyoruz,
+      // Kimlik kanıtı var (token ve/veya imzalı belge): çözümün kesin
+      // doğrulanmasını özel oda kilidi bekletir; odayı kuruyoruz,
       // reddedilirse hemen aşağıda kapatılır (boş özel oda lobide kalmaz).
     }
       room = createRoom(roomId, gameId, data.maxPlayers, data.durationMinutes, {
@@ -1425,15 +1442,17 @@ io.on('connection', socket => {
       if (!room.invited || typeof room.invited.has !== 'function') room.invited = new Map();
       if (!room.kickBan || typeof room.kickBan.has !== 'function') room.kickBan = new Set();
       const hasToken = data.memberToken && typeof data.memberToken === 'string' && data.memberToken.length > 0;
+      const hasAttestation = !!(data.memberAttestation && typeof data.memberAttestation === 'object');
+      const hasCred = hasToken || hasAttestation;
       const lockStart = Date.now();
       // Kimlik doğrulaması (en fazla 3 sn) beklenirken oda BOŞ kalabilir;
       // 5 sn'lik süpürücü bu boşluğu görüp odayı silmesin. Her bekleyen
       // katılımda sayaç artar, sonuçta (red/kabul) azaltılır.
       room.__pendingJoints = (room.__pendingJoints || 0) + 1;
 
-      // 1) Hızlı yol: authHello işlenmişse 800 ms'lik yarış çoğu durumda hiç
-      //    tüketilmez (token anında çözülür).
-      if (!socket.userId && hasToken) {
+      // 1) Hızlı yol: authHello işlenmişse (veya imzalı belge hemen
+      //    doğrulanırsa) 800 ms'lik yarış çoğu durumda hiç tüketilmez.
+      if (!socket.userId && hasCred) {
         try {
           await Promise.race([
             ensureSocketIdentity(data),
@@ -1443,24 +1462,22 @@ io.on('connection', socket => {
       }
       let uid = socket.userId || null;
 
-      // 2) KARARLI KARAR: token var ama kimlik hâlâ çözülemediyse üyelik
-      //    katmanından en fazla 3 sn beklenir (toplam bütçe). Sonuç:
+      // 2) KARARLI KARAR: kimlik kanıtı var (token ve/veya imzalı belge) ama
+      //    kimlik hâlâ çözülemediyse üyelik katmanından en fazla 3 sn
+      //    beklenir (toplam bütçe). Sonuç:
       //      - üye bulundu       → normal doğrulanmış giriş
       //      - kesin GEÇERSİZ     → 'auth' reddi (sahte jetonlu kullanıcı
       //                             özel odaya GİREMEZ, oda kurulduysa kapatılır)
-      //      - BİLİNMEYEN (PHP soğuk başlangıcı gibi cevap gelmedi) → eski
+      //      - BİLİNMEYEN (PHP soğuk başlangıcı gibi cevap gelmedi) →
       //        "şartlı kabul": oyuncu arka planda çözülür; sonuç geçerliyse
       //        yetkiler verilir, kesin geçersiz çıkarsa masadan alınır.
-      //    Yalnızca kesin geçersizlikte 3 sn sınırının AŞILMASI söz konusu
-      //    değildir; "bilinmeyen" durumunda oyuncu 3 sn sonra yine de kabul
-      //    edilir — böylece yavaş PHP, gerçek üyeyi reddetmiş olmaz.
       let deny = null;
-      if (!uid && hasToken && authApi && typeof authApi.verifyTokenFull === 'function') {
+      if (!uid && hasCred && authApi && typeof authApi.verifyIdentityFull === 'function') {
         const budgetLeft = Math.max(50, 3000 - (Date.now() - lockStart));
         let full = null;
         try {
           full = await Promise.race([
-            authApi.verifyTokenFull(data.memberToken),
+            authApi.verifyIdentityFull({ token: data.memberToken, attestation: data.memberAttestation }),
             new Promise(res => setTimeout(() => res(null), budgetLeft))
           ]);
         } catch (_) { full = null; }
@@ -1477,7 +1494,7 @@ io.on('connection', socket => {
           };
         }
       }
-      const hasPendingAuth = !uid && hasToken; // token var, sonuç BİLİNMEYEN → şartlı kabul
+      const hasPendingAuth = !uid && hasCred; // kanıt var (token/belge), sonuç BİLİNMEYEN → şartlı kabul
 
       if (!deny) {
         if (!uid && !hasPendingAuth) deny = { code: 'auth', reason: 'Bu masa özel — yalnızca üyeler ve davetliler girebilir.' };
@@ -1515,7 +1532,7 @@ io.on('connection', socket => {
       if (hasPendingAuth) {
         console.log('[JOINROOM] token var ama sonuç BİLİNMEYEN — arka plan verifyTokenFull başlatılıyor.');
         if (authApi && typeof authApi.verifyTokenFull === 'function') {
-          authApi.verifyTokenFull(data.memberToken).then(full => {
+          authApi.verifyIdentityFull({ token: data.memberToken, attestation: data.memberAttestation }).then(full => {
             if (socket.roomId !== roomId) return; // socket başka odaya geçmiş
             const rNow = rooms.get(roomId);
             if (!rNow) return;

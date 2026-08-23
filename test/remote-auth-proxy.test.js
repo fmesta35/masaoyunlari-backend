@@ -306,7 +306,9 @@ async function main() {
 
   const gotInv = once(fSock, 'gameInvite');
   const sent = once(cSock, 'inviteSent');
-  cSock.emit('gameInvite', { toUserId: FID, roomId: '9100' });
+  // toName: yeni istemci arkadaşın adını kendi listesinden taşır (görsel);
+  // proof YOK → sunucu PHP'ye düşer (mock erişilebilir: X-GV-Key ile).
+  cSock.emit('gameInvite', { toUserId: FID, roomId: '9100', toName: 'Dost' });
   const [iv, snd] = await Promise.all([gotInv, sent]);
   assert.ok(iv.fromName === 'Kral' && snd.toName === 'Dost', 'davet payload');
   assert.ok(mock.state.seenKeys.some(([a, k]) => a === 'isFriendPair' && k === KEY), 'isFriendPair çağrısı X-GV-Key ile gitti');

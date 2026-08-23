@@ -3947,9 +3947,17 @@ window.GV = GV;
     // asset yolları da çalışsın (Render'da aynı dosyalar var).
     return RENDER_BACKEND + rest;
   }
+  // YENİ MİMARİ (DDoS'a dayanıklı): üyelik/sosyal uçları (auth.php,
+  // social.php) tarayıcı YÖNCÜ PHP'sine DOĞRUDAN gönderir — Yöncü'nün
+  // DDoS/anti-bot koruması Render'ın sunucu-sunucu isteklerini 303+HTML
+  // ile engelliyor, tarayıcı isteklerini ise sorunsuz geçiriyor.
+  // Bu yüzden .php adresleri ASLA Render'a çevrilmemeli.
+  function isPhpApi(u) {
+    return u.indexOf('/api/auth.php') !== -1 || u.indexOf('/api/social.php') !== -1;
+  }
   var _fetch = window.fetch;
   window.fetch = function (url, opts) {
-    if (typeof url === 'string') {
+    if (typeof url === 'string' && !isPhpApi(url)) {
       if (url.charAt(0) === '/' && url.charAt(1) !== '/' && url.indexOf('://') === -1) {
         // Relative URL → Render
         url = window.GV_BACKEND_URL + url;
@@ -3962,7 +3970,7 @@ window.GV = GV;
   };
   var _xhrOpen = XMLHttpRequest.prototype.open;
   XMLHttpRequest.prototype.open = function (method, url) {
-    if (typeof url === 'string') {
+    if (typeof url === 'string' && !isPhpApi(url)) {
       if (url.charAt(0) === '/' && url.charAt(1) !== '/' && url.indexOf('://') === -1) {
         arguments[1] = window.GV_BACKEND_URL + url;
       } else if (url.indexOf('://www.masaoyunlari.com.tr') !== -1 ||
@@ -3982,17 +3990,17 @@ GV.init();
 <script src="js/config.js?v=20260822a"></script>
 <script src="js/socket.io.min.js?v=20260819c"></script>
 <script src="js/app.js?v=20260820a" defer></script>
-<script src="js/games.js?v=20260821g" defer></script>
+<script src="js/games.js?v=20260823b" defer></script>
 <script src="js/utils.js?v=20260819c" defer></script>
 <script src="js/lobby-sync.js?v=20260820f" defer></script>
-<script src="js/room-waiting-fix.js?v=20260823a" defer></script>
-<script src="js/chess-online.js?v=20260821g" defer></script>
-<script src="js/tavla-online.js?v=20260821g" defer></script>
-<script src="js/okey-online.js?v=20260821h" defer></script>
+<script src="js/room-waiting-fix.js?v=20260823b" defer></script>
+<script src="js/chess-online.js?v=20260823b" defer></script>
+<script src="js/tavla-online.js?v=20260823b" defer></script>
+<script src="js/okey-online.js?v=20260823b" defer></script>
 <script src="js/chat.js?v=20260821c" defer></script>
 <script src="js/leave-guard.js?v=20260821h" defer></script>
-<script src="js/auth.js?v=20260822a" defer></script>
-<script src="js/social.js?v=20260822a" defer></script>
+<script src="js/auth.js?v=20260823b" defer></script>
+<script src="js/social.js?v=20260823b" defer></script>
 
 <!-- Structured Data for SEO -->
 <script type="application/ld+json">
@@ -4009,6 +4017,6 @@ GV.init();
   }
 }
 </script>
-<script src="js/no-bots.js?v=20260821g" defer></script>
+<script src="js/no-bots.js?v=20260823b" defer></script>
 <script src="js/board-fit.js?v=20260821h" defer></script></body>
 </html>

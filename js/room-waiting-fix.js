@@ -679,6 +679,7 @@
     const wasSpectator = !!window.__gvJoinAsSpectator;
     socket.emit('joinRoom', {
       memberToken, // her durumda doğru token (undefined olabilir ama auth.js yüklüyse dolu)
+      memberAttestation: (window.GVAuth && typeof GVAuth.attestation === 'function' ? (GVAuth.attestation() || undefined) : undefined),
       roomId,
       userName: userName(),
       userKey: userKey(),

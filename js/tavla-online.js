@@ -582,6 +582,7 @@
     localStorage.setItem('gv-room-id', roomId);
     socket.emit('joinRoom', {
       memberToken: (window.GVAuth && GVAuth.token ? (GVAuth.token() || undefined) : undefined),
+      memberAttestation: (window.GVAuth && GVAuth.attestation ? (GVAuth.attestation() || undefined) : undefined),
       roomId,
       userName: getUserName(),
       userKey: userKey(),

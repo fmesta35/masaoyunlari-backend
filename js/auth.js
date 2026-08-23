@@ -12,16 +12,62 @@
   'use strict';
 
   const BACKEND = (window.GV_BACKEND_URL || 'https://masaoyunlari-backend.onrender.com').replace(/\/+$/, '');
-  // Yöncü PHP bağımlılığı kaldırıldı (DDoS koruması REST trafiğini
-  // engelliyordu → "Üyelik sunucusundan boş cevap"). Tüm istekler
-  // Render Node uçlarına gider; server-auth.js installAuth() bu uçları
-  // KURULU (yerel SQLite veya uzak modda installProxy üzerinden PHP).
-  // Her iki modda da /api/* doğru çalışır.
+  // ÜYELİK REST YÖNLENDİRMESİ (DDoS'a dayanıklı mimari):
+  //  - Sayfa YÖNCÜ'den yayında ise (www.masaoyunlari.com.tr) üyelik uçları
+  //    TARAYICIDAN DOĞRUDAN Yöncü PHP'sine gider (/api/auth.php, /api/social.php).
+  //    Tarayıcı DDoS/anti-bot meydan okumasını sorunsuz geçiştirir —
+  //    Render'ın sunucu-sunucu istekleri ise engelleniyor (303 HTML) ve
+  //    "Üyelik sunucusundan boş cevap" hatasını üretti.
+  //  - Sayfa Render/localhost/e2b'ten yayında ise (geliştirme) Render'ın
+  //    kendi /api/* uçları kullanılır (yerel SQLite modu).
+  // Soket katmanı (kimlik/davet) ise her iki durumda da Render'da çalışır;
+  // kimlik PHP'nin imzaladığı kısa ömürlü "attest" belgesiyle taşınır.
   const TOK = 'gv-auth-token';
   let resetToken = null;
 
+  function isYoncuPage() {
+    const h = window.location.hostname;
+    if (!/masaoyunlari\.com\.tr$/i.test(h)) return false;
+    if (/(^|\.)onrender\.com$|\.e2b\.app$|localhost$|^127\.0\.0\.1$/.test(h)) return false;
+    return true;
+  }
+
+  // REST yolu → Yöncü PHP ucu (YENİ istemci yalnızca bunları kullanır).
+  const PHP_MAP = {
+    '/api/auth/register': 'auth.php?action=register',
+    '/api/auth/verify': 'auth.php?action=verify',
+    '/api/auth/login': 'auth.php?action=login',
+    '/api/auth/resend': 'auth.php?action=resend',
+    '/api/auth/forgot': 'auth.php?action=forgot',
+    '/api/auth/reset': 'auth.php?action=reset',
+    '/api/auth/me': 'auth.php?action=me',
+    '/api/auth/logout': 'auth.php?action=logout',
+    '/api/auth/mail-status': 'auth.php?action=mail-status',
+    '/api/auth/attest': 'auth.php?action=attest',
+    '/api/friends': 'social.php?action=friends',
+    '/api/friends/requests': 'social.php?action=friendRequests',
+    '/api/friends/request': 'social.php?action=friendRequest',
+    '/api/friends/add': 'social.php?action=friendAdd',
+    '/api/friends/accept': 'social.php?action=friendAccept',
+    '/api/friends/decline': 'social.php?action=friendDecline',
+    '/api/friends/remove': 'social.php?action=friendRemove',
+    '/api/friends/proof': 'social.php?action=friendProof'
+  };
+
+  // path (ops. ?query) → hedef URL. Yöncü sayfasında PHP'ye, diğerinde
+  // Render'a giden doğru adresi üretir (profil/arama dinamik parametreli).
   function urlFor(path) {
-    return BACKEND + path;
+    if (!isYoncuPage()) return BACKEND + path;
+    const qi = path.indexOf('?');
+    const base = qi === -1 ? path : path.slice(0, qi);
+    const query = qi === -1 ? '' : path.slice(qi + 1);
+    if (PHP_MAP[base]) return '/api/' + PHP_MAP[base] + (query ? '&' + query : '');
+    // /api/users/search?q=... ve /api/users/:id/profile
+    let m = base.match(/^\/api\/users\/(\d+)\/profile$/);
+    if (m) return '/api/social.php?action=profile&id=' + m[1] + (query ? '&' + query : '');
+    m = base.match(/^\/api\/users\/search$/);
+    if (m) return '/api/social.php?action=search' + (query ? '&' + query : '');
+    return BACKEND + path; // bilinmeyen uç: Render'a düş
   }
 
   function getToken() { try { return localStorage.getItem(TOK); } catch (_) { return null; } }
@@ -71,10 +117,12 @@
       if (typeof window[fn] === 'function') try { window[fn](); } catch (_) {}
     });
     authHelloAll();
+    refreshAttestation(); // soket kimliği için imzalı belgeyi hemen tazele
   }
 
   function clearUser() {
     setToken(null);
+    _attest = null;
     const s = st8();
     s.isGuest = true;
     s.user = { name: 'Ziyaretçi#' + Math.floor(100 + Math.random() * 900), score: 0, level: 1 };
@@ -84,9 +132,32 @@
   }
 
   // ---------- Soketlere kimlik (çevrimiçi + davet + sohbet) ----------
+  // İmzalı kimlik belgesi (auth.php?action=attest): PHP tarafından
+  // GV_SERVER_KEY ile imzalanır, 10 dk geçerlidir, Render'da YERİNDE
+  // doğrulanır — soket katmanı, Yöncü DDoS koruması Render→PHP'yi
+  // kapatsa bile kimlik doğrulamasını sürdürür.
+  let _attest = null;      // { value, at }
+  let _attestBusy = false;
+  function attestation() {
+    if (_attest && _attest.value && Date.now() - _attest.at < 8 * 60 * 1000) return _attest.value;
+    return null;
+  }
+  async function refreshAttestation() {
+    if (_attestBusy) return;
+    if (!getToken()) return;
+    _attestBusy = true;
+    try {
+      const r = await api('/api/auth/attest', null, 'GET');
+      if (r.ok && r.attest) _attest = { value: r.attest, at: Date.now() };
+    } catch (_) {}
+    _attestBusy = false;
+  }
   function authHello(sock) {
     if (!sock || !getToken()) return;
-    const hello = () => sock.emit('authHello', { token: getToken() });
+    const hello = () => {
+      const att = attestation();
+      sock.emit('authHello', att ? { token: getToken(), attestation: att } : { token: getToken() });
+    };
     if (sock.connected) hello();
     if (!sock.__gvAuthHello) {
       sock.__gvAuthHello = true;
@@ -96,7 +167,7 @@
   function authHelloAll() {
     [window.__gvRoomSocket, window.__gvLobbySocket, window.__gvChessSocket].forEach(authHello);
   }
-  setInterval(authHelloAll, 1500);
+  setInterval(() => { authHelloAll(); refreshAttestation(); }, 1500);
 
   // ---------- Modal akışları ----------
   async function doLogin() {
@@ -244,7 +315,7 @@
         try { origLogout.apply(this, arguments); } catch (_) {}
       }
     };
-    window.GVAuth = { token: getToken, user: () => (st8().isGuest ? null : st8().user), login: doLogin, logout: () => GV.logout(), api, authHelloAll, authHello };
+    window.GVAuth = { token: getToken, user: () => (st8().isGuest ? null : st8().user), login: doLogin, logout: () => GV.logout(), api, authHelloAll, authHello, attestation, refreshAttestation };
     hook.done = true;
   }
   hook.done = false;

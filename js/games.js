@@ -271,6 +271,7 @@ const GVGames = {
         const user = this.getCurrentUser();
         this.socket.emit('joinRoom', {
       memberToken: (window.GVAuth && GVAuth.token ? (GVAuth.token() || undefined) : undefined),
+      memberAttestation: (window.GVAuth && GVAuth.attestation ? (GVAuth.attestation() || undefined) : undefined),
             roomId: this.roomId,
             userName: user?.name || user?.username || localStorage.getItem('gv-user-name') || 'Oyuncu',
             maxPlayers: 2,
@@ -438,6 +439,7 @@ window.addEventListener('gv:makeMove', event => {
                 if (!window.__gvRoomSocket) return;
                 window.__gvRoomSocket.emit('joinRoom', {
       memberToken: (window.GVAuth && GVAuth.token ? (GVAuth.token() || undefined) : undefined),
+      memberAttestation: (window.GVAuth && GVAuth.attestation ? (GVAuth.attestation() || undefined) : undefined),
                     roomId: r.id,
                     userName: username,
                     maxPlayers: r.maxPlayers || maxPlayers,

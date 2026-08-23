@@ -162,6 +162,27 @@ if ($action === 'me') {
     gv_json(array('ok' => true, 'user' => gv_user_public($u)));
 }
 
+// Kısa ömürlü, İMZA'LI kimlik belgesi (HMAC-SHA256, GV_SERVER_KEY).
+// Tarayıcı bu belgeyi Render soket katmanına (authHello / joinRoom) taşır;
+// Render imzayı GV_SERVER_KEY ile yerinde doğrular — Yöncü DDoS koruması
+// Render'ın sunucu-sunucu isteklerini engellediği için kimlik doğrulaması
+// PHP'ye ULAŞMAYA GEREK KALMAZ. Belge 10 dk geçerlidir, yeniden kullanımı
+// (ts/exp/sig) imza ile sabitlenmiştir.
+if ($action === 'attest') {
+    $u = gv_user_by_token(gv_bearer());
+    if (!$u) gv_json(array('ok' => false, 'error' => 'Oturum geçersiz.'), 401);
+    $uid = intval($u['id']);
+    $nm  = gv_clean_name($u['name']);
+    $ts  = $now;
+    $exp = $now + 10 * 60 * 1000; // 10 dk
+    $sig = hash_hmac('sha256', $uid . '|' . $nm . '|' . $ts . '|' . $exp, GV_SERVER_KEY);
+    gv_json(array(
+        'ok' => true,
+        'user' => gv_user_public($u),
+        'attest' => array('id' => $uid, 'name' => $nm, 'ts' => $ts, 'exp' => $exp, 'sig' => $sig)
+    ));
+}
+
 if ($action === 'logout') {
     $t = gv_bearer();
     if ($t) {

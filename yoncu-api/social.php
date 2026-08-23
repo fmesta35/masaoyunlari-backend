@@ -221,6 +221,27 @@ if ($action === 'isFriendPair') {
     gv_json(array('ok' => true, 'friend' => (bool)$s->fetch()));
 }
 
+// Kısa ömürlü "arkadaşız" belgesi (HMAC-SHA256, GV_SERVER_KEY): üye kendi
+// Bearer oturumuyla çalar; Render davet anında imzayı yerinde doğrular —
+// DDoS koruması Render→PHP yolunu kapattığı için arkadaşlık kuralı yine
+// SUNUCU tarafında zorunlu kalır (istemci kanıtı sahtesizdir).
+// Çıktı: {ok, proof:{a,kurucuId, b,hedefId, ts, exp, sig}}
+if ($action === 'friendProof') {
+    $u = gv_user_by_token(gv_bearer());
+    if (!$u) gv_json(array('ok' => false, 'error' => 'Oturum geçersiz.'), 401);
+    $a = intval($u['id']);
+    $b = intval($in['friendId'] ?? 0);
+    if ($b <= 0 || $b === $a) gv_json(array('ok' => false, 'error' => 'Geçersiz hedef.'), 400);
+    $pdo = gv_pdo();
+    $s = $pdo->prepare("SELECT 1 FROM gv_friends WHERE (user_id = ? AND friend_id = ?) OR (user_id = ? AND friend_id = ?) LIMIT 1");
+    $s->execute(array($a, $b, $b, $a));
+    if (!$s->fetch()) gv_json(array('ok' => false, 'error' => 'Bu oyuncu arkadaş listenizde değil.'), 403);
+    $ts  = $now;
+    $exp = $now + 10 * 60 * 1000; // 10 dk
+    $sig = hash_hmac('sha256', 'friend|' . $a . '|' . $b . '|' . $ts . '|' . $exp, GV_SERVER_KEY);
+    gv_json(array('ok' => true, 'proof' => array('a' => $a, 'b' => $b, 'ts' => $ts, 'exp' => $exp, 'sig' => $sig)));
+}
+
 if ($action === 'recordMatch') {
     gv_require_server_key();
     $players = $in['players'] ?? array();

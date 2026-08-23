@@ -57,7 +57,37 @@
   // Eski davranış (geriye uyumluluk): GV_PHP_API doluysa PHP'ye proxy
   // atılıyordu. Bu YÖNCÜ DDoS'sinde takılıyordu → "Üyelik sunucusundan
   // boş cevap" hatası. Yeni davranış: HER ZAMAN Render backend uçları.
+  // Yöncü sayfasında üyelik uçları tarayıcıdan doğrudan Yöncü PHP'sine gider
+  // (DDoS koruması Render→PHP sunucu isteklerini engelliyor; tarayıcı
+  // istekleri sorun geçiştirir). Render/localhost'ta Render uçları kullanılır.
+  // (auth.js yüklüyse asıl yönlendirme GVAuth.api içinde yapılır — burası
+  // yalnızca auth.js yokken yedek yol.)
+  function isYoncuPage() {
+    const h = window.location.hostname;
+    if (!/masaoyunlari\.com\.tr$/i.test(h)) return false;
+    if (/(^|\.)onrender\.com$|\.e2b\.app$|localhost$|^127\.0\.0\.1$/.test(h)) return false;
+    return true;
+  }
+  const PHP_MAP = {
+    '/api/friends': 'social.php?action=friends',
+    '/api/friends/requests': 'social.php?action=friendRequests',
+    '/api/friends/request': 'social.php?action=friendRequest',
+    '/api/friends/add': 'social.php?action=friendAdd',
+    '/api/friends/accept': 'social.php?action=friendAccept',
+    '/api/friends/decline': 'social.php?action=friendDecline',
+    '/api/friends/remove': 'social.php?action=friendRemove',
+    '/api/friends/proof': 'social.php?action=friendProof'
+  };
   function urlFor(path) {
+    if (!isYoncuPage()) return BACKEND + path;
+    const qi = path.indexOf('?');
+    const base = qi === -1 ? path : path.slice(0, qi);
+    const query = qi === -1 ? '' : path.slice(qi + 1);
+    if (PHP_MAP[base]) return '/api/' + PHP_MAP[base] + (query ? '&' + query : '');
+    let m = base.match(/^\/api\/users\/(\d+)\/profile$/);
+    if (m) return '/api/social.php?action=profile&id=' + m[1] + (query ? '&' + query : '');
+    m = base.match(/^\/api\/users\/search$/);
+    if (m) return '/api/social.php?action=search' + (query ? '&' + query : '');
     return BACKEND + path;
   }
 
@@ -410,13 +440,29 @@
     return invitedMarks.set;
   }
 
-  function inviteFriendById(uid) {
+  async function inviteFriendById(uid, knownName) {
     if (!myId()) return showModal('guestPromptModal');
     if (!canInvite()) return explainNoInvite();
     const sock = window.__gvRoomSocket;
     if (!sock || !sock.connected) return toast('⚠️ Sunucu bağlantısı yok — birazdan tekrar deneyin.', 'error');
     const r = currentRoom();
-    sock.emit('gameInvite', { toUserId: Number(uid), roomId: String(r.id) });
+    // İmzalı arkadaşlık belgesi (PHP, tarayıcı üzerinden): sunucu imzayı
+    // yerinde doğrular — DDoS Render→PHP'yi kapatsa bile "yalnızca
+    // arkadaşına davet" kuralı sunucu tarafında korunur. Belge alınamazsa
+    // sunucu PHP'ye düşer (erişilebilirse) ya da daveti reddeder.
+    let proof = null;
+    try {
+      const pr = await api('/api/friends/proof', { friendId: Number(uid) }, 'POST');
+      if (pr && pr.ok && pr.proof) proof = pr.proof;
+    } catch (_) {}
+    const f = (friendsCache || []).find(x => Number(x.id) === Number(uid));
+    const toName = knownName || (f && f.name) || undefined;
+    sock.emit('gameInvite', {
+      toUserId: Number(uid),
+      roomId: String(r.id),
+      friendProof: proof || undefined,
+      toName
+    });
     // Sonuç 'inviteSent' / 'inviteRejected' olaylarıyla bildirilecek.
   }
 
