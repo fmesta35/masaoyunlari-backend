@@ -1385,6 +1385,11 @@ function clickNotif(id){
     // dolu" gerçek cevabı düşer. Eski 30 sn istemci sınırı, geç kabulü
     // "süre doldu" diye haksız yere engelliyordu.
     toast('🎮 Davet kabul edildi, odaya bağlanılıyor...', 'success');
+    // Davetle gelinen masanın OYUNU davet verisinde taşınır: istemci oyun
+    // bağlamını ona çek (aksi halde davetli kendi sayfa oyunuyla masayı
+    // görürdü — kurucu satranç kurmuş, davetli okey sayfasındaysa başlık
+    // "Okey Masa #X" görünürdü).
+    if (n.actionData.gameId && st) st.curGame = n.actionData.gameId;
     // Davetle gelindiğini sunucuya bildir: masa kapandıysa yeni oda AÇILMAZ,
     // "davet artık geçerli değil / oda dolu" gerçek cevabı döner.
     window.__gvJoinViaInvite = true;
@@ -4059,7 +4064,7 @@ GV.init();
 <script src="js/games.js?v=20260823b" defer></script>
 <script src="js/utils.js?v=20260819c" defer></script>
 <script src="js/lobby-sync.js?v=20260820f" defer></script>
-<script src="js/room-waiting-fix.js?v=20260823b" defer></script>
+<script src="js/room-waiting-fix.js?v=20260824c" defer></script>
 <script src="js/chess-online.js?v=20260823b" defer></script>
 <script src="js/tavla-online.js?v=20260823b" defer></script>
 <script src="js/okey-online.js?v=20260823b" defer></script>

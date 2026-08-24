@@ -69,6 +69,22 @@
     return def ? (def.icon + ' ' + def.name) : '♟️ Satranç';
   }
 
+  // ODAYI AÇAN OYUN BAĞLAMI: masanın oyunu SUNUCUDA (room.gameId) saklanır;
+  // istemci başlık/oyun modülünü kendi sayfa oyunundan (st.curGame) alırdı —
+  // kurucu satranç masası kurar, davetli OKEY sayfasındayken katılırsa
+  // masanın adı karşı tarafta "Okey Masa #X" görünürdü (aynı masa, farklı
+  // oyun adı karışıklığı). Sunucu odası gameId taşırken istemci oyun
+  // bağlamı ona senkronlanır → herkes aynı oyun adını/modülünü görür.
+  function syncCurGameToRoom(r) {
+    try {
+      const s = state();
+      if (!s || !r || !r.gameId) return;
+      const g = normGame(r.gameId);
+      if (!BRIDGE_GAMES.includes(g)) return; // köprü dışı oyun: dokunma
+      if (s.curGame !== g) s.curGame = g;
+    } catch (_) {}
+  }
+
   // Koltuk sayısı odadan okunur: okey 2/3/4 kişilik olabilir (hazır masaların
   // ve üyelerin kurduğu masaların kapasitesi sunucudan gelir), satranç/tavla 2.
   function maxSeats() {
@@ -503,6 +519,7 @@
       });
       socket.on('roomUpdated', r => {
         if (!r || String(r.id) !== roomId || !isChess()) return;
+        syncCurGameToRoom(r); // masanın gerçek oyunu istemci bağlamıyla eşitlensin
         room = r;
         window.__gvActiveRoom = r;
         const mePlayer = (r.players || []).find(isMe);
@@ -522,6 +539,7 @@
         window.__gvRoomJoined = true; // oda kaydı sunucuda oturdu — HAZIRIM güvenle gönderilebilir
         window.__gvIsSpectator = p.role === 'spectator' || !!p.isSpectator;
         if (p.room) {
+          syncCurGameToRoom(p.room); // masanın oyunu = masanın oyunu (başlık/modül)
           room = p.room;
           window.__gvActiveRoom = p.room;
         }
@@ -829,6 +847,9 @@
   }
 
   function startRealRoomWaiting(r) {
+    // Oda nesnesi gameId taşıyorsa (lobi/davet) istemci bağlamını ona çek —
+    // bu sayede isChess()/aktif oyun kararı masanın OYUNUNA göre yapılır.
+    syncCurGameToRoom(r);
     if (!isChess()) return;
     roomId = String(r?.id || roomIdNow() || '');
     room = r || { id: roomId, name: gameLabel() + ' Masası #' + roomId, maxPlayers: maxSeats(), duration: 10, players: [], status: 'waiting' };
