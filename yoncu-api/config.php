@@ -2,6 +2,13 @@
 /*
  * GameVerse — Yöncü tarafı yapılandırması (SUNUCUDA DOLDURULUR!)
  *
+ *  🚫  BU DOSYAYI SUNUCUYA BASA BASINA YUKLEMEYIN!  🚫
+ *  Bu depo kopyasi SABLONDUR (BURAYA_... yer tutuculari icerir). Sunucuya
+ *  yuklenirse gercek config.php EZILIR -> uyelik sistemi "Veritabanina
+ *  baglanilamadi" hatasiyla DURUR. Sunucu uzerindeki dosya TEK
+ *  KAYNAKTIR; yeni bir alan gerekiyorsa (orn. GV_ADMIN_EMAIL) o
+ *  SATIRI sunucudaki dosyanin sonuna ekleyin, dosyayi degistirMEYIN.
+ *
  *  ⚠️⚠️  DİKKAT: BU DOSYA ŞABLONDUR  ⚠️⚠️
  *  Gerçek şifreleri ASLA bu dosyaya / GITHUB'A yazmayın! Gerçek doldurulmuş
  *  kopya YALNIZCA Yöncü sunucusunda (/public_html/api/config.php) yaşar ve

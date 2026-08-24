@@ -25,9 +25,17 @@ anahtar uydurun (40+ karakter) — **aynı anahtar Render'a da girecek**.
 
 | Ne | Nereye (Yöncü public_html) |
 |---|---|
-| `yoncu-api/` klasörünün **içeriği** (config.php, bootstrap.php, mailer.inc.php, auth.php, social.php) | **`/api/` klasörü oluşturup içine** |
+| `yoncu-api/` klasörünün **içeriği** (bootstrap.php, mailer.inc.php, auth.php, social.php, admin.php) | **`/api/` klasörü oluşturup içine** |
 | `js/config.js`, `js/auth.js`, `js/social.js` (20260820f) | site kökündeki `js/` |
 | `index.html` | site kökü |
+
+> 🚫 **`config.php` ASLA yüklenmez!** Depodaki config.php şablondur
+> (`BURAYA_...` yer tutucuları). Sunucudaki gerçek `config.php` (gerçek DB
+> ve SMTP şifreleriyle) **TEK KAYNAKTIR**; dosya yöneticisinde düzenlenir.
+> Şablonu sunucuya yüklerseniz bilgiler ezilir ve üyelik sistemi
+> **"Veritabanına bağlanılamadı"** hatasıyla DURUR. Şablonda yeni bir alan
+> (örn. `GV_ADMIN_EMAIL`) çıktıysa, o SATIRI sunucudaki gerçek dosyanın
+> sonuna kopyalayın — dosyayı baştan yüklemeyin.
 
 Sonunda linkler şöyle olmalı: `https://www.masaoyunlari.com.tr/api/auth.php?action=register`
 
