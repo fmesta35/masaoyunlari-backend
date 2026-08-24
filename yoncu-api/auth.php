@@ -223,6 +223,16 @@ if ($action === 'selftest') {
         gv_json(array('ok' => false, 'steps' => $steps), 500);
     }
     $steps[] = array('adım' => 'mail() fonksiyonu', 'ok' => function_exists('mail'));
+    // GV_SERVER_KEY: kimlik belgesi (attest) imzalarının anahtarı. Render'daki
+    // GV_SERVER_KEY ortam değişkeniyle BİREBİR aynı olmalı; farklıysa soket
+    // kimliği doğrulanamaz ("PHP cevap vermedi"). Değerin tamamı YAZILMAZ —
+    // uzunluk + ilk 4 karakter ile Render'daki değer karşılaştırılır.
+    $gvKey = defined('GV_SERVER_KEY') ? strval(GV_SERVER_KEY) : '';
+    $gvKeyOk = (strlen($gvKey) >= 16) && ($gvKey !== 'BURAYA_UZUN_RASTGELE_ANAHTAR');
+    $steps[] = array('adım' => 'GV_SERVER_KEY (Render ile birebir aynı olmalı)', 'ok' => $gvKeyOk,
+        'detay' => $gvKeyOk
+            ? ('uzunluk ' . strlen($gvKey) . ', başlangıç: ' . substr($gvKey, 0, 4) . '… — Render Environment\'daki GV_SERVER_KEY ile aynı mı kontrol edin')
+            : 'tanımsız veya şablon değer — Render\'daki GV_SERVER_KEY ile aynı değeri config.php\'ye yazın');
     if (!empty($_GET['send']) && gv_email_ok($_GET['send'])) {
         $sent = gv_send_mail(strval($_GET['send']), 'GameVerse SMTP Testi', 'Bu bir GameVerse kurulum test e-postasıdır.', '<b>Bu bir GameVerse kurulum test e-postasıdır.</b>');
         $steps[] = array('adım' => 'Test maili gönderimi', 'ok' => (bool)$sent, 'detay' => $sent ? ('Gönderildi → ' . strval($_GET['send'])) : ('BAŞARISIZ: ' . gv_mail_last_error()));
