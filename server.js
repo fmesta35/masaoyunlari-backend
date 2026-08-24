@@ -2457,6 +2457,62 @@ app.get('/api/admin/tables', (req, res) => {
   res.json({ ok: true, games: presetConfig });
 });
 
+// Kurucu Paneli / Ana sayfa — canlı istatistikler (yalnız yönetici).
+// Metrikler: online üye, aktif/bugünkü oyun, toplam/devam eden/tamamlanan
+// maç, günlük-haftalık-aylık yeni üye, 7 günde aktif üye.
+app.get('/api/admin/stats', (req, res) => {
+  if (!requireAdmin(req, res)) return;
+  const now = Date.now();
+  const DAY = 86400000, WEEK = 7 * DAY, MONTH = 30 * DAY;
+  const onlineUsers = (authApi && typeof authApi.onlineCount === 'function') ? authApi.onlineCount() : 0;
+  let activeGames = 0, ongoingMatches = 0, totalGames = ALL_GAMES.length;
+  try {
+    const playingGames = new Set();
+    for (const r of rooms.values()) {
+      if (r.status === 'playing') { ongoingMatches++; playingGames.add(r.gameId); }
+    }
+    activeGames = playingGames.size;
+  } catch (_) {}
+  let totalMatches = 0, completedMatches = 0, gamesToday = 0, activeUsers = 0, totalUsers = 0;
+  let newUsersToday = 0, newUsersWeek = 0, newUsersMonth = 0;
+  if (db) {
+    try {
+      totalUsers = db.prepare('SELECT COUNT(*) c FROM users').get().c;
+      const c = db.prepare('SELECT COUNT(*) c FROM matches').get().c;
+      totalMatches = c; completedMatches = c;
+      gamesToday = db.prepare('SELECT COUNT(*) c FROM matches WHERE ts >= ?').get(now - DAY).c;
+      newUsersToday = db.prepare('SELECT COUNT(*) c FROM users WHERE created_at >= ?').get(now - DAY).c;
+      newUsersWeek = db.prepare('SELECT COUNT(*) c FROM users WHERE created_at >= ?').get(now - WEEK).c;
+      newUsersMonth = db.prepare('SELECT COUNT(*) c FROM users WHERE created_at >= ?').get(now - MONTH).c;
+      // 7 günde en az 1 maçı olan AYRIK üye adedi (son 500 maç taramasıyla):
+      const recent = db.prepare('SELECT players FROM matches WHERE ts >= ? ORDER BY ts DESC LIMIT 500').all(now - WEEK);
+      const seen = new Set();
+      for (const m of recent) {
+        try { (JSON.parse(m.players) || []).forEach(p => { if (p && p.id != null) seen.add(p.id); }); } catch (_) {}
+      }
+      activeUsers = seen.size;
+    } catch (e) { console.warn('stats hatası:', e.message); }
+  }
+  res.json({
+    ok: true,
+    stats: {
+      onlineUsers,
+      totalGames,
+      activeGames,
+      activeUsers,
+      totalUsers,
+      gamesToday,
+      totalMatches,
+      ongoingMatches,
+      completedMatches,
+      newUsersToday,
+      newUsersWeek,
+      newUsersMonth,
+      now
+    }
+  });
+});
+
 // Çevrimiçi durum haritalaması (arkadaş listesi / profil bayrakları).
 // NEDEN BURADA: çevrimiçi durum Render'ın soket haritasında yaşar; Yöncü
 // PHP'si bunu bilemez. Yeni mimaride tarayıcı üyelik uçlarına PHP'ye

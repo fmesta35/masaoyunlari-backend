@@ -95,7 +95,10 @@
       const m = {};
       (apply.games || []).forEach(g => { m[g.id] = g.visible; });
       window.__gvGameVisibility = m;
-      ['renderSB', 'renderHome', 'renderAll'].forEach(fn => { if (typeof window[fn] === 'function') window[fn](); });
+      // Tüm siteye yansıt: menü + ana sayfa + tüm oyunlar + sıralama/turnuva
+      // sekmeleri + oyun skoru ızgarası (gizlenen oyunun tüm buton/görseli kalksın).
+      ['renderSB', 'renderHome', 'renderAll', 'renderLBTabs', 'renderTournTabs', 'updateScoreUI']
+        .forEach(fn => { if (typeof window[fn] === 'function') window[fn](); });
     } catch (_) {}
     return { ok: true };
   }
@@ -331,6 +334,75 @@
     else toast('⚠️ ' + (r.error || 'Kaydedilemedi.'), 'error');
   }
 
+  // ---------------- Ana sayfa istatistik paneli (yalnız kurucu) ----------------
+  // Welcome kutusunun hemen altına canlı istatistik kartları. Üye/maç
+  // sayıları üretimde Yöncü MySQL'den (PHP), online/aktif oyun/devam eden
+  // maç Render'ın canlı durumundan; ikisi istemcide birleştirilir.
+  let statsSection = null;
+  function statsTarget() {
+    return isAdmin() && document.getElementById('pg-home');
+  }
+  function ensureStatsSection() {
+    if (!statsTarget()) { removeStatsSection(); return null; }
+    if (statsSection && statsSection.isConnected) return statsSection;
+    statsSection = document.createElement('div');
+    statsSection.id = 'adminStatsSection';
+    const home = document.getElementById('pg-home');
+    const welcome = home.querySelector('#welcomeHeading');
+    const anchor = welcome ? welcome.closest('div') : home.firstChild;
+    statsSection.innerHTML =
+      '<div class="card mb" style="padding:14px">' +
+        '<h4 style="margin-bottom:10px;font-size:.9em">📊 Yönetici İstatistikleri ' +
+        '<span style="font-size:.7em;color:var(--text3);font-weight:400">(canlı, 30 sn&#39;de bir yenilenir)</span></h4>' +
+        '<div class="stats" id="adminStatsGrid" style="margin-bottom:0"><div style="color:var(--text3);font-size:.85em">⏳ Yükleniyor...</div></div>' +
+      '</div>';
+    if (anchor && anchor.parentNode === home) home.insertBefore(statsSection, anchor.nextSibling);
+    else home.insertBefore(statsSection, home.firstChild);
+    return statsSection;
+  }
+  function removeStatsSection() {
+    if (statsSection && statsSection.isConnected) statsSection.remove();
+    statsSection = null;
+  }
+  async function refreshHeroStats() {
+    if (!ensureStatsSection()) return;
+    const grid = document.getElementById('adminStatsGrid');
+    if (!grid) return;
+    try {
+      // Üye/maç: üretimde PHP'den, diğerinde Render'ın kendi DB'sinden.
+      const userStatsP = isYoncuPage()
+        ? api('/api/admin.php?action=stats', null, 'GET')
+        : api(BACKEND + '/api/admin/stats', null, 'GET');
+      // Canlı durum: her zaman Render'dan (online haritası + odalar).
+      const liveP = api(BACKEND + '/api/admin/stats', null, 'GET');
+      const [us, live] = await Promise.all([userStatsP, liveP]);
+      const a = (us && us.ok && us.stats) ? us.stats : {};
+      const b = (live && live.ok && live.stats) ? live.stats : {};
+      const s = Object.assign({}, a, b); // canlı durum öncelikli (b)
+      const fmt = n => (Number(n) || 0).toLocaleString('tr-TR');
+      const cards = [
+        ['🟢', fmt(s.onlineUsers), 'Online Kullanıcı'],
+        ['👤', fmt(s.activeUsers), 'Aktif Kullanıcı (7 gün)'],
+        ['🆕', fmt(s.newUsersToday), 'Bugün Yeni Üye'],
+        ['📅', fmt(s.newUsersWeek), 'Haftalık Yeni Üye'],
+        ['🗓️', fmt(s.newUsersMonth), 'Aylık Yeni Üye'],
+        ['👥', fmt(s.totalUsers), 'Toplam Üye'],
+        ['🎮', fmt(s.totalGames), 'Toplam Oyun'],
+        ['⚡', fmt(s.activeGames), 'Aktif Oyun'],
+        ['🕹️', fmt(s.gamesToday), 'Günlük Oyun'],
+        ['🏟️', fmt(s.totalMatches), 'Toplam Maç'],
+        ['🔄', fmt(s.ongoingMatches), 'Devam Eden Maç'],
+        ['✅', fmt(s.completedMatches), 'Tamamlanan Maç']
+      ];
+      grid.innerHTML = cards.map(c =>
+        '<div class="stat"><div class="stat-icon">' + c[0] + '</div>' +
+        '<div class="stat-val">' + c[1] + '</div>' +
+        '<div class="stat-label">' + c[2] + '</div></div>').join('');
+    } catch (e) {
+      grid.innerHTML = '<div style="color:#ff7675;font-size:.85em">⚠️ İstatistik alınamadı</div>';
+    }
+  }
+
   // ---------------- üst bar butonu + giriş ----------------
   function ensurePanelButton() {
     if (!isAdmin()) return;
@@ -359,7 +431,8 @@
   // oturumundayken buton var, değilse temizlenir.
   function tick() {
     if (!window.GV) return;
-    if (isAdmin()) ensurePanelButton(); else dropPanelButton();
+    if (isAdmin()) { ensurePanelButton(); ensureStatsSection(); }
+    else { dropPanelButton(); removeStatsSection(); }
     if (!window.GV.openAdminPanel) {
       window.GV.openAdminPanel = function () {
         panelModal();
@@ -369,6 +442,9 @@
     }
   }
   setInterval(tick, 600);
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', tick, { once: true });
-  else tick();
+  // İstatistik verisi 30 sn'de bir tazelenir (yalnız kurucu oturumunda):
+  setInterval(() => { if (statsTarget()) refreshHeroStats(); }, 30000);
+  function boot() { tick(); if (statsTarget()) refreshHeroStats(); }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot, { once: true });
+  else boot();
 })();

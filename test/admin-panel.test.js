@@ -78,6 +78,18 @@ async function main() {
   assert.strictEqual(denied.status, 403, 'diğer üyeler admin uçlarına girmez (403)');
   console.log('  ✓ 2) kurucu@kurucu.com otomatik hesapla giriş; üye listesi YALNIZ kurucuya açık');
 
+  // ---------- 2b) ana sayfa istatistikleri (canlı, yalnız kurucu) ----------
+  const stats = await api(BASE, '/api/admin/stats', null, 'GET', login.token);
+  assert.ok(stats.ok && stats.stats, 'istatistik döner');
+  assert.strictEqual(stats.stats.totalGames, 12, '12 oyun türü');
+  assert.ok(stats.stats.onlineUsers >= 0, 'online kullanıcı sayısı');
+  assert.ok(stats.stats.totalUsers >= 2, 'toplam üye (kurucu + basit)');
+  assert.ok('newUsersToday' in stats.stats && 'newUsersWeek' in stats.stats && 'newUsersMonth' in stats.stats, 'günlük/haftalık/aylık yeni üye');
+  assert.ok('totalMatches' in stats.stats && 'ongoingMatches' in stats.stats && 'completedMatches' in stats.stats, 'maç metrikleri');
+  const statsDenied = await api(BASE, '/api/admin/stats', null, 'GET', otherLogin.token);
+  assert.strictEqual(statsDenied.status, 403, 'istatistik yalnız kurucuya açık (403)');
+  console.log('  ✓ 2b) ana sayfa istatistikleri: canlı metrikler yalnız kurucuya (online/üye/maç/yeni üye)');
+
   // ---------- 3) tables-apply: gizle / sayı / ad-tip ----------
   const meta0 = await api(BASE, '/api/games-meta', null, 'GET');
   assert.ok(meta0.ok && meta0.games.every(g => g.visible), 'başlangıçta tümü görünür');

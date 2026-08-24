@@ -115,6 +115,9 @@ function uidFromUserKey(userKey) {
   return m ? Number(m[1]) : null;
 }
 function isOnline(userId) { const s = online.get(Number(userId)); return !!(s && s.size); }
+// Çevrimiçi AYRIK üye sayısı (istatistik paneli için): en az bir soketi
+// bağlı olan üye adedi.
+function onlineCount() { let n = 0; for (const s of online.values()) if (s && s.size) n++; return n; }
 
 // Kimlik authHello ile SONRADAN çözüldüyse (join anında üyelik backend'i
 // yavaştı), soket bir odaysa oda kaydındaki üye alanlarını güncelle:
@@ -593,7 +596,7 @@ function installAuth(app, deps) {
   }
 
   console.log('👤 Üyelik & sosyal katman aktif (auth + profil + arkadaş + davet).');
-  return { isOnline, uidFromUserKey, recordMatch, attachSocket, userById,
+  return { isOnline, onlineCount, uidFromUserKey, recordMatch, attachSocket, userById,
     // Kurucu Paneli yetki kontrolü (server.js requireAdmin): istemcinin
     // oturum sahibini (e-posta dahil) döndürür.
     userFromReq: (req) => authFromReq(req),
@@ -838,7 +841,7 @@ function installRemoteMode(app, deps) {
   function logChat(m) { remote.logChat(m); }
 
   console.log('👤 Üyelik UZAK modda: Yöncü PHP/MySQL — Render sadece soket/proxy.');
-  return { isOnline, uidFromUserKey, recordMatch, attachSocket, logChat, userById: () => null,
+  return { isOnline, onlineCount, uidFromUserKey, recordMatch, attachSocket, logChat, userById: () => null,
     // Uzak modda jeton Yöncü PHP'de doğrulanır (3 kanallı me çağrısı).
     verifyToken: async (t) => { const u = t ? await remote.me(String(t)) : null; return (u && u.id) ? Number(u.id) : null; },
     // Kararlı sonuç: 401 → 'invalid' (kesin), timeout/ağ → 'unknown'.

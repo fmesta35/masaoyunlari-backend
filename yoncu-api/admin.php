@@ -86,4 +86,43 @@ if ($action === 'gamesSave') {
     gv_json(array('ok' => true));
 }
 
+// Kurucu Paneli / Ana sayfa — üye + maç istatistikleri (MySQL'den).
+// Online/aktif-oyun/devam-eden maçı Render canlı durumdan verir; istemci
+// iki kaynağı birleştirir (bkz. js/admin-panel.js refreshHeroStats).
+if ($action === 'stats') {
+    gv_require_admin();
+    $DAY = 86400000; $WEEK = 7 * $DAY; $MONTH = 30 * $DAY;
+    $totalUsers = intval($pdo->query("SELECT COUNT(*) c FROM gv_users")->fetchColumn());
+    $cnt = function ($ms) use ($pdo, $now) {
+        $s = $pdo->prepare("SELECT COUNT(*) c FROM gv_users WHERE created_at >= ?");
+        $s->execute(array($now - $ms));
+        return intval($s->fetchColumn());
+    };
+    $newUsersToday = $cnt($DAY);
+    $newUsersWeek = $cnt($WEEK);
+    $newUsersMonth = $cnt($MONTH);
+    $totalMatches = intval($pdo->query("SELECT COUNT(*) c FROM gv_matches")->fetchColumn());
+    // 7 günde en az 1 maçı olan AYRIK üye (son 500 maç oyuncular JSON'u):
+    $activeUsers = 0;
+    $recent = $pdo->prepare("SELECT players FROM gv_matches WHERE ts >= ? ORDER BY ts DESC LIMIT 500");
+    $recent->execute(array($now - $WEEK));
+    $seen = array();
+    foreach ($recent->fetchAll(PDO::FETCH_ASSOC) as $m) {
+        $pl = json_decode(strval($m['players']), true);
+        if (is_array($pl)) foreach ($pl as $p) {
+            if (isset($p['id']) && $p['id'] !== null) $seen[intval($p['id'])] = 1;
+        }
+    }
+    $activeUsers = count($seen);
+    gv_json(array('ok' => true, 'stats' => array(
+        'totalUsers' => $totalUsers,
+        'newUsersToday' => $newUsersToday,
+        'newUsersWeek' => $newUsersWeek,
+        'newUsersMonth' => $newUsersMonth,
+        'activeUsers' => $activeUsers,
+        'totalMatches' => $totalMatches,
+        'completedMatches' => $totalMatches,
+    )));
+}
+
 gv_json(array('ok' => false, 'error' => 'Bilinmeyen işlem.'), 404);

@@ -2104,7 +2104,7 @@ function updateScoreUI(){
   ['userRankBadge','profRankBadge','ranksMyBadge'].forEach(id=>{const el=document.getElementById(id);if(el){el.textContent=rankEl.name;el.className='rank-badge '+rankEl.cls;}});
   const gsEl=document.getElementById('gameScoresGrid');
   if(gsEl){
-    gsEl.innerHTML=Object.entries(GAMES).map(([gid,g])=>{
+    gsEl.innerHTML=Object.entries(GAMES).filter(([gid])=>gvGameVisible(gid)).map(([gid,g])=>{
       const gInfo=getUserRankInfo(gid);
       return `<div style="background:var(--card);padding:10px;border-radius:8px;border:1px solid var(--border);cursor:pointer" onclick="GV.openLobby('${gid}')"><div style="display:flex;align-items:center;gap:6px;margin-bottom:4px"><span style="font-size:1.3em">${g.icon}</span><span style="font-size:.75em;color:var(--text2);flex:1">${g.name}</span></div><div style="font-size:1.1em;font-weight:800;color:var(--accent)">${(st.scores[gid]||0).toLocaleString()}</div><div style="font-size:.65em;margin-top:2px"><span class="rank-badge ${gInfo.rank.cls}" style="font-size:.85em;padding:1px 6px">${gInfo.rank.name.substring(0,15)}</span></div></div>`;
     }).join('');
@@ -2123,7 +2123,7 @@ function renderRanks(){
 function renderLBTabs(){
   const el=document.getElementById('lbTabs');if(!el)return;
   let h='<button class="lb-tab active" onclick="GV.selectLBTab(\'overall\',this)">🌟 Genel</button>';
-  Object.entries(GAMES).forEach(([gid,g])=>{h+=`<button class="lb-tab" onclick="GV.selectLBTab('${gid}',this)">${g.icon} ${g.name}</button>`;});
+  Object.entries(GAMES).filter(([gid])=>gvGameVisible(gid)).forEach(([gid,g])=>{h+=`<button class="lb-tab" onclick="GV.selectLBTab('${gid}',this)">${g.icon} ${g.name}</button>`;});
   el.innerHTML=h;
 }
 
@@ -2167,7 +2167,7 @@ function renderLB(){
 function renderTournTabs(){
   const el=document.getElementById('tournTabs');if(!el)return;
   let h='<button class="t-tab active" onclick="GV.selectTournTab(\'all\',this)">🌟 Tümü</button>';
-  Object.entries(GAMES).forEach(([gid,g])=>{h+=`<button class="t-tab" onclick="GV.selectTournTab('${gid}',this)">${g.icon} ${g.name}</button>`;});
+  Object.entries(GAMES).filter(([gid])=>gvGameVisible(gid)).forEach(([gid,g])=>{h+=`<button class="t-tab" onclick="GV.selectTournTab('${gid}',this)">${g.icon} ${g.name}</button>`;});
   el.innerHTML=h;
 }
 
