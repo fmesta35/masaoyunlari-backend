@@ -140,6 +140,12 @@ function gv_schema($pdo) {
         ts BIGINT NOT NULL,
         INDEX (room_id), INDEX (ts)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci");
+    // Yönetici (kurucu) paneli ayarları: hazır masa yapılandırması (JSON).
+    $pdo->exec("CREATE TABLE IF NOT EXISTS gv_settings(
+        skey VARCHAR(64) PRIMARY KEY,
+        value TEXT NOT NULL,
+        updated_at BIGINT NOT NULL
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci");
 }
 
 // ---------------- Üye yardımcıları ----------------
@@ -152,6 +158,28 @@ function gv_user_by_token($token) {
     $s->execute(array($token));
     $u = $s->fetch();
     return $u ? $u : null;
+}
+
+// ---------------- Yönetici (kurucu) hesabı ----------------
+// Kurucu Paneli yalnız GV_ADMIN_EMAIL hesabının oturumunda açılır.
+// Hesap YOKSA ilk kimlik işlemi sırasında OTOMATİK oluşturulur
+// (onaylı, şifre: kurucu123) — kurucu@kurucu.com ile giriş yapılır.
+// (auth.php HER kimlik çağrısında, admin.php HER istekte bunu dener.)
+function gv_admin_email() {
+    return defined('GV_ADMIN_EMAIL') ? strtolower(strval(GV_ADMIN_EMAIL)) : 'kurucu@kurucu.com';
+}
+function gv_ensure_admin($pdo, $now) {
+    static $done = false;
+    if ($done) return;
+    $done = true;
+    $mail = gv_admin_email();
+    $s = $pdo->prepare("SELECT id FROM gv_users WHERE email = ?");
+    $s->execute(array($mail));
+    if (!$s->fetch()) {
+        $pdo->prepare("INSERT INTO gv_users(name, email, pass_hash, verified, verify_token, verify_sent_at, created_at)
+                       VALUES(?, ?, ?, 1, NULL, 0, ?)")
+            ->execute(array('👑 Kurucu', $mail, password_hash('kurucu123', PASSWORD_DEFAULT), $now));
+    }
 }
 
 function gv_require_user() {

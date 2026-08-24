@@ -29,6 +29,11 @@ if ($action === 'ping') {
 $in = gv_input();
 $now = round(microtime(true) * 1000);
 
+// Yönetici (kurucu) hesabı teminatı: admin.php hiç çağrılmamış olsa bile
+// ilk kimlik işlemi sırasında kurucu@kurucu.com hesabı hazır olsun —
+// Kurucu Paneli'ne kurucu123 şifresiyle giriş yapılabilsin.
+try { gv_ensure_admin(gv_pdo(), $now); } catch (Exception $e) {}
+
 function gv_user_public($u) { return array('id' => intval($u['id']), 'name' => $u['name'], 'email' => $u['email']); }
 
 if ($action === 'register') {

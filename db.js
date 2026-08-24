@@ -68,6 +68,11 @@ try {
       ts INTEGER NOT NULL
     );
     CREATE INDEX IF NOT EXISTS idx_matches_ts ON matches(ts);
+    CREATE TABLE IF NOT EXISTS settings(
+      skey TEXT PRIMARY KEY,
+      value TEXT NOT NULL,
+      updated_at INTEGER
+    );
   `);
   console.log('💾 SQLite veritabanı hazır (' + path.join(dir, 'gameverse.db') + ')');
   }

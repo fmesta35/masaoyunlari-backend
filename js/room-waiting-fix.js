@@ -10,44 +10,63 @@
     try { return typeof st !== 'undefined' ? st : null; } catch (_) { return null; }
   }
 
+  // Gerçek (soket) bekleme odası kullanan oyunlar: satranç, tavla, okey +
+  // 10'ar hazır masa açılan damalar/reversi/gomoku/connect4/bilardo.
+  // Bu oyunlarda lobi masaları, özel masa ve "özel oyun oluştur" aynı
+  // masada-bekleme görünümünü (otur/kalk/hazırım/izle) kullanır.
+  // (101 Okey, Pişti, Batak yerel akışta kalır.)
+  const BRIDGE_GAMES = ['chess', 'satranc', 'satranç', 'tavla', 'okey',
+    'dama', 'turkdamasi', 'reversi', 'gomoku', 'connect4', 'bilardo'];
+  const normGame = (g) => {
+    g = String(g || '').toLowerCase().trim();
+    if (g === 'satranc' || g === 'satranç') return 'chess';
+    return g;
+  };
+
   function isChess() {
     const s = state();
     let g = s?.curGame || window.__gvCurrentGame || window.currentGame || '';
     if (g === null || g === undefined || g === 'null' || g === 'undefined') g = '';
-    g = String(g).toLowerCase().trim();
+    g = normGame(g);
 
-    // If curGame is explicitly another game (Pişti, 101 Okey etc.), it is NOT chess/tavla/okey!
-    if (g && g !== 'chess' && g !== 'satranc' && g !== 'satranç' && g !== 'tavla' && g !== 'okey') {
-      return false;
-    }
+    // curGame AÇIKÇA tanımlıysa onunla karar ver: köprü oyunu ise evet,
+    // değilse (Pişti, 101 Okey, Batak) hayır — yerel akış korunur.
+    if (g) return BRIDGE_GAMES.includes(g);
 
-    if (g === 'chess' || g === 'satranç' || g === 'satranc' || g === 'tavla' || g === 'okey') return true;
-
+    // curGame boşsa başlık/istemci bayrağından çıkar:
     const title = (document.getElementById('grTitle')?.textContent || '').toLowerCase();
     if (/satranç|satranc|tavla/i.test(title)) return true;
     if (/okey/i.test(title) && !/101/.test(title)) return true;
+    if (/dama|reversi|gomoku|connect|bilardo/i.test(title)) return true;
 
-    return !!window.__gvChessOnlineRequested || !!window.__gvTavlaOnlineRequested || !!window.__gvOkeyOnlineRequested;
+    return !!window.__gvChessOnlineRequested || !!window.__gvTavlaOnlineRequested || !!window.__gvOkeyOnlineRequested || !!window.__gvOnlineRequested;
   }
 
-  // Bu köprü satranç, tavla ve okey odalarını yönetir; aktif oyunu döndürür.
+  // Bu köprü tüm gerçek-masa oyunlarının odalarını yönetir; aktif oyunu döndürür.
   function activeGame() {
     const s = state();
     let g = s?.curGame || window.__gvCurrentGame || window.currentGame || '';
     if (g === null || g === undefined || g === 'null' || g === 'undefined') g = '';
-    g = String(g).toLowerCase().trim();
-    if (g === 'tavla' || g === 'okey') return g;
+    g = normGame(g);
+    if (BRIDGE_GAMES.includes(g)) return g;
     if (!g) {
       const title = (document.getElementById('grTitle')?.textContent || '').toLowerCase();
       if (/tavla/i.test(title)) return 'tavla';
       if (/okey/i.test(title) && !/101/.test(title)) return 'okey';
+      if (/dama|dama/i.test(title) && /türk/i.test(title)) return 'turkdamasi';
+      if (/dama/i.test(title)) return 'dama';
+      if (/reversi/i.test(title)) return 'reversi';
+      if (/gomoku/i.test(title)) return 'gomoku';
+      if (/connect/i.test(title)) return 'connect4';
+      if (/bilardo/i.test(title)) return 'bilardo';
     }
     return 'chess';
   }
 
   function gameLabel() {
     const g = activeGame();
-    return g === 'tavla' ? '🎲 Tavla' : g === 'okey' ? '🀄 Okey' : '♟️ Satranç';
+    const def = window.GAMES && window.GAMES[g];
+    return def ? (def.icon + ' ' + def.name) : '♟️ Satranç';
   }
 
   // Koltuk sayısı odadan okunur: okey 2/3/4 kişilik olabilir (hazır masaların
@@ -237,9 +256,13 @@
         '</div>';
     };
 
+    // Online motoru henüz olmayan oyunlarda "başlatılıyor" yerine dürüst
+    // bir bekleme mesajı göster (masada otur/kalk/hazırım çalışmaya devam
+    // eder; motor eklendiğinde oyun otomatik başlar).
+    const engineReady = ['chess', 'tavla', 'okey'].includes(activeGame());
     const status = watching
       ? (full ? '👁️ İzleyici olarak bekliyorsunuz. Oyun başlayınca masayı göreceksiniz.' : '👁️ İzleyici olarak bekliyorsunuz.')
-      : allReady ? '🚀 Oyun başlatılıyor...' : full
+      : allReady ? (engineReady ? '🚀 Oyun başlatılıyor...' : '⏳ Tüm oyuncular hazır — online oyun bu masada aktif edildiğinde başlayacak.') : full
         ? (ready ? '⏳ Diğer oyuncuların da "HAZIRIM" demesi bekleniyor...' : '👉 Oyuna başlamak için "HAZIRIM" butonuna basınız.')
         : (isOkeyGame
           ? ('⌛ ' + ps.length + '/' + seats + ' oyuncu masada — ' + (seats - ps.length) + ' oyuncu daha bekleniyor...')
@@ -363,6 +386,10 @@
 
   function loadChess() {
     if (!isChess()) return;
+    // Henüz online motoru olmayan oyunlar (dama, türk daması, reversi,
+    // gomoku, connect4, bilardo): sunucu oyun başlatana kadar bekleme
+    // odası açık kalır; buraya özel istemci yüklenmez.
+    if (!['chess', 'tavla', 'okey'].includes(activeGame())) return;
     // Okey odası: okey istemcisini devreye al (statik yüklüyse sadece boot et).
     if (activeGame() === 'okey') {
       if (window.__gvOkeyGameStarted && window.__gvOkeyOnlineLoaded) return;
@@ -808,9 +835,11 @@
     started = false;
     window.__gvActiveRoomId = roomId;
     window.__gvActiveRoom = room;
-    if (activeGame() === 'tavla') window.__gvTavlaOnlineRequested = true;
-    else if (activeGame() === 'okey') window.__gvOkeyOnlineRequested = true;
-    else window.__gvChessOnlineRequested = true;
+    const ag = activeGame();
+    if (ag === 'tavla') window.__gvTavlaOnlineRequested = true;
+    else if (ag === 'okey') window.__gvOkeyOnlineRequested = true;
+    else if (ag === 'chess') window.__gvChessOnlineRequested = true;
+    else window.__gvOnlineRequested = true; // damalar/reversi/gomoku/connect4/bilardo
     localStorage.setItem('gv-room-id', roomId);
     if (state()) state().curPage = 'room';
     connect();
@@ -853,7 +882,8 @@
       window.__gvChessOnlineRequested = false;
       window.__gvTavlaOnlineRequested = false;
       window.__gvOkeyOnlineRequested = false;
-      hide(); // Ensure chess/tavla/okey overlay is completely hidden on other games like Pişti, 101!
+      window.__gvOnlineRequested = false;
+      hide(); // Ensure real-room overlay is completely hidden on other games like Pişti, 101!
       return;
     }
     if (!isRoomPage()) return;

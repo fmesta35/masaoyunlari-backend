@@ -152,9 +152,26 @@ function installAuth(app, deps) {
     console.warn('⚠️  Auth endpoints 503 (db yok).');
     // DB yoksa hiçbir üye mevcut değil → jetonlar kesin geçersizdir.
     return { isOnline: () => false, uidFromUserKey, recordMatch: () => {}, attachSocket: () => {},
+      userFromReq: () => null,
       verifyToken: async () => null, verifyTokenFull: async () => ({ uid: null, status: 'invalid' }),
       verifyIdentityFull: async () => ({ uid: null, status: 'invalid' }) };
   }
+
+  // ---- Yönetici (kurucu) hesabı: yoksa açılışta oluşturulur ----
+  // Kurucu Paneli yalnız bu hesabın oturumunda açılır (e-posta eşleşmesi).
+  // Varsayılan: kurucu@kurucu.com / kurucu123 — GV_ADMIN_EMAIL ile
+  // değiştirilebilir. (Uzak modda aynı kurulumu PHP admin.php yapar.)
+  try {
+    const ADMIN_MAIL = (process.env.GV_ADMIN_EMAIL || 'kurucu@kurucu.com').toLowerCase();
+    const exists = db.prepare('SELECT id FROM users WHERE lower(email) = ?').get(ADMIN_MAIL);
+    if (!exists) {
+      // İsim çakışma riskine karşı belirgin: üyeler "Kurucu" adıyla
+      // kayıt olabilsin (bu hesap otomatik, e-posta benzersizdir).
+      db.prepare('INSERT INTO users(name, email, pass_hash, verified, created_at) VALUES(?, ?, ?, 1, ?)')
+        .run('\u{1F451} Kurucu', ADMIN_MAIL, bcrypt.hashSync('kurucu123', 10), now());
+      console.log('👑 Yönetici hesabı oluşturuldu: ' + ADMIN_MAIL);
+    }
+  } catch (e) { console.warn('⚠️  Yönetici hesabı oluşturulamadı:', e.message); }
 
   // ---- SMTP tanı (girişsiz; şifre asla dönmez) ----
   // Mail gelmiyorsa ilk bakılacak yer: configured=false ise GV_SMTP_PASS eksik,
@@ -577,6 +594,9 @@ function installAuth(app, deps) {
 
   console.log('👤 Üyelik & sosyal katman aktif (auth + profil + arkadaş + davet).');
   return { isOnline, uidFromUserKey, recordMatch, attachSocket, userById,
+    // Kurucu Paneli yetki kontrolü (server.js requireAdmin): istemcinin
+    // oturum sahibini (e-posta dahil) döndürür.
+    userFromReq: (req) => authFromReq(req),
     // Soket mesajıyla gelen üyelik jetonunu doğrular (oda kapısında anında kimlik).
     verifyToken: async (t) => { const u = t ? userByToken(String(t)) : null; return u ? Number(u.id) : null; },
     // Kararlı kimlik kontrolü: yerel DB'de oturum YOKSA sonuç kesindir

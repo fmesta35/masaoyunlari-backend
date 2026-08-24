@@ -38,3 +38,9 @@ define('GV_SMTP_HOST', 'mail.masaoyunlari.com.tr');
 define('GV_SMTP_PORT', 465);
 define('GV_SMTP_USER', 'info@masaoyunlari.com.tr');
 define('GV_SMTP_PASS', 'BURAYA_SMTP_ŞİFRESİ');
+
+/* Yönetici (kurucu) hesabı — Kurucu Paneli yalnız bu e-posta oturumunda
+ * açılır. Hesap YOKSA admin.php ilk istekte OTOMATİK oluşturur
+ * (onaylı, şifre: kurucu123). Değiştirmek için buradaki e-postayı
+ * güncelleyin (Render'da GV_ADMIN_EMAIL da aynı olmalı). */
+define('GV_ADMIN_EMAIL', 'kurucu@kurucu.com');

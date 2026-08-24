@@ -1055,7 +1055,10 @@ const GV=(function(){'use strict';
 const TWO_PLAYER_GAMES = ['chess', 'tavla', 'dama', 'turkdamasi', 'reversi', 'gomoku', 'connect4', 'bilardo'];
 // Masa listesi sunucudan (Render) gelen gerçek zamanlı oyunlar.
 // Bu oyunlarda ASLA sahte/demo masa üretilmez.
-const ONLINE_GAMES = ['chess', 'tavla', 'okey'];
+// SUNUCUDA GERÇEK MASALARI OLAN OYUNLAR: lobi listesi Render'dan gelir.
+// Damalar/reversi/gomoku/connect4/bilardo da 10'ar hazır masa açıldı —
+// bekleme odaları (otur/kalk/hazırım) tümünde aynı şekilde çalışır.
+const ONLINE_GAMES = ['chess', 'tavla', 'okey', 'dama', 'turkdamasi', 'reversi', 'gomoku', 'connect4', 'bilardo'];
 // Okey artık ONLINE (4 gerçek oyuncu, sunucu yetkili). Bot yedeği yalnızca
 // çevrimdışı kalan oyunlarda devrede.
 const BOT_FALLBACK_GAMES = ['okey101', 'pisti', 'batak'];
@@ -1187,11 +1190,34 @@ function updateAuthState() {
   }
 }
 
+// Oyun görünürlüğü (Kurucu Paneli): gizlenen oyunlar menüden/anasayfadan
+// kalkar. Yanıt gelene kadar tümü görünür kalır (varsayılan).
+async function loadGameMeta(){
+  try {
+    const r = await fetch('/api/games-meta', { cache: 'no-store' });
+    const d = r.ok ? await r.json() : null;
+    if (d && d.ok && Array.isArray(d.games)) {
+      const m = {};
+      d.games.forEach(g => { m[g.id] = g.visible; });
+      window.__gvGameVisibility = m;
+      renderSB();
+      renderHome();
+      renderAll();
+      // Lobide açıkken gizli oyunun listesi de kalksın:
+      try {
+        const pg = document.getElementById('pg-lobby');
+        if (pg && pg.classList.contains('active') && typeof GV.genRooms === 'function') GV.genRooms();
+      } catch (_) {}
+    }
+  } catch (_) { /* sunucu uzağında: tüm oyunlar görünür */ }
+}
+
 function init(){
   checkAuthState();
   renderSB();
   renderHome();
   renderAll();
+  loadGameMeta();
   renderLBTabs();
   renderTournTabs();
   renderRanks();
@@ -1587,7 +1613,9 @@ function exitToLobby(){
   openLobby(currentGame);
 }
 
-function renderSB(){document.getElementById('sbGames').innerHTML=Object.entries(GAMES).map(([id,g])=>`<div class="sb-item" data-gid="${id}" onclick="GV.openLobby('${id}')"><span>${g.icon}</span>${g.name}<span class="sb-badge">${(g.p/1000).toFixed(1)}K</span></div>`).join('');}
+// Kurucu Paneli görünürlüğü: /api/games-meta'dan gelir (varsayılan: görünür).
+function gvGameVisible(id){try{const m=window.__gvGameVisibility;return !m||m[id]!==false;}catch(_){return true;}}
+function renderSB(){document.getElementById('sbGames').innerHTML=Object.entries(GAMES).filter(([id])=>gvGameVisible(id)).map(([id,g])=>`<div class="sb-item" data-gid="${id}" onclick="GV.openLobby('${id}')"><span>${g.icon}</span>${g.name}<span class="sb-badge">${(g.p/1000).toFixed(1)}K</span></div>`).join('');}
 function toggleSidebar(){document.getElementById('sidebar').classList.toggle('open');}
 // Sol oyunlar menüsü: masaüstünde de açılıp kapanabilir (tercih kalıcıdır).
 function collapseSidebar(v){document.body.classList.toggle('sb-closed',!!v);try{localStorage.setItem('gv-sb-closed',v?'1':'0');}catch(_){}}
@@ -1596,8 +1624,8 @@ function closeSidebar(){document.getElementById('sidebar').classList.remove('ope
 function searchGames(q){q=q.toLowerCase();document.querySelectorAll('#sbGames .sb-item').forEach(e=>{e.style.display=e.textContent.toLowerCase().includes(q)?'':'none';});}
 function toggleNotif(){const n=document.getElementById('notifPanel'); if(n) n.classList.toggle('show');}
 function cH(id,g,tag){const tM={hot:'🔥 HOT',new:'🆕 YENİ',pop:'POPÜLER'};return `<div class="game-card" data-g="${id}" onclick="GV.openLobby('${id}')"><div class="game-thumb">${g.icon}</div>${tag?`<span class="game-tag ${tag}">${tM[tag]}</span>`:''}<div class="game-info"><h3>${g.name}</h3><div class="game-players-count">👥 ${g.p.toLocaleString()}</div></div></div>`;}
-function renderHome(){const t={chess:'hot',okey:'hot',okey101:'new',turkdamasi:'new',bilardo:'new',tavla:'pop',batak:'pop'};document.getElementById('homeGames').innerHTML=Object.entries(GAMES).map(([id,g])=>cH(id,g,t[id])).join('');}
-function renderAll(){document.getElementById('allGames').innerHTML=Object.entries(GAMES).map(([id,g])=>cH(id,g,null)).join('');}
+function renderHome(){const t={chess:'hot',okey:'hot',okey101:'new',turkdamasi:'new',bilardo:'new',tavla:'pop',batak:'pop'};document.getElementById('homeGames').innerHTML=Object.entries(GAMES).filter(([id])=>gvGameVisible(id)).map(([id,g])=>cH(id,g,t[id])).join('');}
+function renderAll(){document.getElementById('allGames').innerHTML=Object.entries(GAMES).filter(([id])=>gvGameVisible(id)).map(([id,g])=>cH(id,g,null)).join('');}
 
 function genRooms(gid){
   gid = gid || st.curGame || 'okey';
@@ -3813,6 +3841,10 @@ document.addEventListener('keydown', e=>{
 // geri dönüyordu — online tavlada saatler işlerken tahta alanı BOMBOŞ
 // kalıyordu (canlıdaki "tavla açılmıyor" hatasının kök nedeni budur).
 window.st = st;
+// GAMES/ONLINE_GAMES dış modüllerde (social.js, admin-panel.js,
+// room-waiting-fix.js) isim/ikon listelemesi için gerekir.
+window.GAMES = GAMES;
+window.ONLINE_GAMES = ONLINE_GAMES;
 window.rTavla = rTavla;
 window.dTavla = dTavla;
 // Online okey istemcisi (js/okey-online.js) masayı yerleşik çiziciyle birebir
@@ -3986,7 +4018,8 @@ window.GV = GV;
   // ile engelliyor, tarayıcı isteklerini ise sorunsuz geçiriyor.
   // Bu yüzden .php adresleri ASLA Render'a çevrilmemeli.
   function isPhpApi(u) {
-    return u.indexOf('/api/auth.php') !== -1 || u.indexOf('/api/social.php') !== -1;
+    return u.indexOf('/api/auth.php') !== -1 || u.indexOf('/api/social.php') !== -1 ||
+      u.indexOf('/api/admin.php') !== -1;
   }
   var _fetch = window.fetch;
   window.fetch = function (url, opts) {
@@ -4034,6 +4067,7 @@ GV.init();
 <script src="js/leave-guard.js?v=20260821h" defer></script>
 <script src="js/auth.js?v=20260823b" defer></script>
 <script src="js/social.js?v=20260823e" defer></script>
+<script src="js/admin-panel.js?v=20260824a" defer></script>
 
 <!-- Structured Data for SEO -->
 <script type="application/ld+json">

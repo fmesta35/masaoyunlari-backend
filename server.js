@@ -5,6 +5,7 @@ const { Server } = require('socket.io');
 const cors = require('cors');
 const { Chess } = require('chess.js');
 const tavlaEngine = require('./tavla-engine');
+const { db } = require('./db'); // kurucu paneli: üye listesi + masa ayarları (SQLite, yerel mod)
 
 const app = express();
 app.use(cors({ origin: true, credentials: true }));
@@ -147,25 +148,124 @@ const OKEY_MAX_ROUNDS = Number(process.env.GV_OKEY_MAX_ROUNDS) || 3;
 const OKEY_ROUND_PAUSE_MS = Number(process.env.GV_OKEY_ROUND_PAUSE_MS) || 4000;
 const disconnectTimers = new Map();
 
+// ================== HAZIR MASALAR (YÖNETİCİ AYARLARINA AÇIK) ==================
 // Lobide HER ZAMAN görünen kalıcı hazır masalar: 2 kişilik, masanın kendi
 // süresi korunur (istemci ne gönderirse göndersin değişmez), boşken de
 // listelenir, oyun bitince silinmez — beklemeye alınır.
-// Satranç (#101-#110) VE Tavla (#201-#210) — her ikisinde de 3 oda tipi:
-// 4x Hızlı (10 dk), 3x Normal (15 dk), 3x Düşünen (20 dk).
+//
+// Kurucu Paneli (yönetici) şunları yapabilir:
+//   - oyunu sitede GÖRÜNÜR / GİZLİ yapmak,
+//   - hazır masa SAYISINI artırmak/azaltmak,
+//   - masa ADLARINI ve TİPLERİNİ değiştirmek.
+// Değişiklikler DATAYA kaydedilir (yerel mod: SQLite 'settings' tablosu;
+// uzak mod: Yöncü MySQL — admin.php) ve sunucu DA HEMEN uygular. Dolu
+// masalar boşalınca uygulanır (oyuncular içinden alınmaz).
+//
+// Standart hazır masa tipi: 4x Hızlı (10 dk) + 3x Normal (15 dk) +
+// 3x Düşünen (20 dk) = 10 masa. ID aralıkları (sabit, indeks bazlı):
+// satranç 101, tavla 201, okey 301 (sabit 18), damas 401, turkdamas 501,
+// reversi 601, gomoku 701, connect4 801, bilardo 921.
+const ADMIN_EMAIL = (process.env.GV_ADMIN_EMAIL || 'kurucu@kurucu.com').toLowerCase();
+const ALL_GAMES = ['chess', 'tavla', 'okey', 'okey101', 'pisti', 'batak',
+  'dama', 'turkdamasi', 'reversi', 'gomoku', 'connect4', 'bilardo'];
+
 const PRESET_TYPES = [
-  ...Array(4).fill({ label: '⚡ Hızlı', durationMinutes: 10 }),
-  ...Array(3).fill({ label: '♟️ Normal', durationMinutes: 15 }),
-  ...Array(3).fill({ label: '🧠 Düşünen', durationMinutes: 20 })
+  ...Array(4).fill({ type: 'fast', label: '⚡ Hızlı', durationMinutes: 10 }),
+  ...Array(3).fill({ type: 'normal', label: '♟️ Normal', durationMinutes: 15 }),
+  ...Array(3).fill({ type: 'thinker', label: '🧠 Düşünen', durationMinutes: 20 })
 ];
 
-function presetTablesFor(gameId, startId, opts = {}) {
-  return PRESET_TYPES.map((t, i) => ({
-    id: String(startId + i),
-    gameId,
-    maxPlayers: opts.maxPlayers || 2,
-    durationMinutes: t.durationMinutes,
-    name: `${t.label} Masa #${startId + i}`
-  }));
+// Standart (10 masa) hazır masa açan oyunlar + sabit ID tabanları:
+const PRESET_GAME_BASES = {
+  chess: 101, tavla: 201,
+  // bilardo 921: 901-910 aralığı okey test süitinin oda kimlikleriyle
+  // çakışmasın diye atlandı.
+  dama: 401, turkdamasi: 501, reversi: 601, gomoku: 701, connect4: 801, bilardo: 921
+};
+const STANDARD_PRESET_GAMES = Object.keys(PRESET_GAME_BASES);
+// Hazır masası SABİT olan oyunlar (panel yalnızca görünürlük yönetir):
+const FIXED_PRESET_GAMES = ['okey'];
+
+function clampDuration(v, dflt) {
+  const n = Math.floor(Number(v));
+  return (Number.isFinite(n) && n >= 1 && n <= 240) ? n : (dflt || 10);
+}
+
+// Bir oyunun VARSAYILAN 10 masası (isim + tip + süre):
+function defaultTablesFor(gameId) {
+  const base = PRESET_GAME_BASES[gameId];
+  const out = [];
+  for (const t of PRESET_TYPES) {
+    out.push({ name: `${t.label} Masa #${base + out.length}`, type: t.type, durationMinutes: t.durationMinutes });
+  }
+  return out;
+}
+
+function defaultPresetConfig() {
+  const cfg = {};
+  for (const g of STANDARD_PRESET_GAMES) cfg[g] = { visible: true, tables: defaultTablesFor(g) };
+  for (const g of FIXED_PRESET_GAMES) cfg[g] = { visible: true };
+  // Görünürlüğü yönetilen diğer oyunlar (hazır masaları yok, sitede görünür):
+  for (const g of ALL_GAMES) if (!cfg[g]) cfg[g] = { visible: true };
+  return cfg;
+}
+
+// Ham ayarları (panel/DB'den gelen) varsayılanlarla birleştirip temizle:
+function normPresetConfig(raw) {
+  const cfg = defaultPresetConfig();
+  if (!raw || typeof raw !== 'object') return cfg;
+  for (const g of ALL_GAMES) {
+    const src = raw[g];
+    if (!src || typeof src !== 'object') continue;
+    if (typeof src.visible === 'boolean') cfg[g].visible = src.visible;
+    if (STANDARD_PRESET_GAMES.includes(g) && Array.isArray(src.tables)) {
+      const base = PRESET_GAME_BASES[g];
+      const dflt = defaultTablesFor(g);
+      const t = src.tables.slice(0, 30).map((x, i) => {
+        const d = dflt[i] || { name: `Masa #${base + i}`, type: 'normal', durationMinutes: 15 };
+        x = x && typeof x === 'object' ? x : {};
+        return {
+          name: String(x.name || d.name).slice(0, 60),
+          type: (x.type === 'fast' || x.type === 'thinker') ? x.type : 'normal',
+          durationMinutes: clampDuration(x.durationMinutes, d.durationMinutes)
+        };
+      });
+      if (t.length) cfg[g].tables = t;
+    }
+  }
+  return cfg;
+}
+
+// ---- Geçerli hazır-masa yapılandırması (bellek) ----
+let presetConfig = defaultPresetConfig();
+
+function gameVisible(id) {
+  const c = presetConfig[id];
+  return !c || c.visible !== false;
+}
+
+// Yapılandırma → somut hazır masa listesi:
+function presetTablesFromConfig(cfg) {
+  const out = [];
+  for (const g of STANDARD_PRESET_GAMES) {
+    const gc = cfg[g] || {};
+    if (gc.visible === false) continue;
+    const base = PRESET_GAME_BASES[g];
+    (gc.tables && gc.tables.length ? gc.tables : defaultTablesFor(g)).forEach((t, i) => {
+      out.push({
+        id: String(base + i),
+        gameId: g,
+        maxPlayers: 2,
+        durationMinutes: clampDuration(t.durationMinutes, 10),
+        name: String(t.name || `Masa #${base + i}`).slice(0, 60)
+      });
+    });
+  }
+  // Okey: sabit 18 masa (yapı değişmez, görünürlük yönetilir):
+  if ((cfg.okey || {}).visible !== false && (okeyEngine || process.env.GV_OKEY_PRESETS === '1')) {
+    out.push(...okeyPresetTables(301));
+  }
+  return out;
 }
 // OKEY: yetkili sunucu motoru (okey-engine.js) bu repoya eklendiği anda masalar
 // OTOMATIK açılır; ayrıca GV_OKEY_PRESETS=1 ile önden test edilebilir.
@@ -199,18 +299,131 @@ function okeyPresetTables(startId) {
   return out;
 }
 
-const PRESET_TABLES = [
-  ...presetTablesFor('chess', 101),
-  ...presetTablesFor('tavla', 201),
-  ...((okeyEngine || process.env.GV_OKEY_PRESETS === '1') ? okeyPresetTables(301) : [])
-];
-
+// Sunucu ayağa kalkarken: yapılandırmadaki hazır masaları oluştur.
 function seedPresetTables() {
-  for (const t of PRESET_TABLES) {
+  for (const t of presetTablesFromConfig(presetConfig)) {
     const existing = rooms.get(t.id);
-    if (existing) { existing.isPreset = true; continue; }
-    const room = createRoom(t.id, t.gameId || 'chess', t.maxPlayers || 2, t.durationMinutes, { name: t.name || ('Masa #' + t.id), rounds: t.rounds });
+    if (existing) {
+      existing.isPreset = true;
+      continue;
+    }
+    const room = createRoom(t.id, t.gameId, t.maxPlayers || 2, t.durationMinutes, { name: t.name, rounds: t.rounds });
     room.isPreset = true;
+  }
+}
+
+// Kurucu Paneli değişikliklerini CANLI uygula:
+//  - eksik hazır masaları oluştur,
+//  - BOŞ hazır masalarda isim/tip/süre güncelle,
+//  - yapılandırmada kalmayan BOŞ hazır masaları kaldır,
+//  - okey görünürlüğünü uygula (gizle → boş okey masaları kalkar).
+// Dolu (oyunculu) masalara dokunulmaz; değişiklik boşalınca oturur.
+function applyPresetConfig(raw) {
+  presetConfig = normPresetConfig(raw);
+  const desired = presetTablesFromConfig(presetConfig);
+  const desiredIds = new Set(desired.map(t => t.id));
+  const touchedGames = new Set();
+
+  for (const t of desired) {
+    const existing = rooms.get(t.id);
+    if (!existing) {
+      const room = createRoom(t.id, t.gameId, t.maxPlayers || 2, t.durationMinutes, { name: t.name, rounds: t.rounds });
+      room.isPreset = true;
+      touchedGames.add(t.gameId);
+    } else if (existing.players.length === 0 && !(existing.spectators || []).length) {
+      if (existing.name !== t.name) { existing.name = t.name; touchedGames.add(t.gameId); }
+      if (existing.durationMinutes !== t.durationMinutes) {
+        existing.durationMinutes = t.durationMinutes;
+        existing.whiteTimeMs = t.durationMinutes * 60 * 1000;
+        existing.blackTimeMs = t.durationMinutes * 60 * 1000;
+        touchedGames.add(t.gameId);
+      }
+    }
+  }
+  // Yapılandırmada olmayan BOŞ hazır odaları gerçekten kaldır:
+  for (const room of [...rooms.values()]) {
+    if (!room.isPreset) continue;
+    if (room.gameId === 'okey') continue; // okey: görünürlük aşağıda, yapı sabit
+    if (desiredIds.has(room.id)) continue;
+    if (room.players.length === 0 && !(room.spectators || []).length) {
+      removePresetRoom(room);
+      touchedGames.add(room.gameId);
+    }
+  }
+  // Okey görünürlüğü: gizle → boş okey masaları kalkar; görünür + motor var →
+  // eksikler tamamlanır.
+  const okeyVisible = (presetConfig.okey || {}).visible !== false;
+  if (!okeyVisible) {
+    for (const room of [...rooms.values()]) {
+      if (!room.isPreset || room.gameId !== 'okey') continue;
+      if (room.players.length === 0 && !(room.spectators || []).length) {
+        removePresetRoom(room);
+        touchedGames.add('okey');
+      }
+    }
+  } else if (okeyEngine || process.env.GV_OKEY_PRESETS === '1') {
+    for (const t of okeyPresetTables(301)) {
+      if (!rooms.get(t.id)) {
+        const room = createRoom(t.id, 'okey', t.maxPlayers, t.durationMinutes, { name: t.name, rounds: t.rounds });
+        room.isPreset = true;
+        touchedGames.add('okey');
+      }
+    }
+  }
+  touchedGames.forEach(g => emitLobby(g));
+  return presetConfig;
+}
+
+// Boş hazır odayı GERÇEKTEN kaldır (preset beklemeye alınmaz; lobide kalkar).
+function removePresetRoom(room) {
+  if (!room) return;
+  cancelRoomReset(room);
+  chatRoomHist.delete(room.id);
+  (room.spectators || []).forEach(spec => {
+    io.to(spec.id).emit('roomClosed', { roomId: room.id, message: 'Masa kaldırıldı.' });
+  });
+  rooms.delete(room.id);
+  console.log(`[ODA #${room.id}] hazır masa kaldırıldı (yönetici ayarı).`);
+  emitLobby(room.gameId);
+}
+
+// Yerel mod: ayarları SQLite'tan oku:
+function loadPresetConfigLocal() {
+  try {
+    const row = db.prepare("SELECT value FROM settings WHERE skey = 'table_settings'").get();
+    if (row && row.value) {
+      const d = JSON.parse(row.value);
+      if (d && typeof d === 'object') presetConfig = normPresetConfig(d);
+    }
+  } catch (e) { console.warn('⚠️  Masa ayarları okunamadı (varsayılanlar kullanılıyor):', e.message); }
+}
+function savePresetConfigLocal() {
+  if (!db) return;
+  try {
+    db.prepare("INSERT INTO settings(skey, value, updated_at) VALUES('table_settings', ?, ?) " +
+      "ON CONFLICT(skey) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at")
+      .run(JSON.stringify(presetConfig), Date.now());
+  } catch (e) { console.warn('⚠️  Masa ayarları kaydedilemedi:', e.message); }
+}
+
+// Uzak mod: kurucunun Yöncü MySQL'deki ayarlarını EN GÜÇLÜ HÂLDE dene
+// (X-GV-Key ile). DDoS koruması engelliyorsa sessizce varsayılanlar kalır;
+// kurucu panelden "Kaydet ve Uygula" dediğinde Render CANLI güncellenir.
+async function loadPresetConfigRemote() {
+  try {
+    const base = (process.env.GV_AUTH_API || '').replace(/\/+$/, '');
+    if (!base) return;
+    const r = await fetch(base + '/admin.php?action=gamesGet', {
+      headers: { 'X-GV-Key': process.env.GV_SERVER_KEY || '' },
+      signal: AbortSignal.timeout(4000)
+    });
+    const d = await r.json();
+    if (d && d.ok && d.settings) {
+      presetConfig = normPresetConfig(d.settings);
+      console.log('🎛️  Masa ayarları Yöncü\'den yüklendi.');
+    }
+  } catch (_) {
+    console.log('ℹ️  Masa ayarları Yöncü\'den alınamadı (DDoS/timeout) — varsayılanlar kullanılıyor.');
   }
 }
 
@@ -2188,6 +2401,62 @@ app.get('/api/rooms', (req, res) => {
   res.json({ ok: true, gameId, rooms: listPublicRooms(gameId) });
 });
 
+// Oyun görünürlük meta'sı (KAMU): istemci oyun menüsünü + lobiyi
+// gizli oyunlardan süzer. (Yöneticinin kurucu panelinden yaptığı
+// görünürlük değişimi anında yansır.)
+app.get('/api/games-meta', (_req, res) => {
+  res.json({ ok: true, games: ALL_GAMES.map(id => ({ id, visible: gameVisible(id) })) });
+});
+
+// Yönetici (kurucu) yetki kontrolü: oturum sahibi ADMIN_EMAIL ise geçer.
+function requireAdmin(req, res) {
+  const u = (authApi && typeof authApi.userFromReq === 'function') ? authApi.userFromReq(req) : null;
+  if (!u || !u.email || String(u.email).toLowerCase() !== ADMIN_EMAIL) {
+    res.status(403).json({ ok: false, error: 'Yönetici yetkisi gerekli.' });
+    return null;
+  }
+  return u;
+}
+
+// Kurucu Paneli — üye listesi (yalnız yerel modda Render; uzak modda
+// istemci Yöncü PHP'sine /api/admin.php?action=users gider):
+app.get('/api/admin/users', (req, res) => {
+  if (!requireAdmin(req, res)) return;
+  if (!db) return res.json({ ok: true, users: [] });
+  try {
+    const rows = db.prepare('SELECT id, name, email, created_at FROM users ORDER BY created_at ASC, id ASC LIMIT 500').all();
+    res.json({ ok: true, users: rows.map(r => ({
+      id: r.id, name: r.name, email: r.email, createdAt: r.created_at,
+      role: String(r.email).toLowerCase() === ADMIN_EMAIL ? 'kurucu' : 'uye'
+    })) });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+// Kurucu Paneli — hazır masa ayarlarını UYGULA (görünürlük / masa sayısı /
+// ad-tip). Üretimde (uzak mod) kalıcı kayıt Yöncü MySQL'dedir: istemci önce
+// admin.php?action=gamesSave ile kaydeder, sonra burayı çağırarak Render'ı
+// CANLI günceller. Yerel modda bu uç aynı zamanda SQLite'a yazar.
+app.post('/api/admin/tables-apply', (req, res) => {
+  const body = (req.body && req.body.games) || (req.body && typeof req.body === 'object' ? req.body : {});
+  try {
+    applyPresetConfig(body);
+    if (!process.env.GV_AUTH_API) savePresetConfigLocal();
+    res.json({ ok: true, games: ALL_GAMES.map(id => ({ id, visible: gameVisible(id) })) });
+  } catch (e) {
+    console.error('tables-apply hatası:', e);
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+// Kurucu Paneli — geçerli masa ayarlarını oku (yerel mod; uzak modda
+// istemci Yöncü PHP'sine gider):
+app.get('/api/admin/tables', (req, res) => {
+  if (!requireAdmin(req, res)) return;
+  res.json({ ok: true, games: presetConfig });
+});
+
 // Çevrimiçi durum haritalaması (arkadaş listesi / profil bayrakları).
 // NEDEN BURADA: çevrimiçi durum Render'ın soket haritasında yaşar; Yöncü
 // PHP'si bunu bilemez. Yeni mimaride tarayıcı üyelik uçlarına PHP'ye
@@ -2285,7 +2554,11 @@ app.get('/api/_php_ping', async (req, res) => {
   }
 });
 
-function start(port) {
+// Ayarlar → hazır masalar → dinleme. Uzak modda ayarların Yöncü'den
+// gelmesi (en fazla 4 sn) beklenir; erişilemezse varsayılanlarla kurulur.
+async function start(port) {
+  if (process.env.GV_AUTH_API) await loadPresetConfigRemote();
+  else loadPresetConfigLocal();
   // Kalıcı hazır masalar sunucu ayağa kalkarken oluşturulur.
   seedPresetTables();
   const listenPort = port !== undefined ? port : (process.env.PORT || 3000);
@@ -2307,4 +2580,9 @@ if (require.main === module) {
   });
 }
 
-module.exports = { app, server, io, rooms, start, listPublicRooms, publicRoom, seedPresetTables, PRESET_TABLES };
+module.exports = { app, server, io, rooms, start, listPublicRooms, publicRoom, seedPresetTables,
+  // Yönetici (kurucu) paneli + hazır masa yönetimi (testler için de export):
+  ALL_GAMES, STANDARD_PRESET_GAMES, PRESET_GAME_BASES, defaultPresetConfig, normPresetConfig,
+  presetTablesFromConfig, applyPresetConfig, loadPresetConfigLocal, savePresetConfigLocal, gameVisible };
+// Eski test uyumluluğu: PRESET_TABLES artık yapılandırmadan üretilir.
+Object.defineProperty(module.exports, 'PRESET_TABLES', { get: () => presetTablesFromConfig(presetConfig) });
