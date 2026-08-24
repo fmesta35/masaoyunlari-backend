@@ -2,6 +2,14 @@
 /*
  * GameVerse — Yöncü tarafı yapılandırması (SUNUCUDA DOLDURULUR!)
  *
+ *  🚫  BU DOSYAYI SUNUCUYA BASA BASINA YUKLEMEYIN!  🚫
+ *  Bu depo kopyasi SABLONDUR (BURAYA_... yer tutuculari icerir).
+ *  Sunucuya yuklenirse gercek config.php EZILIR -> uyelik sistemi
+ *  "Veritabanina baglanilamadi" hatasiyla DURUR. Sunucu uzerindeki
+ *  /public_html/api/config.php TEK KAYNAKTIR ve oPanel'den duzenlenir.
+ *  Burada yeni bir alan cikiyorsa (orn. GV_ADMIN_EMAIL) o SATIRI
+ *  sunucudaki dosyanin sonuna ekleyin, dosyayi degistirMEYIN.
+ *
  *  ⚠️⚠️  DİKKAT: BU DOSYA ŞABLONDUR  ⚠️⚠️
  *  Gerçek şifreleri ASLA bu dosyaya / GITHUB'A yazmayın! Gerçek doldurulmuş
  *  kopya YALNIZCA Yöncü sunucusunda (/public_html/api/config.php) yaşar ve
@@ -38,3 +46,9 @@ define('GV_SMTP_HOST', 'mail.masaoyunlari.com.tr');
 define('GV_SMTP_PORT', 465);
 define('GV_SMTP_USER', 'info@masaoyunlari.com.tr');
 define('GV_SMTP_PASS', 'BURAYA_SMTP_ŞİFRESİ');
+
+/* Yonetici (kurucu) hesabi — Kurucu Paneli yalniz bu e-posta
+ * oturumunda acar. Hesap yoksa ilk kimlik isleminde OTOMATIK
+ * olusturulur (onayli, sifre: kurucu123). Varsayilan:
+ * kurucu@kurucu.com — degistirmek isterseniz degistirin. */
+define('GV_ADMIN_EMAIL', 'kurucu@kurucu.com');
