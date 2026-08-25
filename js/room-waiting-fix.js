@@ -10,12 +10,12 @@
     try { return typeof st !== 'undefined' ? st : null; } catch (_) { return null; }
   }
 
-  // Gerçek (soket) bekleme odası kullanan oyunlar: satranç, tavla, okey +
-  // 10'ar hazır masa açılan damalar/reversi/gomoku/connect4/bilardo.
+  // Gerçek (soket) bekleme odası kullanan oyunlar: satranç, tavla, okey,
+  // 101 okey + 10'ar hazır masa açılan damalar/reversi/gomoku/connect4/bilardo.
   // Bu oyunlarda lobi masaları, özel masa ve "özel oyun oluştur" aynı
   // masada-bekleme görünümünü (otur/kalk/hazırım/izle) kullanır.
-  // (101 Okey, Pişti, Batak yerel akışta kalır.)
-  const BRIDGE_GAMES = ['chess', 'satranc', 'satranç', 'tavla', 'okey',
+  // (Pişti ve Batak henüz online motoru yok — yerel akışta kalır.)
+  const BRIDGE_GAMES = ['chess', 'satranc', 'satranç', 'tavla', 'okey', 'okey101',
     'dama', 'turkdamasi', 'reversi', 'gomoku', 'connect4', 'bilardo'];
   const normGame = (g) => {
     g = String(g || '').toLowerCase().trim();
@@ -30,13 +30,13 @@
     g = normGame(g);
 
     // curGame AÇIKÇA tanımlıysa onunla karar ver: köprü oyunu ise evet,
-    // değilse (Pişti, 101 Okey, Batak) hayır — yerel akış korunur.
+    // değilse (Pişti, Batak) hayır — yerel akış korunur.
     if (g) return BRIDGE_GAMES.includes(g);
 
     // curGame boşsa başlık/istemci bayrağından çıkar:
     const title = (document.getElementById('grTitle')?.textContent || '').toLowerCase();
     if (/satranç|satranc|tavla/i.test(title)) return true;
-    if (/okey/i.test(title) && !/101/.test(title)) return true;
+    if (/okey/i.test(title)) return true; // 'Okey' ve '101 Okey' ikisi de sunucu yetkili
     if (/dama|reversi|gomoku|connect|bilardo/i.test(title)) return true;
 
     return !!window.__gvChessOnlineRequested || !!window.__gvTavlaOnlineRequested || !!window.__gvOkeyOnlineRequested || !!window.__gvOnlineRequested;
@@ -52,7 +52,8 @@
     if (!g) {
       const title = (document.getElementById('grTitle')?.textContent || '').toLowerCase();
       if (/tavla/i.test(title)) return 'tavla';
-      if (/okey/i.test(title) && !/101/.test(title)) return 'okey';
+      if (/okey/i.test(title) && /101/.test(title)) return 'okey101';
+      if (/okey/i.test(title)) return 'okey';
       if (/dama|dama/i.test(title) && /türk/i.test(title)) return 'turkdamasi';
       if (/dama/i.test(title)) return 'dama';
       if (/reversi/i.test(title)) return 'reversi';
@@ -85,12 +86,14 @@
     } catch (_) {}
   }
 
-  // Koltuk sayısı odadan okunur: okey 2/3/4 kişilik olabilir (hazır masaların
-  // ve üyelerin kurduğu masaların kapasitesi sunucudan gelir), satranç/tavla 2.
+  // Koltuk sayısı odadan okunur: okey/101 okey 2/3/4 kişilik olabilir (hazır
+  // masaların ve üyelerin kurduğu masaların kapasitesi sunucudan gelir),
+  // satranç/tavla 2.
   function maxSeats() {
     const n = Number(room?.maxPlayers) || Number(state()?.roomConfig?.playerCount) || 0;
     if (n >= 2) return n;
-    return activeGame() === 'okey' ? 4 : 2;
+    const g = activeGame();
+    return (g === 'okey' || g === 'okey101') ? 4 : 2;
   }
 
   function isRoomPage() {
@@ -230,7 +233,8 @@
     const watching = !me && (!!specs.find(isMe) || socket.role === 'spectator');
     const ready = !!me?.isReady;
     const seats = maxSeats();
-    const isOkeyGame = activeGame() === 'okey';
+    const _ag = activeGame();
+    const isOkeyGame = _ag === 'okey' || _ag === 'okey101';
     const SAYI = { 2: 'iki', 3: 'üç', 4: 'dört' };
     const full = ps.length === seats;
     const allReady = full && ps.every(p => p.isReady);
@@ -275,7 +279,7 @@
     // Online motoru henüz olmayan oyunlarda "başlatılıyor" yerine dürüst
     // bir bekleme mesajı göster (masada otur/kalk/hazırım çalışmaya devam
     // eder; motor eklendiğinde oyun otomatik başlar).
-    const engineReady = ['chess', 'tavla', 'okey'].includes(activeGame());
+    const engineReady = ['chess', 'tavla', 'okey', 'okey101'].includes(_ag);
     const status = watching
       ? (full ? '👁️ İzleyici olarak bekliyorsunuz. Oyun başlayınca masayı göreceksiniz.' : '👁️ İzleyici olarak bekliyorsunuz.')
       : allReady ? (engineReady ? '🚀 Oyun başlatılıyor...' : '⏳ Tüm oyuncular hazır — online oyun bu masada aktif edildiğinde başlayacak.') : full
@@ -405,9 +409,10 @@
     // Henüz online motoru olmayan oyunlar (dama, türk daması, reversi,
     // gomoku, connect4, bilardo): sunucu oyun başlatana kadar bekleme
     // odası açık kalır; buraya özel istemci yüklenmez.
-    if (!['chess', 'tavla', 'okey'].includes(activeGame())) return;
-    // Okey odası: okey istemcisini devreye al (statik yüklüyse sadece boot et).
-    if (activeGame() === 'okey') {
+    if (!['chess', 'tavla', 'okey', 'okey101'].includes(activeGame())) return;
+    // Okey odası (klasik VEYA 101): okey istemcisini devreye al (statik
+    // yüklüyse sadece boot et). Varyant sunucu durumundan gelir.
+    if (activeGame() === 'okey' || activeGame() === 'okey101') {
       if (window.__gvOkeyGameStarted && window.__gvOkeyOnlineLoaded) return;
       window.__gvOkeyGameStarted = true;
       window.__gvOkeyOnlineRequested = true;
@@ -417,7 +422,7 @@
       }
       if (document.querySelector('script[data-gv-okey-online]')) return;
       const os = document.createElement('script');
-      os.src = 'js/okey-online.js?v=20260820e';
+      os.src = 'js/okey-online.js?v=20260825a';
       os.dataset.gvOkeyOnline = '1';
       os.async = false;
       let oSettled = false;
@@ -730,7 +735,7 @@
       userKey: userKey(),
       maxPlayers: maxSeats(), // okey 2/3/4, satranç/tavla 2 (kalıcı masalarda sunucu kendi değerini korur)
       durationMinutes: Number(room?.duration || room?.durationMinutes || 10),
-      gameId: activeGame(), // 'chess' | 'tavla' | 'okey'
+      gameId: activeGame(), // 'chess' | 'tavla' | 'okey' | 'okey101'
       rounds: rCfg > 0 ? rCfg : undefined,
       roomName: room?.name,
       isPrivate: !!room?.isPrivate,
@@ -858,7 +863,7 @@
     window.__gvActiveRoom = room;
     const ag = activeGame();
     if (ag === 'tavla') window.__gvTavlaOnlineRequested = true;
-    else if (ag === 'okey') window.__gvOkeyOnlineRequested = true;
+    else if (ag === 'okey' || ag === 'okey101') window.__gvOkeyOnlineRequested = true;
     else if (ag === 'chess') window.__gvChessOnlineRequested = true;
     else window.__gvOnlineRequested = true; // damalar/reversi/gomoku/connect4/bilardo
     localStorage.setItem('gv-room-id', roomId);

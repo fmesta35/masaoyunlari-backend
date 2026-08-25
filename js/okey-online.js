@@ -53,15 +53,33 @@
     if (s) s.onlineClock = false;
   }
 
+  // İki okey varyantı da sunucu yetkilidir: 'okey' (klasik per/çift) ve
+  // 'okey101' (14 taşın toplamı 101 puana ulaşır). İkisi aynı görünüm/
+  // mekaniği paylaşır; farklar varyant bayrağıyla işlenir.
+  function currentGameId() {
+    const s = getState();
+    let g = s?.curGame || window.__gvCurrentGame || window.currentGame || '';
+    if (g === null || g === undefined || g === 'null' || g === 'undefined') g = '';
+    g = String(g).toLowerCase().trim();
+    if (g === 'okey' || g === 'okey101') return g;
+    if (!g) {
+      // Bağlam yoksa oda başlığından çıkar ("101 Okey #1234" → okey101).
+      const title = document.getElementById('grTitle')?.textContent || '';
+      if (/okey/i.test(title) && /101/.test(title)) return 'okey101';
+    }
+    return 'okey';
+  }
+
   function isOkeyRoom() {
     const s = getState();
     let g = s?.curGame || window.__gvCurrentGame || window.currentGame || '';
     if (g === null || g === undefined || g === 'null' || g === 'undefined') g = '';
     g = String(g).toLowerCase().trim();
-    if (g === 'okey') return true;
+    if (g === 'okey' || g === 'okey101') return true;
     if (g) return false;
     const title = document.getElementById('grTitle')?.textContent || '';
-    return /okey/i.test(title) && !/101/.test(title);
+    // 'Okey #123' ve '101 Okey #123' ikisi de sunucu yetkili okeydir.
+    return /okey/i.test(title);
   }
 
   function getRoomId() {
@@ -256,6 +274,8 @@
       deck: { length: gs.deckCount || 0 },     // çizici yalnız .length kullanır
       indicator: gs.indicator,
       realOkey: gs.realOkey,
+      variant: gs.variant || 'standard',       // 'standard' | 'okey101'
+      target: gs.target != null ? gs.target : null,
       pCounts,
       aiHandPool: [],
       turnIndex: map.posOf(gs.turn),
@@ -302,7 +322,12 @@
       ? `<span class="ok-turntime${ok.turnTime <= 10 ? ' urgent' : ''}" id="okTimerVal">${ok.turnTime}</span>` : '';
 
     const sTxt = map.activePositions().map(p => POS_LABEL[p] + ':' + ok.scores[p]).join(' | ');
-    h += `<div style="position:absolute;top:8px;left:10px;z-index:9;background:rgba(0,0,0,.7);color:var(--text);padding:4px 10px;border-radius:10px;font-size:.7em;border:1px solid var(--border)">El ${ok.currentRound}/${ok.maxRounds} (${map.N} Kişilik) • <span style="color:var(--gold)">${sTxt}</span></div>`;
+    // 101 varyantında el limiti yoktur (maç 101 puana ulaşana kadar sürer);
+    // skorlar PUAN olarak gösterilir.
+    const hdrTxt = ok.variant === 'okey101'
+      ? `🔢 OKEY 101 • El ${ok.currentRound} (${map.N} Kişilik) • Hedef ${ok.target || 101} — `
+      : `El ${ok.currentRound}/${ok.maxRounds} (${map.N} Kişilik) • `;
+    h += `<div style="position:absolute;top:8px;left:10px;z-index:9;background:rgba(0,0,0,.7);color:var(--text);padding:4px 10px;border-radius:10px;font-size:.7em;border:1px solid var(--border)">${hdrTxt}<span style="color:var(--gold)">${sTxt}</span></div>`;
 
     // Rakip panelleri: üst=Karşı(2), sol=Sol(1), sağ=Sağ(3) — yalnızca
     // masadaki GERÇEK koltuklar çizilir (2 kişilikte yalnız Karşı,
@@ -477,7 +502,7 @@
   }
 
   // ---------- El sonu ara ekranı ----------
-  const WIN_TEXT = { standard: 'Normal bitiş', pairs: '🔥 Çifte gitti!', okey: '🃏 Okey atarak bitirdi!', draw: 'Deste bitti' };
+  const WIN_TEXT = { standard: 'Normal bitiş', pairs: '🔥 Çifte gitti!', okey: '🃏 Okey atarak bitirdi!', draw: 'Deste bitti', '101': '💯 101 puana ulaştı!' };
   function handleRoundEnded(gs) {
     const res = gs.result || {};
     if (res.winType === 'draw' || res.winner === null || res.winner === undefined) {
@@ -485,7 +510,11 @@
     } else {
       const nm = (res.winner === mySeat && !isSpectator) ? '🏆 Eli KAZANDINIZ!' : `🏆 ${esc(playerName(res.winner))} eli kazandı!`;
       const sLine = (gs.seats || []).map(s2 => `${dispNameEsc(s2)}:${gs.scores?.[s2] || 0}`).join('  •  ');
-      roundInfo = { round: gs.round, title: nm, desc: `${WIN_TEXT[res.winType] || ''}<br>Skor — ${sLine}` };
+      // 101 varyantı: kazanan rakiplerin kalan el puanını (gained) aldı.
+      const wt = res.winType === '101'
+        ? `💯 101 PUANA ULAŞTI! (rakiplerin kalan el puanı: +${res.gained || 0})`
+        : (WIN_TEXT[res.winType] || '');
+      roundInfo = { round: gs.round, title: nm, desc: `${wt}<br>Skor — ${sLine}` };
     }
     appendMove(`🏆 El ${gs.round} bitti — ${res.winner === null || res.winner === undefined ? 'berabere' : dispName(res.winner) + ' kazandı'}`);
   }
@@ -630,11 +659,41 @@
     return false;
   }
 
+  // Okey 101 (sunucuyla AYNI kural): kalan 14 taşın toplamı hedefe (101)
+  // ulaşmalı. Taş puanı = üzerindeki sayı; sahte okey göstergenin sayısını
+  // taşıdığı için her ikisinde de t.n geçerlidir.
+  function check101Local(tiles, target) {
+    if (!Array.isArray(tiles) || tiles.length !== 14) return false;
+    let sum = 0;
+    tiles.forEach(t => { sum += Number(t && t.n) || 0; });
+    return sum >= (Number(target) || 101);
+  }
+
   function onlineCheck() {
     if (isSpectator) return toast('👁️ İzleyici modunda kontrol yok.', 'info');
     const gs = gameState;
     if (!gs || !gs.myHand) return;
     const tiles = gs.myHand;
+    const is101 = gs.variant === 'okey101';
+    const target101 = Number(gs.target) || 101;
+    if (is101) {
+      if (tiles.length === 15 && myTurnNow() && gs.phase === 'discard') {
+        toast(`🔍 Eliniz ${target101} puan hedefiyle kontrol ediliyor...`, 'info');
+        let canWin = false;
+        for (let i = 0; i < tiles.length; i++) {
+          if (check101Local(tiles.filter((_, idx) => idx !== i), target101)) { canWin = true; break; }
+        }
+        if (canWin) toast(`🎉 Eliniz ${target101} puana ulaştı! 15. taşı ORTAYA BİTİR kutusuna sürükleyin.`, 'success');
+        else toast(`⚠️ Eliniz henüz bitmeye uygun değil — kalan 14 taşın toplamı ${target101} puana ulaşmalı.`, 'warning');
+      } else {
+        let msg = `📊 Elinizde ${tiles.length} taş var. (Hedef: ${target101}) `;
+        if (!myTurnNow()) msg += '⏳ Sıra sizde değil.';
+        else if (gs.phase === 'draw') msg += '🎯 Taş çekmelisiniz (desteden veya soldan)!';
+        else msg += '📤 Taş atmalısınız!';
+        toast(msg, 'info');
+      }
+      return;
+    }
     if (tiles.length === 15 && myTurnNow() && gs.phase === 'discard') {
       toast('🔍 Eliniz bitiş için kontrol ediliyor...', 'info');
       let canWin = false;
@@ -780,7 +839,7 @@
       userKey: userKey(),
       maxPlayers: 4,
       durationMinutes: 10, // kalıcı masalarda sunucu bunu YOK SAYAR (masanın süresi korunur)
-      gameId: 'okey',
+      gameId: currentGameId(), // 'okey' | 'okey101' — masanın GERÇEK oyunu
       asSpectator: !!window.__gvJoinAsSpectator || !!window.__gvIsSpectator
     });
   }
@@ -809,7 +868,9 @@
         if (typeof payload.seat === 'number') mySeat = payload.seat;
       }
       apply(payload.gameState, 'gameStarted');
-      toast(`🀄 Okey başladı — El ${payload.gameState.round}/${payload.gameState.maxRounds}. Bol şans!`, 'success');
+      toast(payload.gameState.variant === 'okey101'
+        ? `🀄 101 Okey başladı — El ${payload.gameState.round}. Hedef 101 puan! Bol şans!`
+        : `🀄 Okey başladı — El ${payload.gameState.round}/${payload.gameState.maxRounds}. Bol şans!`, 'success');
     });
 
     socket.on('gameStateUpdated', payload => {
@@ -842,6 +903,7 @@
         must_discard: '📤 Taş atmalısınız (15 taşla çekilemez)!',
         tile_not_found: '⚠️ Taş bulunamadı — ıstaka sunucuyla tazelendi.',
         not_a_win_hand: '⚠️ Eliniz henüz bitmeye uygun değil! Perlerinizi veya çiftlerinizi kontrol edin.',
+        not_101: '⚠️ Kalan 14 taşınızın toplamı 101 puana ulaşmıyor!',
         no_discard: '⚠️ Sol oyuncunun atığı yok — orta desteden çekin.',
         round_over: '🏁 El bitti, yeni el bekleniyor...'
       };

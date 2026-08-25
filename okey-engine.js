@@ -137,10 +137,35 @@ function solveRecursive(regular, okeys) {
   return false;
 }
 
+// ---- Okey 101: taş puanı + 101 toplamı ----
+// Taş puanı = üzerindeki sayı (sahte okey göstergenin sayısını, gerçek okey
+// kendi sayısını taşır → ikisi de t.n). Kalan 14 taşın toplamı hedefe (101)
+// ulaştıysa el biter.
+function tilePoint(t) { return t ? (Number(t.n) || 0) : 0; }
+function check101(tiles, target) {
+  if ((tiles || []).length !== 14) return false;
+  let sum = 0;
+  tiles.forEach(t => { sum += tilePoint(t); });
+  return sum >= (target || OKEY101_TARGET);
+}
+function remainingPointsOf(state, exceptSeat) {
+  // Diğer (bitirmeyen) oyuncuların kalan el puanı toplamı — bitirene puan eklenir.
+  let sum = 0;
+  state.seats.forEach(seat => {
+    if (seat === exceptSeat) return;
+    (state.hands[seat] || []).forEach(t => { sum += tilePoint(t); });
+  });
+  return sum;
+}
+
 // ---- Tur (el) kurulumu ----
 // seats: [0,1,2,3] koltuk dizilimi (sıra dizisi seats sırasını izler;
 // önceki oyuncu = seats dizisindeki bir önceki koltuk).
-function startRound(roundNo, seats, scores, rng, starterSeat) {
+const OKEY101_TARGET = 101;
+
+function startRound(roundNo, seats, scores, rng, starterSeat, variant) {
+  const variantNorm = variant === 'okey101' ? 'okey101' : 'standard';
+  const target = variantNorm === 'okey101' ? OKEY101_TARGET : null;
   const deck = shuffle(freshDeck(`ok-r${roundNo}`), rng);
   let indicator = null;
   for (let i = 0; i < deck.length; i++) {
@@ -170,6 +195,8 @@ function startRound(roundNo, seats, scores, rng, starterSeat) {
 
   return {
     round: roundNo,
+    variant: variantNorm,
+    target,
     seats: seats.slice(),
     starter,
     turn: starter,
@@ -181,7 +208,7 @@ function startRound(roundNo, seats, scores, rng, starterSeat) {
     discardPiles: Object.fromEntries(seats.map(s => [s, []])),
     scores: Object.assign({}, scores),
     finished: false,
-    result: null         // { winner, winType } veya { winner: null, winType: 'draw' }
+    result: null         // { winner, winType, gained? } veya { winner: null, winType: 'draw' }
   };
 }
 
@@ -254,6 +281,18 @@ function finish(state, seat, tileId) {
   const tile = hand[idx];
   const remaining = hand.filter((_, i) => i !== idx);
 
+  // OKEY 101 varyantı: kalan 14 taşın toplamı hedefe (101) ulaşmalı.
+  if (state.variant === 'okey101') {
+    if (!check101(remaining, state.target)) return { ok: false, reason: 'not_101' };
+    const gained = remainingPointsOf(state, seat);
+    hand.splice(idx, 1);
+    state.discardPiles[seat].push(tile);
+    state.scores[seat] = (state.scores[seat] || 0) + gained;
+    state.finished = true;
+    state.result = { winner: seat, winType: '101', gained };
+    return { ok: true, winType: '101', gained, tile };
+  }
+
   const isPairs = checkPairs(remaining, state.realOkey);
   const isPer = checkPer(remaining, state.realOkey);
   if (!isPairs && !isPer) return { ok: false, reason: 'not_a_win_hand' };
@@ -271,22 +310,24 @@ function finish(state, seat, tileId) {
 }
 
 // Bir elin 14 taşıyla bitip bitmeyeceğini dışa aç (istemci "Kontrol" için).
-function canFinishWith14(tiles, realOkey) {
+function canFinishWith14(tiles, realOkey, variant, target) {
+  if (variant === 'okey101') return check101(tiles, target);
   return checkPairs(tiles, realOkey) || checkPer(tiles, realOkey);
 }
 
-function handCanFinish(hand, realOkey) {
+function handCanFinish(hand, realOkey, variant, target) {
   // 15 taşlı elden herhangi bir taşı atınca kalan 14 geçerli mi?
   if (!Array.isArray(hand) || hand.length !== 15) return false;
   for (let i = 0; i < hand.length; i++) {
     const rest = hand.filter((_, j) => j !== i);
-    if (checkPairs(rest, realOkey) || checkPer(rest, realOkey)) return true;
+    if (canFinishWith14(rest, realOkey, variant, target)) return true;
   }
   return false;
 }
 
 module.exports = {
   COLORS,
+  OKEY101_TARGET,
   freshDeck,
   startRound,
   drawFromDeck,
@@ -295,6 +336,9 @@ module.exports = {
   finish,
   checkPairs,
   checkPer,
+  check101,
+  tilePoint,
+  remainingPointsOf,
   canFinishWith14,
   handCanFinish,
   isRealOkeyTile,

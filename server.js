@@ -145,6 +145,9 @@ const MOVE_FORFEIT_MS = Number(process.env.GV_MOVE_FORFEIT_MS) || 60000;
 const OKEY_TURN_MS = Number(process.env.GV_OKEY_TURN_MS) || 30000;
 const OKEY_STRIKES_MAX = Number(process.env.GV_OKEY_STRIKES_MAX) || 3;
 const OKEY_MAX_ROUNDS = Number(process.env.GV_OKEY_MAX_ROUNDS) || 3;
+// Okey 101: maç, bir oyuncu 101 puana ulaşana kadar SÜRSÜR; el limiti sadece
+// sonsuz maçı önleyen GÜVENLİK sınırıdır (varsayılan 99 el).
+const OKEY101_MAX_ROUNDS = Number(process.env.GV_OKEY101_MAX_ROUNDS) || 99;
 const OKEY_ROUND_PAUSE_MS = Number(process.env.GV_OKEY_ROUND_PAUSE_MS) || 4000;
 const disconnectTimers = new Map();
 
@@ -184,7 +187,7 @@ const PRESET_GAME_BASES = {
 };
 const STANDARD_PRESET_GAMES = Object.keys(PRESET_GAME_BASES);
 // Hazır masası SABİT olan oyunlar (panel yalnızca görünürlük yönetir):
-const FIXED_PRESET_GAMES = ['okey'];
+const FIXED_PRESET_GAMES = ['okey', 'okey101'];
 
 function clampDuration(v, dflt) {
   const n = Math.floor(Number(v));
@@ -265,6 +268,10 @@ function presetTablesFromConfig(cfg) {
   if ((cfg.okey || {}).visible !== false && (okeyEngine || process.env.GV_OKEY_PRESETS === '1')) {
     out.push(...okeyPresetTables(301));
   }
+  // Okey 101: sabit 6 masa (aynı mekanizma, #331-#336):
+  if ((cfg.okey101 || {}).visible !== false && (okeyEngine || process.env.GV_OKEY_PRESETS === '1')) {
+    out.push(...okey101PresetTables(331));
+  }
   return out;
 }
 // OKEY: yetkili sunucu motoru (okey-engine.js) bu repoya eklendiği anda masalar
@@ -294,6 +301,27 @@ function okeyPresetTables(startId) {
           name: `${players} Kişilik • ${rounds} El — Masa #${rid}`
         });
       }
+    }
+  }
+  return out;
+}
+// OKEY 101 hazır masaları: (2/3/4 kişilik) × (10/20 dk) = 6 masa. El sayısı
+// 101'de ANLAM TAŞIMAZ (maç, bir oyuncu 101 puana ulaşana kadar sürer);
+// koltuk başına ana süre masa süresinden gelir. Kimlikler ardıl: #331-#336
+// (okey 301-318 aralığından bağımsız).
+function okey101PresetTables(startId) {
+  const out = [];
+  let id = startId;
+  for (const players of [2, 3, 4]) {
+    for (const dur of [10, 20]) {
+      const rid = String(id++);
+      out.push({
+        id: rid,
+        gameId: 'okey101',
+        maxPlayers: players,
+        durationMinutes: dur,
+        name: `${players} Kişilik • ${dur} dk — Masa #${rid}`
+      });
     }
   }
   return out;
@@ -343,7 +371,7 @@ function applyPresetConfig(raw) {
   // Yapılandırmada olmayan BOŞ hazır odaları gerçekten kaldır:
   for (const room of [...rooms.values()]) {
     if (!room.isPreset) continue;
-    if (room.gameId === 'okey') continue; // okey: görünürlük aşağıda, yapı sabit
+    if (room.gameId === 'okey' || room.gameId === 'okey101') continue; // görünürlük aşağıda, yapı sabit
     if (desiredIds.has(room.id)) continue;
     if (room.players.length === 0 && !(room.spectators || []).length) {
       removePresetRoom(room);
@@ -367,6 +395,26 @@ function applyPresetConfig(raw) {
         const room = createRoom(t.id, 'okey', t.maxPlayers, t.durationMinutes, { name: t.name, rounds: t.rounds });
         room.isPreset = true;
         touchedGames.add('okey');
+      }
+    }
+  }
+  // Okey 101 görünürlüğü: aynı mekanizma (gizle → boş 101 masaları kalkar;
+  // görünür + motor var → eksikler tamamlanır).
+  const okey101Visible = (presetConfig.okey101 || {}).visible !== false;
+  if (!okey101Visible) {
+    for (const room of [...rooms.values()]) {
+      if (!room.isPreset || room.gameId !== 'okey101') continue;
+      if (room.players.length === 0 && !(room.spectators || []).length) {
+        removePresetRoom(room);
+        touchedGames.add('okey101');
+      }
+    }
+  } else if (okeyEngine || process.env.GV_OKEY_PRESETS === '1') {
+    for (const t of okey101PresetTables(331)) {
+      if (!rooms.get(t.id)) {
+        const room = createRoom(t.id, 'okey101', t.maxPlayers, t.durationMinutes, { name: t.name });
+        room.isPreset = true;
+        touchedGames.add('okey101');
       }
     }
   }
@@ -916,10 +964,16 @@ function startRoomGame(room) {
   if (room.gameId === 'tavla') return startTavla(room);
   if (room.gameId === 'chess') return startChess(room);
   // Okey motoru (okey-engine.js + startOkey) entegre edildiğinde devreye girer.
-  if (room.gameId === 'okey' && typeof startOkey === 'function') return startOkey(room);
+  // 'okey101' aynı motordan, varyant bayrağıyla oynanır (101 puan hedefi).
+  if ((room.gameId === 'okey' || room.gameId === 'okey101') && typeof startOkey === 'function') return startOkey(room);
 }
 
 // ============== OKEY (2/3/4 kişilik, sunucu yetkili; el sayısı odadan) ==============
+// 'okey'  : klasik — kazanan her elde +1 skor; maç, oda el limitinde biter.
+// 'okey101': kalan 14 taşın toplamı 101 puana ulaşan el kazanır; kazanan
+//            diğer oyuncuların kalan el puanını SKORA ekler (gained). Maç,
+//            bir oyuncu 101 puana ulaşana kadar sürer (OKEY101_MAX_ROUNDS
+//            güvenlik sınırı).
 function startOkey(room) {
   if (!okeyEngine) return; // çağıran zaten kontrol eder; güvence
   if (room.status === 'playing') return;
@@ -929,13 +983,16 @@ function startOkey(room) {
   room.status = 'playing';
   room.result = null;
   room.lastMove = null;
+  const variant = room.gameId === 'okey101' ? 'okey101' : 'standard';
   const seats = room.players.map(p => p.seat).sort((a, b) => a - b);
   const scores = Object.fromEntries(seats.map(s => [s, 0]));
   room.okey = {
-    roundState: okeyEngine.startRound(1, seats, scores),
+    variant,
+    roundState: okeyEngine.startRound(1, seats, scores, undefined, undefined, variant),
     currentRound: 1,
-    // Oda bazlı el sayısı (masayı kuran / hazır masa tanımı belirler).
-    maxRounds: room.okeyMaxRounds || OKEY_MAX_ROUNDS,
+    // Okey 101'de el limiti kullanılmaz (maç 101 puanda biter); standartta
+    // oda bazlı el sayısı (masayı kuran / hazır masa tanımı belirler).
+    maxRounds: variant === 'okey101' ? OKEY101_MAX_ROUNDS : (room.okeyMaxRounds || OKEY_MAX_ROUNDS),
     // Koltuk başına ANA süre (masa süresi 10/15/20 dk, herkesinki ayrı).
     clockMs: Object.fromEntries(seats.map(s => [s, room.durationMinutes * 60 * 1000])),
     clockStartedAt: now(),
@@ -960,6 +1017,10 @@ function buildOkeyState(room, forSeat) {
   }
   const state = {
     kind: 'okey',
+    // İstemci varyantı (Kontrol/101 hedefi) buradan öğrenir:
+    // 'standard' = klasik per/çift bitiş, 'okey101' = 14 taş toplamı ≥ target.
+    variant: st8.variant || (ok.variant || 'standard'),
+    target: st8.target != null ? st8.target : (st8.variant === 'okey101' ? (okeyEngine.OKEY101_TARGET || 101) : null),
     status: room.status,
     round: ok.currentRound,
     maxRounds: ok.maxRounds,
@@ -1111,14 +1172,30 @@ function okeyRoundFinished(room) {
   const ok = room.okey;
   if (!ok || !ok.roundState.finished || ok.between) return;
   okeyAdvanceClock(room); // açık saati kapat
+  const is101 = (ok.roundState.variant || ok.variant) === 'okey101';
   const res = ok.roundState.result || { winner: null, winType: 'draw' };
   if (res.winner !== null && res.winner !== undefined) {
-    ok.roundState.scores[res.winner] = (ok.roundState.scores[res.winner] || 0) + 1;
+    if (!is101) {
+      ok.roundState.scores[res.winner] = (ok.roundState.scores[res.winner] || 0) + 1;
+    }
+    // okey101: motor finish() içinde kazananın skoruna diğerlerinin kalan
+    // el puanını (gained) ZATEN ekledi — burada tekrar sayma.
   }
-  const lastRound = ok.currentRound >= ok.maxRounds;
+  // MAÇ SONU:
+  //  - standart : el limiti (masa tanımı / OKEY_MAX_ROUNDS)
+  //  - okey101  : bir oyuncu 101 puana ulaştı (veya güvenlik el limiti)
+  let matchOver;
+  if (is101) {
+    const target = okeyEngine.OKEY101_TARGET || 101;
+    const someoneReached = Object.keys(ok.roundState.scores).some(
+      s => (ok.roundState.scores[s] || 0) >= target);
+    matchOver = someoneReached || ok.currentRound >= ok.maxRounds;
+  } else {
+    matchOver = ok.currentRound >= ok.maxRounds;
+  }
   emitOkeyState(room, 'okeyRoundEnded');
 
-  if (lastRound) {
+  if (matchOver) {
     endOkeyMatch(room, 'completed', null);
     return;
   }
@@ -1127,7 +1204,9 @@ function okeyRoundFinished(room) {
     if (room.status !== 'playing') return; // arada maç bitmişse
     if (room.players.length !== room.maxPlayers) { endOkeyMatch(room, 'player_left', null); return; }
     ok.currentRound += 1;
-    ok.roundState = okeyEngine.startRound(ok.currentRound, ok.roundState.seats, ok.roundState.scores);
+    // Varyant KORUNUR: okey101 masasında 2. el de 101 varyantıyla kurulur.
+    ok.roundState = okeyEngine.startRound(ok.currentRound, ok.roundState.seats, ok.roundState.scores,
+      undefined, undefined, ok.roundState.variant || ok.variant);
     ok.clockStartedAt = now();
     ok.turnStartedAt = now();
     touchMoveTimer(room);
@@ -1176,7 +1255,7 @@ function okeyClockTick(room) {
 }
 
 function okeyGuard(room, socket) {
-  if (!okeyEngine || room.gameId !== 'okey' || room.status !== 'playing' || !room.okey) return null;
+  if (!okeyEngine || (room.gameId !== 'okey' && room.gameId !== 'okey101') || room.status !== 'playing' || !room.okey) return null;
   if (room.okey.between) return null;
   const isSpectatorSocket = socket.role === 'spectator' ||
     (room.spectators || []).some(x => x.id === socket.id);
