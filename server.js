@@ -5,6 +5,8 @@ const { Server } = require('socket.io');
 const cors = require('cors');
 const { Chess } = require('chess.js');
 const tavlaEngine = require('./tavla-engine');
+const pistiEngine = require('./pisti-engine');
+const batakEngine = require('./batak-engine');
 const { db } = require('./db'); // kurucu paneli: üye listesi + masa ayarları (SQLite, yerel mod)
 
 const app = express();
@@ -44,7 +46,8 @@ try {
 
 const MAX_ROOM_PLAYERS = 2;
 // Okey 4 kişilik oynanır; diğerleri ikişer kişilik kalır.
-const MAX_PLAYERS_BY_GAME = { okey: 4, okey101: 4 };
+const MAX_PLAYERS_BY_GAME = { okey: 4, okey101: 4, pisti: 4, batak: 4 };
+const ONLINE_CARD_GAMES = new Set(['pisti', 'batak']);
 function maxPlayersFor(gameId) {
   return MAX_PLAYERS_BY_GAME[gameId] || MAX_ROOM_PLAYERS;
 }
@@ -180,7 +183,7 @@ const PRESET_TYPES = [
 
 // Standart (10 masa) hazır masa açan oyunlar + sabit ID tabanları:
 const PRESET_GAME_BASES = {
-  chess: 101, tavla: 201,
+  chess: 101, tavla: 201, pisti: 341, batak: 361,
   // bilardo 921: 901-910 aralığı okey test süitinin oda kimlikleriyle
   // çakışmasın diye atlandı.
   dama: 401, turkdamasi: 501, reversi: 601, gomoku: 701, connect4: 801, bilardo: 921
@@ -208,6 +211,9 @@ function defaultPresetConfig() {
   const cfg = {};
   for (const g of STANDARD_PRESET_GAMES) cfg[g] = { visible: true, tables: defaultTablesFor(g) };
   for (const g of FIXED_PRESET_GAMES) cfg[g] = { visible: true };
+  // Kart oyunları güvenli varsayılan: online kapalı; kurucu açınca seed edilir.
+  cfg.pisti = { visible: true, online: false, tables: [] };
+  cfg.batak = { visible: true, online: false, tables: [] };
   // Görünürlüğü yönetilen diğer oyunlar (hazır masaları yok, sitede görünür):
   for (const g of ALL_GAMES) if (!cfg[g]) cfg[g] = { visible: true };
   return cfg;
@@ -221,6 +227,7 @@ function normPresetConfig(raw) {
     const src = raw[g];
     if (!src || typeof src !== 'object') continue;
     if (typeof src.visible === 'boolean') cfg[g].visible = src.visible;
+    if (typeof src.online === 'boolean') cfg[g].online = src.online;
     if (STANDARD_PRESET_GAMES.includes(g) && Array.isArray(src.tables)) {
       const base = PRESET_GAME_BASES[g];
       const dflt = defaultTablesFor(g);
@@ -248,17 +255,26 @@ function gameVisible(id) {
 }
 
 // Yapılandırma → somut hazır masa listesi:
+function cardPresetTables(gameId, startId) {
+  const out=[]; let id=startId;
+  const combos=gameId==='pisti' ? [[2,1],[2,3],[2,5],[3,1],[3,3],[3,5],[4,1],[4,3],[4,5]] : [[4,3],[4,5],[4,7]];
+  for (const [players, rounds] of combos) for(let n=0;n<2;n++){const rid=String(id++);out.push({id:rid,gameId,maxPlayers:players,durationMinutes:rounds===1?10:rounds===3?15:20,rounds,name:`${players} Kişilik • ${rounds} El — Masa #${rid}`});}
+  return out;
+}
 function presetTablesFromConfig(cfg) {
   const out = [];
   for (const g of STANDARD_PRESET_GAMES) {
     const gc = cfg[g] || {};
     if (gc.visible === false) continue;
+    if ((g === 'pisti' || g === 'batak') && gc.online !== true) continue;
+    if (g === 'pisti' || g === 'batak') { out.push(...cardPresetTables(g, g === 'pisti' ? 341 : 361)); continue; }
     const base = PRESET_GAME_BASES[g];
     (gc.tables && gc.tables.length ? gc.tables : defaultTablesFor(g)).forEach((t, i) => {
       out.push({
         id: String(base + i),
         gameId: g,
-        maxPlayers: 2,
+        maxPlayers: g === 'batak' ? 4 : (g === 'pisti' ? 2 : 2),
+        rounds: (g === 'pisti' ? [1,3,5][i % 3] : undefined),
         durationMinutes: clampDuration(t.durationMinutes, 10),
         name: String(t.name || `Masa #${base + i}`).slice(0, 60)
       });
@@ -507,6 +523,7 @@ function createRoom(id, gameId, maxPlayers, durationMinutes, meta) {
     durationMinutes: duration,
     // Okey: oda bazlı maç el sayısı (yoksa OKEY_MAX_ROUNDS varsayımı).
     // Masayı kuranın seçimi (3/5/7 el); 1-99 arası kabul edilir.
+    cardRounds: (() => { const r = Math.floor(Number(meta.rounds)); return (gameId === 'pisti' && [1,3,5].includes(r)) ? r : undefined; })(),
     okeyMaxRounds: (() => {
       const r = Math.floor(Number(meta.rounds));
       return (r >= 1 && r <= 99) ? r : undefined;
@@ -538,6 +555,7 @@ function resetRoomToWaiting(room) {
   room.status = 'waiting';
   room.chess = null;
   room.tavla = null;
+  room.cardGame = null;
   room.tavlaNotice = null;
   room.tavlaNoticeSeq = 0;
   if (room.okey && room.okey.between) { clearTimeout(room.okey.between); }
@@ -605,7 +623,7 @@ function publicRoom(room) {
     // Özel masayı kuran ÜYE (davet yetkisi istemcide de gösterilsin diye)
     creatorId: room.creatorId || null,
     // Okey masaları: maç el sayısı (lobi "🀄 X El" rozeti basar)
-    rounds: room.okeyMaxRounds || null
+    rounds: room.okeyMaxRounds || (room.gameId === 'pisti' ? room.cardRounds : null)
   };
 }
 
@@ -624,7 +642,7 @@ function publicLobbyRoom(room) {
     duration: room.durationMinutes,
     durationMinutes: room.durationMinutes,
     // Okey masaları: maç el sayısı (lobi "🀄 X El" rozeti basar)
-    rounds: room.okeyMaxRounds || null
+    rounds: room.okeyMaxRounds || (room.gameId === 'pisti' ? room.cardRounds : null)
   };
 }
 
@@ -790,10 +808,35 @@ function buildTavlaState(room, opts) {
   };
 }
 
+function cardGameState(room, forSeat) {
+  const st = room.cardGame;
+  if (!st) return null;
+  const isPisti = room.gameId === 'pisti';
+  const hands = isPisti ? st.hands.map((h,i)=>i===forSeat?h.length:h.length) : st.hands.map(h=>h.length);
+  return { kind: room.gameId, status: room.status, phase: st.phase || 'play', turn: st.turn,
+    hand: forSeat == null ? [] : (st.hands[forSeat] || []).slice(), handCounts: hands,
+    center: (st.center || []).slice(), trick: (st.trick || []).slice(), captures: st.captures ? st.captures.map(x=>x.length) : [],
+    scores: (st.scores || []).slice(), bids: st.bids ? st.bids.slice() : [], trump: st.trump,
+    deckCount: st.deck ? st.deck.length : 0, tricks: st.tricks ? st.tricks.slice() : [], result: st.result || null
+  };
+}
+function emitCardState(room, event='gameStateUpdated') {
+  room.players.forEach(p => emitToPlayer(p, event, { roomId: room.id, seat:p.seat, gameState:cardGameState(room,p.seat), isSpectator:false }));
+  (room.spectators||[]).forEach(p => emitToPlayer(p,event,{roomId:room.id,seat:null,gameState:cardGameState(room,null),isSpectator:true}));
+}
+function startCardGame(room) {
+  if (room.status==='playing' || room.players.length!==room.maxPlayers || !room.players.every(p=>p.isReady)) return;
+  room.status='playing'; room.result=null; room.cardGame=room.gameId==='pisti' ? pistiEngine.init(room.maxPlayers, room.cardRounds||1) : batakEngine.init();
+  room.turnStartedAt=now(); touchMoveTimer(room); emitRoom(room);
+  room.players.forEach(p=>emitToPlayer(p,'gameStarted',{roomId:room.id,seat:p.seat,playerColor:null,isSpectator:false,players:publicRoom(room).players,gameState:cardGameState(room,p.seat)}));
+  emitCardState(room);
+}
+
 // Oyun türüne göre doğru durum üreticisini seç (satranç / tavla).
 function buildBoardState(room, opts) {
   if (room.chess) return buildChessState(room, opts);
   if (room.tavla) return buildTavlaState(room, opts);
+  if (room.cardGame) return cardGameState(room, opts && opts.seat);
   return null;
 }
 
@@ -850,6 +893,7 @@ function emitPlayingSnapshot(room, socketId, player) {
     });
     return;
   }
+  if (room && room.status === 'playing' && room.cardGame) { const p = player ? player.seat : null; io.to(socketId).emit('gameStarted',{roomId:room.id,seat:p,isSpectator:!player,players:publicRoom(room).players,gameState:cardGameState(room,p)}); io.to(socketId).emit('gameStateUpdated',{roomId:room.id,seat:p,isSpectator:!player,gameState:cardGameState(room,p)}); return; }
   if (!room || room.status !== 'playing' || (!room.chess && !room.tavla)) return;
   updateClock(room);
   const isSpec = !player;
@@ -963,6 +1007,7 @@ function startRoomGame(room) {
   if (!room) return;
   if (room.gameId === 'tavla') return startTavla(room);
   if (room.gameId === 'chess') return startChess(room);
+  if (ONLINE_CARD_GAMES.has(room.gameId)) return startCardGame(room);
   // Okey motoru (okey-engine.js + startOkey) entegre edildiğinde devreye girer.
   // 'okey101' aynı motordan, varyant bayrağıyla oynanır (101 puan hedefi).
   if ((room.gameId === 'okey' || room.gameId === 'okey101') && typeof startOkey === 'function') return startOkey(room);
@@ -1673,7 +1718,7 @@ io.on('connection', socket => {
         name: data.roomName || data.name,
         isPrivate: !!(data.isPrivate),
         // Okey: masayı kuran oyuncu 3/5/7 el seçimini burada gönderir.
-        rounds: (gameId === 'okey') ? data.rounds : undefined
+        rounds: (gameId === 'okey' || gameId === 'pisti') ? data.rounds : undefined
       });
       justCreated = true;
     } else if (!room.name && (data.roomName || data.name)) {
@@ -2216,6 +2261,14 @@ io.on('connection', socket => {
     tavlaAdvance(room);
     emitGameState(room);
   });
+
+  // ---------- PİŞTİ / BATAK eylemleri (sunucu yetkili) ----------
+  function cardGuard(room) { return room && ONLINE_CARD_GAMES.has(room.gameId) && room.status==='playing' && room.cardGame && room.players.find(p=>p.id===socket.id); }
+  function cardReject(roomId, reason) { socket.emit(roomId && rooms.get(roomId)?.gameId==='batak' ? 'batakRejected' : 'pistiRejected', {roomId,reason}); }
+  socket.on('pistiPlay', data => { const room=rooms.get(socket.roomId || String(data?.roomId||'')), p=cardGuard(room); if(!p||room.gameId!=='pisti')return cardReject(room?.id||data?.roomId,'not_in_room'); const r=pistiEngine.play(room.cardGame,p.seat,Number(data.index)); if(!r.ok)return cardReject(room.id,r.reason); if(room.cardGame.finished){room.status='finished';room.result={reason:'finished',winner:room.cardGame.result.winner}; emitCardState(room); room.players.forEach(q=>emitToPlayer(q,'gameEnded',{roomId:room.id,reason:'finished',winnerSeat:room.result.winner,youWon:q.seat===room.result.winner,gameState:cardGameState(room,q.seat)}));} else emitCardState(room); emitRoom(room); });
+  socket.on('batakBid', data => { const room=rooms.get(socket.roomId || String(data?.roomId||'')), p=cardGuard(room); if(!p||room.gameId!=='batak')return cardReject(room?.id||data?.roomId,'not_in_room'); const r=batakEngine.bid(room.cardGame,p.seat,data.value); if(!r.ok)return cardReject(room.id,r.reason); emitCardState(room); });
+  socket.on('batakTrump', data => { const room=rooms.get(socket.roomId || String(data?.roomId||'')), p=cardGuard(room); if(!p||room.gameId!=='batak')return cardReject(room?.id||data?.roomId,'not_in_room'); const r=batakEngine.trump(room.cardGame,p.seat,data.suit); if(!r.ok)return cardReject(room.id,r.reason); emitCardState(room); });
+  socket.on('batakPlay', data => { const room=rooms.get(socket.roomId || String(data?.roomId||'')), p=cardGuard(room); if(!p||room.gameId!=='batak')return cardReject(room?.id||data?.roomId,'not_in_room'); const r=batakEngine.play(room.cardGame,p.seat,Number(data.index)); if(!r.ok)return cardReject(room.id,r.reason); if(room.cardGame.finished){room.status='finished';room.result={reason:'finished',scores:room.cardGame.scores.slice()}; emitCardState(room); const winner=room.cardGame.scores.indexOf(Math.max(...room.cardGame.scores)); room.players.forEach(q=>emitToPlayer(q,'gameEnded',{roomId:room.id,reason:'finished',winnerSeat:winner,youWon:q.seat===winner,gameState:cardGameState(room,q.seat)}));} else emitCardState(room); emitRoom(room); });
 
   // ---------- OKEY eylemleri (sunucu yetkili) ----------
   socket.on('okeyDraw', data => {

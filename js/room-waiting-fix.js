@@ -16,7 +16,7 @@
   // masada-bekleme görünümünü (otur/kalk/hazırım/izle) kullanır.
   // (Pişti ve Batak henüz online motoru yok — yerel akışta kalır.)
   const BRIDGE_GAMES = ['chess', 'satranc', 'satranç', 'tavla', 'okey', 'okey101',
-    'dama', 'turkdamasi', 'reversi', 'gomoku', 'connect4', 'bilardo'];
+    'pisti', 'batak', 'dama', 'turkdamasi', 'reversi', 'gomoku', 'connect4', 'bilardo'];
   const normGame = (g) => {
     g = String(g || '').toLowerCase().trim();
     if (g === 'satranc' || g === 'satranç') return 'chess';
@@ -37,7 +37,7 @@
     const title = (document.getElementById('grTitle')?.textContent || '').toLowerCase();
     if (/satranç|satranc|tavla/i.test(title)) return true;
     if (/okey/i.test(title)) return true; // 'Okey' ve '101 Okey' ikisi de sunucu yetkili
-    if (/dama|reversi|gomoku|connect|bilardo/i.test(title)) return true;
+    if (/pişti|pisti|batak|dama|reversi|gomoku|connect|bilardo/i.test(title)) return true;
 
     return !!window.__gvChessOnlineRequested || !!window.__gvTavlaOnlineRequested || !!window.__gvOkeyOnlineRequested || !!window.__gvOnlineRequested;
   }
@@ -52,6 +52,8 @@
     if (!g) {
       const title = (document.getElementById('grTitle')?.textContent || '').toLowerCase();
       if (/tavla/i.test(title)) return 'tavla';
+      if (/pişti|pisti/i.test(title)) return 'pisti';
+      if (/batak/i.test(title)) return 'batak';
       if (/okey/i.test(title) && /101/.test(title)) return 'okey101';
       if (/okey/i.test(title)) return 'okey';
       if (/dama|dama/i.test(title) && /türk/i.test(title)) return 'turkdamasi';

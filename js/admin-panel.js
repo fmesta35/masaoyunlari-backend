@@ -23,8 +23,8 @@
 
   // Standart hazır-masa (10 masa) açan oyunlar; okey sabit 18 masa;
   // diğerleri (kart oyunları vb.) yalnız görünürlük yönetilir.
-  const STANDARD = ['chess', 'tavla', 'dama', 'turkdamasi', 'reversi', 'gomoku', 'connect4', 'bilardo'];
-  const FIXED = ['okey'];
+  const STANDARD = ['chess', 'tavla', 'pisti', 'batak', 'dama', 'turkdamasi', 'reversi', 'gomoku', 'connect4', 'bilardo'];
+  const FIXED = ['okey', 'okey101'];
   const TYPE_DEFS = [
     { type: 'fast', label: '⚡ Hızlı (10 dk)', duration: 10 },
     { type: 'normal', label: '♟️ Normal (15 dk)', duration: 15 },
@@ -225,7 +225,7 @@
       <div style="display:flex;justify-content:flex-end;margin-top:14px">
         <button type="button" id="adminSaveBtn" style="background:linear-gradient(135deg,#6c5ce7,#8f7bff);color:#fff;border:none;padding:11px 22px;border-radius:10px;font-weight:800;cursor:pointer">💾 Kaydet ve Uygula</button>
       </div>`;
-    body.querySelectorAll('[data-act]').forEach(btn => btn.addEventListener('click', () => onGameAction(btn.getAttribute('data-act'), btn.getAttribute('data-gid'), btn.getAttribute('data-i'))));
+    body.querySelectorAll('[data-act]').forEach(btn => btn.addEventListener('click', () => onGameAction(btn.getAttribute('data-act'), btn.getAttribute('data-gid'), btn.getAttribute('data-i'), btn)));
     const saveBtn = document.getElementById('adminSaveBtn');
     if (saveBtn) saveBtn.addEventListener('click', onSave);
   }
@@ -242,7 +242,7 @@
         <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
           <span style="font-size:1.4em">${g.icon}</span>
           <b style="font-size:1em;flex:1;min-width:120px">${esc(g.name)}${isFixed ? ' <span style="font-size:.7em;color:var(--text3)">(18 hazır masa — yapı sabit)</span>' : (isStd ? '' : ' <span style="font-size:.7em;color:var(--text3)">(hazır masa yok)</span>')}</b>
-          <span style="font-size:.78em;color:var(--text3)">${isStd ? rows.length + ' masa' : ''}</span>
+          <span style="font-size:.78em;color:var(--text3)">${isStd ? rows.length + ' masa' : ''}</span>${(gid==='pisti'||gid==='batak') ? `<label style="font-size:.78em"><input type="checkbox" data-act="online" data-gid="${gid}" ${(settingsCache[gid]||{}).online?'checked':''}> online masalar</label>` : ''}
           ${isStd ? `
           <button type="button" data-act="addTable" data-gid="${gid}" style="border:1px solid var(--border);background:var(--bg3);color:var(--text);border-radius:8px;padding:5px 10px;cursor:pointer;font-size:.8em" title="Masa ekle">➕ Masa</button>
           <button type="button" data-act="delTable" data-gid="${gid}" style="border:1px solid var(--border);background:var(--bg3);color:var(--text2);border-radius:8px;padding:5px 10px;cursor:pointer;font-size:.8em" title="Son masayı kaldır">➖ Masa</button>` : ''}
@@ -286,7 +286,7 @@
     });
   }
 
-  function onGameAction(act, gid, iAttr) {
+  function onGameAction(act, gid, iAttr, target) {
     const i = iAttr === null || iAttr === undefined ? -1 : Number(iAttr);
     const cfg = settingsCache[gid];
     if (!cfg) return;
@@ -303,7 +303,8 @@
       paintTableRows(gid);
       return;
     }
-    if (act === 'delTable') {
+    if (act === 'online') { cfg.online = !!target?.checked; return; }
+      if (act === 'delTable') {
       if (Array.isArray(cfg.tables) && cfg.tables.length) cfg.tables.pop();
       paintTableRows(gid);
       return;
