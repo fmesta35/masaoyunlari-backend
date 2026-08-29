@@ -150,6 +150,7 @@ function pushChat(roomId, msg) {
 // (500 ms'de bir) sayacı sürekli başa döndürür ve denetim ölü kod olur.
 const MOVE_WARN_MS = Number(process.env.GV_MOVE_WARN_MS) || 40000;
 const MOVE_FORFEIT_MS = Number(process.env.GV_MOVE_FORFEIT_MS) || 60000;
+const PISTI_TURN_MS = Number(process.env.GV_PISTI_TURN_MS) || 30000;
 // OKEY: tur başına süre (yerel motordaki 30 sn "SIRA" sayacının sunucu
 // karşılığı) + art arda sürünceme toleransı (3. strike = diskalifiye).
 const OKEY_TURN_MS = Number(process.env.GV_OKEY_TURN_MS) || 30000;
@@ -807,7 +808,7 @@ function cardGameState(room, forSeat) {
     hand: forSeat == null ? [] : (st.hands[forSeat] || []).slice(), handCounts: hands,
     center: (st.center || []).slice(), trick: (st.trick || []).slice(), captures: st.captures ? st.captures.map(x=>x.length) : [],
     scores: (st.scores || []).slice(), bids: st.bids ? st.bids.slice() : [], trump: st.trump,
-    deckCount: st.deck ? st.deck.length : 0, tricks: st.tricks ? st.tricks.slice() : [], result: st.result || null
+    deckCount: st.deck ? st.deck.length : 0, turnRemainingMs: Math.max(0, (room.gameId==='pisti'?PISTI_TURN_MS:MOVE_FORFEIT_MS) - (now() - (room.moveStartedAt || now()))), tricks: st.tricks ? st.tricks.slice() : [], result: st.result || null
   };
 }
 function emitCardState(room, event='gameStateUpdated') {
@@ -2467,8 +2468,8 @@ const clockTimer = setInterval(() => {
 function enforceOnlineMoveTimeout(room) {
   if (!room.moveStartedAt || !room.players.length || (!room.dama && !room.reversi && !room.gomoku && !room.connect4 && !room.bilardo && !room.cardGame)) return false;
   const elapsed=now()-room.moveStartedAt, seat=cardMoveTurn(room); if (seat===null) return false;
-  if (!room.moveWarned && elapsed>=MOVE_WARN_MS) { room.moveWarned=true; io.to(room.id).emit('moveTimeWarning',{roomId:room.id,seat,remainingMs:Math.max(0,MOVE_FORFEIT_MS-elapsed)}); }
-  if (elapsed<MOVE_FORFEIT_MS) return false;
+  if (!room.moveWarned && elapsed>=(room.gameId==='pisti'?Math.min(MOVE_WARN_MS, PISTI_TURN_MS-1000):MOVE_WARN_MS)) { room.moveWarned=true; io.to(room.id).emit('moveTimeWarning',{roomId:room.id,seat,remainingMs:Math.max(0,MOVE_FORFEIT_MS-elapsed)}); }
+  if (elapsed<(room.gameId==='pisti'?PISTI_TURN_MS:MOVE_FORFEIT_MS)) return false;
   const winner=seat===0?1:0; room.status='finished'; room.result={reason:'move_timeout',winnerSeat:winner};
   const stateFor=(p)=>room.dama?damaState(room,p):room.reversi?reversiState(room,p):room.gomoku?gomokuState(room,p):room.connect4?connect4State(room,p):room.bilardo?bilardoState(room,p):cardGameState(room,p);
   room.players.forEach(p=>emitToPlayer(p,'gameEnded',{roomId:room.id,reason:'move_timeout',winnerSeat:winner,youWon:p.seat===winner,gameState:stateFor(p.seat)}));
