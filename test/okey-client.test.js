@@ -13,7 +13,7 @@
  */
 
 process.env.GV_POST_GAME_HOLD_MS = '400';
-process.env.GV_OKEY_TURN_MS = '1500';
+process.env.GV_OKEY_TURN_MS = '5000';
 process.env.GV_OKEY_ROUND_PAUSE_MS = '400';
 
 const assert = require('assert');
