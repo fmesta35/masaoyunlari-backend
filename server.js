@@ -8,6 +8,7 @@ const tavlaEngine = require('./tavla-engine');
 const pistiEngine = require('./pisti-engine');
 const batakEngine = require('./batak-engine');
 const damaEngine = require('./dama-engine');
+const turkDamaEngine = require('./turkdamasi-engine');
 const { db } = require('./db'); // kurucu paneli: üye listesi + masa ayarları (SQLite, yerel mod)
 
 const app = express();
@@ -49,7 +50,7 @@ const MAX_ROOM_PLAYERS = 2;
 // Okey 4 kişilik oynanır; diğerleri ikişer kişilik kalır.
 const MAX_PLAYERS_BY_GAME = { okey: 4, okey101: 4, pisti: 4, batak: 4 };
 const ONLINE_CARD_GAMES = new Set(['pisti', 'batak']);
-const ONLINE_BOARD_GAMES = new Set(['dama']);
+const ONLINE_BOARD_GAMES = new Set(['dama','turkdamasi']);
 function maxPlayersFor(gameId) {
   return MAX_PLAYERS_BY_GAME[gameId] || MAX_ROOM_PLAYERS;
 }
@@ -811,9 +812,9 @@ function buildTavlaState(room, opts) {
   };
 }
 
-function damaState(room, seat) { const d=room.dama; return {kind:'dama',status:room.status,turn:d.turn,winner:d.winner,board:d.board.map(r=>r.slice()),captures:{...d.captures},seat,playerColor:seat===0?'r':'b',legalMoves:seat===null?[]:d.turn===(seat===0?'r':'b')?damaEngine.allMoves(d):[]}; }
+function damaState(room, seat) { const d=room.dama; const isTurk=room.gameId==='turkdamasi'; const engine=isTurk?turkDamaEngine:damaEngine; const color=seat===0?(isTurk?'w':'r'):(isTurk?'b':'b'); return {kind:room.gameId,status:room.status,turn:d.turn,winner:d.winner,board:d.board.map(r=>r.slice()),captures:{...d.captures},seat,playerColor:color,legalMoves:seat===null?[]:d.turn===color?engine.allMoves(d):[]}; }
 function emitDamaState(room,event='gameStateUpdated'){room.players.forEach(p=>emitToPlayer(p,event,{roomId:room.id,seat:p.seat,gameState:damaState(room,p.seat),isSpectator:false}));(room.spectators||[]).forEach(p=>emitToPlayer(p,event,{roomId:room.id,seat:null,gameState:damaState(room,null),isSpectator:true}));}
-function startDama(room){if(room.status==='playing'||room.players.length!==2||!room.players.every(p=>p.isReady))return;room.status='playing';room.result=null;room.dama=damaEngine.init();room.turnStartedAt=now();touchMoveTimer(room);emitRoom(room);room.players.forEach(p=>emitToPlayer(p,'gameStarted',{roomId:room.id,seat:p.seat,playerColor:p.seat===0?'r':'b',players:publicRoom(room).players,gameState:damaState(room,p.seat)}));emitDamaState(room);}
+function startDama(room){if(room.status==='playing'||room.players.length!==2||!room.players.every(p=>p.isReady))return;room.status='playing';room.result=null;room.dama=room.gameId==='turkdamasi'?turkDamaEngine.init():damaEngine.init();room.turnStartedAt=now();touchMoveTimer(room);emitRoom(room);room.players.forEach(p=>emitToPlayer(p,'gameStarted',{roomId:room.id,seat:p.seat,playerColor:p.seat===0?(room.gameId==='turkdamasi'?'w':'r'):'b',players:publicRoom(room).players,gameState:damaState(room,p.seat)}));emitDamaState(room);}
 
 function cardGameState(room, forSeat) {
   const st = room.cardGame;
@@ -2273,7 +2274,7 @@ io.on('connection', socket => {
   });
 
   // ---------- İNGİLİZ DAMASI eylemleri (sunucu yetkili) ----------
-  socket.on('damaMove', data => { const room=rooms.get(socket.roomId||String(data?.roomId||'')); const p=room&&room.dama&&room.players.find(x=>x.id===socket.id); if(!p||room.status!=='playing') return socket.emit('damaRejected',{roomId:room?.id||data?.roomId,reason:'not_in_room'}); const r=damaEngine.play(room.dama,p.seat,[Number(data.from?.[0]),Number(data.from?.[1])],[Number(data.to?.[0]),Number(data.to?.[1])]); if(!r.ok)return socket.emit('damaRejected',{roomId:room.id,reason:r.reason,gameState:damaState(room,p.seat)}); if(r.winner){room.status='finished';room.result={reason:'finished',winnerSeat:p.seat};} emitDamaState(room);emitRoom(room); if(r.winner)room.players.forEach(q=>emitToPlayer(q,'gameEnded',{roomId:room.id,reason:'finished',winnerSeat:p.seat,youWon:q.seat===p.seat,gameState:damaState(room,q.seat)})); });
+  socket.on('damaMove', data => { const room=rooms.get(socket.roomId||String(data?.roomId||'')); const p=room&&room.dama&&room.players.find(x=>x.id===socket.id); const engine=room?.gameId==='turkdamasi'?turkDamaEngine:damaEngine; const ev=room?.gameId==='turkdamasi'?'turkDamaRejected':'damaRejected'; if(!p||room.status!=='playing') return socket.emit(ev,{roomId:room?.id||data?.roomId,reason:'not_in_room'}); const r=engine.play(room.dama,p.seat,[Number(data.from?.[0]),Number(data.from?.[1])],[Number(data.to?.[0]),Number(data.to?.[1])]); if(!r.ok)return socket.emit(ev,{roomId:room.id,reason:r.reason,gameState:damaState(room,p.seat)}); if(r.winner){room.status='finished';room.result={reason:'finished',winnerSeat:p.seat};} emitDamaState(room);emitRoom(room); if(r.winner)room.players.forEach(q=>emitToPlayer(q,'gameEnded',{roomId:room.id,reason:'finished',winnerSeat:p.seat,youWon:q.seat===p.seat,gameState:damaState(room,q.seat)})); });
 
   // ---------- PİŞTİ / BATAK eylemleri (sunucu yetkili) ----------
   function cardGuard(room) { return room && ONLINE_CARD_GAMES.has(room.gameId) && room.status==='playing' && room.cardGame && room.players.find(p=>p.id===socket.id); }
