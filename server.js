@@ -11,6 +11,7 @@ const damaEngine = require('./dama-engine');
 const turkDamaEngine = require('./turkdamasi-engine');
 const reversiEngine = require('./reversi-engine');
 const gomokuEngine = require('./gomoku-engine');
+const connect4Engine = require('./connect4-engine');
 const { db } = require('./db'); // kurucu paneli: üye listesi + masa ayarları (SQLite, yerel mod)
 
 const app = express();
@@ -564,6 +565,7 @@ function resetRoomToWaiting(room) {
   room.dama = null;
   room.reversi = null;
   room.gomoku = null;
+  room.connect4 = null;
   room.tavlaNotice = null;
   room.tavlaNoticeSeq = 0;
   if (room.okey && room.okey.between) { clearTimeout(room.okey.between); }
@@ -816,6 +818,9 @@ function buildTavlaState(room, opts) {
   };
 }
 
+function connect4State(room, seat) { const c=room.connect4; return {kind:'connect4',status:room.status,turn:c.turn,winner:c.winner,board:c.board.map(x=>x.slice()),seat,playerColor:seat===0?'r':'y',moves:c.moves,result:c.result||null}; }
+function emitConnect4State(room,event='gameStateUpdated'){room.players.forEach(p=>emitToPlayer(p,event,{roomId:room.id,seat:p.seat,gameState:connect4State(room,p.seat),isSpectator:false}));(room.spectators||[]).forEach(p=>emitToPlayer(p,event,{roomId:room.id,seat:null,gameState:connect4State(room,null),isSpectator:true}));}
+function startConnect4(room){if(room.status==='playing'||room.players.length!==2||!room.players.every(p=>p.isReady))return;room.status='playing';room.result=null;room.connect4=connect4Engine.init();room.turnStartedAt=now();touchMoveTimer(room);emitRoom(room);room.players.forEach(p=>emitToPlayer(p,'gameStarted',{roomId:room.id,seat:p.seat,playerColor:p.seat===0?'r':'y',players:publicRoom(room).players,gameState:connect4State(room,p.seat)}));emitConnect4State(room);}
 function gomokuState(room, seat) { const g=room.gomoku; return {kind:'gomoku',status:room.status,turn:g.turn,winner:g.winner,board:g.board.map(x=>x.slice()),seat,playerColor:seat===0?'b':'w',moves:g.moves,result:g.result||null}; }
 function emitGomokuState(room,event='gameStateUpdated'){room.players.forEach(p=>emitToPlayer(p,event,{roomId:room.id,seat:p.seat,gameState:gomokuState(room,p.seat),isSpectator:false}));(room.spectators||[]).forEach(p=>emitToPlayer(p,event,{roomId:room.id,seat:null,gameState:gomokuState(room,null),isSpectator:true}));}
 function startGomoku(room){if(room.status==='playing'||room.players.length!==2||!room.players.every(p=>p.isReady))return;room.status='playing';room.result=null;room.gomoku=gomokuEngine.init();room.turnStartedAt=now();touchMoveTimer(room);emitRoom(room);room.players.forEach(p=>emitToPlayer(p,'gameStarted',{roomId:room.id,seat:p.seat,playerColor:p.seat===0?'b':'w',players:publicRoom(room).players,gameState:gomokuState(room,p.seat)}));emitGomokuState(room);}
@@ -858,6 +863,7 @@ function buildBoardState(room, opts) {
   if (room.dama) return damaState(room, opts && opts.seat);
   if (room.reversi) return reversiState(room, opts && opts.seat);
   if (room.gomoku) return gomokuState(room, opts && opts.seat);
+  if (room.connect4) return connect4State(room, opts && opts.seat);
   return null;
 }
 
@@ -914,6 +920,7 @@ function emitPlayingSnapshot(room, socketId, player) {
     });
     return;
   }
+  if (room && room.status === 'playing' && room.connect4) { const p=player?player.seat:null; io.to(socketId).emit('gameStarted',{roomId:room.id,seat:p,isSpectator:!player,players:publicRoom(room).players,gameState:connect4State(room,p)}); io.to(socketId).emit('gameStateUpdated',{roomId:room.id,seat:p,isSpectator:!player,gameState:connect4State(room,p)}); return; }
   if (room && room.status === 'playing' && room.gomoku) { const p=player?player.seat:null; io.to(socketId).emit('gameStarted',{roomId:room.id,seat:p,isSpectator:!player,players:publicRoom(room).players,gameState:gomokuState(room,p)}); io.to(socketId).emit('gameStateUpdated',{roomId:room.id,seat:p,isSpectator:!player,gameState:gomokuState(room,p)}); return; }
   if (room && room.status === 'playing' && room.reversi) { const p=player?player.seat:null; io.to(socketId).emit('gameStarted',{roomId:room.id,seat:p,isSpectator:!player,players:publicRoom(room).players,gameState:reversiState(room,p)}); io.to(socketId).emit('gameStateUpdated',{roomId:room.id,seat:p,isSpectator:!player,gameState:reversiState(room,p)}); return; }
   if (room && room.status === 'playing' && room.dama) { const p=player?player.seat:null; io.to(socketId).emit('gameStarted',{roomId:room.id,seat:p,isSpectator:!player,players:publicRoom(room).players,gameState:damaState(room,p)}); io.to(socketId).emit('gameStateUpdated',{roomId:room.id,seat:p,isSpectator:!player,gameState:damaState(room,p)}); return; }
@@ -1034,6 +1041,7 @@ function startRoomGame(room) {
   if (ONLINE_CARD_GAMES.has(room.gameId)) return startCardGame(room);
   if (room.gameId === 'reversi') return startReversi(room);
   if (room.gameId === 'gomoku') return startGomoku(room);
+  if (room.gameId === 'connect4') return startConnect4(room);
   if (ONLINE_BOARD_GAMES.has(room.gameId)) return startDama(room);
   // Okey motoru (okey-engine.js + startOkey) entegre edildiğinde devreye girer.
   // 'okey101' aynı motordan, varyant bayrağıyla oynanır (101 puan hedefi).
@@ -2288,6 +2296,9 @@ io.on('connection', socket => {
     tavlaAdvance(room);
     emitGameState(room);
   });
+
+  // ---------- CONNECT4 eylemleri (sunucu yetkili) ----------
+  socket.on('connect4Move', data => { const room=rooms.get(socket.roomId||String(data?.roomId||'')); const p=room?.connect4&&room.players.find(x=>x.id===socket.id); if(!p||room.status!=='playing')return socket.emit('connect4Rejected',{roomId:room?.id||data?.roomId,reason:'not_in_room'}); const r=connect4Engine.play(room.connect4,p.seat,Number(data.col)); if(!r.ok)return socket.emit('connect4Rejected',{roomId:room.id,reason:r.reason,gameState:connect4State(room,p.seat)}); if(room.connect4.status==='finished'){room.status='finished';room.result=room.connect4.result;} emitConnect4State(room);emitRoom(room);if(room.status==='finished')room.players.forEach(q=>emitToPlayer(q,'gameEnded',{roomId:room.id,reason:'finished',winnerSeat:room.connect4.winner,youWon:q.seat===room.connect4.winner,gameState:connect4State(room,q.seat)})); });
 
   // ---------- GOMOKU eylemleri (sunucu yetkili) ----------
   socket.on('gomokuMove', data => { const room=rooms.get(socket.roomId||String(data?.roomId||'')); const p=room?.gomoku&&room.players.find(x=>x.id===socket.id); if(!p||room.status!=='playing')return socket.emit('gomokuRejected',{roomId:room?.id||data?.roomId,reason:'not_in_room'}); const r=gomokuEngine.play(room.gomoku,p.seat,Number(data.r),Number(data.c)); if(!r.ok)return socket.emit('gomokuRejected',{roomId:room.id,reason:r.reason,gameState:gomokuState(room,p.seat)}); if(room.gomoku.status==='finished'){room.status='finished';room.result=room.gomoku.result;} emitGomokuState(room);emitRoom(room);if(room.status==='finished')room.players.forEach(q=>emitToPlayer(q,'gameEnded',{roomId:room.id,reason:'finished',winnerSeat:room.gomoku.winner,youWon:q.seat===room.gomoku.winner,gameState:gomokuState(room,q.seat)})); });
