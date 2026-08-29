@@ -406,6 +406,25 @@
     } catch (e) { console.warn('[RoomFix] okey yerel görünüm açılamadı:', e); }
   }
 
+  // Oyun istemcisi index.html'ye eklenmemiş/eski cache'te kalmış olsa bile
+  // gameStarted anında doğru adaptörü yükle. Önceki sürümde desteklenmeyen
+  // oyunlarda bekleme overlay'i kapanıyor fakat hiçbir çizici bağlanmıyordu.
+  function ensureOnlineAdapter(payload, done) {
+    const game = activeGame();
+    const files = { dama:'dama-online.js', turkdamasi:'turkdamasi-online.js', reversi:'reversi-online.js', gomoku:'gomoku-online.js', connect4:'connect4-online.js', bilardo:'bilardo-online.js' };
+    const file = files[game];
+    if (!file) return done();
+    const flag = '__gv' + game.charAt(0).toUpperCase() + game.slice(1) + 'OnlineLoaded';
+    if (window[flag]) return done();
+    const existing = document.querySelector('script[data-gv-online-adapter="' + game + '"]');
+    if (existing) { existing.addEventListener('load', done, { once:true }); existing.addEventListener('error', done, { once:true }); return; }
+    const tag = document.createElement('script');
+    tag.src = 'js/' + file + '?v=20260829b';
+    tag.async = false; tag.dataset.gvOnlineAdapter = game;
+    tag.onload = done; tag.onerror = done;
+    document.head.appendChild(tag);
+  }
+
   function loadChess() {
     if (!isChess()) return;
     // Oyun istemcileri statik olarak index.html'de yüklenir; gameStarted
@@ -578,9 +597,9 @@
         if (!p || String(p.roomId) !== roomId || !isChess()) return;
         if (p.isSpectator) window.__gvIsSpectator = true;
         // roomUpdated, gameStarted'dan önce geldiğinde `started` zaten true
-        // olabilir. Online oyun istemcileri ilk gameStarted paketini yine de
-        // almalı; aksi halde bekleme overlay'i kapanır ama tahta boş kalırdı.
-        window.dispatchEvent(new CustomEvent('gv:roomGameStarted', { detail: p }));
+        // olabilir. Adaptörü önce yükle; sonra olay yayınla ki Yöncü'de
+        // eksik/eski index.html olsa bile tahta boş kalmasın.
+        ensureOnlineAdapter(p, () => window.dispatchEvent(new CustomEvent('gv:roomGameStarted', { detail: p })));
         if (started) return;
         started = true;
         hide();
