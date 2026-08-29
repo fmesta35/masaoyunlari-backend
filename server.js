@@ -9,6 +9,7 @@ const pistiEngine = require('./pisti-engine');
 const batakEngine = require('./batak-engine');
 const damaEngine = require('./dama-engine');
 const turkDamaEngine = require('./turkdamasi-engine');
+const reversiEngine = require('./reversi-engine');
 const { db } = require('./db'); // kurucu paneli: üye listesi + masa ayarları (SQLite, yerel mod)
 
 const app = express();
@@ -50,7 +51,7 @@ const MAX_ROOM_PLAYERS = 2;
 // Okey 4 kişilik oynanır; diğerleri ikişer kişilik kalır.
 const MAX_PLAYERS_BY_GAME = { okey: 4, okey101: 4, pisti: 4, batak: 4 };
 const ONLINE_CARD_GAMES = new Set(['pisti', 'batak']);
-const ONLINE_BOARD_GAMES = new Set(['dama','turkdamasi']);
+const ONLINE_BOARD_GAMES = new Set(['dama','turkdamasi','reversi']);
 function maxPlayersFor(gameId) {
   return MAX_PLAYERS_BY_GAME[gameId] || MAX_ROOM_PLAYERS;
 }
@@ -560,6 +561,7 @@ function resetRoomToWaiting(room) {
   room.tavla = null;
   room.cardGame = null;
   room.dama = null;
+  room.reversi = null;
   room.tavlaNotice = null;
   room.tavlaNoticeSeq = 0;
   if (room.okey && room.okey.between) { clearTimeout(room.okey.between); }
@@ -812,6 +814,9 @@ function buildTavlaState(room, opts) {
   };
 }
 
+function reversiState(room, seat) { const r=room.reversi; return {kind:'reversi',status:room.status,turn:r.turn,winner:r.winner,board:r.board.map(x=>x.slice()),seat,playerColor:seat===0?'b':'w',legalMoves:seat===null?[]:r.turn===(seat===0?'b':'w')?reversiEngine.legalMoves(r):[],result:r.result||null}; }
+function emitReversiState(room,event='gameStateUpdated'){room.players.forEach(p=>emitToPlayer(p,event,{roomId:room.id,seat:p.seat,gameState:reversiState(room,p.seat),isSpectator:false}));(room.spectators||[]).forEach(p=>emitToPlayer(p,event,{roomId:room.id,seat:null,gameState:reversiState(room,null),isSpectator:true}));}
+function startReversi(room){if(room.status==='playing'||room.players.length!==2||!room.players.every(p=>p.isReady))return;room.status='playing';room.result=null;room.reversi=reversiEngine.init();room.turnStartedAt=now();touchMoveTimer(room);emitRoom(room);room.players.forEach(p=>emitToPlayer(p,'gameStarted',{roomId:room.id,seat:p.seat,playerColor:p.seat===0?'b':'w',players:publicRoom(room).players,gameState:reversiState(room,p.seat)}));emitReversiState(room);}
 function damaState(room, seat) { const d=room.dama; const isTurk=room.gameId==='turkdamasi'; const engine=isTurk?turkDamaEngine:damaEngine; const color=seat===0?(isTurk?'w':'r'):(isTurk?'b':'b'); return {kind:room.gameId,status:room.status,turn:d.turn,winner:d.winner,board:d.board.map(r=>r.slice()),captures:{...d.captures},seat,playerColor:color,legalMoves:seat===null?[]:d.turn===color?engine.allMoves(d):[]}; }
 function emitDamaState(room,event='gameStateUpdated'){room.players.forEach(p=>emitToPlayer(p,event,{roomId:room.id,seat:p.seat,gameState:damaState(room,p.seat),isSpectator:false}));(room.spectators||[]).forEach(p=>emitToPlayer(p,event,{roomId:room.id,seat:null,gameState:damaState(room,null),isSpectator:true}));}
 function startDama(room){if(room.status==='playing'||room.players.length!==2||!room.players.every(p=>p.isReady))return;room.status='playing';room.result=null;room.dama=room.gameId==='turkdamasi'?turkDamaEngine.init():damaEngine.init();room.turnStartedAt=now();touchMoveTimer(room);emitRoom(room);room.players.forEach(p=>emitToPlayer(p,'gameStarted',{roomId:room.id,seat:p.seat,playerColor:p.seat===0?(room.gameId==='turkdamasi'?'w':'r'):'b',players:publicRoom(room).players,gameState:damaState(room,p.seat)}));emitDamaState(room);}
@@ -846,6 +851,7 @@ function buildBoardState(room, opts) {
   if (room.tavla) return buildTavlaState(room, opts);
   if (room.cardGame) return cardGameState(room, opts && opts.seat);
   if (room.dama) return damaState(room, opts && opts.seat);
+  if (room.reversi) return reversiState(room, opts && opts.seat);
   return null;
 }
 
@@ -902,6 +908,7 @@ function emitPlayingSnapshot(room, socketId, player) {
     });
     return;
   }
+  if (room && room.status === 'playing' && room.reversi) { const p=player?player.seat:null; io.to(socketId).emit('gameStarted',{roomId:room.id,seat:p,isSpectator:!player,players:publicRoom(room).players,gameState:reversiState(room,p)}); io.to(socketId).emit('gameStateUpdated',{roomId:room.id,seat:p,isSpectator:!player,gameState:reversiState(room,p)}); return; }
   if (room && room.status === 'playing' && room.dama) { const p=player?player.seat:null; io.to(socketId).emit('gameStarted',{roomId:room.id,seat:p,isSpectator:!player,players:publicRoom(room).players,gameState:damaState(room,p)}); io.to(socketId).emit('gameStateUpdated',{roomId:room.id,seat:p,isSpectator:!player,gameState:damaState(room,p)}); return; }
   if (room && room.status === 'playing' && room.cardGame) { const p = player ? player.seat : null; io.to(socketId).emit('gameStarted',{roomId:room.id,seat:p,isSpectator:!player,players:publicRoom(room).players,gameState:cardGameState(room,p)}); io.to(socketId).emit('gameStateUpdated',{roomId:room.id,seat:p,isSpectator:!player,gameState:cardGameState(room,p)}); return; }
   if (!room || room.status !== 'playing' || (!room.chess && !room.tavla)) return;
@@ -1018,6 +1025,7 @@ function startRoomGame(room) {
   if (room.gameId === 'tavla') return startTavla(room);
   if (room.gameId === 'chess') return startChess(room);
   if (ONLINE_CARD_GAMES.has(room.gameId)) return startCardGame(room);
+  if (room.gameId === 'reversi') return startReversi(room);
   if (ONLINE_BOARD_GAMES.has(room.gameId)) return startDama(room);
   // Okey motoru (okey-engine.js + startOkey) entegre edildiğinde devreye girer.
   // 'okey101' aynı motordan, varyant bayrağıyla oynanır (101 puan hedefi).
@@ -2272,6 +2280,9 @@ io.on('connection', socket => {
     tavlaAdvance(room);
     emitGameState(room);
   });
+
+  // ---------- REVERSİ eylemleri (sunucu yetkili) ----------
+  socket.on('reversiMove', data => { const room=rooms.get(socket.roomId||String(data?.roomId||'')); const p=room?.reversi&&room.players.find(x=>x.id===socket.id); if(!p||room.status!=='playing')return socket.emit('reversiRejected',{roomId:room?.id||data?.roomId,reason:'not_in_room'}); const r=reversiEngine.play(room.reversi,p.seat,Number(data.r),Number(data.c)); if(!r.ok)return socket.emit('reversiRejected',{roomId:room.id,reason:r.reason,gameState:reversiState(room,p.seat)}); if(r.winner!==undefined&&r.winner!==null||room.reversi.status==='finished'){room.status='finished';room.result=room.reversi.result;} emitReversiState(room);emitRoom(room); if(room.status==='finished')room.players.forEach(q=>emitToPlayer(q,'gameEnded',{roomId:room.id,reason:'finished',winnerSeat:room.reversi.winner,youWon:q.seat===room.reversi.winner,gameState:reversiState(room,q.seat)})); });
 
   // ---------- İNGİLİZ DAMASI eylemleri (sunucu yetkili) ----------
   socket.on('damaMove', data => { const room=rooms.get(socket.roomId||String(data?.roomId||'')); const p=room&&room.dama&&room.players.find(x=>x.id===socket.id); const engine=room?.gameId==='turkdamasi'?turkDamaEngine:damaEngine; const ev=room?.gameId==='turkdamasi'?'turkDamaRejected':'damaRejected'; if(!p||room.status!=='playing') return socket.emit(ev,{roomId:room?.id||data?.roomId,reason:'not_in_room'}); const r=engine.play(room.dama,p.seat,[Number(data.from?.[0]),Number(data.from?.[1])],[Number(data.to?.[0]),Number(data.to?.[1])]); if(!r.ok)return socket.emit(ev,{roomId:room.id,reason:r.reason,gameState:damaState(room,p.seat)}); if(r.winner){room.status='finished';room.result={reason:'finished',winnerSeat:p.seat};} emitDamaState(room);emitRoom(room); if(r.winner)room.players.forEach(q=>emitToPlayer(q,'gameEnded',{roomId:room.id,reason:'finished',winnerSeat:p.seat,youWon:q.seat===p.seat,gameState:damaState(room,q.seat)})); });
