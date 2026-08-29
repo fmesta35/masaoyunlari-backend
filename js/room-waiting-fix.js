@@ -531,13 +531,11 @@
         const mePlayer = (r.players || []).find(isMe);
         window.__gvIsSpectator = !mePlayer && !!(r.spectators || []).find(isMe);
         if (started) return;
-        if (r.status === 'playing' || r.status === 'finished') {
-          started = true;
-          hide();
-          loadChess();
-        } else {
-          render();
-        }
+        // roomUpdated yalnızca oda özetidir; status=playing paketi tek
+        // başına tahtayı açmamalı. Aksi halde eski/stale bir oda özeti,
+        // bütün oyuncular HAZIRIM demeden boş yerel tahta gösterebiliyordu.
+        // Gerçek geçiş yalnızca sunucunun gameStarted paketiyle yapılır.
+        render();
       });
 
       socket.on('joinedRoom', p => {
