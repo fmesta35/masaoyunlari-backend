@@ -14,7 +14,7 @@
   // 101 okey + 10'ar hazır masa açılan damalar/reversi/gomoku/connect4/bilardo.
   // Bu oyunlarda lobi masaları, özel masa ve "özel oyun oluştur" aynı
   // masada-bekleme görünümünü (otur/kalk/hazırım/izle) kullanır.
-  // (Pişti ve Batak henüz online motoru yok — yerel akışta kalır.)
+  // (Kart oyunları ve diğerleri için ilgili online modül ayrıca devreye girer.)
   const BRIDGE_GAMES = ['chess', 'satranc', 'satranç', 'tavla', 'okey', 'okey101',
     'pisti', 'batak', 'dama', 'turkdamasi', 'reversi', 'gomoku', 'connect4', 'bilardo'];
   const normGame = (g) => {

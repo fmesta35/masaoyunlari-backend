@@ -7,6 +7,7 @@ const { Chess } = require('chess.js');
 const tavlaEngine = require('./tavla-engine');
 const pistiEngine = require('./pisti-engine');
 const batakEngine = require('./batak-engine');
+const damaEngine = require('./dama-engine');
 const { db } = require('./db'); // kurucu paneli: üye listesi + masa ayarları (SQLite, yerel mod)
 
 const app = express();
@@ -48,6 +49,7 @@ const MAX_ROOM_PLAYERS = 2;
 // Okey 4 kişilik oynanır; diğerleri ikişer kişilik kalır.
 const MAX_PLAYERS_BY_GAME = { okey: 4, okey101: 4, pisti: 4, batak: 4 };
 const ONLINE_CARD_GAMES = new Set(['pisti', 'batak']);
+const ONLINE_BOARD_GAMES = new Set(['dama']);
 function maxPlayersFor(gameId) {
   return MAX_PLAYERS_BY_GAME[gameId] || MAX_ROOM_PLAYERS;
 }
@@ -556,6 +558,7 @@ function resetRoomToWaiting(room) {
   room.chess = null;
   room.tavla = null;
   room.cardGame = null;
+  room.dama = null;
   room.tavlaNotice = null;
   room.tavlaNoticeSeq = 0;
   if (room.okey && room.okey.between) { clearTimeout(room.okey.between); }
@@ -808,6 +811,10 @@ function buildTavlaState(room, opts) {
   };
 }
 
+function damaState(room, seat) { const d=room.dama; return {kind:'dama',status:room.status,turn:d.turn,winner:d.winner,board:d.board.map(r=>r.slice()),captures:{...d.captures},seat,playerColor:seat===0?'r':'b',legalMoves:seat===null?[]:d.turn===(seat===0?'r':'b')?damaEngine.allMoves(d):[]}; }
+function emitDamaState(room,event='gameStateUpdated'){room.players.forEach(p=>emitToPlayer(p,event,{roomId:room.id,seat:p.seat,gameState:damaState(room,p.seat),isSpectator:false}));(room.spectators||[]).forEach(p=>emitToPlayer(p,event,{roomId:room.id,seat:null,gameState:damaState(room,null),isSpectator:true}));}
+function startDama(room){if(room.status==='playing'||room.players.length!==2||!room.players.every(p=>p.isReady))return;room.status='playing';room.result=null;room.dama=damaEngine.init();room.turnStartedAt=now();touchMoveTimer(room);emitRoom(room);room.players.forEach(p=>emitToPlayer(p,'gameStarted',{roomId:room.id,seat:p.seat,playerColor:p.seat===0?'r':'b',players:publicRoom(room).players,gameState:damaState(room,p.seat)}));emitDamaState(room);}
+
 function cardGameState(room, forSeat) {
   const st = room.cardGame;
   if (!st) return null;
@@ -837,6 +844,7 @@ function buildBoardState(room, opts) {
   if (room.chess) return buildChessState(room, opts);
   if (room.tavla) return buildTavlaState(room, opts);
   if (room.cardGame) return cardGameState(room, opts && opts.seat);
+  if (room.dama) return damaState(room, opts && opts.seat);
   return null;
 }
 
@@ -893,6 +901,7 @@ function emitPlayingSnapshot(room, socketId, player) {
     });
     return;
   }
+  if (room && room.status === 'playing' && room.dama) { const p=player?player.seat:null; io.to(socketId).emit('gameStarted',{roomId:room.id,seat:p,isSpectator:!player,players:publicRoom(room).players,gameState:damaState(room,p)}); io.to(socketId).emit('gameStateUpdated',{roomId:room.id,seat:p,isSpectator:!player,gameState:damaState(room,p)}); return; }
   if (room && room.status === 'playing' && room.cardGame) { const p = player ? player.seat : null; io.to(socketId).emit('gameStarted',{roomId:room.id,seat:p,isSpectator:!player,players:publicRoom(room).players,gameState:cardGameState(room,p)}); io.to(socketId).emit('gameStateUpdated',{roomId:room.id,seat:p,isSpectator:!player,gameState:cardGameState(room,p)}); return; }
   if (!room || room.status !== 'playing' || (!room.chess && !room.tavla)) return;
   updateClock(room);
@@ -1008,6 +1017,7 @@ function startRoomGame(room) {
   if (room.gameId === 'tavla') return startTavla(room);
   if (room.gameId === 'chess') return startChess(room);
   if (ONLINE_CARD_GAMES.has(room.gameId)) return startCardGame(room);
+  if (ONLINE_BOARD_GAMES.has(room.gameId)) return startDama(room);
   // Okey motoru (okey-engine.js + startOkey) entegre edildiğinde devreye girer.
   // 'okey101' aynı motordan, varyant bayrağıyla oynanır (101 puan hedefi).
   if ((room.gameId === 'okey' || room.gameId === 'okey101') && typeof startOkey === 'function') return startOkey(room);
@@ -2261,6 +2271,9 @@ io.on('connection', socket => {
     tavlaAdvance(room);
     emitGameState(room);
   });
+
+  // ---------- İNGİLİZ DAMASI eylemleri (sunucu yetkili) ----------
+  socket.on('damaMove', data => { const room=rooms.get(socket.roomId||String(data?.roomId||'')); const p=room&&room.dama&&room.players.find(x=>x.id===socket.id); if(!p||room.status!=='playing') return socket.emit('damaRejected',{roomId:room?.id||data?.roomId,reason:'not_in_room'}); const r=damaEngine.play(room.dama,p.seat,[Number(data.from?.[0]),Number(data.from?.[1])],[Number(data.to?.[0]),Number(data.to?.[1])]); if(!r.ok)return socket.emit('damaRejected',{roomId:room.id,reason:r.reason,gameState:damaState(room,p.seat)}); if(r.winner){room.status='finished';room.result={reason:'finished',winnerSeat:p.seat};} emitDamaState(room);emitRoom(room); if(r.winner)room.players.forEach(q=>emitToPlayer(q,'gameEnded',{roomId:room.id,reason:'finished',winnerSeat:p.seat,youWon:q.seat===p.seat,gameState:damaState(room,q.seat)})); });
 
   // ---------- PİŞTİ / BATAK eylemleri (sunucu yetkili) ----------
   function cardGuard(room) { return room && ONLINE_CARD_GAMES.has(room.gameId) && room.status==='playing' && room.cardGame && room.players.find(p=>p.id===socket.id); }
