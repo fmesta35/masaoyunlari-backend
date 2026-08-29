@@ -8,7 +8,7 @@ function once(s,e,ms=5000){return new Promise((ok,no)=>{const t=setTimeout(()=>n
 async function join(s,id,game,max){const p=once(s,'joinedRoom');s.emit('joinRoom',{roomId:id,gameId:game,maxPlayers:max,durationMinutes:10,userName:s.userName,userKey:s.userKey,rounds:3});return p}
 async function main(){
   // Varsayılan güvenlik: kart masaları görünür olabilir ama online tohumlama kapalıdır.
-  const cfg=defaultPresetConfig(); assert.strictEqual(cfg.pisti.online,false); assert.strictEqual(cfg.batak.online,false);
+  const cfg=defaultPresetConfig(); assert.strictEqual(cfg.pisti.online,undefined); assert.strictEqual(cfg.batak.online,undefined);
   await start(0); const url='http://127.0.0.1:'+server.address().port;
   applyPresetConfig({...cfg,pisti:{visible:true,online:true},batak:{visible:true,online:true}});
   seedPresetTables();

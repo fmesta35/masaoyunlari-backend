@@ -217,10 +217,10 @@ function defaultTablesFor(gameId) {
 function defaultPresetConfig() {
   const cfg = {};
   for (const g of STANDARD_PRESET_GAMES) cfg[g] = { visible: true, tables: defaultTablesFor(g) };
-  for (const g of FIXED_PRESET_GAMES) cfg[g] = { visible: true };
+  for (const g of FIXED_PRESET_GAMES) cfg[g] = { visible: true, tables: managedCardTables(g) };
   // Kart oyunları güvenli varsayılan: online kapalı; kurucu açınca seed edilir.
-  cfg.pisti = { visible: true, online: false, tables: [] };
-  cfg.batak = { visible: true, online: false, tables: [] };
+  cfg.pisti = { visible: true, tables: managedCardTables('pisti') };
+  cfg.batak = { visible: true, tables: managedCardTables('batak') };
   // Görünürlüğü yönetilen diğer oyunlar (hazır masaları yok, sitede görünür):
   for (const g of ALL_GAMES) if (!cfg[g]) cfg[g] = { visible: true };
   return cfg;
@@ -235,6 +235,11 @@ function normPresetConfig(raw) {
     if (!src || typeof src !== 'object') continue;
     if (typeof src.visible === 'boolean') cfg[g].visible = src.visible;
     if (typeof src.online === 'boolean') cfg[g].online = src.online;
+    if (['okey','okey101','pisti','batak'].includes(g) && Array.isArray(src.tables)) {
+      const defs = managedCardTables(g);
+      const t = src.tables.slice(0, 40).map((x,i) => { const d=defs[i]||defs[defs.length-1]||{}; x=x&&typeof x==='object'?x:{}; return {id:String(x.id||d.id||''),name:String(x.name||d.name||('Masa #'+(i+1))).slice(0,60),type:(x.type==='fast'||x.type==='thinker')?x.type:'normal',durationMinutes:clampDuration(x.durationMinutes,d.durationMinutes||10),maxPlayers:Math.max(2,Math.min(Number(x.maxPlayers||d.maxPlayers||2),g==='batak'?4:4)),rounds:Number(x.rounds||d.rounds)||undefined}; });
+      if (t.length) cfg[g].tables=t;
+    }
     if (STANDARD_PRESET_GAMES.includes(g) && Array.isArray(src.tables)) {
       const base = PRESET_GAME_BASES[g];
       const dflt = defaultTablesFor(g);
@@ -268,13 +273,13 @@ function cardPresetTables(gameId, startId) {
   for (const [players, rounds] of combos) for(let n=0;n<2;n++){const rid=String(id++);out.push({id:rid,gameId,maxPlayers:players,durationMinutes:rounds===1?10:rounds===3?15:20,rounds,name:`${players} Kişilik • ${rounds} El — Masa #${rid}`});}
   return out;
 }
+function managedCardTables(gameId) { const out=[]; let id=gameId==='okey'?301:gameId==='okey101'?331:gameId==='pisti'?341:361; const combos=gameId==='okey'?[[2,3],[2,5],[2,7],[3,3],[3,5],[3,7],[4,3],[4,5],[4,7]]:gameId==='okey101'?[[2,10],[2,20],[3,10],[3,20],[4,10],[4,20]]:gameId==='pisti'?[[2,1],[2,3],[2,5],[3,1],[3,3],[3,5],[4,1],[4,3],[4,5]]:[[4,3],[4,5],[4,7]];for(const [players,rounds] of combos)for(let n=0;n<(gameId==='okey101'?1:2);n++){const rid=String(id++);out.push({id:rid,gameId,maxPlayers:players,rounds,durationMinutes:gameId==='okey101'?rounds:(rounds===3?(gameId==='okey'?10:15):(rounds===5?15:20)),type:rounds<=1?'fast':rounds>=7?'thinker':'normal',name:`${players} Kişilik • ${rounds}${gameId==='okey101'?' dk':' El'} — Masa #${rid}`})}return out;}
 function presetTablesFromConfig(cfg) {
   const out = [];
   for (const g of STANDARD_PRESET_GAMES) {
     const gc = cfg[g] || {};
     if (gc.visible === false) continue;
-    if ((g === 'pisti' || g === 'batak') && gc.online !== true) continue;
-    if (g === 'pisti' || g === 'batak') { out.push(...cardPresetTables(g, g === 'pisti' ? 341 : 361)); continue; }
+    if (g === 'pisti' || g === 'batak') { const defs=Array.isArray(gc.tables)&&gc.tables.length?gc.tables:managedCardTables(g); defs.forEach(t=>out.push({id:String(t.id),gameId:g,maxPlayers:Number(t.maxPlayers)||2,durationMinutes:clampDuration(t.durationMinutes,10),rounds:g==='pisti'?Number(t.rounds)||1:undefined,name:String(t.name||('Masa #'+t.id)).slice(0,60)})); continue; }
     const base = PRESET_GAME_BASES[g];
     (gc.tables && gc.tables.length ? gc.tables : defaultTablesFor(g)).forEach((t, i) => {
       out.push({
@@ -287,14 +292,7 @@ function presetTablesFromConfig(cfg) {
       });
     });
   }
-  // Okey: sabit 18 masa (yapı değişmez, görünürlük yönetilir):
-  if ((cfg.okey || {}).visible !== false && (okeyEngine || process.env.GV_OKEY_PRESETS === '1')) {
-    out.push(...okeyPresetTables(301));
-  }
-  // Okey 101: sabit 6 masa (aynı mekanizma, #331-#336):
-  if ((cfg.okey101 || {}).visible !== false && (okeyEngine || process.env.GV_OKEY_PRESETS === '1')) {
-    out.push(...okey101PresetTables(331));
-  }
+  for (const g of ['okey','okey101']) { const gc=cfg[g]||{}; if(gc.visible===false || (!okeyEngine && process.env.GV_OKEY_PRESETS!=='1')) continue; const defs=Array.isArray(gc.tables)&&gc.tables.length?gc.tables:managedCardTables(g); defs.forEach((t,i)=>out.push({id:String(t.id||((g==='okey'?301:331)+i)),gameId:g,maxPlayers:Number(t.maxPlayers)||2,durationMinutes:clampDuration(t.durationMinutes,10),rounds:g==='okey'?Number(t.rounds)||3:undefined,name:String(t.name||('Masa #'+(t.id||i))).slice(0,60)})); }
   return out;
 }
 // OKEY: yetkili sunucu motoru (okey-engine.js) bu repoya eklendiği anda masalar

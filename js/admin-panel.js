@@ -23,8 +23,8 @@
 
   // Standart hazır-masa (10 masa) açan oyunlar; okey sabit 18 masa;
   // diğerleri (kart oyunları vb.) yalnız görünürlük yönetilir.
-  const STANDARD = ['chess', 'tavla', 'pisti', 'batak', 'dama', 'turkdamasi', 'reversi', 'gomoku', 'connect4', 'bilardo'];
-  const FIXED = ['okey', 'okey101'];
+  const STANDARD = ['chess', 'tavla', 'okey', 'okey101', 'pisti', 'batak', 'dama', 'turkdamasi', 'reversi', 'gomoku', 'connect4', 'bilardo'];
+  const FIXED = [];
   const TYPE_DEFS = [
     { type: 'fast', label: '⚡ Hızlı (10 dk)', duration: 10 },
     { type: 'normal', label: '♟️ Normal (15 dk)', duration: 15 },
@@ -104,7 +104,7 @@
   }
 
   // Varsayılan ayarlar (sunucudakiyle aynı kalıp):
-  const BASE = { chess: 101, tavla: 201, dama: 401, turkdamasi: 501, reversi: 601, gomoku: 701, connect4: 801, bilardo: 921 };
+  const BASE = { chess: 101, tavla: 201, dama: 401, turkdamasi: 501, reversi: 601, gomoku: 701, connect4: 801, bilardo: 921, okey: 301, okey101: 331, pisti: 341, batak: 361 };
   function defaultTables(gid) {
     const out = [];
     for (const t of TYPE_DEFS) {
@@ -242,7 +242,7 @@
         <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
           <span style="font-size:1.4em">${g.icon}</span>
           <b style="font-size:1em;flex:1;min-width:120px">${esc(g.name)}${isFixed ? ' <span style="font-size:.7em;color:var(--text3)">(18 hazır masa — yapı sabit)</span>' : (isStd ? '' : ' <span style="font-size:.7em;color:var(--text3)">(hazır masa yok)</span>')}</b>
-          <span style="font-size:.78em;color:var(--text3)">${isStd ? rows.length + ' masa' : ''}</span>${(gid==='pisti'||gid==='batak') ? `<label style="font-size:.78em"><input type="checkbox" data-act="online" data-gid="${gid}" ${(settingsCache[gid]||{}).online?'checked':''}> online masalar</label>` : ''}
+          <span style="font-size:.78em;color:var(--text3)">${isStd ? rows.length + ' masa' : ''}</span>
           ${isStd ? `
           <button type="button" data-act="addTable" data-gid="${gid}" style="border:1px solid var(--border);background:var(--bg3);color:var(--text);border-radius:8px;padding:5px 10px;cursor:pointer;font-size:.8em" title="Masa ekle">➕ Masa</button>
           <button type="button" data-act="delTable" data-gid="${gid}" style="border:1px solid var(--border);background:var(--bg3);color:var(--text2);border-radius:8px;padding:5px 10px;cursor:pointer;font-size:.8em" title="Son masayı kaldır">➖ Masa</button>` : ''}
