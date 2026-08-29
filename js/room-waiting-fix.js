@@ -408,9 +408,8 @@
 
   function loadChess() {
     if (!isChess()) return;
-    // Henüz online motoru olmayan oyunlar (dama, türk daması, reversi,
-    // gomoku, connect4, bilardo): sunucu oyun başlatana kadar bekleme
-    // odası açık kalır; buraya özel istemci yüklenmez.
+    // Oyun istemcileri statik olarak index.html'de yüklenir; gameStarted
+    // olayı ilgili online adaptöre dağıtılır.
     if (!['chess', 'tavla', 'okey', 'okey101'].includes(activeGame())) return;
     // Okey odası (klasik VEYA 101): okey istemcisini devreye al (statik
     // yüklüyse sadece boot et). Varyant sunucu durumundan gelir.
@@ -580,10 +579,13 @@
       socket.on('gameStarted', p => {
         if (!p || String(p.roomId) !== roomId || !isChess()) return;
         if (p.isSpectator) window.__gvIsSpectator = true;
+        // roomUpdated, gameStarted'dan önce geldiğinde `started` zaten true
+        // olabilir. Online oyun istemcileri ilk gameStarted paketini yine de
+        // almalı; aksi halde bekleme overlay'i kapanır ama tahta boş kalırdı.
+        window.dispatchEvent(new CustomEvent('gv:roomGameStarted', { detail: p }));
         if (started) return;
         started = true;
         hide();
-        window.dispatchEvent(new CustomEvent('gv:roomGameStarted', { detail: p }));
         loadChess();
       });
 
