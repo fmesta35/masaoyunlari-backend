@@ -2268,19 +2268,19 @@ io.on('connection', socket => {
   });
 
   // ---------- BİLARDO eylemleri (sunucu yetkili) ----------
-  socket.on('bilardoShoot', data => { const room=rooms.get(socket.roomId||String(data?.roomId||'')); const p=room?.bilardo&&room.players.find(x=>x.id===socket.id); if(!p||room.status!=='playing')return socket.emit('bilardoRejected',{roomId:room?.id||data?.roomId,reason:'not_in_room'}); const r=bilardoEngine.shoot(room.bilardo,p.seat,Number(data.angle),Number(data.power),data.targetId); if(!r.ok)return socket.emit('bilardoRejected',{roomId:room.id,reason:r.reason,gameState:bilardoState(room,p.seat)}); if(room.bilardo.status==='finished'){room.status='finished';room.result=room.bilardo.result;} emitBilardoState(room);emitRoom(room);if(room.status==='finished')room.players.forEach(q=>emitToPlayer(q,'gameEnded',{roomId:room.id,reason:room.bilardo.result?.reason||'finished',winnerSeat:room.bilardo.winner,youWon:q.seat===room.bilardo.winner,gameState:bilardoState(room,q.seat)})); });
+  socket.on('bilardoShoot', data => { const room=rooms.get(socket.roomId||String(data?.roomId||'')); const p=room?.bilardo&&room.players.find(x=>x.id===socket.id); if(!p||room.status!=='playing')return socket.emit('bilardoRejected',{roomId:room?.id||data?.roomId,reason:'not_in_room'}); const r=bilardoEngine.shoot(room.bilardo,p.seat,Number(data.angle),Number(data.power),data.targetId); if(!r.ok)return socket.emit('bilardoRejected',{roomId:room.id,reason:r.reason,gameState:bilardoState(room,p.seat)}); if(room.bilardo.status==='finished'){room.status='finished';room.result=room.bilardo.result;} touchMoveTimer(room);emitBilardoState(room);emitRoom(room);if(room.status==='finished')room.players.forEach(q=>emitToPlayer(q,'gameEnded',{roomId:room.id,reason:room.bilardo.result?.reason||'finished',winnerSeat:room.bilardo.winner,youWon:q.seat===room.bilardo.winner,gameState:bilardoState(room,q.seat)})); });
 
   // ---------- CONNECT4 eylemleri (sunucu yetkili) ----------
-  socket.on('connect4Move', data => { const room=rooms.get(socket.roomId||String(data?.roomId||'')); const p=room?.connect4&&room.players.find(x=>x.id===socket.id); if(!p||room.status!=='playing')return socket.emit('connect4Rejected',{roomId:room?.id||data?.roomId,reason:'not_in_room'}); const r=connect4Engine.play(room.connect4,p.seat,Number(data.col)); if(!r.ok)return socket.emit('connect4Rejected',{roomId:room.id,reason:r.reason,gameState:connect4State(room,p.seat)}); if(room.connect4.status==='finished'){room.status='finished';room.result=room.connect4.result;} emitConnect4State(room);emitRoom(room);if(room.status==='finished')room.players.forEach(q=>emitToPlayer(q,'gameEnded',{roomId:room.id,reason:'finished',winnerSeat:room.connect4.winner,youWon:q.seat===room.connect4.winner,gameState:connect4State(room,q.seat)})); });
+  socket.on('connect4Move', data => { const room=rooms.get(socket.roomId||String(data?.roomId||'')); const p=room?.connect4&&room.players.find(x=>x.id===socket.id); if(!p||room.status!=='playing')return socket.emit('connect4Rejected',{roomId:room?.id||data?.roomId,reason:'not_in_room'}); const r=connect4Engine.play(room.connect4,p.seat,Number(data.col)); if(!r.ok)return socket.emit('connect4Rejected',{roomId:room.id,reason:r.reason,gameState:connect4State(room,p.seat)}); if(room.connect4.status==='finished'){room.status='finished';room.result=room.connect4.result;} touchMoveTimer(room);emitConnect4State(room);emitRoom(room);if(room.status==='finished')room.players.forEach(q=>emitToPlayer(q,'gameEnded',{roomId:room.id,reason:'finished',winnerSeat:room.connect4.winner,youWon:q.seat===room.connect4.winner,gameState:connect4State(room,q.seat)})); });
 
   // ---------- GOMOKU eylemleri (sunucu yetkili) ----------
-  socket.on('gomokuMove', data => { const room=rooms.get(socket.roomId||String(data?.roomId||'')); const p=room?.gomoku&&room.players.find(x=>x.id===socket.id); if(!p||room.status!=='playing')return socket.emit('gomokuRejected',{roomId:room?.id||data?.roomId,reason:'not_in_room'}); const r=gomokuEngine.play(room.gomoku,p.seat,Number(data.r),Number(data.c)); if(!r.ok)return socket.emit('gomokuRejected',{roomId:room.id,reason:r.reason,gameState:gomokuState(room,p.seat)}); if(room.gomoku.status==='finished'){room.status='finished';room.result=room.gomoku.result;} emitGomokuState(room);emitRoom(room);if(room.status==='finished')room.players.forEach(q=>emitToPlayer(q,'gameEnded',{roomId:room.id,reason:'finished',winnerSeat:room.gomoku.winner,youWon:q.seat===room.gomoku.winner,gameState:gomokuState(room,q.seat)})); });
+  socket.on('gomokuMove', data => { const room=rooms.get(socket.roomId||String(data?.roomId||'')); const p=room?.gomoku&&room.players.find(x=>x.id===socket.id); if(!p||room.status!=='playing')return socket.emit('gomokuRejected',{roomId:room?.id||data?.roomId,reason:'not_in_room'}); const r=gomokuEngine.play(room.gomoku,p.seat,Number(data.r),Number(data.c)); if(!r.ok)return socket.emit('gomokuRejected',{roomId:room.id,reason:r.reason,gameState:gomokuState(room,p.seat)}); if(room.gomoku.status==='finished'){room.status='finished';room.result=room.gomoku.result;} touchMoveTimer(room);emitGomokuState(room);emitRoom(room);if(room.status==='finished')room.players.forEach(q=>emitToPlayer(q,'gameEnded',{roomId:room.id,reason:'finished',winnerSeat:room.gomoku.winner,youWon:q.seat===room.gomoku.winner,gameState:gomokuState(room,q.seat)})); });
 
   // ---------- REVERSİ eylemleri (sunucu yetkili) ----------
-  socket.on('reversiMove', data => { const room=rooms.get(socket.roomId||String(data?.roomId||'')); const p=room?.reversi&&room.players.find(x=>x.id===socket.id); if(!p||room.status!=='playing')return socket.emit('reversiRejected',{roomId:room?.id||data?.roomId,reason:'not_in_room'}); const r=reversiEngine.play(room.reversi,p.seat,Number(data.r),Number(data.c)); if(!r.ok)return socket.emit('reversiRejected',{roomId:room.id,reason:r.reason,gameState:reversiState(room,p.seat)}); if(r.winner!==undefined&&r.winner!==null||room.reversi.status==='finished'){room.status='finished';room.result=room.reversi.result;} emitReversiState(room);emitRoom(room); if(room.status==='finished')room.players.forEach(q=>emitToPlayer(q,'gameEnded',{roomId:room.id,reason:'finished',winnerSeat:room.reversi.winner,youWon:q.seat===room.reversi.winner,gameState:reversiState(room,q.seat)})); });
+  socket.on('reversiMove', data => { const room=rooms.get(socket.roomId||String(data?.roomId||'')); const p=room?.reversi&&room.players.find(x=>x.id===socket.id); if(!p||room.status!=='playing')return socket.emit('reversiRejected',{roomId:room?.id||data?.roomId,reason:'not_in_room'}); const r=reversiEngine.play(room.reversi,p.seat,Number(data.r),Number(data.c)); if(!r.ok)return socket.emit('reversiRejected',{roomId:room.id,reason:r.reason,gameState:reversiState(room,p.seat)}); if(r.winner!==undefined&&r.winner!==null||room.reversi.status==='finished'){room.status='finished';room.result=room.reversi.result;} touchMoveTimer(room);emitReversiState(room);emitRoom(room); if(room.status==='finished')room.players.forEach(q=>emitToPlayer(q,'gameEnded',{roomId:room.id,reason:'finished',winnerSeat:room.reversi.winner,youWon:q.seat===room.reversi.winner,gameState:reversiState(room,q.seat)})); });
 
   // ---------- İNGİLİZ DAMASI eylemleri (sunucu yetkili) ----------
-  socket.on('damaMove', data => { const room=rooms.get(socket.roomId||String(data?.roomId||'')); const p=room&&room.dama&&room.players.find(x=>x.id===socket.id); const engine=room?.gameId==='turkdamasi'?turkDamaEngine:damaEngine; const ev=room?.gameId==='turkdamasi'?'turkDamaRejected':'damaRejected'; if(!p||room.status!=='playing') return socket.emit(ev,{roomId:room?.id||data?.roomId,reason:'not_in_room'}); const r=engine.play(room.dama,p.seat,[Number(data.from?.[0]),Number(data.from?.[1])],[Number(data.to?.[0]),Number(data.to?.[1])]); if(!r.ok)return socket.emit(ev,{roomId:room.id,reason:r.reason,gameState:damaState(room,p.seat)}); if(r.winner){room.status='finished';room.result={reason:'finished',winnerSeat:p.seat};} emitDamaState(room);emitRoom(room); if(r.winner)room.players.forEach(q=>emitToPlayer(q,'gameEnded',{roomId:room.id,reason:'finished',winnerSeat:p.seat,youWon:q.seat===p.seat,gameState:damaState(room,q.seat)})); });
+  socket.on('damaMove', data => { const room=rooms.get(socket.roomId||String(data?.roomId||'')); const p=room&&room.dama&&room.players.find(x=>x.id===socket.id); const engine=room?.gameId==='turkdamasi'?turkDamaEngine:damaEngine; const ev=room?.gameId==='turkdamasi'?'turkDamaRejected':'damaRejected'; if(!p||room.status!=='playing') return socket.emit(ev,{roomId:room?.id||data?.roomId,reason:'not_in_room'}); const r=engine.play(room.dama,p.seat,[Number(data.from?.[0]),Number(data.from?.[1])],[Number(data.to?.[0]),Number(data.to?.[1])]); if(!r.ok)return socket.emit(ev,{roomId:room.id,reason:r.reason,gameState:damaState(room,p.seat)}); if(r.winner){room.status='finished';room.result={reason:'finished',winnerSeat:p.seat};} touchMoveTimer(room);emitDamaState(room);emitRoom(room); if(r.winner)room.players.forEach(q=>emitToPlayer(q,'gameEnded',{roomId:room.id,reason:'finished',winnerSeat:p.seat,youWon:q.seat===p.seat,gameState:damaState(room,q.seat)})); });
 
   // ---------- PİŞTİ / BATAK eylemleri (sunucu yetkili) ----------
   function cardGuard(room) { return room && ONLINE_CARD_GAMES.has(room.gameId) && room.status==='playing' && room.cardGame && room.players.find(p=>p.id===socket.id); }
@@ -2455,10 +2455,34 @@ const clockTimer = setInterval(() => {
       }
     }
   }
-  for (const room of rooms.values()) {
+  function cardMoveTurn(room) {
+  if (room.dama) { const c=room.dama.turn; return c === (room.gameId==='turkdamasi'?'w':'r') ? 0 : 1; }
+  if (room.reversi) return room.reversi.turn === 'b' ? 0 : 1;
+  if (room.gomoku) return room.gomoku.turn === 'b' ? 0 : 1;
+  if (room.connect4) return room.connect4.turn === 'r' ? 0 : 1;
+  if (room.bilardo) return room.bilardo.turn;
+  if (room.cardGame) return room.cardGame.turn;
+  return null;
+}
+function enforceOnlineMoveTimeout(room) {
+  if (!room.moveStartedAt || !room.players.length || (!room.dama && !room.reversi && !room.gomoku && !room.connect4 && !room.bilardo && !room.cardGame)) return false;
+  const elapsed=now()-room.moveStartedAt, seat=cardMoveTurn(room); if (seat===null) return false;
+  if (!room.moveWarned && elapsed>=MOVE_WARN_MS) { room.moveWarned=true; io.to(room.id).emit('moveTimeWarning',{roomId:room.id,seat,remainingMs:Math.max(0,MOVE_FORFEIT_MS-elapsed)}); }
+  if (elapsed<MOVE_FORFEIT_MS) return false;
+  const winner=seat===0?1:0; room.status='finished'; room.result={reason:'move_timeout',winnerSeat:winner};
+  const stateFor=(p)=>room.dama?damaState(room,p):room.reversi?reversiState(room,p):room.gomoku?gomokuState(room,p):room.connect4?connect4State(room,p):room.bilardo?bilardoState(room,p):cardGameState(room,p);
+  room.players.forEach(p=>emitToPlayer(p,'gameEnded',{roomId:room.id,reason:'move_timeout',winnerSeat:winner,youWon:p.seat===winner,gameState:stateFor(p.seat)}));
+  (room.spectators||[]).forEach(p=>emitToPlayer(p,'gameEnded',{roomId:room.id,reason:'move_timeout',winnerSeat:winner,youWon:false,isSpectator:true,gameState:stateFor(null)}));
+  if (room.dama) emitDamaState(room); else if(room.reversi) emitReversiState(room); else if(room.gomoku) emitGomokuState(room); else if(room.connect4) emitConnect4State(room); else if(room.bilardo) emitBilardoState(room); else emitCardState(room);
+  emitRoom(room); scheduleRoomReset(room); return true;
+}
+
+for (const room of rooms.values()) {
     if (room.status !== 'playing') continue;
     // Okey kendi saat döngüsünü işletir (SIRA sayacı + koltuk ana saatleri).
     if (room.okey) { okeyClockTick(room); continue; }
+    // Satranç/tavla dışındaki tüm online oyunlarda da hamlesiz 60 sn hükmen mağlubiyet.
+    if (enforceOnlineMoveTimeout(room)) continue;
     const before = room.status;
     updateClock(room);
     if (before !== room.status) {
