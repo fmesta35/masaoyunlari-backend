@@ -381,6 +381,10 @@ function applyPresetConfig(raw) {
       touchedGames.add(t.gameId);
     } else if (existing.players.length === 0 && !(existing.spectators || []).length) {
       if (existing.name !== t.name) { existing.name = t.name; touchedGames.add(t.gameId); }
+      if (existing.maxPlayers !== (t.maxPlayers || 2)) { existing.maxPlayers = t.maxPlayers || 2; touchedGames.add(t.gameId); }
+      const desiredRounds = t.rounds ? Number(t.rounds) : undefined;
+      if (existing.okeyMaxRounds !== desiredRounds && t.gameId === 'okey') { existing.okeyMaxRounds = desiredRounds; touchedGames.add(t.gameId); }
+      if (existing.cardRounds !== desiredRounds && t.gameId === 'pisti') { existing.cardRounds = desiredRounds; touchedGames.add(t.gameId); }
       if (existing.durationMinutes !== t.durationMinutes) {
         existing.durationMinutes = t.durationMinutes;
         existing.whiteTimeMs = t.durationMinutes * 60 * 1000;
@@ -392,53 +396,13 @@ function applyPresetConfig(raw) {
   // Yapılandırmada olmayan BOŞ hazır odaları gerçekten kaldır:
   for (const room of [...rooms.values()]) {
     if (!room.isPreset) continue;
-    if (room.gameId === 'okey' || room.gameId === 'okey101') continue; // görünürlük aşağıda, yapı sabit
     if (desiredIds.has(room.id)) continue;
     if (room.players.length === 0 && !(room.spectators || []).length) {
       removePresetRoom(room);
       touchedGames.add(room.gameId);
     }
   }
-  // Okey görünürlüğü: gizle → boş okey masaları kalkar; görünür + motor var →
-  // eksikler tamamlanır.
-  const okeyVisible = (presetConfig.okey || {}).visible !== false;
-  if (!okeyVisible) {
-    for (const room of [...rooms.values()]) {
-      if (!room.isPreset || room.gameId !== 'okey') continue;
-      if (room.players.length === 0 && !(room.spectators || []).length) {
-        removePresetRoom(room);
-        touchedGames.add('okey');
-      }
-    }
-  } else if (okeyEngine || process.env.GV_OKEY_PRESETS === '1') {
-    for (const t of okeyPresetTables(301)) {
-      if (!rooms.get(t.id)) {
-        const room = createRoom(t.id, 'okey', t.maxPlayers, t.durationMinutes, { name: t.name, rounds: t.rounds });
-        room.isPreset = true;
-        touchedGames.add('okey');
-      }
-    }
-  }
-  // Okey 101 görünürlüğü: aynı mekanizma (gizle → boş 101 masaları kalkar;
-  // görünür + motor var → eksikler tamamlanır).
-  const okey101Visible = (presetConfig.okey101 || {}).visible !== false;
-  if (!okey101Visible) {
-    for (const room of [...rooms.values()]) {
-      if (!room.isPreset || room.gameId !== 'okey101') continue;
-      if (room.players.length === 0 && !(room.spectators || []).length) {
-        removePresetRoom(room);
-        touchedGames.add('okey101');
-      }
-    }
-  } else if (okeyEngine || process.env.GV_OKEY_PRESETS === '1') {
-    for (const t of okey101PresetTables(331)) {
-      if (!rooms.get(t.id)) {
-        const room = createRoom(t.id, 'okey101', t.maxPlayers, t.durationMinutes, { name: t.name });
-        room.isPreset = true;
-        touchedGames.add('okey101');
-      }
-    }
-  }
+  // Okey ve 101 Okey de artık diğer oyunlar gibi desiredIds ile yönetilir.
   touchedGames.forEach(g => emitLobby(g));
   return presetConfig;
 }
