@@ -151,7 +151,7 @@
     const style = document.createElement('style');
     style.id = 'gv-okey-online-style';
     style.textContent = `
-      .ok-pclock{color:#f9ca24;font-size:.62em;font-weight:800;font-variant-numeric:tabular-nums;white-space:nowrap}
+      .ok-shelf-inner{display:block;overflow:hidden}.ok-tile{width:calc(var(--ok-slot) - 1px)!important;max-width:none;margin-left:calc((var(--ok-slot) - (var(--ok-slot) - 1px)) / 2)!important}.ok-tile .ok-num{font-size:clamp(.72em,1.35vw,1.1em)}\n      .ok-pclock{color:#f9ca24;font-size:.62em;font-weight:800;font-variant-numeric:tabular-nums;white-space:nowrap}
       .ok-spec-lock{pointer-events:none!important;opacity:.45!important;filter:grayscale(.4)}
       .ok-turn-timer.urgent{color:#ff6b81!important;border-color:#ff6b81!important;animation:gvOkeyDanger .5s infinite alternate}
       @keyframes gvOkeyDanger{from{box-shadow:0 0 0 rgba(255,71,87,0)}to{box-shadow:0 0 14px rgba(255,71,87,.65)}}

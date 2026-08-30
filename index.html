@@ -530,6 +530,12 @@ button,input,select{font-family:var(--font)}
   cursor:grab;user-select:none;touch-action:none;z-index:2;
 }
 .ok-tile:hover{z-index:3}
+/* Istaka: 15 slotta taşlar arası gereksiz boşluk bırakma. Genişlik her
+   viewportta slotu doldurur; mutlak konum/sürükleme hesabı korunur. */
+.ok-shelf-inner{display:block;overflow:hidden}
+.ok-tile{width:calc(var(--ok-slot) - 1px);max-width:none;margin-left:calc((var(--ok-slot) - (var(--ok-slot) - 1px)) / 2);height:46px}
+.ok-tile .ok-num{font-size:clamp(.72em,1.35vw,1.1em)}
+
 .ok-tile.dragging{cursor:grabbing;z-index:9999!important;opacity:.92;transform:scale(1.15);position:fixed;transition:none;margin-left:0}
 .ok-tile .ok-num{font-size:1.1em;font-weight:900;line-height:1}
 .ok-tile .ok-dot{width:4px;height:4px;border-radius:50%;margin-top:2px}
@@ -546,6 +552,23 @@ button,input,select{font-family:var(--font)}
 .ok-win-box{background:var(--bg2);border:2px solid var(--gold);padding:24px 36px;border-radius:var(--r2);text-align:center;box-shadow:0 0 35px rgba(249,202,36,.35);max-width:90%}
 .ok-win-title{font-size:1.6em;font-weight:800;color:var(--gold);margin-bottom:6px}
 .ok-win-desc{color:var(--text2);font-size:1em}
+
+/* Okey masa taşları — telefon/tablet/PC ölçekleri */
+@media (max-width:1100px){
+  .okey-table{max-width:100%;border-width:4px;border-radius:14px;padding:6px}
+  .ok-rack-wrap{height:116px;padding:0 2px 3px}.ok-shelf{height:47px;min-height:47px}.ok-shelf-inner{height:41px;min-height:41px}.ok-tile{height:41px}
+}
+@media (max-width:600px){
+  .okey-table{min-height:430px;height:calc(100dvh - 86px);border-width:3px;padding:4px}
+  .ok-rack-wrap{height:98px}.ok-shelf{height:40px;min-height:40px;padding:1px 2px;margin-bottom:2px}.ok-shelf-inner{height:36px;min-height:36px}
+  .ok-tile{height:36px;border-radius:3px;border-width:1px}.ok-tile .ok-num{font-size:.78em}.ok-tile .ok-dot{width:3px;height:3px;margin-top:1px}
+  .ok-player{padding:2px 5px 2px 2px;gap:3px}.ok-player .p-ava{width:25px;height:25px;font-size:.75em}.ok-player .p-name{font-size:.62em}.ok-player .p-count{font-size:.55em}
+  .ok-me{bottom:99px;left:5px}.ok-me-ava{width:30px;height:34px}.ok-me-name{font-size:.58em}.ok-actions{bottom:100px!important;right:5px!important;width:54px!important}.ok-act{font-size:8px!important;padding:3px 1px!important}
+  .ok-center{gap:7px;transform:translate(-50%,-50%) scale(.82);transform-origin:center}.ok-disc-zone{transform:scale(.82);transform-origin:center}
+}
+@media (max-width:380px){
+  .okey-table{min-height:390px}.ok-rack-wrap{height:88px}.ok-shelf{height:35px;min-height:35px}.ok-shelf-inner{height:31px;min-height:31px}.ok-tile{height:31px}.ok-tile .ok-num{font-size:.68em}.ok-me{bottom:89px}.ok-actions{bottom:90px!important}
+}
 
 .rules-content h3{color:var(--primary2);margin:16px 0 8px;font-size:1.1em;border-bottom:1px solid var(--border);padding-bottom:5px}
 .rules-content h3:first-child{margin-top:0}
