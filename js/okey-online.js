@@ -765,15 +765,15 @@
     window.GV._okPointerDown = function (e, type, sh, sl) {
       if (onlineActive()) {
         if (isSpectator) { toast('👁️ İzleyici modunda hamle yapamazsınız.', 'info'); return; }
-        if (type !== 'tile') {
-          if (!myTurnNow()) { toast('⏳ Sıra sizde değil!', 'warning'); return; }
-          if (gameState.phase !== 'draw') { toast('📤 Önce taş atmalısınız!', 'warning'); return; }
-          if (type === 'left' && !(gameState.discardPiles?.[seatMapping().prevSeat()] || []).length) {
-            toast('⚠️ Önceki oyuncunun atığı yok — orta desteden çekin.', 'warning'); return;
-          }
-        }
-        // Sürükle-bırak görselliği yerel motora aittir; commit noktaları
-        // (_okDraw/_okDrawL/_okDiscardTile/_okTryFinishGame) aşağıda sunucuya bağlı.
+        // Online oyunda yerel sürükleme önizlemesini KULLANMA: eski yerel
+        // handler taşı position:fixed ile ekranın sol üstünde bırakıyordu.
+        // Sunucu eylemleri tıklamayla doğrudan çalışır; taş kalitesi ve
+        // ıstaka düzeni bozulmaz.
+        if (type === 'tile') return onlineDiscard(sh, sl);
+        if (!myTurnNow()) { toast('⏳ Sıra sizde değil!', 'warning'); return; }
+        if (gameState.phase !== 'draw') { toast('📤 Önce taş atmalısınız!', 'warning'); return; }
+        if (type === 'left') return onlineDraw('prev');
+        return onlineDraw('deck');
       }
       return orig.pd && orig.pd(e, type, sh, sl);
     };
