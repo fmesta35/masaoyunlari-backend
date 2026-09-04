@@ -327,7 +327,7 @@
     const hdrTxt = ok.variant === 'okey101'
       ? `🔢 OKEY 101 • El ${ok.currentRound} (${map.N} Kişilik) • Hedef ${ok.target || 101} — `
       : `El ${ok.currentRound}/${ok.maxRounds} (${map.N} Kişilik) • `;
-    h += `<div style="position:absolute;top:8px;left:10px;z-index:9;background:rgba(0,0,0,.7);color:var(--text);padding:4px 10px;border-radius:10px;font-size:.7em;border:1px solid var(--border)">${hdrTxt}<span style="color:var(--gold)">${sTxt}</span></div>`;
+    h += `<div class="ok-scoreline">${hdrTxt}<span style="color:var(--gold)">${sTxt}</span></div>`;
 
     // Rakip panelleri: üst=Karşı(2), sol=Sol(1), sağ=Sağ(3) — yalnızca
     // masadaki GERÇEK koltuklar çizilir (2 kişilikte yalnız Karşı,
@@ -348,10 +348,10 @@
     h += '<div class="ok-center">';
     h += `<div class="ok-deck" onmousedown="GV._okPointerDown(event, 'deck')" ontouchstart="GV._okPointerDown(event, 'deck')"><span class="ok-deck-cnt">${ok.deck.length}</span><div class="ok-deck-t"></div><div class="ok-deck-t"></div><div class="ok-deck-t"></div></div>`;
     h += `<div class="ok-indicator" style="border:2px solid #b8a878"><span class="ind-label">GÖSTERGE</span><div class="ok-num" style="color:${iC}">${ok.indicator ? ok.indicator.n : '-'}</div><div class="ok-dot" style="background:${iC}"></div></div>`;
-    h += '<div class="ok-finish-zone" id="okFinishZone"><span style="font-size:0.75em;font-weight:800;color:#f1c40f;">🏆 ORTAYA BİTİR</span></div>';
+    h += '<div class="ok-finish-zone" id="okFinishZone" onclick="GV._okZoneClick(\'finish\')"><span style="font-size:0.75em;font-weight:800;color:#f1c40f;">🏆 ORTAYA BİTİR</span></div>';
     h += '</div>';
 
-    h += '<div class="ok-throw-zone" id="okThrowZone"><span class="ok-throw-label">📤 TAŞ AT</span><span class="ok-throw-empty">Sürükle</span></div>';
+    h += '<div class="ok-throw-zone" id="okThrowZone" onclick="GV._okZoneClick(\'throw\')"><span class="ok-throw-label">📤 TAŞ AT</span><span class="ok-throw-empty">Sürükle</span></div>';
 
     // Atık bölgeleri (aktif görünüm konumları). Önceki oyuncunun (tur
     // sırasında benden bir önce oturanın) en üst atığı TIKLANABİLİR —
@@ -394,7 +394,8 @@
         if (t) {
           const cc = tileColor(t);
           const posLeftPct = (i * 100 / 15).toFixed(2);
-          h += `<div class="ok-tile ${cc}${t.isOkey ? ' is-okey' : ''}" style="left:${posLeftPct}%;" onmousedown="GV._okPointerDown(event, 'tile', ${sh}, ${i})" ontouchstart="GV._okPointerDown(event, 'tile', ${sh}, ${i})"><div class="ok-num">${t.n}</div><div class="ok-dot"></div></div>`;
+          const selCls = (window.GV && GV._okSelected && GV._okSelected().sh === sh && GV._okSelected().sl === i) ? ' sel' : '';
+          h += `<div class="ok-tile ${cc}${t.isOkey ? ' is-okey' : ''}${selCls}" style="left:${posLeftPct}%;" onmousedown="GV._okPointerDown(event, 'tile', ${sh}, ${i})" ontouchstart="GV._okPointerDown(event, 'tile', ${sh}, ${i})"><div class="ok-num">${t.n}</div><div class="ok-dot"></div></div>`;
         }
       }
       h += '</div></div>';
@@ -404,8 +405,13 @@
     area.innerHTML = h;
   }
 
+  let pendingRender = false;
   function render() {
     if (!gameState) return;
+    // Kullanıcı taş sürüklerken masayı YENİDEN ÇİZME: ıstaka altından
+    // kayar, bırakma hedefi şaşar. Sürükleme bitince tek seferde boyanır.
+    if (window.__gvOkDragging) { pendingRender = true; return; }
+    pendingRender = false;
     injectStyle();
     const area = document.getElementById('boardArea');
     if (!area) return;
@@ -765,15 +771,15 @@
     window.GV._okPointerDown = function (e, type, sh, sl) {
       if (onlineActive()) {
         if (isSpectator) { toast('👁️ İzleyici modunda hamle yapamazsınız.', 'info'); return; }
-        // Online oyunda yerel sürükleme önizlemesini KULLANMA: eski yerel
-        // handler taşı position:fixed ile ekranın sol üstünde bırakıyordu.
-        // Sunucu eylemleri tıklamayla doğrudan çalışır; taş kalitesi ve
-        // ıstaka düzeni bozulmaz.
-        if (type === 'tile') return onlineDiscard(sh, sl);
-        if (!myTurnNow()) { toast('⏳ Sıra sizde değil!', 'warning'); return; }
-        if (gameState.phase !== 'draw') { toast('📤 Önce taş atmalısınız!', 'warning'); return; }
-        if (type === 'left') return onlineDraw('prev');
-        return onlineDraw('deck');
+        // Sürükleme ARTIK online modda da açık: yerel motorun klonu masanın
+        // board-fit ölçeğine göre üretiliyor ve konumu yalnız imleçten
+        // türetiliyor (eski "taş sol üste yapışıyor" hatası giderildi).
+        // Bırakma sonucundaki eylemler (at / bitir / ıstaka düzeni) zaten
+        // aşağıdaki sarmalayıcılar üzerinden SUNUCUYA gider.
+        if (type !== 'tile') {
+          if (!myTurnNow()) { toast('⏳ Sıra sizde değil!', 'warning'); return; }
+          if (gameState.phase !== 'draw') { toast('📤 Önce taş atmalısınız!', 'warning'); return; }
+        }
       }
       return orig.pd && orig.pd(e, type, sh, sl);
     };
@@ -788,9 +794,16 @@
       return r;
     };
     window.GV._okHandleRackDrop = function (cx, cy, sh, sl) {
-      const r = orig.rackDrop && orig.rackDrop(cx, cy, sh, sl);
-      if (onlineActive()) { resyncIdsFromBoard(); refreshChrome(); }
-      return r;
+      // Online: yerel dOkey ÇİZİCİSİNİ çağırma (isim/saat/izleyici bilgisini
+      // siler). Yalnız veri takasını yap, id düzenini sabitle, sunucu
+      // görünümünü yeniden boya.
+      if (onlineActive()) {
+        if (window.GV && typeof GV._okRackSwapAt === 'function') GV._okRackSwapAt(cx, cy, sh, sl);
+        resyncIdsFromBoard();
+        refreshChrome();
+        return true;
+      }
+      return orig.rackDrop && orig.rackDrop(cx, cy, sh, sl);
     };
     window.GV._okSurrender = function () {
       if (onlineActive()) {
@@ -811,6 +824,19 @@
     render();
     updateClock();
   }
+
+  // Yerel sürükleme motorunun "masayı yeniden boya" kancası: online odada
+  // sunucu çizicisini çalıştırır, aksi halde false döner (yerel dOkey devreye
+  // girer). Sürükleme bittiği anda bekleyen çizim de burada tahliye edilir.
+  window.__gvOkeyOnlineRepaint = function () {
+    if (!onlineActive()) return false;
+    refreshChrome();
+    return true;
+  };
+  // Sürükleme boyunca ertelenen sunucu güncellemesi varsa yakala.
+  setInterval(function () {
+    if (!window.__gvOkDragging && pendingRender && onlineActive()) refreshChrome();
+  }, 250);
 
   // ---------- Soket ----------
   function loadSocketClient(done) {

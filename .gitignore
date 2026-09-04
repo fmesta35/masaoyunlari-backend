@@ -1,4 +1,3 @@
-```
 # Logs and temp files
 *.log
 *.tmp
@@ -20,3 +19,8 @@ data/
 *.db
 *.db-wal
 *.db-shm
+
+
+# Gecici paketler / anlik goruntuler
+*.tgz
+*.zip

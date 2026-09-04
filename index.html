@@ -382,55 +382,80 @@ button,input,select{font-family:var(--font)}
 .hand-row .pcard{margin-left:-20px}
 .hand-row .pcard:first-child{margin-left:0}
 
-/* OKEY STİLLERİ */
+/* OKEY STİLLERİ — masa geometrisi ORANSALDIR (telefon/tablet/PC aynı görünür).
+   İki temel değişken board-fit.js tarafından ölçülüp yazılır:
+     --ok-tile-w : bir ıstaka slotunun piksel genişliği (yazı/nokta boyu buna bağlı)
+     --ok-rack-h : ıstakanın gerçek yüksekliği (üstündeki öğeler buna göre oturur)
+   Böylece "sabit px" kaynaklı üst üste binme/kayma biter. */
 .okey-table{
+  --ok-rack-max:660px;
+  --ok-tile-w:42px;
+  --ok-rack-h:156px;
   max-width:1050px;width:100%;margin:0 auto;position:relative;
-  background:radial-gradient(ellipse at center,#0f6b3a,#063418);
+  background:
+    radial-gradient(ellipse 62% 48% at 50% 34%, rgba(255,255,255,.10), rgba(255,255,255,0) 70%),
+    radial-gradient(ellipse at center,#127a43,#063418);
   border-radius:20px;border:6px solid #4a2c1a;padding:10px;
-  min-height:560px;height:calc(100vh - 120px);max-height:720px;
-  overflow:hidden;box-shadow:inset 0 0 50px rgba(0,0,0,.6);
+  /* Masa ORANI sabit (1050:660) — yüksek/dar ekranlarda masanın ortası
+     kocaman boş yeşil kalmasın, alçak ekranlarda da ekranı aşmasın. */
+  height:auto;aspect-ratio:1050 / 660;
+  min-height:470px;max-height:min(780px, calc(100dvh - 110px));
+  overflow:hidden;
+  box-shadow:inset 0 0 60px rgba(0,0,0,.62), inset 0 2px 0 rgba(255,255,255,.06), 0 10px 30px rgba(0,0,0,.45);
   display:flex;flex-direction:column;justify-content:space-between;
-  touch-action:none;user-select:none;
+  touch-action:none;user-select:none;-webkit-user-select:none;
+}
+/* Masa kumaşı: ince doku (görsel kalite) */
+.okey-table::before{
+  content:'';position:absolute;inset:0;pointer-events:none;border-radius:14px;
+  background-image:repeating-linear-gradient(45deg, rgba(255,255,255,.022) 0 2px, rgba(0,0,0,0) 2px 4px);
+  opacity:.8;
 }
 .ok-player{
   position:absolute;display:flex;align-items:center;gap:6px;
   background:rgba(0,0,0,.65);padding:4px 10px 4px 4px;border-radius:24px;
   border:2px solid rgba(255,255,255,.15);z-index:10;transition:.3s;
-  backdrop-filter:blur(4px);
+  backdrop-filter:blur(4px);max-width:34%;
 }
 .ok-player.turn{border-color:var(--success);box-shadow:0 0 15px rgba(85,239,196,.6);transform:scale(1.05)}
+.ok-player.top.turn{transform:translateX(-50%) scale(1.05)}
+.ok-player.left.turn,.ok-player.right.turn{transform:translateY(-50%) scale(1.05)}
 .ok-player .p-ava{width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:1em;border:2px solid #fff;color:#fff;flex-shrink:0}
 .ok-player.c1 .p-ava{background:linear-gradient(135deg,#e74c3c,#c0392b)}
 .ok-player.c2 .p-ava{background:linear-gradient(135deg,#3498db,#2980b9)}
 .ok-player.c3 .p-ava{background:linear-gradient(135deg,#9b59b6,#8e44ad)}
-.ok-player .p-name{color:#fff;font-weight:700;font-size:.75em;white-space:nowrap}
-.ok-player .p-count{color:var(--warning);font-size:.65em;font-weight:800}
+.ok-player .p-name{color:#fff;font-weight:700;font-size:.75em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ok-player .p-count{color:var(--warning);font-size:.65em;font-weight:800;white-space:nowrap}
 
 .ok-player.top{top:8px;left:50%;transform:translateX(-50%)}
-.ok-player.left{left:8px;top:32%;transform:translateY(-50%)}
-.ok-player.right{right:8px;top:32%;transform:translateY(-50%)}
+.ok-player.left{left:8px;top:30%;transform:translateY(-50%)}
+.ok-player.right{right:8px;top:30%;transform:translateY(-50%)}
 
-.ok-opp-rack{position:absolute;display:flex;gap:1.5px;background:linear-gradient(180deg,#8b5a2b,#6b4423);padding:2px 4px;border-radius:4px;border:1.5px solid #4a2c1a;z-index:3}
-.ok-opp-rack.top{top:48px;left:50%;transform:translateX(-50%)}
-.ok-opp-rack.left { top:45%; left:65px; transform:translateY(-50%); flex-direction:column; }
-.ok-opp-rack.right { top:45%; right:65px; transform:translateY(-50%); flex-direction:column; }
-.ok-opp-rack.left .ok-opp-t, .ok-opp-rack.right .ok-opp-t { width:18px; height:12px; }
-.ok-opp-t{width:12px;height:18px;border-radius:2px;background:linear-gradient(135deg,#6c5ce7,#4834d4)}
+/* Rakip ıstakaları: gerçek istaka gibi arkası dönük taş sırası */
+.ok-opp-rack{position:absolute;display:flex;gap:1.5px;background:linear-gradient(180deg,#8b5a2b,#6b4423);padding:3px 5px;border-radius:5px;border:1.5px solid #4a2c1a;z-index:3;box-shadow:inset 0 2px 4px rgba(0,0,0,.45),0 3px 8px rgba(0,0,0,.35);max-width:56%;flex-wrap:nowrap;overflow:hidden}
+.ok-opp-rack.top{top:52px;left:50%;transform:translateX(-50%)}
+/* Yan ıstakalar biraz yukarıda durur: alttaki "Sen" paneli ve
+   Kontrol/Sırala/Pes Et düğmeleriyle ÇAKIŞMAZ. */
+.ok-opp-rack.left { top:38%; left:64px; transform:translateY(-50%); flex-direction:column; max-height:40%; max-width:none; }
+.ok-opp-rack.right { top:38%; right:64px; transform:translateY(-50%); flex-direction:column; max-height:40%; max-width:none; }
+.ok-opp-rack.left .ok-opp-t, .ok-opp-rack.right .ok-opp-t { width:18px; height:11px; }
+.ok-opp-t{width:11px;height:18px;border-radius:2px;background:linear-gradient(135deg,#7b6ef0,#4834d4);box-shadow:inset 0 1px 0 rgba(255,255,255,.25);flex:0 0 auto}
 
 .ok-center{
-  position:absolute;top:38%;left:50%;transform:translate(-50%,-50%);
+  position:absolute;top:36%;left:50%;transform:translate(-50%,-50%);
   display:flex;gap:16px;align-items:center;justify-content:center;z-index:8;
 }
 .ok-deck{width:52px;height:70px;position:relative;cursor:grab;touch-action:none;}
 .ok-deck:active{cursor:grabbing}
-.ok-deck-t{position:absolute;width:48px;height:66px;border-radius:6px;background:linear-gradient(135deg,#6c5ce7,#4834d4);border:2px solid rgba(255,255,255,.2);box-shadow:0 2px 6px rgba(0,0,0,.4)}
+.ok-deck-t{position:absolute;width:48px;height:66px;border-radius:6px;background:linear-gradient(135deg,#7b6ef0,#4834d4);border:2px solid rgba(255,255,255,.22);box-shadow:0 2px 6px rgba(0,0,0,.45)}
 .ok-deck-t:nth-child(2){top:0;left:0}.ok-deck-t:nth-child(3){top:-2px;left:2px}.ok-deck-t:nth-child(4){top:-4px;left:4px}
 .ok-deck-cnt{position:absolute;top:-8px;right:-8px;background:#000;color:#fff;font-size:.65em;font-weight:900;padding:2px 6px;border-radius:10px;z-index:10;border:2px solid var(--warning)}
 
 .ok-indicator{
-  width:48px;height:66px;border-radius:6px;background:linear-gradient(180deg,#fefdf7,#f0ead6);
+  width:48px;height:66px;border-radius:6px;
+  background:linear-gradient(180deg,#fffefa 0%,#f6f0dd 55%,#e8dfc4 100%);
   border:2px solid #b8a878;display:flex;flex-direction:column;align-items:center;
-  justify-content:center;position:relative;box-shadow:0 3px 8px rgba(0,0,0,.4);
+  justify-content:center;position:relative;box-shadow:0 3px 8px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.95);
 }
 .ok-indicator .ind-label{position:absolute;top:-1px;left:-1px;right:-1px;font-size:.38em;font-weight:900;text-align:center;border-radius:4px 4px 0 0;padding:1px 0;z-index:10;white-space:nowrap;color:#000;background:#f9ca24}
 .ok-indicator .ok-num{font-size:1.35em;font-weight:900;line-height:1}
@@ -439,26 +464,27 @@ button,input,select{font-family:var(--font)}
 .ok-finish-zone{
   border:2px dashed #f1c40f;background:rgba(241,196,15,0.15);border-radius:8px;
   display:flex;align-items:center;justify-content:center;padding:8px 10px;
-  height:66px;width:75px;text-align:center;
+  height:66px;width:78px;text-align:center;cursor:pointer;transition:background .15s,border-color .15s,transform .15s;
 }
+.ok-finish-zone.drag-over{background:rgba(241,196,15,.42);border-style:solid;transform:scale(1.06)}
 .ok-throw-zone{
-  position:absolute;bottom:150px;left:50%;transform:translateX(-50%);
-  width:62px;height:78px;border:2px dashed var(--warning);border-radius:8px;
+  position:absolute;bottom:calc(var(--ok-rack-h) + 16px);left:50%;transform:translateX(-50%);
+  width:64px;height:80px;border:2px dashed var(--warning);border-radius:8px;
   display:flex;flex-direction:column;align-items:center;justify-content:center;
-  background:rgba(254,202,87,.12);z-index:15;cursor:pointer;
+  background:rgba(254,202,87,.12);z-index:15;cursor:pointer;transition:background .15s,border-color .15s,transform .15s;
 }
-.ok-throw-zone.drag-over{background:rgba(85,239,196,.35);border-color:var(--success)}
-.ok-throw-empty{color:rgba(255,255,255,.5);font-size:.65em;font-weight:700}
+.ok-throw-zone.drag-over{background:rgba(85,239,196,.4);border-color:var(--success);border-style:solid;transform:translateX(-50%) scale(1.08)}
+.ok-throw-empty{color:rgba(255,255,255,.55);font-size:.65em;font-weight:700}
 .ok-throw-label{position:absolute;top:-18px;left:50%;transform:translateX(-50%);background:var(--warning);color:#000;padding:1px 8px;border-radius:8px;font-size:.62em;font-weight:900;white-space:nowrap}
 
-.ok-disc-zone{position:absolute;width:46px;min-height:62px;border:1.5px dashed rgba(255,255,255,.18);border-radius:6px;display:flex;flex-direction:column;align-items:center;padding:2px;z-index:4;background:rgba(0,0,0,.25)}
-.ok-disc-zone[data-pos="0"]{top:calc(38% + 80px); left:calc(50% + 120px);}
-.ok-disc-zone[data-pos="1"]{top:calc(38% + 80px); right:calc(50% + 120px);}
-.ok-disc-zone[data-pos="2"]{top:calc(38% - 110px); right:calc(50% + 120px);}
-.ok-disc-zone[data-pos="3"]{top:calc(38% - 110px); left:calc(50% + 120px);}
+.ok-disc-zone{position:absolute;width:48px;min-height:64px;border:1.5px dashed rgba(255,255,255,.18);border-radius:6px;display:flex;flex-direction:column;align-items:center;padding:2px;z-index:4;background:rgba(0,0,0,.25)}
+.ok-disc-zone[data-pos="0"]{top:calc(36% + 78px); left:calc(50% + 124px);}
+.ok-disc-zone[data-pos="1"]{top:calc(36% + 78px); right:calc(50% + 124px);}
+.ok-disc-zone[data-pos="2"]{top:calc(36% - 112px); right:calc(50% + 124px);}
+.ok-disc-zone[data-pos="3"]{top:calc(36% - 112px); left:calc(50% + 124px);}
 .ok-disc-zone.active-take{border-color:var(--success);border-style:solid;box-shadow:0 0 12px var(--success);cursor:pointer;background:rgba(85,239,196,.15);animation:pulseSuccess 1.5s ease infinite}
 
-.ok-disc-tile{width:40px;height:54px;border-radius:4px;background:linear-gradient(180deg,#fefdf7,#f0ead6);border:1px solid #b8a878;display:flex;flex-direction:column;align-items:center;justify-content:center;margin-top:-50px;position:relative;flex-shrink:0}
+.ok-disc-tile{width:40px;height:54px;border-radius:5px;background:linear-gradient(180deg,#fffefa 0%,#f6f0dd 55%,#e8dfc4 100%);border:1px solid #b8a878;display:flex;flex-direction:column;align-items:center;justify-content:center;margin-top:-50px;position:relative;flex-shrink:0;box-shadow:0 2px 5px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.9)}
 .ok-disc-tile:first-of-type{margin-top:0}
 .ok-disc-tile .dt-num{font-size:1.1em;font-weight:900;line-height:1}
 .ok-disc-tile .dt-dot{width:5px;height:5px;border-radius:50%;margin-top:2px}
@@ -466,108 +492,136 @@ button,input,select{font-family:var(--font)}
 .ok-disc-tile.t-blue .dt-num{color:#1e3a8a}.ok-disc-tile.t-blue .dt-dot{background:#1e3a8a}
 .ok-disc-tile.t-black .dt-num{color:#1a1a1a}.ok-disc-tile.t-black .dt-dot{background:#1a1a1a}
 .ok-disc-tile.t-yellow .dt-num{color:#e67e22}.ok-disc-tile.t-yellow .dt-dot{background:#e67e22}
-.ok-disc-tile.t-joker{background:linear-gradient(180deg,#fefdf7,#f0ead6)}
-.ok-disc-tile.t-joker .dt-num{color:#fff}
+.ok-disc-tile.t-joker{background:linear-gradient(180deg,#fffefa,#efe6cd)}
+.ok-disc-tile.t-joker .dt-num{color:#8b0000}
 .ok-disc-label{position:absolute;top:-15px;font-size:.58em;color:rgba(255,255,255,.7);white-space:nowrap;left:50%;transform:translateX(-50%);font-weight:700;background:rgba(0,0,0,.6);padding:1px 6px;border-radius:6px}
 
 .ok-actions{
   position:absolute;
-  bottom:135px;
-  right:15px;
-  left:auto;
-  transform:none;
-  display:flex;
-  flex-direction:column;
-  gap:4px;
-  z-index:25;
-  align-items:stretch;
-  width:70px !important;
+  bottom:calc(var(--ok-rack-h) + 6px);
+  right:14px;left:auto;transform:none;
+  display:flex;flex-direction:column;gap:4px;z-index:25;align-items:stretch;
+  width:74px;
 }
 .ok-act{
   background:linear-gradient(135deg,#2c3e50,#34495e);
-  color:#fff;
-  border:1px solid rgba(255,255,255,.2);
-  padding:4px 2px !important;
-  border-radius:4px;
-  font-weight:700;
-  font-size:10px !important;
-  cursor:pointer;
-  transition:.2s;
-  white-space:nowrap;
-  box-shadow:0 2px 4px rgba(0,0,0,.4);
-  text-align:center;
+  color:#fff;border:1px solid rgba(255,255,255,.2);
+  padding:5px 2px;border-radius:5px;font-weight:700;font-size:10px;
+  cursor:pointer;transition:.2s;white-space:nowrap;
+  box-shadow:0 2px 4px rgba(0,0,0,.4);text-align:center;
 }
 .ok-act:hover{filter:brightness(1.2);transform:translateY(-2px)}
 
-.ok-me{position:absolute;bottom:125px;left:10px;z-index:10;display:flex;flex-direction:column;align-items:center;gap:2px}
-.ok-me-ava{width:40px;height:48px;border-radius:50%;background:linear-gradient(135deg,#f39c12,#e67e22);border:2px solid var(--success);display:flex;align-items:center;justify-content:center;font-size:1.2em;color:#fff;transition:.3s}
-.ok-me-name{color:var(--success);font-weight:800;font-size:.7em;padding:1px 8px;background:rgba(0,0,0,.6);border-radius:8px;white-space:nowrap}
+.ok-me{position:absolute;bottom:calc(var(--ok-rack-h) + 6px);left:10px;z-index:26;display:flex;flex-direction:column;align-items:center;gap:2px;max-width:34%}
+.ok-me-ava{width:40px;height:44px;border-radius:50%;background:linear-gradient(135deg,#f39c12,#e67e22);border:2px solid var(--success);display:flex;align-items:center;justify-content:center;font-size:1.2em;color:#fff;transition:.3s}
+.ok-me-name{color:var(--success);font-weight:800;font-size:.7em;padding:1px 8px;background:rgba(0,0,0,.6);border-radius:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
 .ok-me.turn .ok-me-ava{border-color:var(--warning);box-shadow:0 0 15px rgba(254,202,87,.7);transform:scale(1.08)}
 
 .ok-turn-timer{position:absolute;top:8px;right:10px;z-index:10;background:rgba(0,0,0,.75);color:var(--warning);padding:5px 12px;border-radius:10px;font-size:1.1em;font-weight:800;font-family:var(--mono);border:1.5px solid var(--warning);text-align:center}
 .ok-turn-timer.urgent{color:var(--danger);border-color:var(--danger);animation:pulseSuccess .5s infinite alternate}
 .ok-turn-timer .tt-label{font-size:.5em;color:rgba(255,255,255,.6);display:block;margin-bottom:1px;font-family:var(--font)}
 
-.ok-rack-wrap{position:absolute;bottom:0;left:0;right:0;padding:0 4px 4px;z-index:20;width:100%;height:125px;}
-.ok-rack{background:linear-gradient(180deg,#c9915e,#7d5327);border-radius:10px;padding:3px;position:relative;box-shadow:inset 0 2px 4px rgba(255,255,255,.3);border:2px solid #5c3a1a;border-bottom-width:4px}
-.ok-shelf{background:linear-gradient(180deg,rgba(0,0,0,.12),rgba(0,0,0,.3)),linear-gradient(180deg,#8b5a2b,#6b4423);border-radius:4px;padding:2px 3px;min-height:50px;height:52px;position:relative;box-shadow:inset 0 2px 4px rgba(0,0,0,.5);border:1px solid #4a2c1a;margin-bottom:3px;overflow:hidden}
+/* ---------- ISTAKA (rack) ----------
+   Yükseklik ARTIK sabit px değil: raf iç genişliğinin oranıdır. Böylece taşlar
+   her ekranda gerçek okey taşı oranını (yaklaşık 2:3) korur; telefonda basık,
+   PC'de yayvan görünmez. 15 slotluk adım korunur (sürükle-bırak buna dayanır). */
+.ok-rack-wrap{position:absolute;bottom:0;left:0;right:0;padding:0 6px 5px;z-index:20;width:100%}
+.ok-rack{background:linear-gradient(180deg,#d69a63,#7d5327);border-radius:10px;padding:4px;position:relative;box-shadow:inset 0 2px 4px rgba(255,255,255,.32),0 -4px 14px rgba(0,0,0,.35);border:2px solid #5c3a1a;border-bottom-width:5px;max-width:var(--ok-rack-max);margin:0 auto}
+.ok-shelf{background:linear-gradient(180deg,rgba(0,0,0,.16),rgba(0,0,0,.34)),linear-gradient(180deg,#8b5a2b,#6b4423);border-radius:5px;padding:2px 3px;position:relative;box-shadow:inset 0 3px 6px rgba(0,0,0,.55);border:1px solid #4a2c1a;margin-bottom:4px;overflow:hidden;height:auto;min-height:0}
 .ok-shelf:last-child{margin-bottom:0}
-.ok-shelf-inner{position:relative;min-height:46px;height:46px;width:100%;display:flex;justify-content:flex-start}
+/* 15 slot × (slot × 1.44) → raf yüksekliği genişlikten türer */
+.ok-shelf-inner{position:relative;display:block;width:100%;height:auto;min-height:0;aspect-ratio:15 / 1.44;overflow:hidden}
 
 .ok-tile{
-  /* Slot adımı hep 100%/15 (sürükle-bırak slot hesabı buna dayanır) — bu
-     geometri KORUNUR. Taş genişliği slota yaklaştırıldı: aralık her ekranda
-     yalnızca birkaç px kalır, taş slot içinde ortalanır ve ASLA taşmaz
-     (genişlik + kayma ≤ slot) → üst üste binme imkânsız. */
   --ok-slot:calc(100% / 15);
-  position:absolute;top:1px;
-  width:min(calc(var(--ok-slot) - 3px), 60px);
-  margin-left:calc((var(--ok-slot) - min(calc(var(--ok-slot) - 3px), 60px)) / 2);
-  height:46px;
-  background:linear-gradient(180deg,#fefdf7,#f0ead6);border-radius:4px;
-  border:1px solid #b8a878;box-shadow:inset 0 1px 0 rgba(255,255,255,.9),0 2px 4px rgba(0,0,0,.35);
+  position:absolute;top:0;
+  width:calc(var(--ok-slot) - 1px);
+  margin-left:.5px;
+  height:100%;
+  background:linear-gradient(180deg,#fffefa 0%,#f7f1e0 52%,#e7ddc1 100%);
+  border-radius:calc(var(--ok-tile-w) * .12);
+  border:1px solid #b9a97f;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.95), inset 0 -2px 3px rgba(0,0,0,.10), 0 2px 4px rgba(0,0,0,.4);
   display:flex;flex-direction:column;align-items:center;justify-content:center;
-  cursor:grab;user-select:none;touch-action:none;z-index:2;
+  cursor:grab;user-select:none;-webkit-user-select:none;touch-action:none;z-index:2;
+  transition:transform .12s ease, box-shadow .12s ease;
 }
 .ok-tile:hover{z-index:3}
-/* Istaka: 15 slotta taşlar arası gereksiz boşluk bırakma. Genişlik her
-   viewportta slotu doldurur; mutlak konum/sürükleme hesabı korunur. */
-.ok-shelf-inner{display:block;overflow:hidden}
-.ok-tile{width:calc(var(--ok-slot) - 1px);max-width:none;margin-left:calc((var(--ok-slot) - (var(--ok-slot) - 1px)) / 2);height:46px}
-.ok-tile .ok-num{font-size:clamp(.72em,1.35vw,1.1em)}
-
-.ok-tile.dragging{cursor:grabbing;z-index:9999!important;opacity:.92;transform:scale(1.15);position:fixed;transition:none;margin-left:0}
-.ok-tile .ok-num{font-size:1.1em;font-weight:900;line-height:1}
-.ok-tile .ok-dot{width:4px;height:4px;border-radius:50%;margin-top:2px}
-.ok-tile.t-red .ok-num{color:#8b0000}.ok-tile.t-red .ok-dot{background:#8b0000}
-.ok-tile.t-blue .ok-num{color:#1e3a8a}.ok-tile.t-blue .ok-dot{background:#1e3a8a}
-.ok-tile.t-black .ok-num{color:#1a1a1a}.ok-tile.t-black .ok-dot{background:#1a1a1a}
-.ok-tile.t-yellow .ok-num{color:#e67e22}.ok-tile.t-yellow .ok-dot{background:#e67e22}
-.ok-tile.t-joker{background:linear-gradient(180deg,#fefdf7,#f0ead6)}
-.ok-tile.t-joker .ok-num{color:#fff;font-size:1em}
+@media(hover:hover){ .ok-tile:hover{transform:translateY(-3px);box-shadow:inset 0 1px 0 rgba(255,255,255,.95),0 6px 10px rgba(0,0,0,.5)} }
+/* Yazı ve nokta taş genişliğiyle orantılı (board-fit --ok-tile-w yazar) */
+.ok-tile .ok-num{font-size:calc(var(--ok-tile-w) * .54);font-weight:900;line-height:1;letter-spacing:-.02em}
+.ok-tile .ok-dot{width:calc(var(--ok-tile-w) * .11);height:calc(var(--ok-tile-w) * .11);border-radius:50%;margin-top:calc(var(--ok-tile-w) * .06)}
+.ok-tile.t-red .ok-num{color:#a5000f}.ok-tile.t-red .ok-dot{background:#a5000f}
+.ok-tile.t-blue .ok-num{color:#123a8a}.ok-tile.t-blue .ok-dot{background:#123a8a}
+.ok-tile.t-black .ok-num{color:#15171a}.ok-tile.t-black .ok-dot{background:#15171a}
+.ok-tile.t-yellow .ok-num{color:#d9820a}.ok-tile.t-yellow .ok-dot{background:#d9820a}
+.ok-tile.t-joker{background:linear-gradient(180deg,#fffefa,#efe6cd)}
+.ok-tile.t-joker .ok-num{color:#a5000f;font-size:calc(var(--ok-tile-w) * .5)}
 .ok-tile.is-okey{border:2px solid var(--success);box-shadow:0 0 10px var(--success)}
-.ok-tile.is-okey::before{content:'OKEY';position:absolute;top:-1px;left:-1px;right:-1px;background:#f9ca24;color:#000;font-size:.38em;font-weight:900;text-align:center;border-radius:3px 3px 0 0;padding:1px 0;z-index:10}
+.ok-tile.is-okey::before{content:'OKEY';position:absolute;top:-1px;left:-1px;right:-1px;background:#f9ca24;color:#000;font-size:calc(var(--ok-tile-w) * .21);font-weight:900;text-align:center;border-radius:3px 3px 0 0;padding:1px 0;z-index:10;line-height:1.1}
+/* Tıklanarak seçilen taş: yükselir ve parlar (mobilde "seç → TAŞ AT" akışı) */
+.ok-tile.sel{transform:translateY(-8px);box-shadow:0 0 0 2px var(--warning),0 8px 14px rgba(0,0,0,.55);z-index:6}
+
+/* Sürüklenen kopya: konum ve ölçek JS tarafından transform ile verilir.
+   Buradaki kurallar YALNIZ görünüm içindir; transform'a DOKUNMAZ. */
+.ok-tile.dragging,.ok-drag-ghost{cursor:grabbing;z-index:99999;opacity:.96;position:fixed;transition:none;margin-left:0;filter:drop-shadow(0 10px 14px rgba(0,0,0,.55))}
 
 .ok-win-overlay{position:absolute;inset:0;background:rgba(0,0,0,.88);z-index:200;display:flex;flex-direction:column;align-items:center;justify-content:center;backdrop-filter:blur(6px);animation:fadeUp .3s ease}
 .ok-win-box{background:var(--bg2);border:2px solid var(--gold);padding:24px 36px;border-radius:var(--r2);text-align:center;box-shadow:0 0 35px rgba(249,202,36,.35);max-width:90%}
 .ok-win-title{font-size:1.6em;font-weight:800;color:var(--gold);margin-bottom:6px}
 .ok-win-desc{color:var(--text2);font-size:1em}
 
-/* Okey masa taşları — telefon/tablet/PC ölçekleri */
+/* ---- Ekran uyarlamaları ----
+   Taş yüksekliği artık ORANDAN geliyor; burada YALNIZCA masa çevresindeki
+   yardımcı öğeler (rakip kartları, orta alan, atık bölgeleri) küçültülür.
+   Taşa/rafa sabit px yükseklik VERİLMEZ — eskiden hem burada küçültülüp hem
+   board-fit ile ölçeklendiği için taşlar iki kez küçülüyordu. */
 @media (max-width:1100px){
-  .okey-table{max-width:100%;border-width:4px;border-radius:14px;padding:6px}
-  .ok-rack-wrap{height:116px;padding:0 2px 3px}.ok-shelf{height:47px;min-height:47px}.ok-shelf-inner{height:41px;min-height:41px}.ok-tile{height:41px}
+  .okey-table{--ok-rack-max:620px;border-width:4px;border-radius:14px;padding:6px}
+}
+@media (max-width:820px){
+  .okey-table{--ok-rack-max:100%;padding:5px}
+  .ok-center{gap:10px;transform:translate(-50%,-50%) scale(.9);transform-origin:center}
+  .ok-disc-zone{transform:scale(.88);transform-origin:center}
+  .ok-disc-zone[data-pos="0"]{top:calc(36% + 68px); left:calc(50% + 96px); right:auto;}
+  .ok-disc-zone[data-pos="1"]{top:calc(36% + 68px); right:calc(50% + 96px); left:auto;}
+  .ok-disc-zone[data-pos="2"]{top:calc(36% - 94px); right:calc(50% + 96px); left:auto;}
+  .ok-disc-zone[data-pos="3"]{top:calc(36% - 94px); left:calc(50% + 96px); right:auto;}
+  .ok-opp-rack.left{left:52px}.ok-opp-rack.right{right:52px}
 }
 @media (max-width:600px){
-  .okey-table{min-height:430px;height:calc(100dvh - 86px);border-width:3px;padding:4px}
-  .ok-rack-wrap{height:98px}.ok-shelf{height:40px;min-height:40px;padding:1px 2px;margin-bottom:2px}.ok-shelf-inner{height:36px;min-height:36px}
-  .ok-tile{height:36px;border-radius:3px;border-width:1px}.ok-tile .ok-num{font-size:.78em}.ok-tile .ok-dot{width:3px;height:3px;margin-top:1px}
-  .ok-player{padding:2px 5px 2px 2px;gap:3px}.ok-player .p-ava{width:25px;height:25px;font-size:.75em}.ok-player .p-name{font-size:.62em}.ok-player .p-count{font-size:.55em}
-  .ok-me{bottom:99px;left:5px}.ok-me-ava{width:30px;height:34px}.ok-me-name{font-size:.58em}.ok-actions{bottom:100px!important;right:5px!important;width:54px!important}.ok-act{font-size:8px!important;padding:3px 1px!important}
-  .ok-center{gap:7px;transform:translate(-50%,-50%) scale(.82);transform-origin:center}.ok-disc-zone{transform:scale(.82);transform-origin:center}
+  .okey-table{min-height:430px;max-height:calc(100dvh - 84px);border-width:3px;padding:4px;border-radius:12px}
+  .ok-rack-wrap{padding:0 3px 4px}
+  .ok-shelf{padding:1px 2px;margin-bottom:3px}
+  .ok-player{padding:2px 6px 2px 2px;gap:3px;max-width:42%}
+  .ok-player .p-ava{width:26px;height:26px;font-size:.75em}
+  .ok-player .p-name{font-size:.62em}.ok-player .p-count{font-size:.55em}
+  .ok-me-ava{width:32px;height:34px;font-size:.95em}.ok-me-name{font-size:.58em}
+  .ok-actions{right:6px;width:58px;gap:3px}
+  .ok-act{font-size:9px;padding:4px 1px}
+  .ok-center{gap:7px;transform:translate(-50%,-50%) scale(.8)}
+  .ok-throw-zone{width:56px;height:70px}
+  .ok-opp-rack.left{left:40px}.ok-opp-rack.right{right:40px}
+  .ok-opp-t{width:8px;height:13px}
+  .ok-opp-rack.left .ok-opp-t,.ok-opp-rack.right .ok-opp-t{width:13px;height:8px}
 }
-@media (max-width:380px){
-  .okey-table{min-height:390px}.ok-rack-wrap{height:88px}.ok-shelf{height:35px;min-height:35px}.ok-shelf-inner{height:31px;min-height:31px}.ok-tile{height:31px}.ok-tile .ok-num{font-size:.68em}.ok-me{bottom:89px}.ok-actions{bottom:90px!important}
+/* Masa üstü bilgi şeridi: KARŞI oyuncu paneliyle ÇAKIŞMAZ (dar ekranda
+   kısalır ve üç nokta ile biter — eskiden panelin altında kalıyordu). */
+.ok-scoreline{
+  position:absolute;top:8px;left:10px;z-index:9;
+  background:rgba(0,0,0,.7);color:var(--text);padding:4px 10px;border-radius:10px;
+  font-size:.7em;border:1px solid var(--border);
+  max-width:calc(50% - 100px);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+@media (max-width:820px){ .ok-scoreline{font-size:.64em;padding:3px 8px;max-width:calc(50% - 86px)} }
+@media (max-width:600px){ .ok-scoreline{font-size:.58em;padding:2px 6px;left:6px;max-width:calc(50% - 74px)} }
+
+/* Telefon YATAY: masa alçalır — orta alan ve ıstaka çakışmasın */
+@media (max-height:520px) and (orientation:landscape){
+  .okey-table{min-height:300px;height:calc(100dvh - 62px);aspect-ratio:auto;max-height:none;--ok-rack-max:520px}
+  .ok-center{transform:translate(-50%,-50%) scale(.72)}
+  .ok-throw-zone{width:48px;height:60px}
+  .ok-disc-zone{transform:scale(.7)}
 }
 
 .rules-content h3{color:var(--primary2);margin:16px 0 8px;font-size:1.1em;border-bottom:1px solid var(--border);padding-bottom:5px}
@@ -576,20 +630,20 @@ button,input,select{font-family:var(--font)}
 .rules-content li{margin-bottom:6px;line-height:1.5}
 
 @media(max-width:1100px){.right-panel{display:none}}
+/* TABLET (dikey): Hamleler/Sohbet paneli tahtanın YANINDA değil ALTINDA
+   dursun — 800-1024 px arasında tahta yalnız 320 px kalıyordu, taşlar
+   okunmuyordu. */
+@media(max-width:1024px){
+  .game-layout{flex-direction:column}
+  .game-side{width:100%}
+}
 @media(max-width:800px){
   .sidebar{position:fixed;left:0;top:56px;bottom:0;z-index:999;transform:translateX(-100%);width:260px}.sidebar.open{transform:translateX(0)}
   .hamburger{display:block}.nav{display:none}
   .games-grid{grid-template-columns:repeat(auto-fill,minmax(140px,1fr))}
   .game-layout{flex-direction:column}.game-side{width:100%}.timers{flex-direction:column}
-  .okey-table{min-height:500px;height:calc(100vh - 100px);padding:6px}
-  .ok-disc-zone[data-pos="0"]{top:calc(38% + 70px); left:calc(50% + 95px); right:auto; bottom:auto;}
-  .ok-disc-zone[data-pos="1"]{top:calc(38% + 70px); right:calc(50% + 95px); left:auto; bottom:auto;}
-  .ok-disc-zone[data-pos="2"]{top:calc(38% - 90px); right:calc(50% + 95px); left:auto; bottom:auto;}
-  .ok-disc-zone[data-pos="3"]{top:calc(38% - 90px); left:calc(50% + 95px); right:auto; bottom:auto;}
-  .ok-actions{bottom:125px !important; right:10px !important; width:60px !important; gap:3px !important;}
-  .ok-act{padding:3px 2px !important; font-size:8.5px !important;} 
-  .ok-throw-zone{bottom:160px;width:54px;height:70px}
-  .ok-me{bottom:125px;}
+  /* Okey masası ölçüleri artık .okey-table blogundaki oransal kurallarda
+     yonetiliyor (sabit px "bottom" degerleri istakayi eziyordu). */
 }
 
 /* ==================== OYUN ALANI: SABİT TAHTA + RESPONSIVE SİĞDIRMA =================
@@ -632,6 +686,9 @@ html{scrollbar-gutter:stable}
   .game-layout{gap:10px}
   .game-side{gap:8px}
   .chat{height:200px !important}
+  #pg-room .gr-header{margin-bottom:6px;gap:8px}
+  #pg-room #grTitle{font-size:1.15em;line-height:1.2}
+  #pg-room .gr-actions .btn{padding:5px 9px;font-size:.78em}
   .moves{max-height:130px}
   .chess-wrapper{max-width:min(100%,max(260px,calc(100vh - 235px)))}
   .tavla-row{height:min(180px,24vh)}
@@ -3314,7 +3371,7 @@ function dOkey(el){
   if(active.includes(2)) scoreTxt += ` | Karşı:${ok.scores[2]}`;
   if(active.includes(3)) scoreTxt += ` | Sağ:${ok.scores[3]}`;
 
-  h += `<div style="position:absolute;top:8px;left:10px;z-index:9;background:rgba(0,0,0,.7);color:var(--text);padding:4px 10px;border-radius:10px;font-size:.7em;border:1px solid var(--border)">El ${ok.currentRound}/${ok.maxRounds} (${ok.pCount} Kişilik) • <span style="color:var(--gold)">${scoreTxt}</span></div>`;
+  h += `<div class="ok-scoreline">El ${ok.currentRound}/${ok.maxRounds} (${ok.pCount} Kişilik) • <span style="color:var(--gold)">${scoreTxt}</span></div>`;
 
   if(active.includes(2)) {
     const turnCls = ok.turnIndex === 2 ? ' turn' : '';
@@ -3340,10 +3397,10 @@ function dOkey(el){
   h += '<div class="ok-center">';
   h += `<div class="ok-deck" onmousedown="GV._okPointerDown(event, 'deck')" ontouchstart="GV._okPointerDown(event, 'deck')"><span class="ok-deck-cnt">${ok.deck.length}</span><div class="ok-deck-t"></div><div class="ok-deck-t"></div><div class="ok-deck-t"></div></div>`;
   h += `<div class="ok-indicator" style="border:2px solid #b8a878"><span class="ind-label">GÖSTERGE</span><div class="ok-num" style="color:${iC}">${ok.indicator.n}</div><div class="ok-dot" style="background:${iC}"></div></div>`;
-  h += `<div class="ok-finish-zone" id="okFinishZone"><span style="font-size:0.75em; font-weight:800; color:#f1c40f;">🏆 ORTAYA BİTİR</span></div>`;
+  h += `<div class="ok-finish-zone" id="okFinishZone" onclick="GV._okZoneClick('finish')"><span style="font-size:0.75em; font-weight:800; color:#f1c40f;">🏆 ORTAYA BİTİR</span></div>`;
   h += '</div>';
 
-  h += '<div class="ok-throw-zone" id="okThrowZone"><span class="ok-throw-label">📤 TAŞ AT</span><span class="ok-throw-empty">Sürükle</span></div>';
+  h += '<div class="ok-throw-zone" id="okThrowZone" onclick="GV._okZoneClick(\'throw\')"><span class="ok-throw-label">📤 TAŞ AT</span><span class="ok-throw-empty">Sürükle</span></div>';
 
   const labels = ['Sen', '← Sol', 'Karşı', 'Sağ'];
   [0, 1, 2, 3].forEach(pos => {
@@ -3378,7 +3435,7 @@ function dOkey(el){
       if(t){
         const cc = t.isFJ ? (t.dc || 't-red') : t.c;
         const posLeftPct = (i * 100 / 15).toFixed(2);
-        h += `<div class="ok-tile ${cc}${t.isOkey?' is-okey':''}" style="left:${posLeftPct}%;" onmousedown="GV._okPointerDown(event, 'tile', ${sh}, ${i})" ontouchstart="GV._okPointerDown(event, 'tile', ${sh}, ${i})"><div class="ok-num">${t.n}</div><div class="ok-dot"></div></div>`;
+        h += `<div class="ok-tile ${cc}${t.isOkey?' is-okey':''}${_okIsSel(sh,i)?' sel':''}" style="left:${posLeftPct}%;" onmousedown="GV._okPointerDown(event, 'tile', ${sh}, ${i})" ontouchstart="GV._okPointerDown(event, 'tile', ${sh}, ${i})"><div class="ok-num">${t.n}</div><div class="ok-dot"></div></div>`;
       }
     }
     h += '</div></div>';
@@ -3387,12 +3444,88 @@ function dOkey(el){
   el.innerHTML = h;
 }
 
-let okDrag = { el: null, clone: null, type: null, sh: null, sl: null, sx: 0, sy: 0 };
+/* ============================================================================
+ * OKEY SÜRÜKLE-BIRAK MOTORU (yerel + online ortak)
+ *
+ *  Eski sorun: sürüklenen taşın klonu <body>'ye ekleniyordu. .ok-tile genişliği
+ *  `--ok-slot: calc(100% / 15)` ile KAPSAYICIYA görelidir; body'de bu değer
+ *  ekran genişliğinin 1/15'i olur → klon dev/bozuk boyutta çıkar. Ayrıca konum
+ *  her karede ORİJİNAL düğümün rect'inden hesaplanıyordu; masa yeniden
+ *  çizilince (soket güncellemesi / board-fit) o düğüm DOM'dan düşer,
+ *  getBoundingClientRect() sıfır döner ve taş ekranın sol üstüne yapışırdı.
+ *  (Bu yüzden online modda sürükleme tamamen kapatılmıştı.)
+ *
+ *  Yeni yaklaşım:
+ *   1) Klonun kutusu piksel olarak SABİTLENİR (tasarım ölçüsü) ve masanın
+ *      board-fit ölçeği transform: scale() ile klona da uygulanır → taş
+ *      ekranda birebir aynı boyutta görünür.
+ *   2) Konum yalnız imleç/parmak koordinatından türetilir: tutulan nokta taşın
+ *      neresindeyse ORADA kalır (offset korunur). Yeniden çizimden etkilenmez.
+ *   3) Dokunmada taş parmağın biraz ÜSTÜNDE durur (parmak taşı kapatmaz);
+ *      bırakma hedefi taşın GÖRÜNEN merkezine göre belirlenir.
+ *   4) Sürükleme boyunca masa yeniden çizimi ertelenir (window.__gvOkDragging).
+ * ========================================================================== */
+let okDrag = { el:null, clone:null, type:null, sh:null, sl:null,
+               sx:0, sy:0, px:0, py:0, offX:0, offY:0,
+               w:0, h:0, lift:0, scale:1, touch:false, moved:false };
+
+/* Seçili taş (tıklama ile): sürükleyemeyen/istemeyen oyuncular için
+   "taşa dokun → TAŞ AT bölgesine dokun" akışı. Yeniden çizimde korunur. */
+let okSel = { sh:null, sl:null };
+function _okSelected(){ return okSel; }
+function _okClearSel(){ okSel = { sh:null, sl:null }; }
+function _okIsSel(sh, sl){ return okSel.sh === sh && okSel.sl === sl; }
+
+/* board-fit .okey-table'ı transform: scale ile küçültür/büyütür. Klonun
+   birebir aynı görünmesi için etkin ölçeği ölç (akışkan modda 1 döner). */
+function _okScaleOf(el){
+  const tbl = (el && el.closest) ? el.closest('.okey-table') : document.querySelector('.okey-table');
+  if(!tbl) return 1;
+  const r = tbl.getBoundingClientRect();
+  const w = tbl.offsetWidth || 0;
+  if(!w || !r.width) return 1;
+  const s = r.width / w;
+  return (s > 0.05 && s < 8) ? s : 1;
+}
+
+function _okDragCleanup(){
+  if(okDrag.clone){ try{ okDrag.clone.remove(); }catch(_){} }
+  if(okDrag.el){ try{ okDrag.el.style.opacity = ''; }catch(_){} }
+  okDrag.clone = null; okDrag.el = null;
+  window.__gvOkDragging = false;
+  document.removeEventListener('mousemove', _okPointerMove);
+  document.removeEventListener('touchmove', _okPointerMove);
+  document.removeEventListener('mouseup', _okPointerUp);
+  document.removeEventListener('touchend', _okPointerUp);
+  document.removeEventListener('touchcancel', _okPointerUp);
+  document.removeEventListener('pointercancel', _okPointerUp);
+  const tz = document.getElementById('okThrowZone');
+  const fz = document.getElementById('okFinishZone');
+  if(tz) tz.classList.remove('drag-over');
+  if(fz) fz.classList.remove('drag-over');
+}
+
+function _okDragTo(x, y){
+  const c = okDrag.clone;
+  if(!c) return;
+  okDrag.px = x; okDrag.py = y;
+  const left = x - okDrag.offX;
+  const top  = y - okDrag.offY - okDrag.lift;
+  c.style.transform = 'translate3d(' + Math.round(left) + 'px,' + Math.round(top) + 'px,0) scale(' + okDrag.scale + ')';
+}
+
+/* Bırakma noktası: taşın GÖRÜNEN merkezi (dokunmada parmaktan yukarıda). */
+function _okDropPoint(){
+  return {
+    x: okDrag.px - okDrag.offX + okDrag.w / 2,
+    y: okDrag.py - okDrag.offY - okDrag.lift + okDrag.h / 2
+  };
+}
 
 function _okPointerDown(e, type, sh, sl) {
   const ok = st.boards.okey;
   if(!ok || ok.gameEnded) return;
-  
+
   if(type !== 'tile'){
     if(!ok.myTurn) return;
     if((type==='deck' || type==='left') && ok.phase !== 'draw') return;
@@ -3400,130 +3533,194 @@ function _okPointerDown(e, type, sh, sl) {
   }
 
   if(e.cancelable) e.preventDefault();
+  _okDragCleanup();                     // yarım kalmış sürükleme varsa temizle
 
-  const touch = e.touches ? e.touches[0] : e;
-  okDrag.type = type; okDrag.sh = sh; okDrag.sl = sl;
-  okDrag.sx = touch.clientX; okDrag.sy = touch.clientY;
-
+  const isTouch = !!(e.touches && e.touches.length);
+  const p = isTouch ? e.touches[0] : e;
   const target = e.currentTarget;
+  if(!target || !target.getBoundingClientRect) return;
   const rect = target.getBoundingClientRect();
+  if(!rect.width || !rect.height) return;
+  const s = _okScaleOf(target);
 
-  okDrag.clone = target.cloneNode(true);
-  okDrag.clone.classList.add('dragging');
-  okDrag.clone.style.left = rect.left + 'px';
-  okDrag.clone.style.top = rect.top + 'px';
-  okDrag.clone.style.position = 'fixed';
-  okDrag.clone.style.zIndex = '9999';
-  okDrag.clone.style.pointerEvents = 'none';
-  okDrag.clone.style.margin = '0';
-  document.body.appendChild(okDrag.clone);
-
-  if(type === 'tile') target.style.opacity = '0.3';
+  okDrag.type = type; okDrag.sh = sh; okDrag.sl = sl;
+  okDrag.sx = p.clientX; okDrag.sy = p.clientY;
+  okDrag.px = p.clientX; okDrag.py = p.clientY;
+  okDrag.offX = p.clientX - rect.left;
+  okDrag.offY = p.clientY - rect.top;
+  okDrag.w = rect.width; okDrag.h = rect.height;
+  okDrag.scale = s;
+  okDrag.touch = isTouch;
+  // Dokunmada taş parmağın üstünde dursun (kullanıcı ne bıraktığını görsün).
+  okDrag.lift = isTouch ? Math.min(52, rect.height * 0.85) : 0;
+  okDrag.moved = false;
   okDrag.el = target;
+
+  const clone = target.cloneNode(true);
+  clone.classList.add('dragging', 'ok-drag-ghost');
+  clone.removeAttribute('id');
+  clone.removeAttribute('onmousedown');
+  clone.removeAttribute('ontouchstart');
+  clone.removeAttribute('onclick');
+  // Kutu ölçüsü TASARIM pikseline sabitlenir; ölçek transform ile verilir →
+  // klon, masadaki taşla piksel piksel aynı görünür.
+  clone.style.position = 'fixed';
+  clone.style.left = '0'; clone.style.top = '0';
+  clone.style.right = 'auto'; clone.style.bottom = 'auto';
+  clone.style.margin = '0';
+  clone.style.width  = (rect.width  / s) + 'px';
+  clone.style.height = (rect.height / s) + 'px';
+  clone.style.maxWidth = 'none'; clone.style.minWidth = '0';
+  clone.style.fontSize = getComputedStyle(target).fontSize;
+  clone.style.transformOrigin = 'top left';
+  clone.style.pointerEvents = 'none';
+  clone.style.zIndex = '99999';
+  clone.style.willChange = 'transform';
+  clone.style.transition = 'none';
+  document.body.appendChild(clone);
+  okDrag.clone = clone;
+  _okDragTo(p.clientX, p.clientY);
+
+  if(type === 'tile') target.style.opacity = '0.25';
+  window.__gvOkDragging = true;         // sürüklerken masayı yeniden çizme
 
   document.addEventListener('mousemove', _okPointerMove, {passive: false});
   document.addEventListener('touchmove', _okPointerMove, {passive: false});
   document.addEventListener('mouseup', _okPointerUp);
   document.addEventListener('touchend', _okPointerUp);
+  document.addEventListener('touchcancel', _okPointerUp);
+  document.addEventListener('pointercancel', _okPointerUp);
 }
 
 function _okPointerMove(e) {
   if(!okDrag.clone) return;
   if(e.cancelable) e.preventDefault();
-  const touch = e.touches ? e.touches[0] : e;
-  const dx = touch.clientX - okDrag.sx;
-  const dy = touch.clientY - okDrag.sy;
-  const rect = okDrag.el.getBoundingClientRect();
+  const p = (e.touches && e.touches.length) ? e.touches[0] : e;
+  _okDragTo(p.clientX, p.clientY);
+  if(Math.abs(p.clientX - okDrag.sx) > 6 || Math.abs(p.clientY - okDrag.sy) > 6) okDrag.moved = true;
 
-  okDrag.clone.style.left = (rect.left + dx) + 'px';
-  okDrag.clone.style.top = (rect.top + dy) + 'px';
-
+  const d = _okDropPoint();
   const tz = document.getElementById('okThrowZone');
   const fz = document.getElementById('okFinishZone');
 
   if(okDrag.type === 'tile') {
-    if(tz) {
-      if(_isOver(touch.clientX, touch.clientY, tz)) tz.classList.add('drag-over');
-      else tz.classList.remove('drag-over');
-    }
-    if(fz) {
-      if(_isOver(touch.clientX, touch.clientY, fz)) fz.style.background = 'rgba(241,196,15,0.4)';
-      else fz.style.background = 'rgba(241,196,15,0.15)';
-    }
+    const overT = _isOver(d.x, d.y, tz) || _isOver(p.clientX, p.clientY, tz);
+    const overF = _isOver(d.x, d.y, fz) || _isOver(p.clientX, p.clientY, fz);
+    if(tz) tz.classList.toggle('drag-over', !!overT);
+    if(fz) fz.classList.toggle('drag-over', !!overF);
   }
 }
 
 function _isOver(x, y, el) {
   if(!el) return false;
   const r = el.getBoundingClientRect();
+  if(!r.width || !r.height) return false;
   return x >= r.left && x <= r.right && y >= r.top && y <= r.bottom;
 }
 
 function _okPointerUp(e) {
-  document.removeEventListener('mousemove', _okPointerMove);
-  document.removeEventListener('touchmove', _okPointerMove);
-  document.removeEventListener('mouseup', _okPointerUp);
-  document.removeEventListener('touchend', _okPointerUp);
+  if(!okDrag.clone) { _okDragCleanup(); return; }
 
-  if(!okDrag.clone) return;
-  const touch = e.changedTouches ? e.changedTouches[0] : e;
-  const cx = touch.clientX;
-  const cy = touch.clientY;
+  const p = (e && e.changedTouches && e.changedTouches.length) ? e.changedTouches[0]
+          : (e && e.clientX !== undefined ? e : { clientX: okDrag.px, clientY: okDrag.py });
+  _okDragTo(p.clientX, p.clientY);
 
-  okDrag.clone.remove();
-  okDrag.clone = null;
-  if(okDrag.el) okDrag.el.style.opacity = '1';
+  const d = _okDropPoint();
+  const px = p.clientX, py = p.clientY;
+  const type = okDrag.type, sh = okDrag.sh, sl = okDrag.sl;
+  const isClick = !okDrag.moved
+    && Math.abs(px - okDrag.sx) < 10 && Math.abs(py - okDrag.sy) < 10;
 
-  const ok = st.boards.okey;
   const tz = document.getElementById('okThrowZone');
   const fz = document.getElementById('okFinishZone');
-  if(tz) tz.classList.remove('drag-over');
-  if(fz) fz.style.background = 'rgba(241,196,15,0.15)';
-
-  const dx = Math.abs(cx - okDrag.sx);
-  const dy = Math.abs(cy - okDrag.sy);
-  const isClick = (dx < 10 && dy < 10);
   const rackWrap = document.querySelector('.ok-rack');
+  const overThrow  = _isOver(d.x, d.y, tz) || _isOver(px, py, tz);
+  const overFinish = _isOver(d.x, d.y, fz) || _isOver(px, py, fz);
+  const overRack   = _isOver(d.x, d.y, rackWrap) || _isOver(px, py, rackWrap);
 
-  if(okDrag.type === 'deck') {
-    if(isClick || _isOver(cx, cy, rackWrap)) GV._okDraw();
+  _okDragCleanup();
+
+  const ok = st.boards.okey;
+  if(!ok || ok.gameEnded) return;
+
+  if(type === 'deck') {
+    if(isClick || overRack) GV._okDraw();
     else toast('Ortadan taşı ıstakaya sürükle!', 'warning');
-  } else if(okDrag.type === 'left') {
-    if(isClick || _isOver(cx, cy, rackWrap)) GV._okDrawL();
+  } else if(type === 'left') {
+    if(isClick || overRack) GV._okDrawL();
     else toast('Taşı ıstakaya sürükle!', 'warning');
-  } else if(okDrag.type === 'tile') {
-    if(ok.myTurn && ok.phase === 'discard' && fz && _isOver(cx, cy, fz)) {
-      GV._okTryFinishGame(okDrag.sh, okDrag.sl);
-    } else if(ok.myTurn && ok.phase === 'discard' && tz && _isOver(cx, cy, tz)) {
-      GV._okDiscardTile(okDrag.sh, okDrag.sl);
-    } else if (!isClick) {
-      GV._okHandleRackDrop(cx, cy, okDrag.sh, okDrag.sl);
+  } else if(type === 'tile') {
+    if(ok.myTurn && ok.phase === 'discard' && overFinish) {
+      _okClearSel();
+      GV._okTryFinishGame(sh, sl);
+    } else if(ok.myTurn && ok.phase === 'discard' && overThrow) {
+      _okClearSel();
+      GV._okDiscardTile(sh, sl);
+    } else if(!isClick) {
+      _okClearSel();
+      GV._okHandleRackDrop(d.x, d.y, sh, sl);
+    } else {
+      // Tıklama: taşı seç / seçimi kaldır. Sonra "📤 TAŞ AT" ya da
+      // "🏆 ORTAYA BİTİR" bölgesine dokunmak yeterli (mobil dostu akış).
+      if(_okIsSel(sh, sl)) _okClearSel();
+      else okSel = { sh, sl };
+      GV._okRepaint();
     }
   }
-  okDrag.el = null;
+}
+
+/* TAŞ AT / ORTAYA BİTİR bölgelerine TIKLAMA: seçili taşla çalışır. */
+function _okZoneClick(kind){
+  const ok = st.boards.okey;
+  if(!ok || ok.gameEnded) return;
+  if(okSel.sh === null || okSel.sl === null)
+    return toast('Önce ıstakadan bir taş seçin (ya da taşı buraya sürükleyin).', 'info');
+  if(!ok.myTurn) return toast('⏳ Sıra sizde değil!', 'warning');
+  if(ok.phase !== 'discard') return toast('🧲 Önce taş çekmelisiniz!', 'warning');
+  const sh = okSel.sh, sl = okSel.sl;
+  _okClearSel();
+  if(kind === 'finish') GV._okTryFinishGame(sh, sl);
+  else GV._okDiscardTile(sh, sl);
+}
+
+/* Masayı yeniden çiz: online modda sunucu çizicisi, yerelde dOkey. */
+function _okRepaint(){
+  if(typeof window.__gvOkeyOnlineRepaint === 'function' && window.__gvOkeyOnlineRepaint()) return;
+  dOkey(document.getElementById('boardArea'));
+}
+
+/* Istaka içi yer değiştirme — SALT VERİ (çizim yapmaz).
+   Online istemci de aynı hesabı kullanır, sonra kendi çizicisini çağırır. */
+function _okRackSwapAt(cx, cy, fromSh, fromSl) {
+  const ok = st.boards.okey;
+  if(!ok || !ok.rack) return false;
+  const shelves = document.querySelectorAll('.ok-shelf-inner');
+  let done = false;
+  shelves.forEach((shelf, idx) => {
+    if(done) return;
+    const sh = idx === 0 ? 1 : 0;      // çizimde raflar [1,0] sırasıyla basılır
+    const rect = shelf.getBoundingClientRect();
+    if(!rect.width) return;
+    // Dikeyde rafa yakınsa da kabul et (parmak/imleç birkaç px dışarı taşabilir).
+    const pad = Math.max(6, rect.height * 0.35);
+    if(cy < rect.top - pad || cy > rect.bottom + pad) return;
+    const slotWidth = rect.width / SLOT_COUNT;
+    let sl = Math.floor((cx - rect.left) / slotWidth);
+    if(sl < 0) sl = 0;
+    if(sl >= SLOT_COUNT) sl = SLOT_COUNT - 1;
+    if(sh === fromSh && sl === fromSl) { done = true; return; }
+    const targetTile = ok.rack[sh][sl];
+    const sourceTile = ok.rack[fromSh][fromSl];
+    ok.rack[fromSh][fromSl] = targetTile;
+    ok.rack[sh][sl] = sourceTile;
+    done = true;
+  });
+  return done;
 }
 
 function _okHandleRackDrop(cx, cy, fromSh, fromSl) {
-  const ok = st.boards.okey;
-  let dropped = false;
-  const shelves = document.querySelectorAll('.ok-shelf-inner');
-  shelves.forEach((shelf, idx) => {
-    const sh = idx === 0 ? 1 : 0;
-    const rect = shelf.getBoundingClientRect();
-    if(cy >= rect.top && cy <= rect.bottom) {
-      const slotWidth = rect.width / SLOT_COUNT;
-      let sl = Math.floor((cx - rect.left) / slotWidth);
-      if(sl < 0) sl = 0;
-      if(sl >= SLOT_COUNT) sl = SLOT_COUNT - 1;
-      const targetTile = ok.rack[sh][sl];
-      const sourceTile = ok.rack[fromSh][fromSl];
-      ok.rack[fromSh][fromSl] = targetTile;
-      ok.rack[sh][sl] = sourceTile;
-      dropped = true;
-      dOkey(document.getElementById('boardArea'));
-    }
-  });
-  if(!dropped) dOkey(document.getElementById('boardArea'));
+  _okRackSwapAt(cx, cy, fromSh, fromSl);
+  dOkey(document.getElementById('boardArea'));
 }
 
 function _okTryFinishGame(sh, sl) {
@@ -3963,6 +4160,11 @@ return {
   _okAITurn,
   _okPointerDown,
   _okHandleRackDrop,
+  _okRackSwapAt,
+  _okZoneClick,
+  _okRepaint,
+  _okSelected,
+  _okClearSel,
   _okDiscardTile,
   _okTryFinishGame,
   _tvRoll,
@@ -4093,10 +4295,10 @@ GV.init();
 <script src="js/games.js?v=20260823b" defer></script>
 <script src="js/utils.js?v=20260819c" defer></script>
 <script src="js/lobby-sync.js?v=20260820f" defer></script>
-<script src="js/room-waiting-fix.js?v=20260825a" defer></script>
+<script src="js/room-waiting-fix.js?v=20260904a" defer></script>
 <script src="js/chess-online.js?v=20260823b" defer></script>
 <script src="js/tavla-online.js?v=20260823b" defer></script>
-<script src="js/okey-online.js?v=20260825a" defer></script>
+<script src="js/okey-online.js?v=20260904a" defer></script>
 <script src="js/card-online.js?v=20260825a" defer></script>
 <script src="js/dama-online.js?v=20260829a" defer></script>
 <script src="js/turkdamasi-online.js?v=20260829a" defer></script>
@@ -4126,5 +4328,5 @@ GV.init();
 }
 </script>
 <script src="js/no-bots.js?v=20260823b" defer></script>
-<script src="js/board-fit.js?v=20260821h" defer></script></body>
+<script src="js/board-fit.js?v=20260904a" defer></script></body>
 </html>

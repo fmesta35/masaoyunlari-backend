@@ -71,3 +71,56 @@ Sonra **Deploy latest commit**. (Bu modda `GV_SMTP_PASS` ve `GV_DATA_DIR` ARTIK 
 - Render yeniden başlasa bile üyelikler/arkadaşlar/maçlar/mailler asla kaybolmaz — hepsi MySQL'de.
 - Anlık "çevrimiçi" göstergesi bilinçli olarak Render'da tutulur (socket) — sayfa yenileyince kendiliğinden doğrulanır.
 - `api.php` + `db.php` (site kökündeki ESKİ dosyalar) bu sistemin parçası değildir; isterseniz silin, isterseniz bırakın — yenileri `/api/` klasöründedir, çakışmaz.
+
+---
+
+## 📦 Dosya Dağılımı — Ne Yöncü'ye, Ne Render'a? (özet tablo)
+
+Kural basit: **Tarayıcının indirdiği her şey Yöncü'ye**, **Node.js'in çalıştırdığı
+her şey Render'a**. İkisi de aynı GitHub deposundan beslenir; Render depoyu
+otomatik çeker, Yöncü'ye ise ilgili dosyaları FTP/dosya yöneticisiyle siz atarsınız.
+
+### A) YÖNCÜ'ye yüklenecekler (paylaşımlı hosting — `public_html`)
+
+| Dosya / klasör | Nereye | Not |
+|---|---|---|
+| `index.html` | site kökü | Tüm arayüz. **Her güncellemede yeniden yükleyin.** |
+| `css/style.css` | `css/` | |
+| `js/` klasörünün TAMAMI | `js/` | `config.js`, `okey-online.js`, `room-waiting-fix.js`, `board-fit.js`, `socket.io.min.js` ve diğerleri |
+| `assets/` | `assets/` | logo, favicon |
+| `manifest.json` | site kökü | PWA |
+| `yoncu-api/` içeriği | **`/api/` klasörü** | `bootstrap.php`, `auth.php`, `social.php`, `admin.php`, `mailer.inc.php`, `.htaccess` |
+
+> 🚫 `yoncu-api/config.php` **ASLA yüklenmez** — sunucudaki gerçek dosya tek kaynaktır.
+> 🚫 `node_modules/`, `test/`, `server.js`, `*-engine.js` Yöncü'ye **gitmez** (PHP hosting bunları çalıştıramaz).
+
+### B) GitHub → RENDER'da kalacaklar (Node.js sunucusu)
+
+| Dosya | Görevi |
+|---|---|
+| `server.js` | Socket.IO gerçek zamanlı motor: odalar, koltuklar, sıra, saatler |
+| `server-auth.js`, `auth-remote.js`, `db.js`, `mailer.js` | Üyelik/oturum katmanı (uzak modda Yöncü MySQL'e proxy) |
+| `okey-engine.js`, `tavla-engine.js`, `dama-engine.js`, `turkdamasi-engine.js`, `reversi-engine.js`, `gomoku-engine.js`, `connect4-engine.js`, `bilardo-engine.js`, `pisti-engine.js`, `batak-engine.js` | Sunucu yetkili oyun kuralları |
+| `config.js` (kökteki) | Backend URL çözümü |
+| `package.json`, `package-lock.json` | Bağımlılıklar |
+| `test/` | Regresyon testleri (`npm test`) |
+
+> Render bu dalı izler: **`arena/01a038be-masaoyunlari-backend`**. Push edildiğinde otomatik dağıtır.
+
+### C) İKİ TARAFTA DA bulunanlar (bilinçli kopya)
+
+`index.html`, `css/`, `js/`, `assets/` Render'da da durur — çünkü Render statik
+sunucu olarak da çalışır (`https://masaoyunlari-backend.onrender.com/index.html`).
+Böylece Yöncü'ye yükleme yapmadan da test edebilirsiniz. **Canlı site Yöncü'dür**;
+Render kopyası yalnız test/yedek amaçlıdır.
+
+### D) Silinebilecek eski dosyalar
+
+`api.php` ve `db.php` (site kökündeki ESKİ PHP katmanı) bu sistemin parçası
+değildir. Yeni katman `/api/` klasöründedir. İsterseniz silin.
+
+### E) ⚠️ Güncelleme sonrası ÖNBELLEK
+
+`index.html` içindeki `?v=...` etiketleri tarayıcı önbelleğini kırar. Bir `js/`
+dosyasını değiştirdiğinizde **hem o dosyayı hem de `index.html`'i** Yöncü'ye
+yükleyin; aksi halde kullanıcılar eski JS ile çalışmaya devam eder.

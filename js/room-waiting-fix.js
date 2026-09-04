@@ -176,13 +176,48 @@
 #gv-real-chess-wait .card{width:min(92vw,620px);background:var(--bg2,#111128);color:var(--text,#fff);border:1px solid var(--border2,rgba(255,255,255,.15));border-radius:18px;padding:24px;box-shadow:0 24px 80px rgba(0,0,0,.65)}
 #gv-real-chess-wait h2{margin:0 0 7px;font-size:1.35rem;color:var(--primary,#6c5ce7);text-align:center}
 #gv-real-chess-wait .sub{color:var(--text2,#aaa);font-size:.9rem;margin-bottom:18px;text-align:center}
-#gv-real-chess-wait .players{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:15px 0}
-.gvp{padding:18px 10px;text-align:center;background:var(--card,#1a1a3e);border:2px solid var(--border,rgba(255,255,255,.08));border-radius:14px;transition:all .3s ease}
-.gvp.ready{border-color:var(--success,#00b894);box-shadow:0 0 18px rgba(0,184,148,.2);background:rgba(0,184,148,.08)}
-.gvp .av{font-size:2.2rem;margin-bottom:7px}
-.gvp .nm{font-weight:700;min-height:22px;font-size:1rem}
-.gvp .st{font-size:.85rem;color:var(--text2,#aaa);margin-top:6px;font-weight:bold}
+/* ---- GERÇEK MASA GÖRÜNÜMÜ (bekleme odası) ----
+   Oyuncular artık kutu ızgarasında değil, keçe kaplı yuvarlak bir masanın
+   ETRAFINDA otururlar. Koltuk sayısına göre (2/3/4) yerleşim değişir; boş
+   koltuk gerçekten "boş sandalye" gibi görünür. */
+#gv-real-chess-wait .players{
+  position:relative;width:min(100%,430px);margin:16px auto;aspect-ratio:1 / .92;
+  --gv-seat-w:28%;
+}
+#gv-real-chess-wait .players .gv-felt{
+  position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
+  width:40%;height:44%;border-radius:50%;
+  background:radial-gradient(circle at 50% 38%, #1c8a51, #0a3f22 78%);
+  border:7px solid #4a2c1a;
+  box-shadow:inset 0 0 34px rgba(0,0,0,.6), 0 14px 34px rgba(0,0,0,.55);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;
+  color:#f9ca24;font-weight:900;letter-spacing:.04em;font-size:.74rem;padding:6px;line-height:1.15;
+}
+#gv-real-chess-wait .players .gv-felt small{display:block;color:rgba(255,255,255,.62);font-weight:700;font-size:.68rem;letter-spacing:0;margin-top:3px}
+.gvp{
+  position:absolute;width:var(--gv-seat-w);box-sizing:border-box;
+  padding:9px 8px 10px;text-align:center;
+  background:linear-gradient(180deg,var(--card,#1a1a3e),rgba(0,0,0,.35));
+  border:2px solid var(--border,rgba(255,255,255,.10));border-radius:14px;
+  transition:all .3s ease;box-shadow:0 6px 16px rgba(0,0,0,.45);
+}
+.gvp::after{                                    /* sandalye sırtı */
+  content:'';position:absolute;left:50%;transform:translateX(-50%);
+  width:52%;height:9px;border-radius:0 0 9px 9px;
+  background:linear-gradient(180deg,#5c3a1a,#3a2410);bottom:-9px;
+}
+.gvp.seat-top::after{top:-9px;bottom:auto;border-radius:9px 9px 0 0}
+.gvp.seat-left::after,.gvp.seat-right::after{display:none}
+.gvp.seat-bottom{left:50%;bottom:0;transform:translateX(-50%)}
+.gvp.seat-top{left:50%;top:0;transform:translateX(-50%)}
+.gvp.seat-left{left:0;top:50%;transform:translateY(-50%)}
+.gvp.seat-right{right:0;top:50%;transform:translateY(-50%)}
+.gvp.ready{border-color:var(--success,#00b894);box-shadow:0 0 22px rgba(0,184,148,.28);background:linear-gradient(180deg,rgba(0,184,148,.16),rgba(0,0,0,.35))}
+.gvp .av{font-size:1.9rem;line-height:1;margin-bottom:5px}
+.gvp .nm{font-weight:700;min-height:20px;font-size:.85rem;overflow:hidden;text-overflow:ellipsis}
+.gvp .st{font-size:.72rem;color:var(--text2,#aaa);margin-top:4px;font-weight:bold}
 .gvp.ready .st{color:#00b894}
+.gvp.gvp-empty{background:rgba(255,255,255,.03);border-style:dashed;opacity:.9}
 #gv-real-chess-wait .status{text-align:center;color:var(--text2,#aaa);margin:14px 0;font-size:.95rem;min-height:22px;font-weight:600}
 .gv-ready{width:100%;padding:14px;border:0;border-radius:12px;background:linear-gradient(135deg,#f59e0b,#d97706);color:#000;font-weight:800;cursor:pointer;font-size:1.1rem;transition:all .2s ease;box-shadow:0 4px 15px rgba(245,158,11,.3)}
 .gv-ready:hover{transform:translateY(-2px);box-shadow:0 6px 20px rgba(245,158,11,.4)}
@@ -197,7 +232,16 @@
 .gvp.gvp-inv .st{color:var(--primary,#6c5ce7)}
 .gvp-kick{margin-top:9px;padding:5px 12px;border:1px solid rgba(255,118,117,.5);background:rgba(255,118,117,.12);color:#ff7675;border-radius:8px;cursor:pointer;font-weight:700;font-size:.8rem}
 .gvp-kick:hover{background:rgba(255,118,117,.25)}
-@media(max-width:650px){#gv-real-chess-wait .players{grid-template-columns:1fr}}
+@media(max-width:650px){
+  #gv-real-chess-wait .card{padding:16px}
+  #gv-real-chess-wait .players{width:min(100%,330px);--gv-seat-w:31%}
+  .gvp{padding:7px 5px 8px}
+  .gvp .av{font-size:1.5rem}
+  .gvp .nm{font-size:.76rem}
+  .gvp .st{font-size:.64rem}
+  .gvp-kick{padding:3px 8px;font-size:.68rem;margin-top:6px}
+  #gv-real-chess-wait .players .gv-felt{font-size:.64rem;border-width:5px;width:34%;height:38%}
+}
 `;
     document.head.appendChild(stl);
   }
@@ -252,14 +296,30 @@
 
     // Okeyde koltuk renkleri masa görünümüyle uyumlu: turuncu/mavi/kırmızı/mor.
     const seatAva = ['🟠', '🔵', '🔴', '🟣'];
+    // Koltuk YERLEŞİMİ: masa etrafında saat yönünde. Kendi koltuğum her zaman
+    // ALT tarafa gelir (gerçek masada olduğu gibi) — 2/3/4 kişilik masaların
+    // hepsinde geçerlidir.
+    const myIdx = (() => { const k = ps.findIndex(isMe); return k >= 0 ? k : 0; })();
+    const SEAT_POS = {
+      2: ['seat-bottom', 'seat-top'],
+      3: ['seat-bottom', 'seat-left', 'seat-right'],
+      4: ['seat-bottom', 'seat-left', 'seat-top', 'seat-right']
+    };
+    const seatPos = (i) => {
+      const table = SEAT_POS[seats] || SEAT_POS[4];
+      const rel = ((i - myIdx) % seats + seats) % seats;
+      return table[rel] || 'seat-bottom';
+    };
+
     const player = (i) => {
       const p = ps[i];
+      const sp = seatPos(i);
       if (!p) {
-        const emptyTxt = isOkeyGame ? ('Sandalye ' + (i + 1) + ' — oyuncu bekleniyor...') : 'Rakip bekleniyor...';
+        const emptyTxt = isOkeyGame ? ('Sandalye ' + (i + 1)) : 'Rakip bekleniyor';
         if (amCreator && !watching) {
-          return '<div class="gvp gvp-inv" data-gv-invite="1" title="Arkadaşını davet et"><div class="av">➕</div><div class="nm">' + emptyTxt + '</div><div class="st">📩 Davet Gönder</div></div>';
+          return '<div class="gvp gvp-empty gvp-inv ' + sp + '" data-gv-invite="1" title="Arkadaşını davet et"><div class="av">🪑</div><div class="nm">' + emptyTxt + '</div><div class="st">📩 Davet Gönder</div></div>';
         }
-        return '<div class="gvp"><div class="av">➕</div><div class="nm">' + emptyTxt + '</div><div class="st">Boş Sandalye</div></div>';
+        return '<div class="gvp gvp-empty ' + sp + '"><div class="av">🪑</div><div class="nm">' + emptyTxt + '</div><div class="st">Boş Sandalye</div></div>';
       }
       const ava = isOkeyGame
         ? seatAva[i % seatAva.length]
@@ -270,7 +330,7 @@
       const kickBtn = (amCreator && !isMe(p) && Number(p.uid) > 0)
         ? '<button class="gvp-kick" type="button" data-gv-kick="' + Number(p.uid) + '" data-gv-kname="' + esc(p.name || 'Oyuncu') + '">🚪 Masadan At</button>'
         : '';
-      return '<div class="gvp ' + (p.isReady ? 'ready' : '') + '">' +
+      return '<div class="gvp ' + sp + ' ' + (p.isReady ? 'ready' : '') + '">' +
         '<div class="av">' + ava + '</div>' +
         '<div class="nm">' + nmHtml + (isMe(p) ? ' <b>(Siz)</b>' : '') + '</div>' +
         '<div class="st">' + (p.isReady ? '✅ HAZIR' : '⏳ BEKLİYOR') + '</div>' +
@@ -310,7 +370,8 @@
       '<h2>' + gameLabel() + ' Masa #' + roomId + ' — ' + title + '</h2>' +
       intro + specLine +
       (!full ? '<div class="spin"></div>' : '') +
-      '<div class="players">' + seatCells + '</div>' +
+      '<div class="players"><div class="gv-felt">' + esc(gameLabel()) +
+        '<small>' + seats + ' kişilik masa</small></div>' + seatCells + '</div>' +
       '<div class="status">' + status + '</div>' +
       readyBtn +
       '<button class="gv-leave" type="button">' + leaveLabel + '</button>' +
