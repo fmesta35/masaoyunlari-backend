@@ -1,2 +1,40 @@
-/* Reversi online istemcisi — hamle ve taşlar sunucu tarafından doğrulanır. */
-(function(){'use strict';if(window.__gvReversiOnlineLoaded)return;window.__gvReversiOnlineLoaded=true;let socket,state,roomId;const B=window.GV_BACKEND_URL||'https://masaoyunlari-backend.onrender.com';function boot(){roomId=String(window.__gvActiveRoomId||localStorage.getItem('gv-room-id')||'');if(!roomId||!window.io)return;socket=window.__gvRoomSocket||window.io(B,{transports:['websocket','polling']});window.__gvRoomSocket=socket;const draw=()=>{const a=document.getElementById('boardArea');if(!a||!state)return;let h='<div class="rv-wrap"><div class="dama-status">⚫ '+state.board.flat().filter(x=>x==='b').length+' - ⚪ '+state.board.flat().filter(x=>x==='w').length+' | Sıra: '+(state.turn==='b'?'⚫ Siyah':'⚪ Beyaz')+'</div><div class="rv-board">';for(let r=0;r<8;r++)for(let c=0;c<8;c++){const p=state.board[r][c],ok=(state.legalMoves||[]).some(m=>m.to[0]===r&&m.to[1]===c);h+='<div class="rv-c'+(ok?' valid':'')+'" data-r="'+r+'" data-c="'+c+'">'+(p?'<div class="rv-pc '+p+'></div>':'')+'</div>'}h+='</div></div>';a.innerHTML=h;a.querySelectorAll('.rv-c').forEach(x=>x.onclick=()=>socket.emit('reversiMove',{roomId,r:+x.dataset.r,c:+x.dataset.c}))};socket.on('gameStarted',p=>{if(p.gameState?.kind==='reversi'){state=p.gameState;draw()}});socket.on('gameStateUpdated',p=>{if(p.gameState?.kind==='reversi'){state=p.gameState;draw()}});socket.on('reversiRejected',p=>window.GV?.toast?.('Hamle reddedildi: '+p.reason,'warning'));const join=()=>socket.emit('joinRoom',{roomId,gameId:'reversi',userName:window.st?.user?.name||'Oyuncu',userKey:'guest:'+Math.random().toString(36).slice(2)});if(socket.connected)join();else socket.once('connect',join)}window.addEventListener('gv:roomGameStarted',()=>{if(e.detail?.gameState?.kind==='reversi'||(window.st?.curGame||'')==='reversi')boot()});window.addEventListener('gv:roomReady',e=>{if(e.detail?.gameId==='reversi'||e.detail?.gameState?.kind==='reversi')boot()})})();
+/* GameVerse — Online Reversi. Yaşam döngüsü js/online-arena.js'te. */
+(function () {
+  'use strict';
+  if (window.__gvReversiOnlineLoaded) return;
+  window.__gvReversiOnlineLoaded = true;
+  // Arena henüz yüklenmediyse tanımı kuyruğa bırak (yükleme sırası önemsiz).
+  var define = function (d) {
+    if (window.GVArena) return window.GVArena.define(d);
+    (window.__gvArenaQueue = window.__gvArenaQueue || []).push(d);
+  };
+
+  define({
+    id: 'reversi', kinds: ['reversi'], reject: ['reversiRejected'],
+    render: function (m) {
+      var s = m.state, flat = s.board.flat ? s.board.flat() : [].concat.apply([], s.board);
+      var mine = (s.turn === s.playerColor) && !m.isSpectator;
+      var h = '<div class="rv-wrap"><div class="dama-status">⚫ ' +
+        flat.filter(function (x) { return x === 'b'; }).length + ' - ⚪ ' +
+        flat.filter(function (x) { return x === 'w'; }).length + ' | Sıra: ' +
+        (s.turn === 'b' ? '⚫ Siyah' : '⚪ Beyaz') +
+        (m.isSpectator ? ' • 👁️ İzleyici' : (mine ? ' • 👉 Sizin sıranız' : '')) +
+        '</div><div class="rv-board">';
+      for (var r = 0; r < 8; r++) for (var c = 0; c < 8; c++) {
+        var p = s.board[r][c];
+        var ok = mine && (s.legalMoves || []).some(function (x) { return x.to[0] === r && x.to[1] === c; });
+        h += '<div class="rv-c' + (ok ? ' valid' : '') + '" data-r="' + r + '" data-c="' + c + '">' +
+          (p ? '<div class="rv-pc ' + p + '"></div>' : '') + '</div>';
+      }
+      return h + '</div></div>';
+    },
+    bind: function (root, m) {
+      root.querySelectorAll('.rv-c').forEach(function (x) {
+        x.addEventListener('click', function () {
+          if (m.isSpectator) return;
+          m.emit('reversiMove', { r: Number(x.dataset.r), c: Number(x.dataset.c) });
+        });
+      });
+    }
+  });
+})();

@@ -1,18 +1,86 @@
-/* GameVerse — Pişti/Batak online kart masaları. Sunucu yetkilidir. */
-(function(){'use strict';
-  if(window.__gvCardOnlineLoaded)return; window.__gvCardOnlineLoaded=true;
-  const BACKEND=window.GV_BACKEND_URL||'https://masaoyunlari-backend.onrender.com';
-  let socket=null, game=null, seat=null, state=null, roomId=null;
-  const S=()=>{try{return typeof st!=='undefined'?st:null}catch(_){return null}};
-  const esc=v=>String(v==null?'':v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-  function current(){let g=S()?.curGame||window.__gvCurrentGame||'';return String(g).toLowerCase()==='batak'?'batak':'pisti'}
-  function id(){return String(window.__gvActiveRoomId||S()?.roomWaitingState?.room?.id||localStorage.getItem('gv-room-id')||'')}
-  function draw(){const a=document.getElementById('boardArea');if(!a||!state)return;const pisti=game==='pisti';let h='<div class="card-wrap" style="max-width:760px;margin:auto"><div class="card-score">';h+=`<b>${pisti?'🃏 PİŞTİ':'🎯 BATAK'}</b><span>⏱ ${Math.ceil((state.turnRemainingMs||0)/1000)} sn</span><span>Skor: ${esc((state.scores||[]).join(' / '))}</span>`;if(!pisti)h+=`<span>İhaleler: ${esc((state.bids||[]).join(' / '))}</span><span>Ko: ${esc(state.trump||'—')}</span>`;h+=`</div><div class="card-table"><div class="card-center-pile">${(state.center||state.trick||[]).map(c=>`<div class="pcard ${c.s==='♥'||c.s==='♦'?'red':'black'}" style="color:${c.s==='♥'||c.s==='♦'?'#ff4d67':'#111'};opacity:1;font-weight:900"><div class="cr">${esc(c.r)}</div><div class="cs">${esc(c.s)}</div></div>`).join('')||'<span style="color:#aaa">Masa</span>'}</div></div><div class="hand-row">`; (state.hand||[]).forEach((c,i)=>{h+=`<button class="pcard" data-i="${i}" style="cursor:pointer"><div class="cr">${esc(c.r)}</div><div class="cs">${esc(c.s)}</div></button>`});h+='</div>';
-    if(!pisti&&state.phase==='bid')h+='<div class="gv-card-actions">'+[4,5,6,7,8,9,10,11,12,13].map(v=>`<button data-bid="${v}">${v}</button><button data-bid="pass">Pas</button>`).join('')+'</div>';
-    if(!pisti&&state.phase==='trump')h+='<div class="gv-card-actions">'+['♠','♥','♦','♣'].map(v=>`<button data-trump="${v}">${v}</button>`).join('')+'</div>';h+='</div>';a.innerHTML=h;
-    a.querySelectorAll('[data-i]').forEach(b=>b.onclick=()=>socket?.emit(pisti?'pistiPlay':'batakPlay',{roomId,index:Number(b.dataset.i)}));
-    a.querySelectorAll('[data-bid]').forEach(b=>b.onclick=()=>socket?.emit('batakBid',{roomId,value:b.dataset.bid==='pass'?'pass':Number(b.dataset.bid)}));a.querySelectorAll('[data-trump]').forEach(b=>b.onclick=()=>socket?.emit('batakTrump',{roomId,suit:b.dataset.trump}));
-  }
-  function boot(){game=current();roomId=id();if(!roomId)return;socket=window.__gvRoomSocket||window.io(BACKEND,{transports:['websocket','polling']});window.__gvRoomSocket=socket;const join=()=>socket.emit('joinRoom',{roomId,gameId:game,userName:S()?.user?.name||'Oyuncu',userKey:'guest:'+Math.random().toString(36).slice(2)});socket.on('connect',join);if(socket.connected)join();socket.on('gameStarted',p=>{if(p.gameState?.kind===game){seat=p.seat;state=p.gameState;draw()}});socket.on('gameStateUpdated',p=>{if(p.gameState?.kind===game){state=p.gameState;draw()}});socket.on(game+'Rejected',p=>window.GV?.toast?.('Hamle reddedildi: '+p.reason,'warning'))}
-  window.addEventListener('gv:roomGameStarted',e=>{if(e.detail?.gameState?.kind==='pisti'||e.detail?.gameState?.kind==='batak')boot()});window.addEventListener('gv:roomReady',e=>{if(['pisti','batak'].includes(e.detail?.gameId))boot()});setInterval(()=>{if(state&&document.getElementById('boardArea')){state.turnRemainingMs=Math.max(0,(state.turnRemainingMs||0)-500);draw()}},500);
+/* GameVerse — Pişti / Batak online kart masaları. Sunucu yetkilidir.
+ * Yaşam döngüsü js/online-arena.js'e devredildi: oda değişince kendiliğinden
+ * susar (eskiden 500 ms'lik interval Okey masasının üstüne Pişti basıyordu).
+ */
+(function () {
+  'use strict';
+  if (window.__gvCardOnlineLoaded) return;
+  window.__gvCardOnlineLoaded = true;
+  // Arena henüz yüklenmediyse tanımı kuyruğa bırak (yükleme sırası önemsiz).
+  var define = function (d) {
+    if (window.GVArena) return window.GVArena.define(d);
+    (window.__gvArenaQueue = window.__gvArenaQueue || []).push(d);
+  };
+
+  var esc = function (v) {
+    return String(v == null ? '' : v).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  };
+  var isRed = function (s) { return s === '♥' || s === '♦'; };
+  var cardHtml = function (c, extra) {
+    return '<div class="pcard ' + (isRed(c.s) ? 'red' : 'black') + '"' + (extra || '') + '>' +
+      '<div class="cr">' + esc(c.r) + '</div><div class="cs">' + esc(c.s) + '</div></div>';
+  };
+
+  define({
+    id: 'card',
+    kinds: ['pisti', 'batak'],
+    reject: ['pistiRejected', 'batakRejected'],
+
+    render: function (m) {
+      var s = m.state;
+      var pisti = s.kind === 'pisti';
+      var myTurn = (s.turn === m.seat) && !m.isSpectator;
+      var h = '<div class="card-wrap" style="max-width:760px;margin:auto"><div class="card-score">';
+      h += '<b>' + (pisti ? '🃏 PİŞTİ' : '🎯 BATAK') + '</b>';
+      h += '<span>⏱ <span class="gv-arena-clock">0 sn</span></span>';
+      h += '<span>Skor: ' + esc((s.scores || []).join(' / ')) + '</span>';
+      if (!pisti) {
+        h += '<span>İhaleler: ' + esc((s.bids || []).map(function (b) { return b == null ? '—' : b; }).join(' / ')) + '</span>';
+        h += '<span>Koz: ' + esc(s.trump || '—') + '</span>';
+      }
+      h += '</div><div class="card-table"><div class="card-center-pile">';
+      var pile = s.center || s.trick || [];
+      h += pile.length ? pile.map(function (c) { return cardHtml(c, ''); }).join('')
+                       : '<span style="color:#aaa">Masa</span>';
+      h += '</div></div>';
+      h += '<div class="gv-card-turn">' + (m.isSpectator ? '👁️ İzleyici' : (myTurn ? '👉 Sıra sizde' : '⏳ Rakip oynuyor...')) + '</div>';
+      h += '<div class="hand-row">';
+      (s.hand || []).forEach(function (c, i) {
+        h += '<button class="pcard ' + (isRed(c.s) ? 'red' : 'black') + '" data-i="' + i + '"' +
+          (myTurn && s.phase !== 'bid' && s.phase !== 'trump' ? '' : ' disabled') +
+          ' style="cursor:pointer"><div class="cr">' + esc(c.r) + '</div><div class="cs">' + esc(c.s) + '</div></button>';
+      });
+      h += '</div>';
+      if (!pisti && s.phase === 'bid' && myTurn) {
+        h += '<div class="gv-card-actions">';
+        [4, 5, 6, 7, 8, 9, 10, 11, 12, 13].forEach(function (v) { h += '<button data-bid="' + v + '">' + v + '</button>'; });
+        h += '<button data-bid="pass">Pas</button></div>';
+      }
+      if (!pisti && s.phase === 'trump' && myTurn) {
+        h += '<div class="gv-card-actions">';
+        ['♠', '♥', '♦', '♣'].forEach(function (v) { h += '<button data-trump="' + v + '">' + v + '</button>'; });
+        h += '</div>';
+      }
+      return h + '</div>';
+    },
+
+    bind: function (root, m) {
+      var pisti = m.state.kind === 'pisti';
+      root.querySelectorAll('[data-i]').forEach(function (b) {
+        b.addEventListener('click', function () {
+          m.emit(pisti ? 'pistiPlay' : 'batakPlay', { index: Number(b.dataset.i) });
+        });
+      });
+      root.querySelectorAll('[data-bid]').forEach(function (b) {
+        b.addEventListener('click', function () {
+          m.emit('batakBid', { value: b.dataset.bid === 'pass' ? 'pass' : Number(b.dataset.bid) });
+        });
+      });
+      root.querySelectorAll('[data-trump]').forEach(function (b) {
+        b.addEventListener('click', function () { m.emit('batakTrump', { suit: b.dataset.trump }); });
+      });
+    }
+  });
 })();

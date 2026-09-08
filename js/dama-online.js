@@ -1,2 +1,47 @@
-/* İngiliz daması online istemcisi — tahta sunucudan gelir. */
-(function(){'use strict';if(window.__gvDamaOnlineLoaded)return;window.__gvDamaOnlineLoaded=true;let socket,state,roomId;const B=window.GV_BACKEND_URL||'https://masaoyunlari-backend.onrender.com';const esc=x=>String(x??'');function boot(){roomId=String(window.__gvActiveRoomId||localStorage.getItem('gv-room-id')||'');if(!roomId||!window.io)return;socket=window.__gvRoomSocket||window.io(B,{transports:['websocket','polling']});window.__gvRoomSocket=socket;const draw=()=>{const a=document.getElementById('boardArea');if(!a||!state)return;let h='<div class="dama-wrap"><div class="dama-status">'+(state.turn==='r'?'🔴 Kırmızı':'⚫ Siyah')+' sırası</div><div class="dama-board">';for(let r=0;r<8;r++)for(let c=0;c<8;c++){const p=state.board[r][c],ok=(state.legalMoves||[]).some(m=>m.from[0]===r&&m.from[1]===c),cl=((r+c)%2?'d':'l')+(ok?' valid':'');h+='<div class="dama-c '+cl+'" data-r="'+r+'" data-c="'+c+'">'+(p?'<div class="dama-pc '+(p.toLowerCase()==='r'?'r':'b')+(p===p.toUpperCase()?' king':'')+'></div>':'')+'</div>'}h+='</div></div>';a.innerHTML=h;let from=null;a.querySelectorAll('.dama-c').forEach(x=>x.onclick=()=>{const q=[+x.dataset.r,+x.dataset.c];if(!from){from=q;x.classList.add('sel');return}socket.emit('damaMove',{roomId,from,to:q});from=null})};socket.on('gameStarted',p=>{if(p.gameState?.kind==='dama'){state=p.gameState;draw()}});socket.on('gameStateUpdated',p=>{if(p.gameState?.kind==='dama'){state=p.gameState;draw()}});socket.on('damaRejected',p=>window.GV?.toast?.('Hamle reddedildi: '+p.reason,'warning'));const join=()=>socket.emit('joinRoom',{roomId,gameId:'dama',userName:window.st?.user?.name||'Oyuncu',userKey:'guest:'+Math.random().toString(36).slice(2)});if(socket.connected)join();else socket.once('connect',join)}window.addEventListener('gv:roomGameStarted',()=>{if(e.detail?.gameState?.kind==='dama'||(window.st?.curGame||'')==='dama')boot()});window.addEventListener('gv:roomReady',e=>{if(e.detail?.gameId==='dama'||e.detail?.gameState?.kind==='dama')boot()})})();
+/* GameVerse — Online İngiliz Daması. Yaşam döngüsü js/online-arena.js'te. */
+(function () {
+  'use strict';
+  if (window.__gvDamaOnlineLoaded) return;
+  window.__gvDamaOnlineLoaded = true;
+  // Arena henüz yüklenmediyse tanımı kuyruğa bırak (yükleme sırası önemsiz).
+  var define = function (d) {
+    if (window.GVArena) return window.GVArena.define(d);
+    (window.__gvArenaQueue = window.__gvArenaQueue || []).push(d);
+  };
+  var sel = null;
+
+  define({
+    id: 'dama', kinds: ['dama'], reject: ['damaRejected'],
+    render: function (m) {
+      var s = m.state, mine = (s.turn === s.playerColor) && !m.isSpectator;
+      var h = '<div class="dama-wrap"><div class="dama-status">' +
+        (s.turn === 'r' ? '🔴 Kırmızı' : '⚫ Siyah') + ' sırası' +
+        (m.isSpectator ? ' • 👁️ İzleyici' : (mine ? ' • 👉 Sizin sıranız' : '')) +
+        '</div><div class="dama-board">';
+      for (var r = 0; r < 8; r++) for (var c = 0; c < 8; c++) {
+        var p = s.board[r][c];
+        var ok = mine && (s.legalMoves || []).some(function (x) { return x.from[0] === r && x.from[1] === c; });
+        h += '<div class="dama-c ' + ((r + c) % 2 ? 'd' : 'l') + (ok ? ' valid' : '') +
+          '" data-r="' + r + '" data-c="' + c + '">' +
+          (p ? '<div class="dama-pc ' + (p.toLowerCase() === 'r' ? 'r' : 'b') + (p === p.toUpperCase() ? ' king' : '') + '"></div>' : '') +
+          '</div>';
+      }
+      return h + '</div></div>';
+    },
+    bind: function (root, m) {
+      sel = null;
+      root.querySelectorAll('.dama-c').forEach(function (x) {
+        x.addEventListener('click', function () {
+          if (m.isSpectator) return;
+          var q = [Number(x.dataset.r), Number(x.dataset.c)];
+          if (!sel) {
+            if (!x.classList.contains('valid')) return;
+            sel = q; x.classList.add('sel'); return;
+          }
+          m.emit('damaMove', { from: sel, to: q });
+          sel = null;
+        });
+      });
+    }
+  });
+})();

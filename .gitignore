@@ -24,3 +24,8 @@ data/
 # Gecici paketler / anlik goruntuler
 *.tgz
 *.zip
+# Yoncu hosting yetenek testi: yerel arac, sunucuya girmez (kaynak sizdirir)
+tools/gv-probe.php
+
+# Gecici: silme izni olmadigi icin tasinan dosyalar
+_to_delete/

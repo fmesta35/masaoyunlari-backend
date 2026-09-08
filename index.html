@@ -1667,9 +1667,21 @@ function page(p){
   });
 }
 
+/* Tüm online oyun istemcilerini durdur: ortak yaşam döngüsü (online-arena)
+   + kendi sıfırlama kancası olan istemciler. Sayfa/lobi değişiminde çağrılır;
+   hiçbir eski masa arka planda #boardArea'yı çizmeye devam edemez. */
+function _gvStopOnlineClients(){
+  try { if (window.GVArena && typeof GVArena.stop === 'function') GVArena.stop(); } catch(_){}
+  (window.__gvOnlineResets || []).forEach(fn => { try { fn(); } catch(_){} });
+}
+
 function openLobby(gid){
   gid = gid || st.curGame || 'okey';
   guardNavigation(() => {
+    // Lobiye dönüldüğünde ONLINE oyun istemcilerini kesin olarak sustur.
+    // (Pişti'den çıkıp Okey'e geçildiğinde kart masasının arka planda
+    // #boardArea'yı ezmeye devam etmesi buradan da engellenir.)
+    _gvStopOnlineClients();
     st.curGame=gid;
     const g=GAMES[gid];
     const iconEl = document.getElementById('lobbyIcon');
@@ -4163,6 +4175,7 @@ return {
   _okRackSwapAt,
   _okZoneClick,
   _okRepaint,
+  _gvStopOnlineClients,
   _okSelected,
   _okClearSel,
   _okDiscardTile,
@@ -4299,13 +4312,14 @@ GV.init();
 <script src="js/chess-online.js?v=20260823b" defer></script>
 <script src="js/tavla-online.js?v=20260823b" defer></script>
 <script src="js/okey-online.js?v=20260904a" defer></script>
-<script src="js/card-online.js?v=20260825a" defer></script>
-<script src="js/dama-online.js?v=20260829a" defer></script>
-<script src="js/turkdamasi-online.js?v=20260829a" defer></script>
-<script src="js/reversi-online.js?v=20260829a" defer></script>
-<script src="js/gomoku-online.js?v=20260829a" defer></script>
-<script src="js/connect4-online.js?v=20260829a" defer></script>
-<script src="js/bilardo-online.js?v=20260829a" defer></script>
+<script src="js/online-arena.js?v=20260904b" defer></script>
+<script src="js/card-online.js?v=20260904b" defer></script>
+<script src="js/dama-online.js?v=20260904b" defer></script>
+<script src="js/turkdamasi-online.js?v=20260904b" defer></script>
+<script src="js/reversi-online.js?v=20260904b" defer></script>
+<script src="js/gomoku-online.js?v=20260904b" defer></script>
+<script src="js/connect4-online.js?v=20260904b" defer></script>
+<script src="js/bilardo-online.js?v=20260904b" defer></script>
 <script src="js/chat.js?v=20260821c" defer></script>
 <script src="js/leave-guard.js?v=20260821h" defer></script>
 <script src="js/auth.js?v=20260824b" defer></script>

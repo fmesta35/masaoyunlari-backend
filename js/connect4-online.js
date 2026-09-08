@@ -1,2 +1,39 @@
-/* Connect4 online istemcisi — 6x7 ve dört sıra sunucu yetkili. */
-(function(){'use strict';if(window.__gvConnect4OnlineLoaded)return;window.__gvConnect4OnlineLoaded=true;let socket,state,roomId;const B=window.GV_BACKEND_URL||'https://masaoyunlari-backend.onrender.com';function boot(){roomId=String(window.__gvActiveRoomId||localStorage.getItem('gv-room-id')||'');if(!roomId||!window.io)return;socket=window.__gvRoomSocket||window.io(B,{transports:['websocket','polling']});window.__gvRoomSocket=socket;const draw=()=>{const a=document.getElementById('boardArea');if(!a||!state)return;let h='<div class="c4-wrap"><div class="dama-status">'+(state.turn==='r'?'🔴 Kırmızı':'🟡 Sarı')+' sırası</div><div class="c4-drop-row">';for(let c=0;c<7;c++)h+='<button class="c4-drop-btn" data-c="'+c+'" '+(state.board[0][c]?'disabled':'')+'>⬇</button>';h+='</div><div class="c4-board">';for(let r=0;r<6;r++)for(let c=0;c<7;c++)h+='<div class="c4-c">'+(state.board[r][c]?'<div class="c4-pc '+state.board[r][c]+'></div>':'')+'</div>';h+='</div></div>';a.innerHTML=h;a.querySelectorAll('[data-c]').forEach(x=>x.onclick=()=>socket.emit('connect4Move',{roomId,col:+x.dataset.c}))};socket.on('gameStarted',p=>{if(p.gameState?.kind==='connect4'){state=p.gameState;draw()}});socket.on('gameStateUpdated',p=>{if(p.gameState?.kind==='connect4'){state=p.gameState;draw()}});socket.on('connect4Rejected',p=>window.GV?.toast?.('Hamle reddedildi: '+p.reason,'warning'));const join=()=>socket.emit('joinRoom',{roomId,gameId:'connect4',userName:window.st?.user?.name||'Oyuncu',userKey:'guest:'+Math.random().toString(36).slice(2)});if(socket.connected)join();else socket.once('connect',join)}window.addEventListener('gv:roomGameStarted',()=>{if(e.detail?.gameState?.kind==='connect4'||(window.st?.curGame||'')==='connect4')boot()});window.addEventListener('gv:roomReady',e=>{if(e.detail?.gameId==='connect4'||e.detail?.gameState?.kind==='connect4')boot()})})();
+/* GameVerse — Online Connect4. Yaşam döngüsü js/online-arena.js'te. */
+(function () {
+  'use strict';
+  if (window.__gvConnect4OnlineLoaded) return;
+  window.__gvConnect4OnlineLoaded = true;
+  // Arena henüz yüklenmediyse tanımı kuyruğa bırak (yükleme sırası önemsiz).
+  var define = function (d) {
+    if (window.GVArena) return window.GVArena.define(d);
+    (window.__gvArenaQueue = window.__gvArenaQueue || []).push(d);
+  };
+
+  define({
+    id: 'connect4', kinds: ['connect4'], reject: ['connect4Rejected'],
+    render: function (m) {
+      var s = m.state, mine = (s.turn === s.playerColor) && !m.isSpectator;
+      var h = '<div class="c4-wrap"><div class="dama-status">' +
+        (s.turn === 'r' ? '🔴 Kırmızı' : '🟡 Sarı') + ' sırası' +
+        (m.isSpectator ? ' • 👁️ İzleyici' : (mine ? ' • 👉 Sizin sıranız' : '')) +
+        '</div><div class="c4-drop-row">';
+      for (var c = 0; c < 7; c++) {
+        h += '<button class="c4-drop-btn" data-c="' + c + '"' +
+          ((s.board[0][c] || !mine) ? ' disabled' : '') + '>⬇</button>';
+      }
+      h += '</div><div class="c4-board">';
+      for (var r = 0; r < 6; r++) for (var k = 0; k < 7; k++) {
+        h += '<div class="c4-c">' + (s.board[r][k] ? '<div class="c4-pc ' + s.board[r][k] + '"></div>' : '') + '</div>';
+      }
+      return h + '</div></div>';
+    },
+    bind: function (root, m) {
+      root.querySelectorAll('[data-c]').forEach(function (x) {
+        x.addEventListener('click', function () {
+          if (m.isSpectator) return;
+          m.emit('connect4Move', { col: Number(x.dataset.c) });
+        });
+      });
+    }
+  });
+})();

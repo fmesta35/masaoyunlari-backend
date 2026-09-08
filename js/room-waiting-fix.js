@@ -470,6 +470,18 @@
   // Oyun istemcisi index.html'ye eklenmemiş/eski cache'te kalmış olsa bile
   // gameStarted anında doğru adaptörü yükle. Önceki sürümde desteklenmeyen
   // oyunlarda bekleme overlay'i kapanıyor fakat hiçbir çizici bağlanmıyordu.
+  // Ortak yaşam döngüsü katmanı (adaptörler buna kayıt olur). Eski/önbellekli
+  // index.html'lerde statik etiket olmayabilir — burada garantiye alınır.
+  function ensureArena(cb) {
+    if (window.GVArena || document.querySelector('script[data-gv-arena]')) return cb();
+    const tag = document.createElement('script');
+    tag.src = 'js/online-arena.js?v=20260904b';
+    tag.async = false;
+    tag.dataset.gvArena = '1';
+    tag.onload = cb; tag.onerror = cb;
+    document.head.appendChild(tag);
+  }
+
   function ensureOnlineAdapter(payload, done) {
     const game = activeGame();
     const files = { dama:'dama-online.js', turkdamasi:'turkdamasi-online.js', reversi:'reversi-online.js', gomoku:'gomoku-online.js', connect4:'connect4-online.js', bilardo:'bilardo-online.js' };
@@ -479,11 +491,13 @@
     if (window[flag]) return done();
     const existing = document.querySelector('script[data-gv-online-adapter="' + game + '"]');
     if (existing) { existing.addEventListener('load', done, { once:true }); existing.addEventListener('error', done, { once:true }); return; }
-    const tag = document.createElement('script');
-    tag.src = 'js/' + file + '?v=20260829b';
-    tag.async = false; tag.dataset.gvOnlineAdapter = game;
-    tag.onload = done; tag.onerror = done;
-    document.head.appendChild(tag);
+    ensureArena(function () {
+      const tag = document.createElement('script');
+      tag.src = 'js/' + file + '?v=20260904b';
+      tag.async = false; tag.dataset.gvOnlineAdapter = game;
+      tag.onload = done; tag.onerror = done;
+      document.head.appendChild(tag);
+    });
   }
 
   function loadChess() {
@@ -853,6 +867,7 @@
   }
 
   function leave() {
+    var leftRoomId = roomId || window.__gvActiveRoomId || null;
     window.__gvChessOnlineRequested = false;
     try {
       if (socket && socket.connected) {
@@ -893,6 +908,19 @@
     window.__gvOkeyGameStarted = false;
     window.__gvOkeyOnlineRequested = false;
     window.__gvOkeyLocalFallbackShown = false;
+
+    // KART / DAMA / REVERSİ / GOMOKU / CONNECT4 / BİLARDO adaptörleri:
+    // hepsi ortak yaşam döngüsüne (js/online-arena.js) kayıtlıdır. Kayıtlı
+    // sıfırlayıcıları çağır + olayı yay. Eskiden bu adaptörlerin HİÇBİR
+    // sıfırlama kancası yoktu; kart istemcisinin 500 ms'lik zamanlayıcısı
+    // odadan çıkıldıktan sonra da #boardArea'yı ezmeye devam ediyor,
+    // kullanıcı Okey'e geçtiğinde Pişti masası arka planda çiziliyordu.
+    (window.__gvOnlineResets || []).forEach(function (fn) {
+      try { fn(); } catch (e) { console.error('[Oda] online sıfırlama', e); }
+    });
+    try {
+      window.dispatchEvent(new CustomEvent('gv:roomLeft', { detail: { roomId: leftRoomId } }));
+    } catch (_) {}
 
     // Tahta alanını ve oyun sonu overlay'ini temizle
     const boardArea = document.getElementById('boardArea');
