@@ -6,13 +6,48 @@
  *  - JSON giriş/çıkış yardımcıları, oturum (token) doğrulama
  */
 
-require_once __DIR__ . '/config.php';
-
 header('Content-Type: application/json; charset=utf-8');
 header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Headers: Content-Type, Authorization, X-GV-Key, X-GV-Token');
 header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
 if (($_SERVER['REQUEST_METHOD'] ?? '') === 'OPTIONS') { http_response_code(204); exit; }
+
+/* ---------------- SUNUCU YAPILANDIRMASI (config.php) ----------------
+ * config.php SUNUCUYA ÖZELDİR ve bu depoda BULUNMAZ.
+ *
+ * SEBEBİ (yaşanmış kaza): depoda "şablon" bir config.php duruyordu.
+ * yoncu-api klasörü toptan yüklendiğinde şablon, sunucudaki GERÇEK
+ * dosyanın üzerine yazdı; üyelik sistemi "Veritabanına bağlanılamadı"
+ * diyerek tamamen durdu. Artık depoda yalnız config.ornek.php var —
+ * klasörü toptan yüklemek config.php'ye ARTIK DOKUNAMAZ.
+ *
+ * Aşağıdaki iki kontrol, sorun yine de olursa "bağlanılamadı" gibi
+ * yanıltıcı bir mesaj yerine ne yapılacağını doğrudan söyler. */
+function gv_kurulum_hatasi($mesaj) {
+    http_response_code(200);   // oPanel hata sayfası JSON'u yutmasın
+    echo json_encode(array('ok' => false, 'status' => 503, 'error' => $mesaj), JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
+$gvCfg = __DIR__ . '/config.php';
+if (!is_file($gvCfg)) {
+    gv_kurulum_hatasi('Sunucu yapılandırması eksik: /api/config.php bulunamadı. '
+        . 'Aynı klasördeki config.ornek.php dosyasını config.php adıyla kopyalayıp '
+        . 'veritabanı bilgilerini ve GV_SERVER_KEY değerini girin.');
+}
+require_once $gvCfg;
+
+// Şablon yer tutucularıyla (BURAYA_...) kalmış alan var mı?
+$gvEksik = array();
+foreach (array('GV_DB_NAME', 'GV_DB_USER', 'GV_DB_PASS', 'GV_SERVER_KEY') as $gvK) {
+    if (!defined($gvK) || strpos(strval(constant($gvK)), 'BURAYA_') === 0) $gvEksik[] = $gvK;
+}
+if ($gvEksik) {
+    gv_kurulum_hatasi('config.php doldurulmamış — şu alanlar hâlâ şablon değerinde: '
+        . implode(', ', $gvEksik) . '. oPanel > Dosya Yöneticisi > /public_html/api/config.php '
+        . 'dosyasını düzenleyip gerçek değerleri yazın. (GV_SERVER_KEY, Render ortam '
+        . 'değişkenlerindeki değerle BİREBİR aynı olmalıdır.)');
+}
 
 function gv_json($data, $code = 200) {
     // NOT: oPanel gibi hosting panelleri 4xx/5xx yanıt GÖVDELERİNİ kendi hata

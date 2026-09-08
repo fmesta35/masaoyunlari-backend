@@ -13,29 +13,50 @@ Bu rehberle **üyelik, arkadaş, maç geçmişi ve sohbet kayıtları Yöncü My
 3. Yeni kullanıcı: `masaoyun_gv` + **güçlü şifre** oluşturun
 4. **Kullanıcıyı veritabanına ekleyin → Tüm izinleri verin**
 
-## Adım 2 — config.php'yi sunucuda doldurun
+## Adım 2 — config.php'yi sunucuda oluşturun
 
-`yoncu-api/config.php` içindeki 4 satırı (DB_HOST/NAME/USER/PASS) az önce
-oluşturduğunuz bilgilerle doldurun. `GV_SERVER_KEY` için uzun rastgele bir
-anahtar uydurun (40+ karakter) — **aynı anahtar Render'a da girecek**.
+> **config.php artık depoda YOKTUR.** Depoda yalnızca
+> `yoncu-api/config.ornek.php` (şablon) bulunur. Böylece `yoncu-api`
+> klasörünü toptan yüklemek sunucudaki gerçek dosyayı **ezemez**.
 
-> Güvenlik: gerçek şifreler GitHub'a YAZILMAZ. Bu dosyayı sadece Yöncü'de düzenleyin.
+**İlk kurulumda bir kez:**
+
+1. `config.ornek.php`'yi sunucuya `/public_html/api/` içine yükleyin
+2. oPanel Dosya Yöneticisi'nde adını **`config.php`** olarak değiştirin
+3. `BURAYA_...` yer tutucularını doldurun:
+   - `GV_DB_NAME` / `GV_DB_USER` / `GV_DB_PASS` → Adım 1'deki bilgiler
+   - `GV_SERVER_KEY` → uzun rastgele anahtar (40+ karakter);
+     **aynısı Render'a da ortam değişkeni olarak girilir**
+   - `GV_SMTP_PASS` → info@ posta kutusunun şifresi (boşsa PHP mail() kullanılır)
+   - `GV_ADMIN_EMAIL` → boş bırakılabilir; kurucu yetkisi
+     `gv_users.is_founder = 1` bayrağından gelir
+
+**Sonraki yüklemelerde config.php'ye hiç dokunmazsınız.** Şablonda yeni bir
+alan çıkarsa yalnız o satırı sunucudaki dosyanın sonuna ekleyin.
+
+Bir şey ters giderse sunucu artık ne yapılacağını açıkça söyler:
+`config.php bulunamadı…` veya `config.php doldurulmamış — şu alanlar hâlâ
+şablon değerinde: …` (eski hâlinde yalnızca "Veritabanına bağlanılamadı"
+diyordu ve sebebi anlaşılmıyordu).
 
 ## Adım 3 — Dosyaları Yöncü'ye yükleyin
 
 | Ne | Nereye (Yöncü public_html) |
 |---|---|
-| `yoncu-api/` klasörünün **içeriği** (bootstrap.php, mailer.inc.php, auth.php, social.php, admin.php) | **`/api/` klasörü oluşturup içine** |
-| `js/config.js`, `js/auth.js`, `js/social.js` (20260820f) | site kökündeki `js/` |
-| `index.html` | site kökü |
+| `yoncu-api/` klasörünün **içeriği** (bootstrap.php, mailer.inc.php, auth.php, social.php, admin.php) | `/api/` klasörü oluşturup içine |
+| `js/` klasörünün tamamı | site kökündeki `js/` |
+| `css/`, `assets/` (ikonlar dahil) | site kökü |
+| `index.html`, `manifest.json`, `sw.js` | site kökü |
+| `.well-known/assetlinks.json` | site kökünde `.well-known/` klasörü |
 
-> 🚫 **`config.php` ASLA yüklenmez!** Depodaki config.php şablondur
-> (`BURAYA_...` yer tutucuları). Sunucudaki gerçek `config.php` (gerçek DB
-> ve SMTP şifreleriyle) **TEK KAYNAKTIR**; dosya yöneticisinde düzenlenir.
-> Şablonu sunucuya yüklerseniz bilgiler ezilir ve üyelik sistemi
-> **"Veritabanına bağlanılamadı"** hatasıyla DURUR. Şablonda yeni bir alan
-> (örn. `GV_ADMIN_EMAIL`) çıktıysa, o SATIRI sunucudaki gerçek dosyanın
-> sonuna kopyalayın — dosyayı baştan yüklemeyin.
+> `sw.js` ve `.well-known/assetlinks.json` **kök dizinde** olmak zorundadır:
+> servis çalışanı kökten yayınlanmazsa tüm siteyi kapsayamaz, assetlinks
+> kökte olmazsa Android uygulaması adres çubuğunu gizleyemez.
+
+> 🚫 **Depoya asla girmeyen dosyalar:** `yoncu-api/config.php` (gerçek
+> yapılandırma). Eski `db.php` ve `api.php` (kullanılmayan prototip;
+> MySQL şifresini düz metin taşıyorlardı) depodan tamamen kaldırıldı —
+> sunucuda duruyorlarsa **silin**.
 
 Sonunda linkler şöyle olmalı: `https://www.masaoyunlari.com.tr/api/auth.php?action=register`
 

@@ -29,3 +29,9 @@ tools/gv-probe.php
 
 # Gecici: silme izni olmadigi icin tasinan dosyalar
 _to_delete/
+
+# Yoncu sunucu yapilandirmasi: GERCEK dosya YALNIZ sunucuda yasar.
+# (Depoda sablon dururken yoncu-api klasoru toptan yuklendiginde gercek
+#  config.php ezildi ve uyelik sistemi durdu. Depoda yalniz
+#  yoncu-api/config.ornek.php bulunur.)
+yoncu-api/config.php

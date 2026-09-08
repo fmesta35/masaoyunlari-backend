@@ -1,25 +1,26 @@
 <?php
 /*
- * GameVerse — Yöncü tarafı yapılandırması (SUNUCUDA DOLDURULUR!)
+ * ==================================================================
+ *   BU DOSYA "ÖRNEK"TİR — SUNUCUDA KULLANILAN DOSYA DEĞİLDİR
+ * ==================================================================
  *
- *  🚫  BU DOSYAYI SUNUCUYA BASA BASINA YUKLEMEYIN!  🚫
- *  Bu depo kopyasi SABLONDUR (BURAYA_... yer tutuculari icerir).
- *  Sunucuya yuklenirse gercek config.php EZILIR -> uyelik sistemi
- *  "Veritabanina baglanilamadi" hatasiyla DURUR. Sunucu uzerindeki
- *  /public_html/api/config.php TEK KAYNAKTIR ve oPanel'den duzenlenir.
- *  Burada yeni bir alan cikiyorsa (orn. GV_ADMIN_EMAIL) o SATIRI
- *  sunucudaki dosyanin sonuna ekleyin, dosyayi degistirMEYIN.
+ *  Gerçek yapılandırma dosyasının adı: config.php
+ *  Yeri: /public_html/api/config.php   (YALNIZCA sunucuda yaşar)
  *
- *  ⚠️⚠️  DİKKAT: BU DOSYA ŞABLONDUR  ⚠️⚠️
- *  Gerçek şifreleri ASLA bu dosyaya / GITHUB'A yazmayın! Gerçek doldurulmuş
- *  kopya YALNIZCA Yöncü sunucusunda (/public_html/api/config.php) yaşar ve
- *  orada oPanel Dosya Yöneticisi ile düzenlenir. GitHub'a gerçek şifre
- *  girilirse sızmış sayılır → şifreleri değiştirmek gerekir.
+ *  Bu depoda config.php BULUNMAZ (.gitignore ile dışarıda tutulur).
+ *  Böylece yoncu-api klasörünü toptan yüklemek sunucudaki gerçek
+ *  dosyanın üzerine ARTIK YAZAMAZ.
  *
- *  Doldurulacak alanlar:
- *    1) GV_DB_NAME / GV_DB_USER / GV_DB_PASS → oPanel MySQL Veritabanları
- *    2) GV_SERVER_KEY  → Render (backend) ile aynı uzun rastgele anahtar
- *    3) GV_SMTP_PASS   → oPanel'de açtığınız info@ kutusunun şifresi
+ *  NEDEN: Daha önce depoda "şablon" bir config.php duruyordu; klasör
+ *  toptan yüklenince gerçek dosyayı ezdi ve üyelik sistemi
+ *  "Veritabanına bağlanılamadı" diyerek tamamen durdu.
+ *
+ *  İLK KURULUM
+ *    1) Bu dosyayı sunucuda config.php adıyla kopyalayın.
+ *    2) BURAYA_... yer tutucularını gerçek değerlerle doldurun.
+ *    3) Sonraki yüklemelerde bu dosyaya hiç dokunmanız gerekmez.
+ *
+ *  Gerçek şifreleri ASLA bu dosyaya veya GitHub'a yazmayın.
  */
 
 define('GV_DB_HOST', 'localhost');
