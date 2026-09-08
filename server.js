@@ -1620,6 +1620,59 @@ function removePlayerFromRoom(room, player, message) {
     return;
   }
 
+  // Oyun SÜRERKEN ayrılan oyuncu HÜKMEN MAĞLUP olur — artık TÜM online
+  // oyunlarda. Eskiden bunu yalnız satranç, tavla ve okey yapıyordu;
+  // dama, türk daması, reversi, gomoku, connect4, bilardo, pişti ve
+  // batakta oda sessizce beklemeye dönüyordu. Kalan oyuncu ekranda
+  // DONMUŞ bir tahtayla kalıyor, ne "kazandınız" bildirimi görüyor ne de
+  // lobiye dönebiliyordu; üstelik oda 'waiting'e düştüğü için hamle
+  // süresi denetimi de artık çalışmıyor, sayaç sıfırda takılıp kalıyordu.
+  if (wasPlaying && (room.dama || room.reversi || room.gomoku || room.connect4 || room.bilardo || room.cardGame)) {
+    const kalanKoltuklar = room.players.map(p => p.seat);
+    let winnerSeat = kalanKoltuklar[0];
+    if (kalanKoltuklar.length > 1) {
+      // 4 kişilik kart masasında maç sürdürülemez: en yüksek skorlu kazanır.
+      const sc = (room.cardGame && Array.isArray(room.cardGame.scores)) ? room.cardGame.scores : [];
+      winnerSeat = kalanKoltuklar.reduce(
+        (best, x) => (Number(sc[x] || 0) > Number(sc[best] || 0) ? x : best), kalanKoltuklar[0]);
+    }
+    room.status = 'finished';
+    room.result = { reason: 'player_left', winnerSeat };
+    const stateFor = seat =>
+      room.dama ? damaState(room, seat) :
+      room.reversi ? reversiState(room, seat) :
+      room.gomoku ? gomokuState(room, seat) :
+      room.connect4 ? connect4State(room, seat) :
+      room.bilardo ? bilardoState(room, seat) :
+      cardGameState(room, seat);
+
+    room.players.forEach(p => emitToPlayer(p, 'gameEnded', {
+      roomId: room.id,
+      reason: 'player_left',
+      winnerSeat,
+      youWon: p.seat === winnerSeat,
+      leftName: player.name || null,
+      gameState: stateFor(p.seat)
+    }));
+    (room.spectators || []).forEach(sp => emitToPlayer(sp, 'gameEnded', {
+      roomId: room.id,
+      reason: 'player_left',
+      winnerSeat,
+      youWon: false,
+      isSpectator: true,
+      leftName: player.name || null,
+      gameState: stateFor(null)
+    }));
+    io.to(room.id).emit('playerLeft', {
+      roomId: room.id,
+      leftName: player.name || null,
+      message: message || 'Rakip masadan ayrıldı.'
+    });
+    emitRoom(room);
+    scheduleRoomReset(room);
+    return;
+  }
+
   resetRoomToWaiting(room);
   maybePromoteSpectators(room);
   emitRoom(room);

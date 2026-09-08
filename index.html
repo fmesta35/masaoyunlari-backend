@@ -895,6 +895,52 @@ body{padding-bottom:var(--gv-safe-b)}
 /* Glif, hücreyi taşırmayacak boya sabitlenir (76 px hücrede ~45 px harf) */
 .chess-c{font-size:7.4cqw;line-height:1}
 
+/* ---------- 3c) TAŞ SEÇİMİ VE OLASI HAMLELER ----------
+   Kullanıcı raporu: "tıkladığım taşın hangi taş olduğu gözükmüyor".
+   Eskiden oynanabilir HER taşa yeşil nokta konuyor, seçilen taş yalnızca
+   ince bir çerçeve alıyor, gidebileceği kareler hiç gösterilmiyordu.
+   Artık satrançtaki dil kullanılır: halka = oynatılabilir, dolu vurgu =
+   seçili, sarı nokta = gidilebilir, kırmızı = buraya oynarsan yersin. */
+.dama-c,.tdama-c{position:relative}
+.dama-c.movable{box-shadow:inset 0 0 0 2px rgba(85,239,196,.6)}
+.dama-c.movable:hover{box-shadow:inset 0 0 0 3px rgba(85,239,196,.95)}
+.dama-c.sel{outline:4px solid var(--primary);outline-offset:-4px;
+  background:rgba(108,92,231,.5)!important;box-shadow:0 0 18px rgba(108,92,231,.7)}
+.dama-c.sel .dama-pc{transform:scale(1.08)}
+.dama-c.target::after{content:'';position:absolute;top:50%;left:50%;
+  transform:translate(-50%,-50%);width:34%;height:34%;border-radius:50%;
+  background:#f1c40f;box-shadow:0 0 12px rgba(241,196,15,.95);pointer-events:none}
+.dama-c.target-eat{outline:4px solid var(--danger);outline-offset:-4px}
+.dama-c.target-eat::after{background:var(--danger);box-shadow:0 0 12px rgba(255,107,107,.95)}
+/* Eski "oynanabilir taşa yeşil nokta" gösterimi artık kullanılmıyor */
+.dama-c.valid::after,.tdama-c.valid::after{content:none}
+
+/* ---------- 3d) MAÇ SONU EKRANI (online-arena) ----------
+   Bu yedi oyunda maç bitişi istemcide hiç ele alınmıyordu: kazanan da
+   kaybeden de donmuş bir tahtayla kalıyordu. Sonuç artık tahtanın
+   üzerinde durur ve lobiye dönüşü kendisi yürütür. */
+.gv-end{position:absolute;inset:0;z-index:40;display:flex;align-items:center;
+  justify-content:center;padding:12px;background:rgba(10,10,26,.82);
+  backdrop-filter:blur(3px);border-radius:var(--r2);animation:gvEndIn .25s ease}
+@keyframes gvEndIn{from{opacity:0}to{opacity:1}}
+.gv-end-card{max-width:min(420px,92%);text-align:center;padding:22px 20px;
+  background:var(--bg2);border:1px solid var(--border2);border-radius:var(--r2);
+  box-shadow:var(--shadow)}
+.gv-end.win .gv-end-card{border-color:var(--success);box-shadow:0 0 32px rgba(85,239,196,.35)}
+.gv-end-ico{font-size:2.6em;line-height:1}
+.gv-end-title{margin-top:6px;font-size:1.35em;font-weight:800}
+.gv-end.win .gv-end-title{color:var(--success)}
+.gv-end-text{margin:8px 0 16px;color:var(--text2);line-height:1.5}
+.gv-end-btn{width:100%}
+.gv-end-hint{margin-top:10px;font-size:.8em;color:var(--text3)}
+.gv-end-sec{font-family:var(--mono);font-weight:800;color:var(--accent)}
+@media(max-width:480px){
+  .gv-end-card{padding:16px 14px}
+  .gv-end-ico{font-size:2.1em}
+  .gv-end-title{font-size:1.15em}
+  .gv-end-text{font-size:.9em;margin-bottom:12px}
+}
+
 /* ---------- 4) KART OYUNLARI: kartlar ekrana göre ölçeklenir ---------- */
 .pcard{
   width:clamp(34px,9.2vw,56px);
@@ -2302,12 +2348,28 @@ function startCountdownAndBeginGame(room) {
 }
 
 function getGamePlayerCount(gid){return TWO_PLAYER_GAMES.includes(gid) ? 2 : 4;}
-function hasActiveMatch(){if(st.onlineClock)return false;const a=['chess','tavla','dama','turkdamasi','pisti','batak','reversi','gomoku','connect4','okey','okey101','bilardo'];if(!a.includes(st.curGame))return false;const g=st.boards[st.curGame];return g&&!g.gameEnded;}
+function hasActiveMatch(){/* ONLINE tahta oyunları (dama, reversi, gomoku, connect4, bilardo, kart) ortak yaşam döngüsünde çizilir ve st.boards'a hiç yazmaz; bu yüzden maç sürerken bile 'aktif maç yok' sanılıyor, oyuncu terk uyarısını görmeden masadan çıkabiliyordu. */try{const _a=window.GVArena&&GVArena.state();if(_a&&_a.status==='playing')return true;}catch(_){}if(st.onlineClock)return false;const a=['chess','tavla','dama','turkdamasi','pisti','batak','reversi','gomoku','connect4','okey','okey101','bilardo'];if(!a.includes(st.curGame))return false;const g=st.boards[st.curGame];return g&&!g.gameEnded;}
 function hasActiveGame(){return hasActiveMatch();}
 
 function leaveRoom(){
   const isBotFallback = BOT_FALLBACK_GAMES.includes(st.curGame);
   const active = hasActiveMatch();
+
+  /* ONLINE MASADAN ÇIKIŞ SUNUCUYA BİLDİRİLİR.
+     Eskiden bu fonksiyon yalnız YEREL durumu temizleyip lobiye dönüyordu;
+     oda soketine "leaveRoom" hiç gitmiyordu. Sonuç: rakip donmuş bir
+     tahtayla masada kalıyor, kazandığına dair bildirim almıyor ve oda
+     ancak 30 sn'lik bağlantı zaman aşımıyla çözülüyordu. */
+  const cikisiBildir = () => {
+    try {
+      if (typeof window.__gvRealChessLeave === 'function' &&
+          (window.__gvRoomSocket || window.__gvActiveRoomId)) {
+        window.__gvRealChessLeave();
+        return true;
+      }
+    } catch(_) {}
+    return false;
+  };
   
   if(!active){
     if(!confirm('Ayrılmak istediğine emin misin?')) return;
@@ -2324,7 +2386,14 @@ function leaveRoom(){
     }
 
     st.roomWaitingState = null;
+
+
+    if (cikisiBildir()) return;      // sunucuya bildirildi; lobiye o götürür
+
+
     openLobby(st.curGame);
+
+
     return;
   }
   
@@ -2341,6 +2410,9 @@ function leaveRoom(){
   if(isBotFallback && st.boards[st.curGame]) {
     enableBotTakeover(st.curGame, 0);
   }
+  
+  if (cikisiBildir()) { st.boards={}; return; }
+
   
   setTimeout(()=>{ st.boards={}; openLobby(st.curGame); }, 1200);
 }
@@ -4537,24 +4609,26 @@ GV.init();
 <script src="js/games.js?v=20260823b" defer></script>
 <script src="js/utils.js?v=20260819c" defer></script>
 <script src="js/lobby-sync.js?v=20260820f" defer></script>
-<script src="js/room-waiting-fix.js?v=20260904a" defer></script>
+<script src="js/room-waiting-fix.js?v=20260908b" defer></script>
 <!-- Hamle (sıra) saati: sırası gelen oyuncunun kendi kartında sayar -->
 <!-- Mobil uygulama katmanı: PWA kurulumu, Android geri tuşu, WebView uyarlamaları -->
+<!-- Kullanıcıya gösterilen mesajların tek kaynağı (kod değil cümle) -->
+<script src="js/messages.js?v=20260908b" defer></script>
 <script src="js/webview.js?v=20260908a" defer></script>
 <script src="js/move-clock.js?v=20260908a" defer></script>
 <script src="js/chess-online.js?v=20260908a" defer></script>
 <script src="js/tavla-online.js?v=20260908a" defer></script>
 <script src="js/okey-online.js?v=20260908a" defer></script>
-<script src="js/online-arena.js?v=20260908a" defer></script>
+<script src="js/online-arena.js?v=20260908b" defer></script>
 <script src="js/card-online.js?v=20260904b" defer></script>
-<script src="js/dama-online.js?v=20260904b" defer></script>
-<script src="js/turkdamasi-online.js?v=20260904b" defer></script>
+<script src="js/dama-online.js?v=20260908b" defer></script>
+<script src="js/turkdamasi-online.js?v=20260908b" defer></script>
 <script src="js/reversi-online.js?v=20260904b" defer></script>
 <script src="js/gomoku-online.js?v=20260904b" defer></script>
 <script src="js/connect4-online.js?v=20260904b" defer></script>
 <script src="js/bilardo-online.js?v=20260908a" defer></script>
 <script src="js/chat.js?v=20260821c" defer></script>
-<script src="js/leave-guard.js?v=20260821h" defer></script>
+<script src="js/leave-guard.js?v=20260908b" defer></script>
 <script src="js/auth.js?v=20260908a" defer></script>
 <script src="js/social.js?v=20260823e" defer></script>
 <script src="js/admin-panel.js?v=20260908a" defer></script>

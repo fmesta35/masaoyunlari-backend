@@ -30,13 +30,32 @@
   const MODAL_MS = () => Number(window.__gvLeaveGuardModalMs) || 30000;
 
   function isSpectator() { return !!(window.__gvIsSpectator || window.__gvJoinAsSpectator); }
-  function active() { return inGame && !isSpectator(); }
+
+  // Ortak yaşam döngüsü (online-arena) CANLI bir tahta çiziyorsa maç
+  // kesinlikle sürüyordur. Bu kontrol, 'gameStarted' paketi bekçi sokete
+  // bağlanmadan önce geldiğinde bayrağın hiç kalkmaması sorununu kapatır:
+  // o durumda "Ayrıl" uyarısı açılmıyor, oyuncu terk cezasını görmeden
+  // masadan çıkıyordu.
+  function canliTahta() {
+    try {
+      const g = window.GVArena && GVArena.state();
+      return !!(g && g.status === 'playing');
+    } catch (_) { return false; }
+  }
+  function active() { return (inGame || canliTahta()) && !isSpectator(); }
 
   // ---------- Soket izleme (ortak oda soketi) ----------
   function attach(sock) {
     if (!sock || sock.__gvLeaveGuard) return;
     sock.__gvLeaveGuard = true;
     sock.on('gameStarted', p => { if (p && !p.isSpectator) inGame = true; });
+    // 'gameStarted' bekçi sokete bağlanmadan ÖNCE gelmiş olabilir (ortak
+    // yaşam döngüsündeki tahta oyunlarında sık oluyordu): o zaman bayrak
+    // hiç kalkmıyor, "Ayrıl" uyarı penceresi açılmıyor ve çıkış sunucuya
+    // bildirilmeden yapılıyordu. Her durum paketi bayrağı tazeler.
+    sock.on('gameStateUpdated', p => {
+      if (p && !p.isSpectator && p.gameState && p.gameState.status === 'playing') inGame = true;
+    });
     sock.on('gameEnded', () => { inGame = false; closeModal(); });
     sock.on('playerLeft', () => { /* maç bitişi gameEnded ile de gelebilir; bekçiyi kapatma, oyun sürüyor olabilir (okey 3-4 kişi) */ });
     sock.on('okeyMatchEnded', () => { inGame = false; closeModal(); });
@@ -78,8 +97,13 @@
     try {
       const s = window.__gvRoomSocket;
       if (s) {
-        if (s.connected) { try { s.emit('leaveRoom'); } catch (_) {} }
-        try { s.disconnect(); } catch (_) {}
+        // Önce haber, sonra kapatma (aksi halde paket yola çıkamıyor).
+        if (s.connected) {
+          try { s.emit('leaveRoom'); } catch (_) {}
+          setTimeout(function () { try { s.disconnect(); } catch (_) {} }, 250);
+        } else {
+          try { s.disconnect(); } catch (_) {}
+        }
       }
     } catch (_) {}
   }

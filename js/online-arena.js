@@ -32,6 +32,7 @@
   var bound = null;     // dinleyicilerin bağlı olduğu soket
   var handlers = null;  // {ev: fn} — sökmek için saklanır
   var tickTimer = null;
+  var bitti = false;     // maç bitti: tahta donar, üzerine sonuç ekranı gelir
 
   function S() { try { return (typeof st !== 'undefined') ? st : null; } catch (_) { return null; } }
   function socketNow() { return window.__gvRoomSocket || window.__gvChessSocket || null; }
@@ -172,8 +173,11 @@
     var rid = String(p.roomId == null ? '' : p.roomId);
     var cur = roomNow();
     if (!cur || rid !== cur) return;                    // BAŞKA/ESKİ odanın paketi — yoksay
+    if (bitti && p.gameState.status === 'playing') { bitti = false; kapatBitis(); }
+    if (bitti) return;                                   // bitmiş maçın geç paketi
     if (!active || active.def.id !== def.id) {
-      active = { def: def, state: null, seat: null, roomId: rid, emit: emitFor(def) };
+      active = { def: def, state: null, seat: null, roomId: rid,
+                 emit: emitFor(def), repaint: function () { paint(true); } };
     }
     active.state = p.gameState;
     active.roomId = rid;
@@ -196,9 +200,83 @@
     };
   }
 
+  /* Reddedilen hamle: kullanıcıya KOD değil CÜMLE gösterilir.
+     Eskiden ekranda "Hamle reddedildi: illegal_move" yazıyordu. */
   function onReject(p) {
-    var reason = (p && p.reason) || 'bilinmiyor';
-    if (window.GV && GV.toast) GV.toast('Hamle reddedildi: ' + reason, 'warning');
+    var metin = window.GVMsg ? GVMsg.red(p && p.reason) : 'Bu işlem şu anda yapılamıyor.';
+    if (window.GV && GV.toast) GV.toast(metin, 'warning');
+  }
+
+  // ---------------------------------------------------- MAÇ SONU EKRANI
+  // Bu yedi oyunda maç bitişi İSTEMCİDE HİÇ ELE ALINMIYORDU: kazanan da
+  // kaybeden de donmuş bir tahtayla kalıyor, rakip masadan ayrıldığında
+  // hiçbir bildirim gelmiyordu. Sonuç artık tahtanın üzerinde gösterilir
+  // ve iki taraf da oyunun lobisine döner.
+  function kapatBitis() {
+    var a = boardEl();
+    var eski = a && a.querySelector('.gv-end');
+    if (eski && eski.parentNode) eski.parentNode.removeChild(eski);
+  }
+
+  function lobiyeDon() {
+    var s2 = S();
+    var gid = (s2 && s2.curGame) || null;
+    try { if (window.GV && typeof GV.openLobby === 'function') return GV.openLobby(gid); } catch (_) {}
+    try { if (window.GV && typeof GV.page === 'function') GV.page('home'); } catch (_) {}
+  }
+
+  function bitisEkrani(p) {
+    var a = boardEl();
+    bitti = true;
+    active = null;                                   // tahta donar, silinmez
+    try { if (window.GVMoveClock) GVMoveClock.clear(); } catch (_) {}
+    if (!a) return;
+    kapatBitis();
+
+    var m = window.GVMsg ? GVMsg.bitis(p)
+          : { ikon: '🏁', baslik: 'Maç bitti', metin: '' };
+    var kutu = document.createElement('div');
+    kutu.className = 'gv-end' + (p && p.youWon ? ' win' : '');
+    kutu.innerHTML =
+      '<div class="gv-end-card">' +
+        '<div class="gv-end-ico">' + m.ikon + '</div>' +
+        '<div class="gv-end-title">' + m.baslik + '</div>' +
+        '<div class="gv-end-text">' + m.metin + '</div>' +
+        '<button class="btn btn-p gv-end-btn" type="button">🏠 Lobiye dön</button>' +
+        '<div class="gv-end-hint"><span class="gv-end-sec">8</span> sn içinde lobiye döneceksiniz</div>' +
+      '</div>';
+    a.appendChild(kutu);
+
+    var gitti = false;
+    function git() { if (gitti) return; gitti = true; clearInterval(sayac); kapatBitis(); lobiyeDon(); }
+    var btn = kutu.querySelector('.gv-end-btn');
+    if (btn) btn.addEventListener('click', git);
+    var kalan = 8;
+    var sayac = setInterval(function () {
+      kalan--;
+      var el = kutu.querySelector('.gv-end-sec');
+      if (el) el.textContent = String(Math.max(0, kalan));
+      if (kalan <= 0) git();
+    }, 1000);
+  }
+
+  function onEnded(p) {
+    if (!p) return;
+    var rid = String(p.roomId == null ? '' : p.roomId);
+    var cur = roomNow();
+    if (rid && cur && rid !== cur) return;            // başka odanın paketi
+    // Bu katman yalnızca KENDİ çizdiği masaların bitişini üstlenir; okey,
+    // satranç ve tavla kendi bitiş ekranlarını gösterir.
+    var a = boardEl();
+    if (!active && !(a && a.__gvArenaOwner)) return;
+    bitisEkrani(p);
+  }
+
+  function onPlayerLeft(p) {
+    // Bitiş paketi zaten geldiyse ekran duruyor; burada yalnız kısa bilgi.
+    if (bitti) return;
+    var ad = p && p.leftName ? String(p.leftName).slice(0, 24) : 'Bir oyuncu';
+    if (window.GV && GV.toast) GV.toast('🚪 ' + ad + ' masadan ayrıldı.', 'info');
   }
 
   function attach() {
@@ -206,7 +284,8 @@
     if (s === bound) return;
     detach();
     if (!s) return;
-    handlers = { gameStarted: onState, gameStateUpdated: onState };
+    handlers = { gameStarted: onState, gameStateUpdated: onState,
+                 gameEnded: onEnded, playerLeft: onPlayerLeft };
     defs.forEach(function (d) {
       (d.reject || []).forEach(function (ev) { handlers[ev] = onReject; });
     });
@@ -227,6 +306,8 @@
   /* Adaptörü durdur: çizim yok, durum yok, tahta bu katmana aitse temizlenir. */
   function stop() {
     active = null;
+    bitti = false;
+    kapatBitis();
     clearBoard();
     try { if (window.GVMoveClock) GVMoveClock.clear(); } catch (_) {}
   }
@@ -269,6 +350,10 @@
     },
     reset: reset,
     stop: stop,
+    /* Adaptörler seçim/vurgu değişince tahtayı yeniden çizdirir. */
+    repaint: function () { paint(true); },
+    /* Test/teşhis: maç sonu ekranı açık mı? */
+    ended: function () { return bitti; },
     roomId: roomNow,
     activeId: function () { return active ? active.def.id : null; },
     /* Teşhis/test: tahtayı çizen adaptörün son sunucu durumu */

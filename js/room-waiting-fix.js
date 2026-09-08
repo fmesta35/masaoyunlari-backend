@@ -871,8 +871,13 @@
     window.__gvChessOnlineRequested = false;
     try {
       if (socket && socket.connected) {
-        socket.emit('leaveRoom');
-        socket.disconnect();
+        // ÖNCE haber ver, SONRA kapat. Aynı anda yapıldığında 'leaveRoom'
+        // paketi çıkmadan bağlantı kapanıyordu: sunucu yalnızca kopmayı
+        // görüyor, oyunu bitirmek yerine 30 sn'lik yeniden bağlanma
+        // süresi başlatıyordu. Rakip bu sürede donmuş tahtayla bekliyordu.
+        var sk = socket;
+        try { sk.emit('leaveRoom'); } catch (_) {}
+        setTimeout(function () { try { sk.disconnect(); } catch (_) {} }, 250);
       }
     } catch (_) {}
     socket = null;
