@@ -516,6 +516,24 @@
     socket?.emit('tavlaPass', { roomId });
   }
 
+  /* Teşhis kancası: "tavlada ele başlanamıyor" gibi raporlarda hangi
+     koşulun tıklamayı düşürdüğünü tek bakışta gösterir. */
+  window.__gvTavlaDebugClick = function (i) {
+    var once = [];
+    try { onlineClick(i); } catch (e) { once.push(String(e && e.message)); }
+    return { sel: sel, hata: once, tip: typeof i, eslesme: (gameState && (gameState.legalMoves||[]).some(function(x){return x.from===i;})) };
+  };
+  window.__gvTavlaDebug = function () {
+    var g = gameState || {};
+    return {
+      active: active, isSpectator: isSpectator, playerColor: playerColor,
+      mine: mine(), turn: g.turn, status: g.status, rolled: g.rolled,
+      sel: sel, legalMoves: (g.legalMoves || []).length,
+      onlineActive: onlineActive(), isTavlaRoom: isTavlaRoom(),
+      steps: (g.legalMoves || []).slice(0, 4)
+    };
+  };
+
   // ---------- Yerel (botlu) tavla ile köprü: online odadayken GV._tv* sarmalanır ----------
   function wrapLocalHandlers() {
     if (window.__gvTavlaHandlersWrapped) return;
@@ -573,10 +591,24 @@
     })(0);
   }
 
+  /* AYNI ODAYA TEKRAR TEKRAR KATILMA (ölçülen hata)
+     boot() hem 'gv:roomGameStarted' hem 'gv:roomReady' olaylarında
+     çalışıyor; bekleme odası bu olayları oda her güncellendiğinde
+     yayınladığı için connect() → join() saniyede ~20 kez tetikleniyordu.
+     Sunucu her joinRoom'a tam durum paketiyle cevap verdiği için:
+       • masa saniyede ~20 kez yeniden çiziliyor (tıklamalar öksüz
+         düğümlere gidiyor, "ele başlanamıyor" şikâyeti buradan),
+       • "🎲 Zar: 3-1" bildirimi üst üste yığılıyor,
+       • boşuna trafik ve sunucu yükü oluşuyordu.
+     Aynı soket + aynı oda için katılım artık BİR KEZ gönderilir. */
+  let joinedKey = null;
   function join() {
     if (!socket?.connected) return;
     roomId = getRoomId();
     if (!roomId) return;
+    const key = (socket.id || 'x') + ':' + roomId + ':' + (window.__gvJoinAsSpectator ? 's' : 'p');
+    if (joinedKey === key) return;
+    joinedKey = key;
     localStorage.setItem('gv-room-id', roomId);
     socket.emit('joinRoom', {
       memberToken: (window.GVAuth && GVAuth.token ? (GVAuth.token() || undefined) : undefined),
@@ -594,6 +626,8 @@
   function attach() {
     if (!socket || socket.__gvTavlaBound) return;
     socket.__gvTavlaBound = true;
+    // Bağlantı koparsa yeniden katılmak GEREKİR: kilidi burada açıyoruz.
+    socket.on('disconnect', () => { joinedKey = null; });
 
     socket.on('gameStarted', payload => {
       if (!payload || String(payload.roomId) !== String(roomId) || !isTavlaRoom()) return;
@@ -720,6 +754,7 @@
 
   // Odadan ayrılırken room-waiting-fix.js tarafından çağrılır.
   window.__gvTavlaOnlineReset = function () {
+    joinedKey = null;
     active = false;
     releaseClockOwnership();
     gameState = null;

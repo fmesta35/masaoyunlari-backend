@@ -152,10 +152,21 @@
     })(0);
   }
 
+  /* AYNI ODAYA TEKRAR TEKRAR KATILMA (tavlada ölçüldü, aynı kalıp burada da)
+     boot() hem 'gv:roomGameStarted' hem 'gv:roomReady' olaylarında çalışır;
+     bekleme odası bu olayları oda her güncellendiğinde yayınladığı için
+     join() saniyede onlarca kez tetikleniyordu. Sunucu her joinRoom'a tam
+     durum paketiyle cevap verdiğinden masa saniyede onlarca kez yeniden
+     çiziliyor, tıklamalar öksüz düğümlere gidiyor ve bildirimler üst üste
+     yığılıyordu. Aynı soket + aynı oda için katılım BİR KEZ gönderilir. */
+  let joinedKey = null;
   function join() {
     if (!socket?.connected) return;
     roomId = getRoomId();
     if (!roomId) return;
+    const key = (socket.id || 'x') + ':' + roomId + ':' + (window.__gvJoinAsSpectator ? 's' : 'p');
+    if (joinedKey === key) return;
+    joinedKey = key;
     localStorage.setItem('gv-room-id', roomId);
     socket.emit('joinRoom', {
       memberToken: (window.GVAuth && GVAuth.token ? (GVAuth.token() || undefined) : undefined),
@@ -252,7 +263,7 @@
       window.__gvChessSocket = socket;
 
       socket.on('connect', join);
-      socket.on('disconnect', () => { pending = false; });
+      socket.on('disconnect', () => { pending = false; joinedKey = null; });
       socket.on('roomUpdated', room => {
         if (!room || String(room.id) !== String(roomId) || !isChessRoom()) return;
         // Kimlik SOKET id'siyle belirlenir. userKey ile eşleştirmek, aynı
