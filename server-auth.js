@@ -86,7 +86,19 @@ function cleanName(v) { return String(v == null ? '' : v).replace(/[<>"'`]/g, ''
 
 function userById(id) {
   if (!db) return null;
-  return db.prepare('SELECT id,name,email,verified,created_at FROM users WHERE id = ?').get(Number(id)) || null;
+  return db.prepare('SELECT id,name,email,verified,created_at,is_founder FROM users WHERE id = ?').get(Number(id)) || null;
+}
+
+// Kurucu (founder) kontrolü — TEK KAYNAK. İki koşuldan biri yeter:
+//   1) users.is_founder = 1   (veritabanından işaretlenir)
+//   2) e-posta GV_ADMIN_EMAIL ile birebir aynı
+// Aynı kural PHP tarafında gv_is_founder() ile birebir uygulanır.
+function isFounderUser(u) {
+  if (!u) return false;
+  if (Number(u.is_founder) === 1 || u.isFounder === true) return true;
+  const mail = String(process.env.GV_ADMIN_EMAIL || '').trim().toLowerCase();
+  if (!mail) return false;
+  return String(u.email || '').toLowerCase() === mail;
 }
 function userByEmail(email) {
   if (!db) return null;
@@ -107,7 +119,9 @@ function createSession(userId) {
   db.prepare('INSERT INTO sessions(token,user_id,created_at) VALUES(?,?,?)').run(token, userId, now());
   return token;
 }
-function publicUser(u) { return { id: u.id, name: u.name, email: u.email }; }
+// isFounder: Kurucu Paneli yetkisi (users.is_founder = 1 ya da GV_ADMIN_EMAIL).
+// İstemci üst bardaki '👑 Kurucu Paneli' butonunu bu bayrağa göre gösterir.
+function publicUser(u) { return { id: u.id, name: u.name, email: u.email, isFounder: isFounderUser(u) }; }
 
 // userKey ('user:7') → db id (oda kayıtlarında üye eşlemesi için)
 function uidFromUserKey(userKey) {
@@ -156,25 +170,39 @@ function installAuth(app, deps) {
     // DB yoksa hiçbir üye mevcut değil → jetonlar kesin geçersizdir.
     return { isOnline: () => false, uidFromUserKey, recordMatch: () => {}, attachSocket: () => {},
       userFromReq: () => null,
+      userFromReqAsync: async () => null,
       verifyToken: async () => null, verifyTokenFull: async () => ({ uid: null, status: 'invalid' }),
       verifyIdentityFull: async () => ({ uid: null, status: 'invalid' }) };
   }
 
-  // ---- Yönetici (kurucu) hesabı: yoksa açılışta oluşturulur ----
-  // Kurucu Paneli yalnız bu hesabın oturumunda açılır (e-posta eşleşmesi).
-  // Varsayılan: kurucu@kurucu.com / kurucu123 — GV_ADMIN_EMAIL ile
-  // değiştirilebilir. (Uzak modda aynı kurulumu PHP admin.php yapar.)
+  // ---- Yönetici (kurucu) hesabı ----
+  // Kurucu Paneli'ni açan hesap: users.is_founder = 1 OLAN hesap ya da
+  // e-postası GV_ADMIN_EMAIL'e eşit olan hesap (bkz. isFounderUser).
+  //
+  // ⚠ GÜVENLİK: Burada eskiden kurucu@kurucu.com hesabı SABİT "kurucu123"
+  // şifresiyle otomatik açılıyordu; şifre depoda açıkça yazdığı için siteye
+  // dışarıdan kurucu olarak girilebiliyordu. Otomatik açma KALDIRILDI.
+  // Yerel/geliştirme ortamında bir kurucu hesabı gerekiyorsa GV_ADMIN_EMAIL
+  // ve GV_ADMIN_PASS birlikte verilir; yalnız o zaman oluşturulur.
   try {
-    const ADMIN_MAIL = (process.env.GV_ADMIN_EMAIL || 'kurucu@kurucu.com').toLowerCase();
-    const exists = db.prepare('SELECT id FROM users WHERE lower(email) = ?').get(ADMIN_MAIL);
-    if (!exists) {
-      // İsim çakışma riskine karşı belirgin: üyeler "Kurucu" adıyla
-      // kayıt olabilsin (bu hesap otomatik, e-posta benzersizdir).
-      db.prepare('INSERT INTO users(name, email, pass_hash, verified, created_at) VALUES(?, ?, ?, 1, ?)')
-        .run('\u{1F451} Kurucu', ADMIN_MAIL, bcrypt.hashSync('kurucu123', 10), now());
-      console.log('👑 Yönetici hesabı oluşturuldu: ' + ADMIN_MAIL);
+    const ADMIN_MAIL = String(process.env.GV_ADMIN_EMAIL || '').trim().toLowerCase();
+    const ADMIN_PASS = String(process.env.GV_ADMIN_PASS || '');
+    if (ADMIN_MAIL) {
+      const exists = db.prepare('SELECT id, is_founder FROM users WHERE lower(email) = ?').get(ADMIN_MAIL);
+      if (exists) {
+        // Var olan hesabı kurucu olarak işaretle (bayrak tek doğruluk kaynağı).
+        if (Number(exists.is_founder) !== 1) {
+          db.prepare('UPDATE users SET is_founder = 1 WHERE id = ?').run(exists.id);
+        }
+      } else if (ADMIN_PASS) {
+        db.prepare('INSERT INTO users(name, email, pass_hash, verified, created_at, is_founder) VALUES(?, ?, ?, 1, ?, 1)')
+          .run('\u{1F451} Kurucu', ADMIN_MAIL, bcrypt.hashSync(ADMIN_PASS, 10), now());
+        console.log('👑 Yönetici hesabı oluşturuldu: ' + ADMIN_MAIL);
+      } else {
+        console.warn('ℹ️  GV_ADMIN_EMAIL tanımlı ama o e-postayla hesap yok; GV_ADMIN_PASS verilmediği için hesap OLUŞTURULMADI.');
+      }
     }
-  } catch (e) { console.warn('⚠️  Yönetici hesabı oluşturulamadı:', e.message); }
+  } catch (e) { console.warn('⚠️  Yönetici hesabı hazırlanamadı:', e.message); }
 
   // ---- SMTP tanı (girişsiz; şifre asla dönmez) ----
   // Mail gelmiyorsa ilk bakılacak yer: configured=false ise GV_SMTP_PASS eksik,
@@ -600,6 +628,12 @@ function installAuth(app, deps) {
     // Kurucu Paneli yetki kontrolü (server.js requireAdmin): istemcinin
     // oturum sahibini (e-posta dahil) döndürür.
     userFromReq: (req) => authFromReq(req),
+    // Kurucu Paneli yetkisi (server.js requireAdmin) — yerel modda senkron
+    // sorgu yeter; imza uzak modla AYNI olsun diye Promise döner.
+    userFromReqAsync: async (req) => {
+      const u = authFromReq(req);
+      return u ? { id: u.id, name: u.name, email: u.email, isFounder: isFounderUser(u) } : null;
+    },
     // Soket mesajıyla gelen üyelik jetonunu doğrular (oda kapısında anında kimlik).
     verifyToken: async (t) => { const u = t ? userByToken(String(t)) : null; return u ? Number(u.id) : null; },
     // Kararlı kimlik kontrolü: yerel DB'de oturum YOKSA sonuç kesindir
@@ -842,6 +876,22 @@ function installRemoteMode(app, deps) {
 
   console.log('👤 Üyelik UZAK modda: Yöncü PHP/MySQL — Render sadece soket/proxy.');
   return { isOnline, onlineCount, uidFromUserKey, recordMatch, attachSocket, logChat, userById: () => null,
+    // Kurucu Paneli yetkisi — UZAK MOD. Eskiden bu API userFromReq'i HİÇ
+    // döndürmüyordu; server.js'teki requireAdmin bu yüzden üretimde kurucuya
+    // bile 403 veriyordu (/api/admin/stats hiç çalışmadı). Kimlik artık
+    // Yöncü PHP'sinden (auth.php?action=me) çözülür; 'isFounder' alanı
+    // gv_is_founder() ile birebir aynı kuralı taşır.
+    userFromReqAsync: async (req) => {
+      const h = String((req && req.headers && req.headers.authorization) || '');
+      const m = h.match(/^Bearer\s+(.+)$/i);
+      const tok = (m && m[1]) ? String(m[1]).trim()
+        : (req && req.headers && req.headers['x-gv-token'] ? String(req.headers['x-gv-token']).trim() : '');
+      if (!tok) return null;
+      let u = null;
+      try { u = await remote.me(tok); } catch (_) { u = null; }
+      if (!u || !u.id) return null;
+      return { id: Number(u.id), name: u.name, email: u.email, isFounder: u.isFounder === true };
+    },
     // Uzak modda jeton Yöncü PHP'de doğrulanır (3 kanallı me çağrısı).
     verifyToken: async (t) => { const u = t ? await remote.me(String(t)) : null; return (u && u.id) ? Number(u.id) : null; },
     // Kararlı sonuç: 401 → 'invalid' (kesin), timeout/ağ → 'unknown'.
@@ -864,4 +914,4 @@ function installRemoteMode(app, deps) {
     } };
 }
 
-module.exports = { installAuth, uidFromUserKey, verifyAttestation, verifyFriendProof, hmacSha256Hex };
+module.exports = { installAuth, uidFromUserKey, verifyAttestation, verifyFriendProof, hmacSha256Hex, isFounderUser };

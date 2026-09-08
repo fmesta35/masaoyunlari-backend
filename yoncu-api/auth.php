@@ -34,7 +34,9 @@ $now = round(microtime(true) * 1000);
 // Kurucu Paneli'ne kurucu123 şifresiyle giriş yapılabilsin.
 try { gv_ensure_admin(gv_pdo(), $now); } catch (Exception $e) {}
 
-function gv_user_public($u) { return array('id' => intval($u['id']), 'name' => $u['name'], 'email' => $u['email']); }
+// isFounder: Kurucu Paneli yetkisi. Render (oyun sunucusu) da bu alana
+// bakarak /api/admin/* uçlarını korur — bkz. server.js requireAdmin.
+function gv_user_public($u) { return array('id' => intval($u['id']), 'name' => $u['name'], 'email' => $u['email'], 'isFounder' => gv_is_founder($u)); }
 
 if ($action === 'register') {
     $name = gv_clean_name($in['name'] ?? '');

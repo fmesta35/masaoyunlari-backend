@@ -21,15 +21,51 @@ app.use(express.json());
 // PWA manifest: Content-Type kesin application/manifest+json olmalı
 // (eski default text/plain yerine). Ayrıca static dosyalar cache'ini
 // kapat ki deploy sonrası eski manifest.json tarayıcıda kalmasın.
+const nodePath = require('path');
 app.get('/manifest.json', (_req, res) => {
   res.set('Content-Type', 'application/manifest+json');
   res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
-  res.sendFile(require('path').join(__dirname, 'manifest.json'));
+  res.sendFile(nodePath.join(__dirname, 'manifest.json'));
 });
-app.use(express.static(__dirname, { setHeaders: (res, path) => {
-  if (path.endsWith('.json')) res.set('Content-Type', 'application/json');
-  if (path.endsWith('.js')) res.set('Content-Type', 'application/javascript');
-}}));
+
+// ---- İSTEMCİ DOSYALARI: yalnız tarayıcının gerçekten istediği yollar ----
+// ⚠ GÜVENLİK: Burada eskiden express.static(__dirname) vardı ve DEPONUN
+// TAMAMINI yayınlıyordu. server.js / server-auth.js / db.js kaynak kodu,
+// yoncu-api/*.php dosyaları ve (yerel modda) data/gameverse.db dahil her
+// şey https://sunucu/<yol> adresinden indirilebiliyordu. Artık yalnızca
+// js/, css/ ve assets/ klasörleri + index.html + manifest.json servis
+// edilir; başka hiçbir depo dosyası dışarıdan erişilebilir değildir.
+const staticOpts = {
+  fallthrough: false,
+  setHeaders: (res, filePath) => {
+    if (filePath.endsWith('.json')) res.set('Content-Type', 'application/json');
+    if (filePath.endsWith('.js')) res.set('Content-Type', 'application/javascript');
+  }
+};
+for (const dir of ['js', 'css', 'assets']) {
+  app.use('/' + dir, express.static(nodePath.join(__dirname, dir), staticOpts));
+}
+// ---- MOBİL UYGULAMA (PWA / Android TWA) KÖK DOSYALARI ----
+// Statik servis js/, css/, assets/ ile sınırlandığı için bu iki dosyanın
+// kökten servis edilmesi AÇIKÇA tanımlanır. İkisi de kök yolda olmak
+// ZORUNDADIR: servis çalışanı kökten yayınlanmazsa tüm siteyi
+// kapsayamaz, assetlinks.json kökte olmazsa Android uygulaması alan adı
+// sahipliğini doğrulayamaz ve adres çubuğunu gizleyemez.
+app.get('/sw.js', (_req, res) => {
+  res.set('Content-Type', 'application/javascript');
+  res.set('Service-Worker-Allowed', '/');
+  res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
+  res.sendFile(nodePath.join(__dirname, 'sw.js'));
+});
+app.get('/.well-known/assetlinks.json', (_req, res) => {
+  res.set('Content-Type', 'application/json');
+  res.sendFile(nodePath.join(__dirname, '.well-known', 'assetlinks.json'));
+});
+
+app.get(['/', '/index.html'], (_req, res) => {
+  res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
+  res.sendFile(nodePath.join(__dirname, 'index.html'));
+});
 
 const server = http.createServer(app);
 const io = new Server(server, {
@@ -179,7 +215,11 @@ const disconnectTimers = new Map();
 // 3x Düşünen (20 dk) = 10 masa. ID aralıkları (sabit, indeks bazlı):
 // satranç 101, tavla 201, okey 301 (sabit 18), damas 401, turkdamas 501,
 // reversi 601, gomoku 701, connect4 801, bilardo 921.
-const ADMIN_EMAIL = (process.env.GV_ADMIN_EMAIL || 'kurucu@kurucu.com').toLowerCase();
+// Kurucu e-postası: artık VARSAYILAN YOK. Kurucu yetkisi öncelikle
+// veritabanındaki is_founder bayrağından gelir; bu değişken yalnızca
+// ek/yedek bir eşleşme yoludur. (Eskiden 'kurucu@kurucu.com' sabitti ve
+// o hesap sabit "kurucu123" şifresiyle otomatik açılıyordu.)
+const ADMIN_EMAIL = String(process.env.GV_ADMIN_EMAIL || '').trim().toLowerCase();
 const ALL_GAMES = ['chess', 'tavla', 'okey', 'okey101', 'pisti', 'batak',
   'dama', 'turkdamasi', 'reversi', 'gomoku', 'connect4', 'bilardo'];
 
@@ -783,19 +823,49 @@ function buildTavlaState(room, opts) {
   };
 }
 
-function bilardoState(room, seat) { const b=room.bilardo; return {kind:'bilardo',status:room.status,turn:b.turn,winner:b.winner,balls:b.balls.map(x=>({...x})),seat,playerColor:seat===0?'r':'y',shots:b.shots,score:b.score.slice(),result:b.result||null}; }
+// ---- HAMLE (SIRA) SAATİ: tüm online oyunlarda ORTAK ----
+// İstemci sırası gelen oyuncunun KENDİ süre kartında canlı geri sayım
+// gösterebilsin diye her tahta/kart durumuna aynı dört alan eklenir.
+// (Eskiden bu bilgi yalnız satranç, tavla, okey ve kart oyunlarında vardı;
+// dama/türk daması/reversi/gomoku/connect4/bilardo istemcilerinde sıra
+// sayacı hiç görünmüyordu.)
+function turnSeatOf(room) {
+  if (!room) return null;
+  if (room.dama) return room.dama.turn === (room.gameId === 'turkdamasi' ? 'w' : 'r') ? 0 : 1;
+  if (room.reversi) return room.reversi.turn === 'b' ? 0 : 1;
+  if (room.gomoku) return room.gomoku.turn === 'b' ? 0 : 1;
+  if (room.connect4) return room.connect4.turn === 'r' ? 0 : 1;
+  if (room.bilardo) return room.bilardo.turn;
+  if (room.cardGame) return room.cardGame.turn;
+  return null;
+}
+function moveClockOf(room) {
+  const limit = room.gameId === 'pisti' ? PISTI_TURN_MS : MOVE_FORFEIT_MS;
+  const playing = room.status === 'playing' && !!room.moveStartedAt;
+  return {
+    turnSeat: turnSeatOf(room),
+    turnLimitMs: limit,
+    turnRemainingMs: playing ? Math.max(0, limit - (now() - room.moveStartedAt)) : null,
+    serverNow: now()
+  };
+}
+
+function bilardoState(room, seat) { const b=room.bilardo; return {kind:'bilardo',status:room.status,turn:b.turn,winner:b.winner,balls:b.balls.map(x=>({...x})),seat,playerColor:seat===0?'r':'y',shots:b.shots,score:b.score.slice(),result:b.result||null,...moveClockOf(room)}; }
 function emitBilardoState(room,event='gameStateUpdated'){room.players.forEach(p=>emitToPlayer(p,event,{roomId:room.id,seat:p.seat,gameState:bilardoState(room,p.seat),isSpectator:false}));(room.spectators||[]).forEach(p=>emitToPlayer(p,event,{roomId:room.id,seat:null,gameState:bilardoState(room,null),isSpectator:true}));}
 function startBilardo(room){if(room.status==='playing'||room.players.length!==2||!room.players.every(p=>p.isReady))return;room.status='playing';room.result=null;room.bilardo=bilardoEngine.init();room.turnStartedAt=now();touchMoveTimer(room);emitRoom(room);room.players.forEach(p=>emitToPlayer(p,'gameStarted',{roomId:room.id,seat:p.seat,playerColor:p.seat===0?'r':'y',players:publicRoom(room).players,gameState:bilardoState(room,p.seat)}));emitBilardoState(room);}
-function connect4State(room, seat) { const c=room.connect4; return {kind:'connect4',status:room.status,turn:c.turn,winner:c.winner,board:c.board.map(x=>x.slice()),seat,playerColor:seat===0?'r':'y',moves:c.moves,result:c.result||null}; }
+function connect4State(room, seat) { const c=room.connect4; return {kind:'connect4',status:room.status,turn:c.turn,winner:c.winner,board:c.board.map(x=>x.slice()),seat,playerColor:seat===0?'r':'y',moves:c.moves,result:c.result||null,...moveClockOf(room)}; }
 function emitConnect4State(room,event='gameStateUpdated'){room.players.forEach(p=>emitToPlayer(p,event,{roomId:room.id,seat:p.seat,gameState:connect4State(room,p.seat),isSpectator:false}));(room.spectators||[]).forEach(p=>emitToPlayer(p,event,{roomId:room.id,seat:null,gameState:connect4State(room,null),isSpectator:true}));}
 function startConnect4(room){if(room.status==='playing'||room.players.length!==2||!room.players.every(p=>p.isReady))return;room.status='playing';room.result=null;room.connect4=connect4Engine.init();room.turnStartedAt=now();touchMoveTimer(room);emitRoom(room);room.players.forEach(p=>emitToPlayer(p,'gameStarted',{roomId:room.id,seat:p.seat,playerColor:p.seat===0?'r':'y',players:publicRoom(room).players,gameState:connect4State(room,p.seat)}));emitConnect4State(room);}
-function gomokuState(room, seat) { const g=room.gomoku; return {kind:'gomoku',status:room.status,turn:g.turn,winner:g.winner,board:g.board.map(x=>x.slice()),seat,playerColor:seat===0?'b':'w',moves:g.moves,result:g.result||null}; }
+function gomokuState(room, seat) { const g=room.gomoku; return {kind:'gomoku',status:room.status,turn:g.turn,winner:g.winner,board:g.board.map(x=>x.slice()),seat,playerColor:seat===0?'b':'w',moves:g.moves,result:g.result||null,...moveClockOf(room)}; }
 function emitGomokuState(room,event='gameStateUpdated'){room.players.forEach(p=>emitToPlayer(p,event,{roomId:room.id,seat:p.seat,gameState:gomokuState(room,p.seat),isSpectator:false}));(room.spectators||[]).forEach(p=>emitToPlayer(p,event,{roomId:room.id,seat:null,gameState:gomokuState(room,null),isSpectator:true}));}
 function startGomoku(room){if(room.status==='playing'||room.players.length!==2||!room.players.every(p=>p.isReady))return;room.status='playing';room.result=null;room.gomoku=gomokuEngine.init();room.turnStartedAt=now();touchMoveTimer(room);emitRoom(room);room.players.forEach(p=>emitToPlayer(p,'gameStarted',{roomId:room.id,seat:p.seat,playerColor:p.seat===0?'b':'w',players:publicRoom(room).players,gameState:gomokuState(room,p.seat)}));emitGomokuState(room);}
-function reversiState(room, seat) { const r=room.reversi; return {kind:'reversi',status:room.status,turn:r.turn,winner:r.winner,board:r.board.map(x=>x.slice()),seat,playerColor:seat===0?'b':'w',legalMoves:seat===null?[]:r.turn===(seat===0?'b':'w')?reversiEngine.legalMoves(r):[],result:r.result||null}; }
+function reversiState(room, seat) { const r=room.reversi; return {kind:'reversi',status:room.status,turn:r.turn,winner:r.winner,board:r.board.map(x=>x.slice()),seat,playerColor:seat===0?'b':'w',legalMoves:seat===null?[]:r.turn===(seat===0?'b':'w')?reversiEngine.legalMoves(r):[],result:r.result||null,...moveClockOf(room)}; }
 function emitReversiState(room,event='gameStateUpdated'){room.players.forEach(p=>emitToPlayer(p,event,{roomId:room.id,seat:p.seat,gameState:reversiState(room,p.seat),isSpectator:false}));(room.spectators||[]).forEach(p=>emitToPlayer(p,event,{roomId:room.id,seat:null,gameState:reversiState(room,null),isSpectator:true}));}
 function startReversi(room){if(room.status==='playing'||room.players.length!==2||!room.players.every(p=>p.isReady))return;room.status='playing';room.result=null;room.reversi=reversiEngine.init();room.turnStartedAt=now();touchMoveTimer(room);emitRoom(room);room.players.forEach(p=>emitToPlayer(p,'gameStarted',{roomId:room.id,seat:p.seat,playerColor:p.seat===0?'b':'w',players:publicRoom(room).players,gameState:reversiState(room,p.seat)}));emitReversiState(room);}
-function damaState(room, seat) { const d=room.dama; const isTurk=room.gameId==='turkdamasi'; const engine=isTurk?turkDamaEngine:damaEngine; const color=seat===0?(isTurk?'w':'r'):(isTurk?'b':'b'); return {kind:room.gameId,status:room.status,turn:d.turn,winner:d.winner,board:d.board.map(r=>r.slice()),captures:{...d.captures},seat,playerColor:color,legalMoves:seat===null?[]:d.turn===color?engine.allMoves(d):[]}; }
+function damaState(room, seat) { const d=room.dama; const isTurk=room.gameId==='turkdamasi'; const engine=isTurk?turkDamaEngine:damaEngine; /* Koltuk 0 açık taşları oynar (Türk daması 'w', İngiliz daması 'r');
+     koltuk 1 her iki oyunda da siyahtır. Eski yazım "(isTurk?'b':'b')"
+     gereksizce iki dallıydı ve niyeti gizliyordu. */
+  const color = seat === 0 ? (isTurk ? 'w' : 'r') : 'b'; return {kind:room.gameId,status:room.status,turn:d.turn,winner:d.winner,board:d.board.map(r=>r.slice()),captures:{...d.captures},seat,playerColor:color,legalMoves:seat===null?[]:d.turn===color?engine.allMoves(d):[],...moveClockOf(room)}; }
 function emitDamaState(room,event='gameStateUpdated'){room.players.forEach(p=>emitToPlayer(p,event,{roomId:room.id,seat:p.seat,gameState:damaState(room,p.seat),isSpectator:false}));(room.spectators||[]).forEach(p=>emitToPlayer(p,event,{roomId:room.id,seat:null,gameState:damaState(room,null),isSpectator:true}));}
 function startDama(room){if(room.status==='playing'||room.players.length!==2||!room.players.every(p=>p.isReady))return;room.status='playing';room.result=null;room.dama=room.gameId==='turkdamasi'?turkDamaEngine.init():damaEngine.init();room.turnStartedAt=now();touchMoveTimer(room);emitRoom(room);room.players.forEach(p=>emitToPlayer(p,'gameStarted',{roomId:room.id,seat:p.seat,playerColor:p.seat===0?(room.gameId==='turkdamasi'?'w':'r'):'b',players:publicRoom(room).players,gameState:damaState(room,p.seat)}));emitDamaState(room);}
 
@@ -808,7 +878,8 @@ function cardGameState(room, forSeat) {
     hand: forSeat == null ? [] : (st.hands[forSeat] || []).slice(), handCounts: hands,
     center: (st.center || []).slice(), trick: (st.trick || []).slice(), captures: st.captures ? st.captures.map(x=>x.length) : [],
     scores: (st.scores || []).slice(), bids: st.bids ? st.bids.slice() : [], trump: st.trump,
-    deckCount: st.deck ? st.deck.length : 0, turnRemainingMs: Math.max(0, (room.gameId==='pisti'?PISTI_TURN_MS:MOVE_FORFEIT_MS) - (now() - (room.moveStartedAt || now()))), tricks: st.tricks ? st.tricks.slice() : [], result: st.result || null
+    deckCount: st.deck ? st.deck.length : 0, tricks: st.tricks ? st.tricks.slice() : [], result: st.result || null,
+    ...moveClockOf(room)
   };
 }
 function emitCardState(room, event='gameStateUpdated') {
@@ -2456,21 +2527,28 @@ const clockTimer = setInterval(() => {
       }
     }
   }
-  function cardMoveTurn(room) {
-  if (room.dama) { const c=room.dama.turn; return c === (room.gameId==='turkdamasi'?'w':'r') ? 0 : 1; }
-  if (room.reversi) return room.reversi.turn === 'b' ? 0 : 1;
-  if (room.gomoku) return room.gomoku.turn === 'b' ? 0 : 1;
-  if (room.connect4) return room.connect4.turn === 'r' ? 0 : 1;
-  if (room.bilardo) return room.bilardo.turn;
-  if (room.cardGame) return room.cardGame.turn;
-  return null;
-}
+  // Sıra kimde? — tek kaynak turnSeatOf() (durum paketleriyle birebir aynı).
+  function cardMoveTurn(room) { return turnSeatOf(room); }
 function enforceOnlineMoveTimeout(room) {
   if (!room.moveStartedAt || !room.players.length || (!room.dama && !room.reversi && !room.gomoku && !room.connect4 && !room.bilardo && !room.cardGame)) return false;
   const elapsed=now()-room.moveStartedAt, seat=cardMoveTurn(room); if (seat===null) return false;
   if (!room.moveWarned && elapsed>=(room.gameId==='pisti'?Math.min(MOVE_WARN_MS, PISTI_TURN_MS-1000):MOVE_WARN_MS)) { room.moveWarned=true; io.to(room.id).emit('moveTimeWarning',{roomId:room.id,seat,remainingMs:Math.max(0,MOVE_FORFEIT_MS-elapsed)}); }
   if (elapsed<(room.gameId==='pisti'?PISTI_TURN_MS:MOVE_FORFEIT_MS)) return false;
-  const winner=seat===0?1:0; room.status='finished'; room.result={reason:'move_timeout',winnerSeat:winner};
+  // KAZANAN: 2 kişilik masada karşı koltuk. 4 kişilik masalarda (pişti/batak)
+  // eskiden koşulsuz "seat===0?1:0" deniyordu — koltuk 2 ya da 3 süreyi
+  // doldurduğunda kazanan yanlış ilan ediliyordu. Artık süreyi dolduran
+  // ELENİR: kalan koltuklar arasında en yüksek skorlu (yoksa ilk) kazanır.
+  let winner;
+  if (room.players.length > 2) {
+    const sc = (room.cardGame && Array.isArray(room.cardGame.scores)) ? room.cardGame.scores : [];
+    const rakipler = room.players.map(p => p.seat).filter(x => x !== seat);
+    winner = rakipler.length
+      ? rakipler.reduce((best, x) => (Number(sc[x] || 0) > Number(sc[best] || 0) ? x : best), rakipler[0])
+      : (seat === 0 ? 1 : 0);
+  } else {
+    winner = seat === 0 ? 1 : 0;
+  }
+  room.status='finished'; room.result={reason:'move_timeout',winnerSeat:winner};
   const stateFor=(p)=>room.dama?damaState(room,p):room.reversi?reversiState(room,p):room.gomoku?gomokuState(room,p):room.connect4?connect4State(room,p):room.bilardo?bilardoState(room,p):cardGameState(room,p);
   room.players.forEach(p=>emitToPlayer(p,'gameEnded',{roomId:room.id,reason:'move_timeout',winnerSeat:winner,youWon:p.seat===winner,gameState:stateFor(p.seat)}));
   (room.spectators||[]).forEach(p=>emitToPlayer(p,'gameEnded',{roomId:room.id,reason:'move_timeout',winnerSeat:winner,youWon:false,isSpectator:true,gameState:stateFor(null)}));
@@ -2585,10 +2663,30 @@ app.get('/api/games-meta', (_req, res) => {
   res.json({ ok: true, games: ALL_GAMES.map(id => ({ id, visible: gameVisible(id) })) });
 });
 
-// Yönetici (kurucu) yetki kontrolü: oturum sahibi ADMIN_EMAIL ise geçer.
-function requireAdmin(req, res) {
-  const u = (authApi && typeof authApi.userFromReq === 'function') ? authApi.userFromReq(req) : null;
-  if (!u || !u.email || String(u.email).toLowerCase() !== ADMIN_EMAIL) {
+// Yönetici (kurucu) yetki kontrolü — TÜM /api/admin/* uçlarının tek kapısı.
+//
+// ⚠ Eskiden yalnız authApi.userFromReq() kullanılıyordu. Üretimde (uzak mod,
+// GV_AUTH_API tanımlı) üyelik katmanı bu fonksiyonu HİÇ döndürmüyor; bu
+// yüzden kontrol kurucuya bile 403 veriyor ve /api/admin/users,
+// /api/admin/tables, /api/admin/stats üretimde tamamen çalışmıyordu.
+// Artık kimlik her iki modda da çözülür (yerelde SQLite oturumu, uzakta
+// Yöncü PHP auth.php?action=me) ve kurucu olma kuralı tek yerdedir:
+// veritabanındaki is_founder bayrağı ya da GV_ADMIN_EMAIL eşleşmesi.
+async function requireAdmin(req, res) {
+  let u = null;
+  try {
+    if (authApi && typeof authApi.userFromReqAsync === 'function') {
+      u = await authApi.userFromReqAsync(req);
+    } else if (authApi && typeof authApi.userFromReq === 'function') {
+      u = authApi.userFromReq(req);
+    }
+  } catch (_) { u = null; }
+  const isFounder = !!u && (
+    u.isFounder === true ||
+    Number(u.is_founder) === 1 ||
+    (!!ADMIN_EMAIL && String(u.email || '').toLowerCase() === ADMIN_EMAIL)
+  );
+  if (!isFounder) {
     res.status(403).json({ ok: false, error: 'Yönetici yetkisi gerekli.' });
     return null;
   }
@@ -2597,8 +2695,8 @@ function requireAdmin(req, res) {
 
 // Kurucu Paneli — üye listesi (yalnız yerel modda Render; uzak modda
 // istemci Yöncü PHP'sine /api/admin.php?action=users gider):
-app.get('/api/admin/users', (req, res) => {
-  if (!requireAdmin(req, res)) return;
+app.get('/api/admin/users', async (req, res) => {
+  if (!await requireAdmin(req, res)) return;
   if (!db) return res.json({ ok: true, users: [] });
   try {
     const rows = db.prepare('SELECT id, name, email, created_at FROM users ORDER BY created_at ASC, id ASC LIMIT 500').all();
@@ -2615,7 +2713,13 @@ app.get('/api/admin/users', (req, res) => {
 // ad-tip). Üretimde (uzak mod) kalıcı kayıt Yöncü MySQL'dedir: istemci önce
 // admin.php?action=gamesSave ile kaydeder, sonra burayı çağırarak Render'ı
 // CANLI günceller. Yerel modda bu uç aynı zamanda SQLite'a yazar.
-app.post('/api/admin/tables-apply', (req, res) => {
+app.post('/api/admin/tables-apply', async (req, res) => {
+  // ⚠ GÜVENLİK: Bu uç eskiden YETKİSİZDİ. Diğer tüm /api/admin/* uçları
+  // requireAdmin'den geçerken bu geçmiyordu; dolayısıyla internetteki
+  // herkes POST atıp CANLI sunucuda oyunları gizleyebiliyor, hazır
+  // masaları silip yeniden kurabiliyordu (oyun akışını bozan bir
+  // yetkisiz yazma yolu). Artık yalnız kurucu çağırabilir.
+  if (!await requireAdmin(req, res)) return;
   const body = (req.body && req.body.games) || (req.body && typeof req.body === 'object' ? req.body : {});
   try {
     applyPresetConfig(body);
@@ -2629,16 +2733,16 @@ app.post('/api/admin/tables-apply', (req, res) => {
 
 // Kurucu Paneli — geçerli masa ayarlarını oku (yerel mod; uzak modda
 // istemci Yöncü PHP'sine gider):
-app.get('/api/admin/tables', (req, res) => {
-  if (!requireAdmin(req, res)) return;
+app.get('/api/admin/tables', async (req, res) => {
+  if (!await requireAdmin(req, res)) return;
   res.json({ ok: true, games: presetConfig });
 });
 
 // Kurucu Paneli / Ana sayfa — canlı istatistikler (yalnız yönetici).
 // Metrikler: online üye, aktif/bugünkü oyun, toplam/devam eden/tamamlanan
 // maç, günlük-haftalık-aylık yeni üye, 7 günde aktif üye.
-app.get('/api/admin/stats', (req, res) => {
-  if (!requireAdmin(req, res)) return;
+app.get('/api/admin/stats', async (req, res) => {
+  if (!await requireAdmin(req, res)) return;
   const now = Date.now();
   const DAY = 86400000, WEEK = 7 * DAY, MONTH = 30 * DAY;
   const onlineUsers = (authApi && typeof authApi.onlineCount === 'function') ? authApi.onlineCount() : 0;
@@ -2785,6 +2889,17 @@ app.get('/api/_php_ping', async (req, res) => {
       remote: remote.REMOTE
     });
   }
+});
+
+// ---- Bilinmeyen yol + statik hata işleyicisi ----
+// Express'in varsayılan işleyicisi 403/404 durumlarında sunucu yığın izini
+// (dosya yolları dahil) loglara ve bazı durumlarda cevaba basıyordu.
+// Dizin kaçışı denemelerinde bu hem gürültü hem bilgi sızıntısıdır.
+app.use((req, res) => res.status(404).json({ ok: false, error: 'Bulunamadı.' }));
+app.use((err, _req, res, _next) => {
+  const code = (err && (err.status || err.statusCode)) || 500;
+  if (code >= 500) console.error('Sunucu hatası:', err && err.message);
+  res.status(code).json({ ok: false, error: code === 403 ? 'Erişim yok.' : code === 404 ? 'Bulunamadı.' : 'Sunucu hatası.' });
 });
 
 // Ayarlar → hazır masalar → dinleme. Uzak modda ayarların Yöncü'den

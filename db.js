@@ -39,7 +39,9 @@ try {
       verify_sent_at INTEGER,
       reset_token TEXT,
       reset_expires INTEGER,
-      created_at INTEGER NOT NULL
+      created_at INTEGER NOT NULL,
+      -- Kurucu (founder) bayrağı: 1 olan hesap Kurucu Paneli'ni açar.
+      is_founder INTEGER NOT NULL DEFAULT 0
     );
     CREATE TABLE IF NOT EXISTS sessions(
       token TEXT PRIMARY KEY,
@@ -74,6 +76,13 @@ try {
       updated_at INTEGER
     );
   `);
+  // Eski veritabanları: kurucu bayrağı sütunu sonradan eklendi (idempotent).
+  try {
+    const cols = db.prepare('PRAGMA table_info(users)').all().map(c => c.name);
+    if (!cols.includes('is_founder')) {
+      db.exec('ALTER TABLE users ADD COLUMN is_founder INTEGER NOT NULL DEFAULT 0');
+    }
+  } catch (e) { console.warn('⚠️  is_founder sütunu eklenemedi:', e.message); }
   console.log('💾 SQLite veritabanı hazır (' + path.join(dir, 'gameverse.db') + ')');
   }
 } catch (e) {

@@ -492,11 +492,19 @@
     }
 
     if (gs.clockMs) {
+      // Hamle geri sayımı SIRASI GELEN oyuncunun KENDİ saatinin yanında
+      // durur: "🕐 09:12 · ⏱ 23 sn". Böylece kimin süresi aktığı ayrı bir
+      // rozete bakmadan, oyuncunun kendi satırında görünür.
+      const turnRemain = Math.max(0, Number(gs.turnRemainingMs || 0) - (playing ? sincePack : 0));
+      const turnSecs = Math.ceil(turnRemain / 1000);
       document.querySelectorAll('[data-okey-clock]').forEach(span => {
         const seat = Number(span.getAttribute('data-okey-clock'));
         let ms = Number(gs.clockMs[seat] || 0);
-        if (playing && seat === gs.turn) ms = Math.max(0, ms - sincePack);
-        setText(span, '🕐 ' + fmt(ms));
+        const sirasi = playing && seat === gs.turn;
+        if (sirasi) ms = Math.max(0, ms - sincePack);
+        setText(span, '🕐 ' + fmt(ms) + (sirasi ? ' · ⏱ ' + turnSecs + ' sn' : ''));
+        span.classList.toggle('turn', !!sirasi);
+        span.classList.toggle('urgent', !!sirasi && turnSecs <= 10);
       });
     }
   }

@@ -47,8 +47,21 @@ define('GV_SMTP_PORT', 465);
 define('GV_SMTP_USER', 'info@masaoyunlari.com.tr');
 define('GV_SMTP_PASS', 'BURAYA_SMTP_ŞİFRESİ');
 
-/* Yonetici (kurucu) hesabi — Kurucu Paneli yalniz bu e-posta
- * oturumunda acar. Hesap yoksa ilk kimlik isleminde OTOMATIK
- * olusturulur (onayli, sifre: kurucu123). Varsayilan:
- * kurucu@kurucu.com — degistirmek isterseniz degistirin. */
-define('GV_ADMIN_EMAIL', 'kurucu@kurucu.com');
+/* Yonetici (kurucu) hesabi — KURUCU PANELI YETKISI
+ *
+ * ⚠ ONEMLI DEGISIKLIK: Kurucu hesabi ARTIK KENDILIGINDEN OLUSMUYOR.
+ * Eskiden kurucu@kurucu.com hesabi SABIT 'kurucu123' sifresiyle otomatik
+ * aciliyordu; sifre depoda acik yazdigi icin siteye disaridan kurucu
+ * olarak girilebiliyordu. Bu davranis kaldirildi.
+ *
+ * KURULUM (phpMyAdmin -> SQL sekmesi):
+ *   1) Sitede normal bir uye hesabi acin (e-posta onayini tamamlayin).
+ *   2) O hesabi kurucu yapin:
+ *        UPDATE gv_users SET is_founder = 1 WHERE email = 'sizin@adresiniz';
+ *   3) Eski varsayilan hesabi silin:
+ *        DELETE FROM gv_users WHERE email = 'kurucu@kurucu.com';
+ *
+ * Asagidaki GV_ADMIN_EMAIL ek/yedek bir yoldur: bu e-postaya sahip MEVCUT
+ * hesap da kurucu sayilir (ve ilk istekte is_founder = 1 olarak isaretlenir).
+ * Bayrakla yonetmek istiyorsaniz bos birakabilirsiniz. */
+define('GV_ADMIN_EMAIL', '');

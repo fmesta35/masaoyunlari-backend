@@ -542,8 +542,8 @@
 
     let html = '<div class="chess-wrapper">' +
       (isSpectator ? '<div class="gv-spec-banner">👁️ İzleyici — sadece izliyorsunuz, hamle yapamazsınız</div>' : '') +
-      // Hamle süresi canlı geri sayım rozeti (tahtanın üstü; updateClock doldurur)
-      '<div id="moveClockBadge" class="move-clock-badge" style="visibility:hidden"></div>' +
+      // NOT: Hamle geri sayımı artık tahtanın üstünde DEĞİL, üstteki süre
+      // şeridinde sırası gelen oyuncunun kendi kartında (js/move-clock.js).
       '<div class="chess">';
 
     const rowRange = isFlipped ? [7, 6, 5, 4, 3, 2, 1, 0] : [0, 1, 2, 3, 4, 5, 6, 7];
@@ -914,23 +914,19 @@
       el.classList.toggle('active', color === gameState.turn && gameState.status === 'playing');
     });
 
-    // Hamle süresi rozeti: hamlesi beklenen tarafın kalan süresi canlı sayılır.
-    // Son ~20 sn'de kırmızıya döner (danger). Sunucu paketindeki
-    // moveRemainingMs + serverNow üzerinden yerel saatle türetilir.
-    const badge = document.getElementById('moveClockBadge');
-    if (badge) {
-      const limit = Number(gameState.moveLimitMs) || 60000;
+    // Hamle geri sayımı: SIRASI GELEN oyuncunun kendi süre kartının içinde.
+    // Hangi kartın sırası olduğunu yukarıdaki .active sınıfı zaten söylüyor;
+    // ortak katman (js/move-clock.js) o karta yazar ve 250 ms'de bir sayar.
+    if (window.GVMoveClock) {
       if (gameState.status === 'playing' && typeof gameState.moveRemainingMs === 'number') {
-        const sincePack = gameState.serverNow ? Math.max(0, Date.now() - Number(gameState.serverNow)) : 0;
-        const remain = Math.max(0, Number(gameState.moveRemainingMs) - sincePack);
-        const secs = Math.ceil(remain / 1000);
-        const who = gameState.turn === 'w' ? 'Beyaz' : 'Siyah';
-        setText(badge, `⏱ Hamle sırası: ${who} — ${secs} sn`);
-        const danger = remain <= Math.min(20000, limit / 2);
-        if (badge.classList.contains('danger') !== danger) badge.classList.toggle('danger', danger);
-        if (badge.style.visibility !== 'visible') badge.style.visibility = 'visible';
+        GVMoveClock.set({
+          activeIndex: null,                       // vurgu yukarıda satrançta ayarlanıyor
+          remainingMs: gameState.moveRemainingMs,
+          limitMs: gameState.moveLimitMs,
+          serverNow: gameState.serverNow
+        });
       } else {
-        if (badge.style.visibility !== 'hidden') badge.style.visibility = 'hidden';
+        GVMoveClock.clear();
       }
     }
   }

@@ -99,8 +99,12 @@ function gv_schema($pdo) {
         reset_token VARCHAR(96) NULL,
         reset_expires BIGINT NULL,
         created_at BIGINT NOT NULL,
+        is_founder TINYINT(1) NOT NULL DEFAULT 0,
         INDEX (name)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci");
+    // Kurucu bayragi: eski kurulumlarda sutun yoktur, bir kez eklenir.
+    // (Sutun zaten varsa MySQL hata verir; yutulur — islem tekrarlanabilir.)
+    try { $pdo->exec("ALTER TABLE gv_users ADD COLUMN is_founder TINYINT(1) NOT NULL DEFAULT 0"); } catch (Exception $e) {}
     $pdo->exec("CREATE TABLE IF NOT EXISTS gv_sessions(
         token VARCHAR(96) PRIMARY KEY,
         user_id INT NOT NULL,
@@ -154,32 +158,49 @@ function gv_token() { return bin2hex(random_bytes(24)); }
 function gv_user_by_token($token) {
     if (!$token) return null;
     $pdo = gv_pdo();
-    $s = $pdo->prepare("SELECT u.id, u.name, u.email, u.verified FROM gv_sessions s JOIN gv_users u ON u.id = s.user_id WHERE s.token = ?");
+    $s = $pdo->prepare("SELECT u.id, u.name, u.email, u.verified, u.is_founder FROM gv_sessions s JOIN gv_users u ON u.id = s.user_id WHERE s.token = ?");
     $s->execute(array($token));
     $u = $s->fetch();
     return $u ? $u : null;
 }
 
 // ---------------- Yönetici (kurucu) hesabı ----------------
-// Kurucu Paneli yalnız GV_ADMIN_EMAIL hesabının oturumunda açılır.
-// Hesap YOKSA ilk kimlik işlemi sırasında OTOMATİK oluşturulur
-// (onaylı, şifre: kurucu123) — kurucu@kurucu.com ile giriş yapılır.
-// (auth.php HER kimlik çağrısında, admin.php HER istekte bunu dener.)
+// Kurucu Paneli iki koşuldan BİRİYLE açılır:
+//   1) gv_users.is_founder = 1  → hesabı phpMyAdmin'den siz işaretlersiniz
+//   2) hesabın e-postası config.php'deki GV_ADMIN_EMAIL ile birebir aynı
+//
+// ⚠ GÜVENLİK NOTU: Eskiden kurucu@kurucu.com hesabı SABİT "kurucu123"
+// şifresiyle kendiliğinden oluşuyordu. Şifre bu depoda açıkça yazdığı için
+// siteye dışarıdan kurucu olarak girilebiliyordu. OTOMATİK OLUŞTURMA
+// KALDIRILDI: artık kurucu hesabını siz açar, sonra işaretlersiniz:
+//   UPDATE gv_users SET is_founder = 1 WHERE email = 'sizin@adresiniz';
+//   DELETE FROM gv_users WHERE email = 'kurucu@kurucu.com';
 function gv_admin_email() {
-    return defined('GV_ADMIN_EMAIL') ? strtolower(strval(GV_ADMIN_EMAIL)) : 'kurucu@kurucu.com';
+    return defined('GV_ADMIN_EMAIL') ? strtolower(trim(strval(GV_ADMIN_EMAIL))) : '';
 }
+
+// Bu üye kaydı kurucu mu? (bayrak VEYA GV_ADMIN_EMAIL eşleşmesi)
+function gv_is_founder($u) {
+    if (!$u) return false;
+    if (isset($u['is_founder']) && intval($u['is_founder']) === 1) return true;
+    $mail = gv_admin_email();
+    if ($mail === '') return false;
+    return strtolower(strval(isset($u['email']) ? $u['email'] : '')) === $mail;
+}
+
+// Geriye dönük uyumluluk: eskiden kurucu hesabını OLUŞTURAN yardımcı.
+// Artık yalnızca GV_ADMIN_EMAIL ile eşleşen MEVCUT hesaba kurucu bayrağını
+// işler. Hiçbir koşulda yeni hesap açmaz, hiçbir şifre atamaz.
 function gv_ensure_admin($pdo, $now) {
     static $done = false;
     if ($done) return;
     $done = true;
     $mail = gv_admin_email();
-    $s = $pdo->prepare("SELECT id FROM gv_users WHERE email = ?");
-    $s->execute(array($mail));
-    if (!$s->fetch()) {
-        $pdo->prepare("INSERT INTO gv_users(name, email, pass_hash, verified, verify_token, verify_sent_at, created_at)
-                       VALUES(?, ?, ?, 1, NULL, 0, ?)")
-            ->execute(array('👑 Kurucu', $mail, password_hash('kurucu123', PASSWORD_DEFAULT), $now));
-    }
+    if ($mail === '') return;
+    try {
+        $pdo->prepare("UPDATE gv_users SET is_founder = 1 WHERE email = ? AND is_founder = 0")
+            ->execute(array($mail));
+    } catch (Exception $e) {}
 }
 
 function gv_require_user() {

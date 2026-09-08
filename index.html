@@ -2,7 +2,7 @@
 <html lang="tr" data-theme="dark">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no,viewport-fit=cover">
 <title>Masa Oyunları - Çok Oyunculu Oyun Platformu</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
@@ -728,7 +728,13 @@ html{scrollbar-gutter:stable}
 <link rel="icon" type="image/png" sizes="16x16" href="assets/icons/favicon-16x16.png">
 <link rel="apple-touch-icon" sizes="180x180" href="assets/icons/apple-touch-icon.png">
 <link rel="manifest" href="manifest.json">
-<meta name="theme-color" content="#6c5ce7">
+<meta name="theme-color" content="#0a0a1a">
+<meta name="theme-color" content="#f0f2f5" media="(prefers-color-scheme: light)">
+<!-- iOS: ana ekrana eklenince tam ekran uygulama gibi açılır -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Masa Oyunları">
+<meta name="mobile-web-app-capable" content="yes">
 
 <!-- Preload Critical Assets -->
 <link rel="preload" href="css/style.css" as="style">
@@ -783,6 +789,228 @@ html{scrollbar-gutter:stable}
   .modal{max-width:96vw}
 }
 </style>
+<style id="gv-responsive">
+/* ==================================================================
+   GAMEVERSE — HAMLE SAATİ + WEB/MOBİL GÖRÜNÜM KATMANI
+   ------------------------------------------------------------------
+   Bu blok EN SON yüklenir; yukarıdaki kuralları bilerek ezer.
+   Amaç: her oyun ve her ekran, dar telefondan geniş masaüstüne kadar
+   TAŞMADAN, kırpılmadan ve zıplamadan çalışsın.
+
+   Tek ölçü kaynağı iki değişkendir:
+     --gv-chrome : üst bar + oda başlığı + süre şeridi için ayrılan pay
+     --gv-board  : tahtaya kalan kare kenar (HEM yükseklik HEM genişlikten)
+   Bütün tahtalar bu değişkene bağlıdır. Yeni bir oyun eklendiğinde
+   sarmalayıcısını aşağıdaki listeye yazmak yeterlidir; kırılma
+   noktalarında oyun oyun ayrı kural yazılmaz.
+   ================================================================== */
+
+/* ---------- 0) ÖLÇÜ DEĞİŞKENLERİ ---------- */
+:root{
+  --gv-chrome:290px;
+  --gv-board:min(760px,100%,max(280px,calc(100vh - var(--gv-chrome))));
+  --gv-side:260px;
+  --gv-safe-b:env(safe-area-inset-bottom,0px);
+}
+/* Mobil tarayıcılarda adres çubuğu açılıp kapanınca 100vh zıplar; dvh
+   destekleniyorsa tahta boyu artık oynamaz. */
+@supports (height:100dvh){
+  :root{--gv-board:min(760px,100%,max(280px,calc(100dvh - var(--gv-chrome))))}
+}
+
+/* ---------- 1) YATAY TAŞMA: hiçbir ekranda sayfa sağa kaymaz ---------- */
+html,body{max-width:100%;overflow-x:hidden}
+.page,#pg-room,.game-layout,.game-board-area,.game-side{min-width:0;max-width:100%}
+/* Geniş içerik SAYFAYI değil kendini kaydırır (sekme şeritleri, listeler) */
+#lbTabs,#tournTabs,.rooms-list,.moves,.gv-scroll-x{overflow-x:auto;-webkit-overflow-scrolling:touch}
+/* Uzun kelime/e-posta üst barı ve kartları germesin */
+.timer-name,.sc-name,.gv-card-turn,.dama-status,.tdama-info,.bil-info{overflow-wrap:anywhere}
+/* Çentikli telefonlarda alt şerit içerikle çakışmasın */
+body{padding-bottom:var(--gv-safe-b)}
+
+/* ---------- 2) HAMLE (SIRA) SAATİ: oyuncunun KENDİ kartında ---------- */
+/* Satır her zaman DOM'da ve yer kaplar: sayaç gelip gitse de kart
+   yüksekliği sabit kalır, dolayısıyla tahta yerinden oynamaz. */
+.timer{position:relative}
+.timer-move{
+  min-height:18px;line-height:1.15;margin-top:2px;
+  font-family:var(--mono);font-weight:800;font-size:.86em;
+  font-variant-numeric:tabular-nums;letter-spacing:.4px;color:var(--accent)}
+.timer:not(.active) .timer-move{color:var(--text2)}
+.timer-move.danger{color:var(--danger);animation:gvTurnPulse 1s ease-in-out infinite}
+@keyframes gvTurnPulse{0%,100%{opacity:1}50%{opacity:.4}}
+/* ANA SAATİ OLMAYAN oyunlar (dama, türk daması, reversi, gomoku,
+   connect4, bilardo, pişti, batak): kartta donmuş bir "10:00" yerine
+   hamle sayacı BÜYÜK gösterilir. */
+#topTimers.gv-nomain .timer-time{display:none}
+#topTimers.gv-nomain .timer-move{font-size:1.8em;margin-top:0;min-height:1.15em}
+#topTimers .timer.gv-turn{border-color:var(--accent)}
+/* Okey: sayaç sırası gelen oyuncunun kendi saatinin yanında */
+.ok-pclock.turn{color:var(--accent);font-weight:800}
+.ok-pclock.urgent{color:var(--danger);animation:gvTurnPulse 1s ease-in-out infinite}
+
+/* ---------- 2b) ÜST BAR: hiçbir genişlikte taşmaz ----------
+   801-900 px arası (küçük tablet, yatay telefon) mobil kurallara girmiyor,
+   masaüstü ölçüleri de sığmıyordu: giriş/kayıt düğmeleri ekranın dışında
+   kalıp KESİLİYORDU. Sıkışma artık genişliğe VE yatay telefona bağlı. */
+.header{flex-wrap:nowrap;min-width:0}
+.header .logo{min-width:0}
+.header-right{min-width:0;margin-left:auto}
+@media(max-width:900px),(max-height:560px) and (orientation:landscape){
+  .header{padding:0 8px;gap:6px;height:56px;justify-content:flex-start}
+  .header .logo{font-size:1.02em;gap:6px;flex:none;white-space:nowrap}
+  .header .logo img{height:24px!important;width:24px!important}
+  .header-right{gap:5px;flex:none}
+  #headerAuthContainer{gap:5px!important;flex:none}
+  #headerAuthContainer .btn{padding:6px 10px;font-size:.78em;white-space:nowrap}
+  .icon-btn{width:32px;height:32px;min-width:32px;font-size:.95em}
+  .user-pill{gap:6px!important;padding:3px 8px!important}
+  .nav-mid,.header .sb-search{max-width:min(240px,32vw)}
+}
+
+/* ---------- 3) TAHTALAR: hepsi AYNI kutuya oturur ---------- */
+.chess-wrapper,.dama-wrap,.tdama-wrap,.rv-wrap,.gm-wrap,.c4-wrap{
+  width:100%;max-width:var(--gv-board);margin-left:auto;margin-right:auto}
+/* Geniş (kare olmayan) masalar: tavla, bilardo, kart masası */
+.tavla-wrap,.bil-wrap,.card-wrap{
+  width:100%;max-width:min(860px,100%);margin-left:auto;margin-right:auto}
+/* Kare tahtalar taşları oranla büyütür/küçültür (yüzdeli ölçüler zaten var) */
+.dama-board,.tdama-board,.rv-board,.gm-board,.c4-board{width:100%}
+.gm-board{padding:min(6px,1.2%)}
+.rv-board{padding:min(6px,1.2%);gap:min(3px,.6%)}
+.c4-board{gap:min(5px,1.2%);padding:min(12px,2.4%)}
+.c4-drop-row{gap:min(5px,1.2%);padding:0 min(12px,2.4%)}
+.c4-drop-btn{padding:min(8px,1.8%) 0;font-size:clamp(.7em,2.4vw,1em)}
+/* Bilardo topları: masa küçülünce toplar da küçülür (adaptör yüzdeli
+   konum veriyor; boyut da yüzdeli olmalı, yoksa toplar cepleri taşırdı) */
+.bil-table>div{box-sizing:border-box}
+
+/* ---------- 3b) IZGARA HÜCRELERİ TAŞMASIN (gerçek bir kırpılma hatası) ----------
+   CSS ızgarasında hücrelerin varsayılan alt sınırı 'min-width:auto'dur:
+   hücre, İÇERİĞİNDEN (satranç taşı glifi) daha dar olamaz. Taş yazı boyu
+   büyüyünce sütunlar 1fr'i aşıyor, tahta kabından geniş kalıyor ve
+   'overflow:hidden' yüzünden SON SÜTUN KIRPILIYORDU (8. dosya görünmüyordu).
+   Alt sınırı sıfırlamak sütunları tam 1fr'e oturtur. */
+.chess-c,.dama-c,.tdama-c,.rv-c,.gm-c,.c4-c{min-width:0;min-height:0}
+/* Glif, hücreyi taşırmayacak boya sabitlenir (76 px hücrede ~45 px harf) */
+.chess-c{font-size:7.4cqw;line-height:1}
+
+/* ---------- 4) KART OYUNLARI: kartlar ekrana göre ölçeklenir ---------- */
+.pcard{
+  width:clamp(34px,9.2vw,56px);
+  height:clamp(48px,12.8vw,78px);
+  padding:clamp(2px,.8vw,5px)}
+.pcard .cr{font-size:clamp(.8em,2.6vw,1.3em)}
+.pcard .cs{font-size:clamp(1em,3.4vw,1.8em)}
+.hand-row{padding:clamp(6px,2vw,12px);gap:0}
+.hand-row .pcard{margin-left:clamp(-20px,-3vw,-8px)}
+.hand-row .pcard:first-child{margin-left:0}
+.card-table{padding:clamp(12px,4vw,30px);min-height:clamp(230px,44vw,380px);border-width:clamp(6px,1.6vw,12px)}
+.card-center-pile{max-width:min(300px,72%)}
+/* Dokunmatikte "hover ile kart kaldırma" yapışıp kalıyordu: yalnız
+   gerçek imleçli cihazlarda uygulanır. */
+@media(hover:none){ .pcard:hover{transform:none} }
+
+/* ---------- 5) ORTA BOY EKRAN (tablet dikey) ---------- */
+@media(max-width:1024px){
+  :root{--gv-chrome:290px}
+  .game-layout{flex-direction:column}
+  .game-side{width:100%}
+}
+
+/* ---------- 6) TELEFON / DAR EKRAN ---------- */
+@media(max-width:800px){
+  :root{--gv-chrome:215px;--gv-board:min(100%,max(260px,calc(100vh - var(--gv-chrome))))}
+  #pg-room .timers{flex-direction:row;gap:8px;margin-bottom:8px}
+  #pg-room .timer{padding:6px 8px;border-radius:10px}
+  #pg-room .timer-name{font-size:.68em}
+  #pg-room .timer-time{font-size:1.15em}
+  .timer-move{font-size:.78em;min-height:15px}
+  #topTimers.gv-nomain .timer-move{font-size:1.2em}
+  /* Yan panel alta iner; sohbet ekranı yutmasın */
+  .chat{height:200px!important}
+  .moves{max-height:130px}
+  /* Oyun ızgarası: 2 sütun altına düşmesin, kartlar kırpılmasın */
+  .games-grid{grid-template-columns:repeat(auto-fill,minmax(min(140px,44vw),1fr));gap:10px}
+  /* Modal ve paneller ekranı taşırmaz */
+  .modal{max-width:min(96vw,520px);max-height:88vh;overflow-y:auto}
+  /* Dokunma hedefleri en az 38px (parmakla ıskalama olmasın) */
+  .btn,.icon-btn,.c4-drop-btn{min-height:38px}
+  .btn-sm{min-height:32px}
+}
+@supports (height:100dvh){
+  @media(max-width:800px){
+    :root{--gv-board:min(100%,max(260px,calc(100dvh - var(--gv-chrome))))}
+  }
+}
+
+/* ---------- 6b) ÇOK DAR ÜST BAR (≤420 px) ----------
+   360 px'lik telefonlarda marka + giriş/kayıt düğmeleri 8 px taşıyordu;
+   marka artık ekranın en fazla %44'ünü kaplar ve gerekirse kısaltılır. */
+@media(max-width:420px){
+  .header .logo{max-width:44vw;overflow:hidden;text-overflow:ellipsis;font-size:.95em}
+  .header .logo img{height:22px!important;width:22px!important}
+  #headerAuthContainer .btn{padding:5px 7px;font-size:.7em}
+}
+
+/* ---------- 7) ÇOK DAR EKRAN (küçük telefon) ---------- */
+@media(max-width:480px){
+  :root{--gv-chrome:200px}
+  #pg-room .gr-header{gap:6px}
+  #pg-room #grTitle{font-size:1.02em}
+  .timers{gap:6px}
+  #pg-room .timer{padding:5px 6px}
+  #pg-room .timer-time{font-size:1.02em}
+  #topTimers.gv-nomain .timer-move{font-size:1.05em}
+  .score-panel{padding:8px}
+  .card-score{gap:6px}
+  .card-score-item{padding:4px 8px;font-size:.74em}
+  .dama-status,.tdama-info,.gv-card-turn{padding:6px;font-size:.82em}
+  .bil-info{gap:5px;font-size:.8em}
+}
+
+/* ---------- 8) TELEFON YATAY (kısa ama geniş) ---------- */
+@media(max-height:560px) and (orientation:landscape){
+  :root{--gv-chrome:150px;--gv-board:min(76vh,100%)}
+  #pg-room .timers{margin-bottom:4px}
+  #pg-room .timer{padding:2px 8px}
+  #pg-room .timer-time{font-size:.95em}
+  .timer-move{min-height:13px;font-size:.72em}
+  #topTimers.gv-nomain .timer-move{font-size:1em}
+  .chat{height:150px!important}
+}
+
+/* ---------- 9) GENİŞ MASAÜSTÜ ---------- */
+@media(min-width:1600px){
+  :root{--gv-chrome:230px;--gv-side:300px}
+  .chess-wrapper,.dama-wrap,.tdama-wrap,.rv-wrap,.gm-wrap,.c4-wrap{max-width:min(820px,calc(100vh - var(--gv-chrome)))}
+  .game-side{width:var(--gv-side)}
+}
+
+/* ---------- 9b) MOBİL UYGULAMA (PWA / Android TWA / WebView) ----------
+   Uygulama olarak açıldığında tarayıcı çubuğu yoktur: içerik doğrudan
+   durum çubuğunun altına girer. Çentik/durum çubuğu payı burada verilir.
+   Sınıflar js/webview.js tarafından <body>'ye eklenir. */
+body.gv-app{
+  padding-top:env(safe-area-inset-top,0px);
+  padding-left:env(safe-area-inset-left,0px);
+  padding-right:env(safe-area-inset-right,0px);
+  /* Aşağı çekip yenileme kapalı: tahtada taş sürüklerken sayfa yenileniyordu */
+  overscroll-behavior-y:contain}
+body.gv-app .header{padding-top:0}
+/* Uygulamada yükle düğmesi anlamsız (zaten kurulu) */
+body.gv-app #gvInstallBtn{display:none!important}
+/* Uygulamada metin seçme imleci oyunu bozuyordu; girişler hariç kapalı */
+body.gv-app{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+body.gv-app input,body.gv-app textarea,body.gv-app .chat-msgs,body.gv-app .moves{
+  -webkit-user-select:text;user-select:text}
+
+/* ---------- 10) ERİŞİLEBİLİRLİK / KULLANICI TERCİHİ ---------- */
+@media(prefers-reduced-motion:reduce){
+  .timer-move.danger,.ok-pclock.urgent{animation:none}
+  *{transition-duration:.01ms!important}
+}
+</style>
 </head>
 <body>
 
@@ -798,6 +1026,7 @@ html{scrollbar-gutter:stable}
     <button class="nav-btn" data-p="ranks" onclick="GV.page('ranks')">🏅 Rütbeler</button>
   </nav>
   <div class="header-right">
+    <button class="icon-btn" id="gvInstallBtn" title="Uygulamayı yükle" hidden onclick="window.GVApp&&GVApp.install()">⬇️</button>
     <button class="icon-btn" id="themeBtn" onclick="GV.toggleTheme()">🌙</button>
     <button class="icon-btn" id="friendsBtn" title="Arkadaşlarım" onclick="GV.openFriends && GV.openFriends()" style="display:none;position:relative">👥<span class="badge-count" id="friendsBadgeCount" style="display:none">0</span></button>
     <div style="position: relative;">
@@ -4309,22 +4538,26 @@ GV.init();
 <script src="js/utils.js?v=20260819c" defer></script>
 <script src="js/lobby-sync.js?v=20260820f" defer></script>
 <script src="js/room-waiting-fix.js?v=20260904a" defer></script>
-<script src="js/chess-online.js?v=20260823b" defer></script>
-<script src="js/tavla-online.js?v=20260823b" defer></script>
-<script src="js/okey-online.js?v=20260904a" defer></script>
-<script src="js/online-arena.js?v=20260904b" defer></script>
+<!-- Hamle (sıra) saati: sırası gelen oyuncunun kendi kartında sayar -->
+<!-- Mobil uygulama katmanı: PWA kurulumu, Android geri tuşu, WebView uyarlamaları -->
+<script src="js/webview.js?v=20260908a" defer></script>
+<script src="js/move-clock.js?v=20260908a" defer></script>
+<script src="js/chess-online.js?v=20260908a" defer></script>
+<script src="js/tavla-online.js?v=20260908a" defer></script>
+<script src="js/okey-online.js?v=20260908a" defer></script>
+<script src="js/online-arena.js?v=20260908a" defer></script>
 <script src="js/card-online.js?v=20260904b" defer></script>
 <script src="js/dama-online.js?v=20260904b" defer></script>
 <script src="js/turkdamasi-online.js?v=20260904b" defer></script>
 <script src="js/reversi-online.js?v=20260904b" defer></script>
 <script src="js/gomoku-online.js?v=20260904b" defer></script>
 <script src="js/connect4-online.js?v=20260904b" defer></script>
-<script src="js/bilardo-online.js?v=20260904b" defer></script>
+<script src="js/bilardo-online.js?v=20260908a" defer></script>
 <script src="js/chat.js?v=20260821c" defer></script>
 <script src="js/leave-guard.js?v=20260821h" defer></script>
-<script src="js/auth.js?v=20260824b" defer></script>
+<script src="js/auth.js?v=20260908a" defer></script>
 <script src="js/social.js?v=20260823e" defer></script>
-<script src="js/admin-panel.js?v=20260824a" defer></script>
+<script src="js/admin-panel.js?v=20260908a" defer></script>
 
 <!-- Structured Data for SEO -->
 <script type="application/ld+json">

@@ -106,6 +106,64 @@
     if (el.textContent !== txt) el.textContent = txt;
   }
 
+  /* ÜSTTEKİ SÜRE ŞERİDİ (#topTimers)
+     Bu oyunlarda ANA saat yoktur — sunucu yalnız hamle süresini işletir.
+     Şerit bu yüzden donmuş bir "10:00" gösteriyordu ve sıranın kimde
+     olduğu yalnız tahtanın üstündeki yazıdan anlaşılıyordu. Artık şerit
+     sıra bilgisini taşır: sırası gelen kart vurgulanır ve hamle geri
+     sayımı DOĞRUDAN o kartın içinde işler (js/move-clock.js). */
+  function seatCountOf(gs) {
+    if (gs && Array.isArray(gs.handCounts) && gs.handCounts.length) return gs.handCounts.length;
+    return 2;
+  }
+  function setName(card, txt) {
+    var el = card && card.querySelector('.timer-name');
+    if (el && el.textContent !== txt) el.textContent = txt;
+  }
+  function syncStrip() {
+    if (!window.GVMoveClock) return;
+    var gs = active && active.state;
+    var strip = document.getElementById('topTimers');
+    if (!gs || !strip) { if (window.GVMoveClock) GVMoveClock.clear(); return; }
+    var cards = strip.querySelectorAll('.timer');
+    if (cards.length < 2) return;
+
+    var n = seatCountOf(gs);
+    var me = (typeof active.seat === 'number') ? active.seat : null;
+    var turn = (typeof gs.turnSeat === 'number') ? gs.turnSeat
+             : (typeof gs.turn === 'number') ? gs.turn : null;
+    var idx = 0;
+
+    if (active.isSpectator || me === null) {
+      if (n <= 2) {
+        setName(cards[0], '🔵 Koltuk 1'); setName(cards[1], '🔴 Koltuk 2');
+        idx = (turn === 1) ? 1 : 0;
+      } else {
+        setName(cards[0], '👁️ Sıradaki koltuk'); setName(cards[1], '⏳ Diğer koltuklar');
+        idx = 0;
+      }
+    } else if (n <= 2) {
+      setName(cards[0], '🔵 Siz'); setName(cards[1], '🔴 Rakip');
+      idx = (turn === me) ? 0 : 1;
+    } else {
+      setName(cards[0], '🔵 Siz'); setName(cards[1], '🔴 Rakipler');
+      idx = (turn === me) ? 0 : 1;
+    }
+
+    var kalan = gs.turnRemainingMs;
+    if (gs.status === 'playing' && typeof kalan === 'number' && kalan >= 0) {
+      GVMoveClock.set({
+        activeIndex: idx,
+        remainingMs: kalan,
+        limitMs: gs.turnLimitMs,
+        serverNow: gs.serverNow,
+        mainClock: false          // bu oyunlarda ana saat yok: sayaç BÜYÜK gösterilir
+      });
+    } else {
+      GVMoveClock.clear();
+    }
+  }
+
   function onState(p) {
     if (!p || !p.gameState) return;
     var kind = p.gameState.kind;
@@ -122,6 +180,7 @@
     if (p.seat !== undefined && p.seat !== null) active.seat = p.seat;
     active.isSpectator = !!p.isSpectator;
     paint(false);
+    syncStrip();
   }
 
   function emitFor(def) {
@@ -169,6 +228,7 @@
   function stop() {
     active = null;
     clearBoard();
+    try { if (window.GVMoveClock) GVMoveClock.clear(); } catch (_) {}
   }
 
   /* Odadan çıkış / masa değişimi: her şeyi söker. */
@@ -194,7 +254,9 @@
     if (active.state && Number(active.state.turnRemainingMs) > 0) {
       active.state.turnRemainingMs = Math.max(0, Number(active.state.turnRemainingMs) - 500);
     }
-    updateClock();
+    updateClock();   // tahta içindeki küçük saat (kart masası)
+    // Kart içindeki büyük geri sayımı GVMoveClock kendi 250 ms'lik
+    // döngüsünde sayar; burada yalnız vurgu/isim tazelenir.
   }
 
   window.GVArena = {

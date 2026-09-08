@@ -111,7 +111,10 @@
     if (tok) setToken(tok);
     const s = st8();
     s.isGuest = false;
-    s.user = { id: u.id, name: u.name, email: u.email, score: (s.user && s.user.score) || 0, level: 1 };
+    // isFounder: Kurucu Paneli yetkisi — sunucudan gelir (users.is_founder).
+    // Bu alan taşınmazsa üst bardaki '👑 Kurucu Paneli' butonu hiç görünmez.
+    s.user = { id: u.id, name: u.name, email: u.email, isFounder: u.isFounder === true,
+               score: (s.user && s.user.score) || 0, level: 1 };
     try { localStorage.setItem('gv-user-name', u.name); } catch (_) {}
     ['checkAuthState', 'updateAuthState', 'updateScoreUI', 'renderFriends'].forEach(fn => {
       if (typeof window[fn] === 'function') try { window[fn](); } catch (_) {}

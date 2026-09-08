@@ -228,7 +228,8 @@
     const movesLeft = gs.movesLeft || [];
 
     let h = '<div class="tavla-wrap">';
-    h += '<div id="tvMoveBadge" class="tavla-move-badge" style="visibility:hidden"></div>';
+    // NOT: Hamle geri sayımı artık burada değil, üstteki süre şeridinde
+    // sırası gelen oyuncunun kartında gösteriliyor (js/move-clock.js).
 
     // Zar / aksiyon şeridi
     h += '<div class="tavla-dice-area">';
@@ -414,21 +415,18 @@
       el.classList.toggle('active', color === gameState.turn && gameState.status === 'playing');
     });
 
-    // Hamle süresi rozeti (son ~20 sn kırmızı) — satrançtakiyle aynı kural.
-    const badge = document.getElementById('tvMoveBadge');
-    if (badge) {
-      const limit = Number(gameState.moveLimitMs) || 60000;
+    // Hamle geri sayımı: sırası gelen oyuncunun kendi süre kartında
+    // (ortak katman — satranç ve diğer online oyunlarla birebir aynı).
+    if (window.GVMoveClock) {
       if (gameState.status === 'playing' && typeof gameState.moveRemainingMs === 'number') {
-        const sincePack = gameState.serverNow ? Math.max(0, Date.now() - Number(gameState.serverNow)) : 0;
-        const remain = Math.max(0, Number(gameState.moveRemainingMs) - sincePack);
-        const secs = Math.ceil(remain / 1000);
-        const who = gameState.turn === 'w' ? 'Beyaz' : 'Siyah';
-        setText(badge, `⏱ Hamle sırası: ${who} — ${secs} sn`);
-        const danger = remain <= Math.min(20000, limit / 2);
-        if (badge.classList.contains('danger') !== danger) badge.classList.toggle('danger', danger);
-        if (badge.style.visibility !== 'visible') badge.style.visibility = 'visible';
+        GVMoveClock.set({
+          activeIndex: null,
+          remainingMs: gameState.moveRemainingMs,
+          limitMs: gameState.moveLimitMs,
+          serverNow: gameState.serverNow
+        });
       } else {
-        if (badge.style.visibility !== 'hidden') badge.style.visibility = 'hidden';
+        GVMoveClock.clear();
       }
     }
   }

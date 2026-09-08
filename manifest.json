@@ -1,40 +1,33 @@
 {
+  "id": "/",
   "name": "Masa Oyunları - Online Oyun Platformu",
-  "short_name": "MasaOyunlari",
-  "description": "8 Top Bilardo, Satranç, Tavla, Okey ve daha fazlası! Online oyna.",
-  "start_url": "/",
+  "short_name": "Masa Oyunları",
+  "description": "Okey, 101 Okey, Tavla, Satranç, Dama, Pişti, Batak, Bilardo ve daha fazlası. Gerçek rakiplerle ücretsiz online oyna.",
+  "start_url": "/?source=pwa",
+  "scope": "/",
   "display": "standalone",
+  "display_override": ["standalone", "minimal-ui", "browser"],
   "orientation": "any",
   "background_color": "#0a0a1a",
-  "theme_color": "#6c5ce7",
+  "theme_color": "#0a0a1a",
   "lang": "tr",
+  "dir": "ltr",
+  "prefer_related_applications": false,
   "icons": [
-    {
-      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%8E%B1%3C/text%3E%3C/svg%3E",
-      "sizes": "any",
-      "type": "image/svg+xml",
-      "purpose": "any maskable"
-    }
+    { "src": "/assets/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/assets/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/assets/icons/icon-192-maskable.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "/assets/icons/icon-512-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
   ],
   "categories": ["games", "entertainment"],
   "shortcuts": [
-    {
-      "name": "8 Top Bilardo",
-      "short_name": "Bilardo",
-      "description": "Bilardo oyna",
-      "url": "/?game=billiards"
-    },
-    {
-      "name": "Satranç",
-      "short_name": "Satranç",
-      "description": "Satranç oyna",
-      "url": "/?game=chess"
-    },
-    {
-      "name": "Tavla",
-      "short_name": "Tavla",
-      "description": "Tavla oyna",
-      "url": "/?game=tavla"
-    }
+    { "name": "Okey", "short_name": "Okey", "description": "Okey oyna", "url": "/?game=okey",
+      "icons": [{ "src": "/assets/icons/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Tavla", "short_name": "Tavla", "description": "Tavla oyna", "url": "/?game=tavla",
+      "icons": [{ "src": "/assets/icons/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Satranç", "short_name": "Satranç", "description": "Satranç oyna", "url": "/?game=chess",
+      "icons": [{ "src": "/assets/icons/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Bilardo", "short_name": "Bilardo", "description": "Bilardo oyna", "url": "/?game=bilardo",
+      "icons": [{ "src": "/assets/icons/icon-192.png", "sizes": "192x192" }] }
   ]
 }

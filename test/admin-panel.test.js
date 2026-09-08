@@ -5,8 +5,9 @@
  *
  *  1) Damalar/Reversi/Gomoku/Connect4/Bilardo için 10'AR hazır masa
  *     (4 Hızlı / 3 Normal / 3 Düşünen) açılır; satranç/tavla 10, okey 18.
- *  2) Yönetici hesabı (kurucu@kurucu.com / kurucu123) otomatik oluşur,
- *     giriş yapar; /api/admin/users yalnız kurucuya açıktır (diğerleri 403).
+ *  2) Yönetici hesabı GV_ADMIN_EMAIL + GV_ADMIN_PASS ile kurulur (sabit
+ *     şifreyle otomatik oluşturma KALDIRILDI), giriş yapar; TÜM /api/admin/*
+ *     uçları — tables-apply DAHİL — yalnız kurucuya açıktır (diğerleri 403).
  *  3) tables-apply: oyun GİZLENEBİLİR (lobide masaları kalkar), masa
  *     SAYISI artar/azalır, masa ADI/TİPİ değişir — games-meta anında yansır.
  *  4) Değişiklikler DATAYA kaydedilir: sunucu AYNI DB ile yeniden
@@ -22,6 +23,10 @@ const path = require('path');
 
 const TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'gv-admin-'));
 process.env.GV_DATA_DIR = TMP;
+// Kurucu hesabı ARTIK kendiliğinden açılmıyor (sabit "kurucu123" şifresi
+// güvenlik açığıydı). Test ortamında hesabı bilerek biz kuruyoruz:
+process.env.GV_ADMIN_EMAIL = 'kurucu@kurucu.com';
+process.env.GV_ADMIN_PASS = 'test-kurucu-sifresi-9271';
 process.env.GV_POST_GAME_HOLD_MS = '400';
 
 const assert = require('assert');
@@ -62,18 +67,20 @@ async function main() {
   console.log('  ✓ 1) 6 yeni oyun × 10 hazır masa (Hızlı/Normal/Düşünen) + satranç/tavla/okey mevcut');
 
   // ---------- 2) kurucu hesabı + admin yetki ----------
-  const login = await api(BASE, '/api/auth/login', { email: 'kurucu@kurucu.com', password: 'kurucu123' }, 'POST');
+  const login = await api(BASE, '/api/auth/login', { email: 'kurucu@kurucu.com', password: 'test-kurucu-sifresi-9271' }, 'POST');
   assert.ok(login.ok && login.token, 'kurucu girişi (otomatik oluşturulan hesap)');
   assert.strictEqual(login.user.name, '\u{1F451} Kurucu');
   const users = await api(BASE, '/api/admin/users', null, 'GET', login.token);
   assert.ok(users.ok && Array.isArray(users.users), 'üye listesi döner');
   const me = users.users.find(u => u.email === 'kurucu@kurucu.com');
   assert.ok(me && me.role === 'kurucu', 'kurucu rolü "kurucu"');
+  assert.strictEqual(login.user.isFounder, true, 'giriş cevabı kurucu bayrağını taşır (panel butonu buna bakar)');
   const other = await api(BASE, '/api/auth/register', { name: 'Basit', email: 'basit@adm.tr', password: 'ortaksifre9' }, 'POST');
   const { db } = require('../db');
   const vt = db.prepare('SELECT verify_token FROM users WHERE id = ?').get(other.userId).verify_token;
   await api(BASE, '/api/auth/verify', { token: vt }, 'POST');
   const otherLogin = await api(BASE, '/api/auth/login', { email: 'basit@adm.tr', password: 'ortaksifre9' }, 'POST');
+  assert.notStrictEqual(otherLogin.user && otherLogin.user.isFounder, true, 'sıradan üyede kurucu bayrağı yok');
   const denied = await api(BASE, '/api/admin/users', null, 'GET', otherLogin.token);
   assert.strictEqual(denied.status, 403, 'diğer üyeler admin uçlarına girmez (403)');
   console.log('  ✓ 2) kurucu@kurucu.com otomatik hesapla giriş; üye listesi YALNIZ kurucuya açık');
@@ -100,9 +107,17 @@ async function main() {
     type: i === 0 ? 'fast' : 'normal',
     durationMinutes: i === 0 ? 10 : 15
   }));
+  // GÜVENLİK: tables-apply eskiden yetkisizdi — herkes canlı sunucuda
+  // oyunları gizleyip masaları silebiliyordu. Artık yalnız kurucu geçer.
+  const applyAnon = await api(BASE, '/api/admin/tables-apply', { games: { chess: { visible: false } } }, 'POST');
+  assert.strictEqual(applyAnon.status, 403, 'tables-apply jetonsuz çağrıya 403 verir');
+  const applyOther = await api(BASE, '/api/admin/tables-apply', { games: { chess: { visible: false } } }, 'POST', otherLogin.token);
+  assert.strictEqual(applyOther.status, 403, 'tables-apply kurucu olmayan üyeye 403 verir');
+  assert.ok((await api(BASE, '/api/games-meta', null, 'GET')).games.every(g => g.visible), 'yetkisiz denemeler hiçbir şeyi değiştirmedi');
+
   let apply = await api(BASE, '/api/admin/tables-apply', {
     games: { dama: { visible: false }, chess: { visible: true, tables: chessTables } }
-  }, 'POST');
+  }, 'POST', login.token);
   assert.ok(apply.ok, 'apply ok');
   assert.strictEqual(apply.games.find(g => g.id === 'dama').visible, false, 'meta: dama gizli');
 
@@ -121,7 +136,7 @@ async function main() {
   const dfltChess8 = serverModule.defaultPresetConfig().chess.tables.slice(0, 8);
   apply = await api(BASE, '/api/admin/tables-apply', {
     games: { dama: { visible: true }, chess: { visible: true, tables: dfltChess8 } }
-  }, 'POST');
+  }, 'POST', login.token);
   assert.ok(apply.ok);
   assert.strictEqual((await roomsOf(BASE, 'dama')).length, 10, 'dama geri geldi (10 masa)');
   assert.strictEqual((await roomsOf(BASE, 'chess')).length, 8, 'satranç 8 masaya düştü');
@@ -134,7 +149,7 @@ async function main() {
   const BASE2 = 'http://127.0.0.1:' + server2.address().port;
   assert.strictEqual((await roomsOf(BASE2, 'chess')).length, 8, 'yeniden başlatmada satranç 8 masa (kayıtlı ayar)');
   assert.strictEqual((await roomsOf(BASE2, 'dama')).length, 10, 'dama 10 masa');
-  const login2 = await api(BASE2, '/api/auth/login', { email: 'kurucu@kurucu.com', password: 'kurucu123' }, 'POST');
+  const login2 = await api(BASE2, '/api/auth/login', { email: 'kurucu@kurucu.com', password: 'test-kurucu-sifresi-9271' }, 'POST');
   assert.ok(login2.ok, 'kurucu hesabı DB ile birlikte kaldı');
   console.log('  ✓ 5) ayarlar dataya kaydedildi: yeniden başlatmada aynı masa yapısı + kurucu hesabı');
 

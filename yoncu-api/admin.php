@@ -33,7 +33,7 @@ function gv_server_key_ok() {
 function gv_require_admin() {
     $pdo = gv_pdo();
     $u = gv_user_by_token(gv_bearer());
-    if (!$u || strtolower(strval($u['email'])) !== gv_admin_email()) {
+    if (!gv_is_founder($u)) {
         gv_json(array('ok' => false, 'error' => 'Yönetici yetkisi gerekli.'), 403);
     }
     return $u;
@@ -44,7 +44,7 @@ gv_ensure_admin($pdo, $now);
 
 if ($action === 'users') {
     gv_require_admin();
-    $rows = $pdo->query("SELECT id, name, email, created_at FROM gv_users ORDER BY created_at ASC, id ASC LIMIT 500")
+    $rows = $pdo->query("SELECT id, name, email, created_at, is_founder FROM gv_users ORDER BY created_at ASC, id ASC LIMIT 500")
         ->fetchAll(PDO::FETCH_ASSOC);
     $out = array_map(function ($r) {
         return array(
@@ -52,7 +52,7 @@ if ($action === 'users') {
             'name' => strval($r['name']),
             'email' => strval($r['email']),
             'createdAt' => intval($r['created_at']),
-            'role' => (strtolower(strval($r['email'])) === gv_admin_email()) ? 'kurucu' : 'uye'
+            'role' => gv_is_founder($r) ? 'kurucu' : 'uye'
         );
     }, $rows);
     gv_json(array('ok' => true, 'users' => $out));

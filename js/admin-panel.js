@@ -1,6 +1,6 @@
 /* GameVerse — Kurucu Paneli (yönetici)
  *
- *  Yalnız GV kurucu hesabı (kurucu@kurucu.com) oturumunda üst bara
+ *  Yalnız KURUCU hesabının (veritabanında is_founder = 1) oturumunda üst bara
  *  "👑 Kurucu Paneli" butonu gelir. Panelde iki sekme:
  *
  *  1) 👥 KULLANICI & ROLLER — üye listesi (isim, e-posta, katılım tarihi, rol)
@@ -19,7 +19,10 @@
   'use strict';
 
   const BACKEND = (window.GV_BACKEND_URL || 'https://masaoyunlari-backend.onrender.com').replace(/\/+$/, '');
-  const ADMIN_EMAIL = (window.__gvAdminEmail || 'kurucu@kurucu.com').toLowerCase();
+  // Kurucu e-postası artık ZORUNLU DEĞİL: yetki öncelikle sunucunun
+  // döndürdüğü user.isFounder bayrağından gelir (veritabanındaki
+  // is_founder sütunu). Bu değişken yalnız ek/yedek eşleşme içindir.
+  const ADMIN_EMAIL = String(window.__gvAdminEmail || '').toLowerCase();
 
   // Standart hazır-masa (10 masa) açan oyunlar; okey sabit 18 masa;
   // diğerleri (kart oyunları vb.) yalnız görünürlük yönetilir.
@@ -53,7 +56,9 @@
   }
   function isAdmin() {
     const s = st8();
-    return !!(s.user && s.user.email && String(s.user.email).toLowerCase() === ADMIN_EMAIL);
+    if (!s.user) return false;
+    if (s.user.isFounder === true || Number(s.user.is_founder) === 1) return true;
+    return !!(ADMIN_EMAIL && s.user.email && String(s.user.email).toLowerCase() === ADMIN_EMAIL);
   }
 
   async function api(path, body, method) {

@@ -19,8 +19,10 @@
         '</div><div class="bil-table" style="position:relative;width:min(90vw,640px);height:min(45vw,320px);min-height:220px;margin:auto;background:#087442;border:20px solid #3d2415;border-radius:14px">';
       (s.balls || []).filter(function (b) { return !b.potted; }).forEach(function (b) {
         var col = b.type === 'cue' ? '#fff' : b.type === 'eight' ? '#111' : b.type === 'stripe' ? '#f5d76e' : '#e74c3c';
+        // Top boyu da YÜZDELİ: masa dar ekranda küçülünce toplar da
+        // küçülür (sabit 24 px'te toplar masayı ve cepleri taşırıyordu).
         h += '<div style="position:absolute;left:' + ((b.x / 640) * 100) + '%;top:' + ((b.y / 320) * 100) +
-          '%;width:24px;height:24px;margin:-12px;border-radius:50%;background:' + col + ';border:2px solid #ddd"></div>';
+          '%;width:3.75%;aspect-ratio:1;transform:translate(-50%,-50%);border-radius:50%;background:' + col + ';border:2px solid #ddd;box-sizing:border-box"></div>';
       });
       h += '</div><div style="display:flex;gap:8px;justify-content:center;align-items:center;margin-top:12px">' +
         '<label style="font-size:.85em">Güç <input id="bilPower" type="range" min="1" max="10" value="5"></label>' +
