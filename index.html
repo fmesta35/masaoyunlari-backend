@@ -1051,6 +1051,96 @@ body.gv-app{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none
 body.gv-app input,body.gv-app textarea,body.gv-app .chat-msgs,body.gv-app .moves{
   -webkit-user-select:text;user-select:text}
 
+/* ---------- 9c) ANA SAYFA CANLI SAYAÇ ŞERİDİ ----------
+   Karşılama kutusunun içinde, sunucudan gelen gerçek sayılar. */
+.hero-live{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:16px}
+.hl-item{background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.22);
+  border-radius:14px;padding:10px 8px}
+.hl-val{font-family:var(--mono);font-size:1.55em;font-weight:800;color:#fff;
+  font-variant-numeric:tabular-nums;line-height:1.1}
+.hl-lbl{font-size:.74em;color:rgba(255,255,255,.9);margin-top:2px}
+@media(max-width:480px){
+  .hero-live{gap:6px;margin-top:12px}
+  .hl-item{padding:8px 4px;border-radius:11px}
+  .hl-val{font-size:1.15em}
+  .hl-lbl{font-size:.62em}
+}
+
+/* ---------- 9d) MOBİL TAM EKRAN MENÜ ----------
+   Dar ekranda üst bardaki gezinme düğmeleri gizli; İstatistikler,
+   Sıralama, Turnuvalar, Rütbeler ve görünüm düğmesine ulaşmanın başka
+   yolu yoktu. Hamburger artık tam ekran bir menü açar, tekrar basınca
+   (ya da ✕ ile) kapanır. */
+.sb-nav{display:none}
+@media(max-width:800px){
+  /* css/style.css dar ekranda .sidebar'a max-height:200px veriyor;
+     tam ekran menü bu yüzden 200 px'lik bir şeride sıkışıyordu. */
+  .sidebar{width:100vw;max-width:100vw;top:0;bottom:0;z-index:1200;
+    height:100vh;max-height:none;border-right:0;border-bottom:0;
+    background:var(--bg);padding:0 12px 20px;
+    padding-top:env(safe-area-inset-top,0px);overflow-y:auto}
+  .sb-nav{display:block}
+  .sb-nav-head{position:sticky;top:0;background:var(--bg);z-index:2;
+    display:flex;align-items:center;justify-content:space-between;
+    padding:14px 2px 10px;font-weight:800;font-size:1.05em}
+  .sb-nav-x{width:38px;height:38px;border-radius:12px;border:1px solid var(--border);
+    background:var(--bg3);color:var(--text);font-size:1.05em;cursor:pointer}
+  .sb-nav-item{display:block;width:100%;text-align:left;padding:14px 12px;margin-bottom:6px;
+    border:1px solid var(--border);border-radius:12px;background:var(--card);
+    color:var(--text);font-size:1em;font-weight:600;cursor:pointer}
+  .sb-nav-item:active{background:var(--card2)}
+  .sidebar .sb-title{margin-top:10px}
+  #sbCollapseBtn{display:none}
+  /* Görünüm (karanlık/aydınlık) düğmesi mobilde de üst barda kalır —
+     eskiden 560 px altında tamamen gizleniyordu. */
+  #themeBtn{display:flex!important}
+}
+
+@supports (height:100dvh){ @media(max-width:800px){ .sidebar{height:100dvh} } }
+
+/* ---------- 9e) ALT MENÜ (FOOTER) ---------- */
+.gv-footer{margin-top:32px;border-top:1px solid var(--border);background:var(--bg2);
+  border-radius:var(--r2) var(--r2) 0 0;
+  padding:26px 20px calc(18px + env(safe-area-inset-bottom,0px))}
+.gv-foot-in{max-width:1180px;margin:0 auto;display:flex;gap:28px;flex-wrap:wrap;
+  justify-content:space-between}
+.gv-foot-brand{flex:1 1 320px;min-width:0}
+.gv-foot-logo{display:flex;align-items:center;gap:10px;font-size:1.15em;font-weight:800;color:var(--primary2)}
+.gv-foot-logo img{width:28px;height:28px;border-radius:8px}
+.gv-foot-desc{color:var(--text2);margin:10px 0 12px;line-height:1.5;max-width:52ch}
+.gv-foot-badges{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+.gv-chip{font-size:.76em;padding:6px 10px;border-radius:9px;background:var(--card);
+  border:1px solid var(--border);color:var(--text2)}
+.gv-play{display:inline-flex;align-items:center;gap:12px;padding:10px 18px 10px 14px;
+  border-radius:12px;border:1px solid var(--border2);background:#000;color:#fff;
+  cursor:pointer;text-align:left}
+.gv-play:hover{border-color:var(--primary2)}
+.gv-play.soon{opacity:.75;cursor:default}
+.gv-play-ico{width:24px;height:26px;flex:none;
+  background:conic-gradient(from -60deg at 0 50%,#00d3ff 0deg 55deg,#00ef76 55deg 115deg,
+    #ffcf00 115deg 175deg,#ff3b46 175deg 235deg,#00d3ff 235deg 360deg);
+  clip-path:polygon(0 0,100% 50%,0 100%)}
+.gv-play-txt{display:flex;flex-direction:column;line-height:1.15}
+.gv-play-txt small{font-size:.62em;opacity:.82;letter-spacing:.6px;text-transform:uppercase}
+.gv-play-txt b{font-size:.98em}
+.gv-foot-cols{display:flex;gap:40px;flex-wrap:wrap}
+.gv-foot-col h4{font-size:.78em;letter-spacing:1px;color:var(--text3);margin-bottom:10px}
+.gv-foot-col button,.gv-foot-col a{display:block;background:none;border:0;padding:5px 0;
+  color:var(--text2);font-size:.9em;cursor:pointer;text-decoration:none;text-align:left}
+.gv-foot-col button:hover,.gv-foot-col a:hover{color:var(--accent)}
+.gv-foot-bottom{max-width:1180px;margin:20px auto 0;padding-top:14px;
+  border-top:1px solid var(--border);display:flex;gap:12px;justify-content:space-between;
+  flex-wrap:wrap;color:var(--text3);font-size:.8em}
+@media(max-width:800px){
+  .gv-footer{margin-top:22px;padding:20px 14px calc(16px + env(safe-area-inset-bottom,0px))}
+  .gv-foot-in{gap:18px}
+  .gv-foot-cols{gap:26px}
+  .gv-foot-bottom{justify-content:center;text-align:center}
+  .gv-play{width:100%;justify-content:center}
+}
+/* Oyun odasında alt menü dikkat dağıtmasın */
+#pg-room.active ~ .gv-footer{display:none}
+
 /* ---------- 10) ERİŞİLEBİLİRLİK / KULLANICI TERCİHİ ---------- */
 @media(prefers-reduced-motion:reduce){
   .timer-move.danger,.ok-pclock.urgent{animation:none}
@@ -1067,12 +1157,12 @@ body.gv-app input,body.gv-app textarea,body.gv-app .chat-msgs,body.gv-app .moves
   <nav class="nav">
     <button class="nav-btn active" data-p="home" onclick="GV.page('home')">🏠 Ana Sayfa</button>
     <button class="nav-btn" data-p="games" onclick="GV.page('games')">🎮 Oyunlar</button>
+    <button class="nav-btn" data-p="stats" onclick="GV.page('stats')">📊 İstatistikler</button>
     <button class="nav-btn" data-p="lb" onclick="GV.page('lb')">🏆 Sıralama</button>
     <button class="nav-btn" data-p="tourn" onclick="GV.page('tourn')">⚔️ Turnuvalar</button>
     <button class="nav-btn" data-p="ranks" onclick="GV.page('ranks')">🏅 Rütbeler</button>
   </nav>
   <div class="header-right">
-    <button class="icon-btn" id="gvInstallBtn" title="Uygulamayı yükle" hidden onclick="window.GVApp&&GVApp.install()">⬇️</button>
     <button class="icon-btn" id="themeBtn" onclick="GV.toggleTheme()">🌙</button>
     <button class="icon-btn" id="friendsBtn" title="Arkadaşlarım" onclick="GV.openFriends && GV.openFriends()" style="display:none;position:relative">👥<span class="badge-count" id="friendsBadgeCount" style="display:none">0</span></button>
     <div style="position: relative;">
@@ -1099,6 +1189,24 @@ body.gv-app input,body.gv-app textarea,body.gv-app .chat-msgs,body.gv-app .moves
   <!-- SOL MENÜ -->
   <aside class="sidebar" id="sidebar">
     <button id="sbCollapseBtn" title="Menüyü gizle" onclick="GV.collapseSidebar(true)">◀</button>
+    <!-- MOBİL MENÜ: telefonda hamburger bu menüyü TAM EKRAN açar. Üst
+         bardaki gezinme düğmeleri dar ekranda gizlendiği için
+         İstatistikler / Sıralama / Turnuvalar / Rütbeler'e ulaşmanın
+         başka yolu yoktu; görünüm (tema) düğmesi de dar ekranda
+         tamamen kayboluyordu. Hepsi artık burada. -->
+    <div class="sb-nav">
+      <div class="sb-nav-head">
+        <span>☰ Menü</span>
+        <button class="sb-nav-x" type="button" onclick="GV.closeSidebar()" aria-label="Menüyü kapat">✕</button>
+      </div>
+      <button class="sb-nav-item" onclick="GV.page('home')">🏠 Ana Sayfa</button>
+      <button class="sb-nav-item" onclick="GV.page('games')">🎮 Oyunlar</button>
+      <button class="sb-nav-item" onclick="GV.page('stats')">📊 İstatistikler</button>
+      <button class="sb-nav-item" onclick="GV.page('lb')">🏆 Sıralama</button>
+      <button class="sb-nav-item" onclick="GV.page('tourn')">⚔️ Turnuvalar</button>
+      <button class="sb-nav-item" onclick="GV.page('ranks')">🏅 Rütbeler</button>
+      <button class="sb-nav-item" id="sbThemeBtn" onclick="GV.toggleTheme()">🌓 Görünümü Değiştir</button>
+    </div>
     <div class="sb-search"><span>🔍</span><input placeholder="Oyun ara..." oninput="GV.searchGames(this.value)"></div>
     <div class="sb-title">🎮 Oyunlar</div>
     <div id="sbGames"></div>
@@ -1114,27 +1222,44 @@ body.gv-app input,body.gv-app textarea,body.gv-app .chat-msgs,body.gv-app .moves
       <div style="background: linear-gradient(135deg, var(--primary3), var(--primary)); padding: 25px; border-radius: var(--r2); margin-bottom: 20px; text-align: center;">
         <h1 style="color: white; margin-bottom: 8px;" id="welcomeHeading">🎮 Masa Oyunları'na Hoş Geldiniz</h1>
         <p style="color: rgba(255,255,255,0.9); font-size: 0.95em;">Ziyaretçi olarak oynayabilir veya üye olarak puan kazanabilir, arkadaş ekleyebilir ve turnuvalara katılabilirsiniz!</p>
+        <!-- CANLI SAYAÇLAR: sunucudan gelir (/api/live-stats). Eskiden ana
+             sayfada sabit, uydurma rakamlar yazıyordu (3.421 çevrimiçi gibi). -->
+        <div class="hero-live" id="heroLive">
+          <div class="hl-item"><div class="hl-val" id="hlOnline">—</div><div class="hl-lbl">👥 Çevrimiçi Oyuncu</div></div>
+          <div class="hl-item"><div class="hl-val" id="hlRooms">—</div><div class="hl-lbl">🏠 Aktif Oda</div></div>
+          <div class="hl-item"><div class="hl-val" id="hlTourn">—</div><div class="hl-lbl">⚔️ Aktif Turnuva</div></div>
+        </div>
       </div>
 
+      <!-- Puan bölümü artık "📊 İstatistikler" sayfasında; ana sayfadaki
+           sabit sayaç şeridi kaldırıldı (gerçek sayılar karşılama
+           kutusunda, canlı olarak). -->
+
+      <h2 style="margin-bottom:12px">🔥 Popüler Oyunlar</h2>
+      <div class="games-grid" id="homeGames"></div>
+    </div>
+
+    <!-- İSTATİSTİKLER -->
+    <div class="page" id="pg-stats">
+      <h1 style="margin-bottom:5px">📊 İstatistikler</h1>
+      <p style="color:var(--text2);margin-bottom:16px">Rütbeniz, toplam puanınız ve oyun oyun puan dağılımınız</p>
       <div style="display:flex;gap:12px;margin-bottom:15px;flex-wrap:wrap;align-items:center">
         <span id="userRankBadge" class="rank-badge r-uzman">🏅 Uzman</span>
         <span style="color:var(--accent);font-size:.9em"><b id="userScore">0</b> Toplam Puan</span>
       </div>
-
       <div class="card mb" style="padding:12px">
         <h4 style="margin-bottom:10px;font-size:.9em">🎯 Oyun Puanların</h4>
         <div id="gameScoresGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px"></div>
       </div>
-
-      <div class="stats">
-        <div class="stat"><div class="stat-icon">👥</div><div class="stat-val" id="sv-online">3,421</div><div class="stat-label">Çevrimiçi</div></div>
-        <div class="stat"><div class="stat-icon">🏠</div><div class="stat-val">1,205</div><div class="stat-label">Aktif Oda</div></div>
-        <div class="stat"><div class="stat-icon">⚔️</div><div class="stat-val">32</div><div class="stat-label">Turnuva</div></div>
-        <div class="stat"><div class="stat-icon">🏆</div><div class="stat-val">342</div><div class="stat-label">Bugün</div></div>
+      <div class="card" style="padding:12px">
+        <h4 style="margin-bottom:10px;font-size:.9em">🌐 Sitede şu an</h4>
+        <div class="stats" id="siteStats">
+          <div class="stat"><div class="stat-icon">👥</div><div class="stat-val" id="ssOnline">—</div><div class="stat-label">Çevrimiçi</div></div>
+          <div class="stat"><div class="stat-icon">🏠</div><div class="stat-val" id="ssRooms">—</div><div class="stat-label">Aktif Oda</div></div>
+          <div class="stat"><div class="stat-icon">🎮</div><div class="stat-val" id="ssPlaying">—</div><div class="stat-label">Oynanan Maç</div></div>
+          <div class="stat"><div class="stat-icon">⚔️</div><div class="stat-val" id="ssTourn">—</div><div class="stat-label">Turnuva</div></div>
+        </div>
       </div>
-
-      <h2 style="margin-bottom:12px">🔥 Popüler Oyunlar</h2>
-      <div class="games-grid" id="homeGames"></div>
     </div>
 
     <!-- TÜM OYUNLAR -->
@@ -1236,7 +1361,50 @@ body.gv-app input,body.gv-app textarea,body.gv-app .chat-msgs,body.gv-app .moves
       <h3 style="margin-bottom:12px">🏆 Tüm Rütbeler</h3>
       <div id="allRanksList"></div>
     </div>
+    <!-- ================= ALT MENÜ (FOOTER) =================
+         "Uygulamayı yükle" düğmesi üst bardan buraya taşındı: üst bar dar
+         ekranda zaten taşıyordu ve indirme çağrısı sayfanın sonunda daha
+         doğal duruyor. Düğme üç durumu da doğru anlatır:
+           • mağaza adresi tanımlıysa  → Google Play'e götürür,
+           • tarayıcı kurulabilir diyorsa → PWA kurulumunu başlatır,
+           • ikisi de yoksa → "yakında" der ve tıklanamaz. -->
+    <footer class="gv-footer">
+      <div class="gv-foot-in">
+        <div class="gv-foot-brand">
+          <div class="gv-foot-logo"><img src="assets/logo.png" alt="Masa Oyunları"><span>Masa Oyunları</span></div>
+          <p class="gv-foot-desc">Okey, 101 Okey, Tavla, Satranç, Dama, Pişti, Batak ve Bilardo — gerçek rakiplerle, ücretsiz.</p>
+          <div class="gv-foot-badges">
+            <span class="gv-chip">🔒 SSL Güvenli</span>
+            <span class="gv-chip">🛡️ Üye Güvencesi</span>
+            <span class="gv-chip">✅ KVKK Uyumlu</span>
+          </div>
+          <button class="gv-play" id="gvInstallBtn" type="button" onclick="window.GVApp&&GVApp.installOrStore()">
+            <span class="gv-play-ico" aria-hidden="true"></span>
+            <span class="gv-play-txt"><small>Mobil uygulama</small><b id="gvInstallLabel">Google Play'de edinin</b></span>
+          </button>
+        </div>
+        <div class="gv-foot-cols">
+          <div class="gv-foot-col">
+            <h4>KEŞFET</h4>
+            <button onclick="GV.page('games')">🎮 Tüm Oyunlar</button>
+            <button onclick="GV.page('stats')">📊 İstatistikler</button>
+            <button onclick="GV.page('lb')">🏆 Sıralama</button>
+            <button onclick="GV.page('ranks')">🏅 Rütbeler</button>
+          </div>
+          <div class="gv-foot-col">
+            <h4>İLETİŞİM</h4>
+            <a href="mailto:info@masaoyunlari.com.tr">✉️ info@masaoyunlari.com.tr</a>
+          </div>
+        </div>
+      </div>
+      <div class="gv-foot-bottom">
+        <span>© <span id="gvYear">2026</span> Masa Oyunları — Tüm hakları saklıdır.</span>
+        <span>🔐 Bağlantınız 256-bit SSL ile şifrelenir.</span>
+      </div>
+    </footer>
   </main>
+
+
   <!-- SAĞ PANEL: Genel Sohbet alanı kaldırıldı (kullanıcı isteği). Bu kolon
        ileride AdSense/banner alanı olarak şekillendirilecek — tema buna göre
        genişye yayıldı. -->
@@ -1540,7 +1708,6 @@ function updateAuthState() {
           <div class="up-score" style="font-size:.68em;color:var(--accent)"><span class="online-dot"></span> Lv.${st.user.level} • ${st.totalScore.toLocaleString()} P</div>
         </div>
       </div>
-      <button class="btn btn-o btn-sm" style="border-color:var(--danger);color:var(--danger)" onclick="GV.logout()">Çıkış</button>
     `;
   }
 }
@@ -4614,7 +4781,9 @@ GV.init();
 <!-- Mobil uygulama katmanı: PWA kurulumu, Android geri tuşu, WebView uyarlamaları -->
 <!-- Kullanıcıya gösterilen mesajların tek kaynağı (kod değil cümle) -->
 <script src="js/messages.js?v=20260908b" defer></script>
-<script src="js/webview.js?v=20260908a" defer></script>
+<!-- Ana sayfa ve İstatistikler sayfasındaki canlı sayaçlar -->
+<script src="js/live-stats.js?v=20260908b" defer></script>
+<script src="js/webview.js?v=20260908b" defer></script>
 <script src="js/move-clock.js?v=20260908a" defer></script>
 <script src="js/chess-online.js?v=20260908a" defer></script>
 <script src="js/tavla-online.js?v=20260908a" defer></script>

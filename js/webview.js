@@ -179,22 +179,54 @@
     e.preventDefault();
     kurulumOlayi = e;
     API.canInstall = true;
-    var d = document.getElementById('gvInstallBtn');
-    if (d) d.hidden = false;
+    if (API.refreshInstallUI) API.refreshInstallUI();
   });
+  /* Footer'daki tek düğme üç durumu da doğru anlatır:
+       1) GV_PLAY_URL tanımlıysa  → mağazaya götürür,
+       2) tarayıcı "kurulabilir" diyorsa → PWA kurulumunu başlatır,
+       3) hiçbiri yoksa → "yakında" der ve tıklanmaz.
+     Etiket her durum değişiminde güncellenir; uygulama içinde düğme
+     tamamen gizlenir (zaten kurulu). */
+  function playUrl() {
+    var u = window.GV_PLAY_URL;
+    return (typeof u === 'string' && /^https?:\/\//.test(u)) ? u : null;
+  }
+  API.installOrStore = function () {
+    var u = playUrl();
+    if (u) { try { window.open(u, '_blank', 'noopener'); } catch (_) { location.href = u; } return; }
+    if (kurulumOlayi) return API.install();
+    if (window.GV && GV.toast) {
+      GV.toast('📱 Mobil uygulama yakında Google Play\'de. O zamana kadar siteyi ana ekranınıza ekleyebilirsiniz.', 'info', 5000);
+    }
+  };
+  API.refreshInstallUI = function () {
+    var btn = document.getElementById('gvInstallBtn');
+    if (!btn) return;
+    var lbl = document.getElementById('gvInstallLabel');
+    if (uygulama) { btn.hidden = true; return; }
+    btn.hidden = false;
+    var u = playUrl();
+    var metin = u ? 'Google Play\'de edinin'
+              : kurulumOlayi ? 'Ana ekrana ekle'
+              : 'Yakında Google Play\'de';
+    if (lbl && lbl.textContent !== metin) lbl.textContent = metin;
+    btn.classList.toggle('soon', !u && !kurulumOlayi);
+  };
+
   API.install = function () {
     if (!kurulumOlayi) return Promise.resolve(false);
     kurulumOlayi.prompt();
     return kurulumOlayi.userChoice.then(function (r) {
       kurulumOlayi = null;
-      var d = document.getElementById('gvInstallBtn');
-      if (d) d.hidden = true;
+      if (API.refreshInstallUI) API.refreshInstallUI();
       return r && r.outcome === 'accepted';
     });
   };
   window.addEventListener('appinstalled', function () {
     API.canInstall = false;
-    var d = document.getElementById('gvInstallBtn');
-    if (d) d.hidden = true;
+    if (API.refreshInstallUI) API.refreshInstallUI();
   });
+  // Footer sayfa yüklendikten sonra kurulduğu için etiketi orada da tazele.
+  window.addEventListener('load', function () { API.refreshInstallUI(); });
+  if (document.readyState !== 'loading') setTimeout(function () { API.refreshInstallUI(); }, 0);
 })();

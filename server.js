@@ -2847,6 +2847,33 @@ app.get('/api/admin/stats', async (req, res) => {
   });
 });
 
+// CANLI SAYAÇLAR (KAMU) — ana sayfadaki karşılama şeridi için.
+// Ana sayfada bu sayılar SABİT yazılmıştı (3.421 çevrimiçi, 1.205 aktif oda
+// gibi uydurma değerler): siteye kim girerse girsin aynı rakamları
+// görüyordu. Bu uç gerçek durumu döndürür ve yönetici yetkisi istemez;
+// hiçbir kişisel bilgi taşımaz, yalnızca sayılar.
+app.get('/api/live-stats', (_req, res) => {
+  let aktifOda = 0, oynanan = 0, masadaki = 0;
+  for (const r of rooms.values()) {
+    const n = (r.players || []).length;
+    if (n > 0) aktifOda++;
+    if (r.status === 'playing') oynanan++;
+    masadaki += n;
+  }
+  const uye = (authApi && typeof authApi.onlineCount === 'function') ? authApi.onlineCount() : 0;
+  res.set('Cache-Control', 'no-store');
+  res.json({
+    ok: true,
+    online: io.engine ? io.engine.clientsCount : masadaki,   // bağlı tüm oyuncular
+    members: uye,                                            // bunların üye olanları
+    activeRooms: aktifOda,
+    playingRooms: oynanan,
+    seatedPlayers: masadaki,
+    tournaments: 0,           // turnuva motoru henüz yok — uydurma sayı vermiyoruz
+    now: Date.now()
+  });
+});
+
 // Çevrimiçi durum haritalaması (arkadaş listesi / profil bayrakları).
 // NEDEN BURADA: çevrimiçi durum Render'ın soket haritasında yaşar; Yöncü
 // PHP'si bunu bilemez. Yeni mimaride tarayıcı üyelik uçlarına PHP'ye

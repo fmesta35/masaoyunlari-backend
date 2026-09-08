@@ -225,6 +225,43 @@
     return window.__gvLobbySocket || window.__gvRoomSocket || window.__gvChessSocket || null;
   }
 
+  /* GENEL SOHBET HAZIR BİR SOKET BEKLİYORDU — ve çoğu zaman yoktu.
+     Lobi soketi yalnızca bir OYUN LOBİSİ açıldığında kuruluyor; ana
+     sayfadan sohbeti açan kullanıcı ne mesaj gönderebiliyor ("Bağlantı
+     yok" uyarısı) ne de başkalarının mesajlarını görebiliyordu — sohbet
+     boş görünüyordu. Sohbet artık soketi gerektiğinde KENDİ kurar ve
+     kimliğini bildirir. */
+  let kurulumBasladi = false;
+  function selamla(sock) {
+    if (!sock) return;
+    let tok = null;
+    try { tok = localStorage.getItem('gv-auth-token'); } catch (_) {}
+    const hello = () => {
+      try { sock.emit('authHello', tok ? { token: tok } : { userKey: memberKey(), name: myName() }); } catch (_) {}
+    };
+    if (sock.connected) hello();
+    if (!sock.__gvChatHello) { sock.__gvChatHello = true; sock.on('connect', hello); }
+  }
+  function ensureSocket() {
+    const varOlan = pickSocket();
+    if (varOlan) { attach(varOlan); selamla(varOlan); return varOlan; }
+    if (kurulumBasladi || !window.io) return null;
+    kurulumBasladi = true;
+    try {
+      const backend = String(window.GV_BACKEND_URL || 'https://masaoyunlari-backend.onrender.com').replace(/\/+$/, '');
+      const sock = window.io(backend, {
+        transports: ['websocket', 'polling'],
+        reconnection: true, reconnectionAttempts: Infinity, reconnectionDelay: 800
+      });
+      window.__gvLobbySocket = window.__gvLobbySocket || sock;
+      attach(sock);
+      selamla(sock);
+      sock.on('connect', () => reloadHistory(true));
+      if (sock.connected) reloadHistory(true);
+      return sock;
+    } catch (_) { return null; }
+  }
+
   function attach(sock) {
     if (!sock || sock.__gvChat) return;
     sock.__gvChat = true;
@@ -262,8 +299,11 @@
     const text = String(inp.value || '').trim();
     if (!text) return;
     if (!isMember()) { toast('💬 Sohbette yazabilmek için üye girişi yapmalısınız.', 'warning'); return; }
-    const sock = pickSocket();
-    if (!sock || !sock.connected) { toast('💬 Bağlantı yok — birazdan tekrar deneyin.', 'error'); return; }
+    const sock = ensureSocket();
+    if (!sock || !sock.connected) {
+      toast('💬 Sunucuya bağlanılıyor — birkaç saniye sonra tekrar deneyin.', 'warning');
+      return;
+    }
     sock.emit('chatMessage', { scope: mode, roomId: curRoomId, text, name: myName(), memberKey: memberKey() });
     inp.value = '';
     inp.focus();
@@ -296,6 +336,7 @@
       return;
     }
     els();
+    ensureSocket();          // üye girişi varsa sohbet her sayfada canlıdır
     document.getElementById('gvChatFab').style.display = '';
     if (panelEl) panelEl.style.display = '';
     const wantRoom = isRoomPage() && !!roomIdNow();
