@@ -954,7 +954,10 @@
         no_discard: '⚠️ Sol oyuncunun atığı yok — orta desteden çekin.',
         round_over: '🏁 El bitti, yeni el bekleniyor...'
       };
-      toast(messages[payload.reason] || '⚠️ Hamle reddedildi.', 'warning');
+      // Oyuna özel metin yoksa ortak sözlüğe düş: kullanıcı hiçbir zaman
+      // "illegal_move" gibi bir KOD görmez (bkz. js/messages.js).
+      toast(messages[payload.reason] ||
+            (window.GVMsg ? GVMsg.red(payload.reason) : '⚠️ Bu hamle yapılamadı.'), 'warning');
       if (payload.gameState && payload.gameState.kind === 'okey') apply(payload.gameState, 'resync');
     });
 
