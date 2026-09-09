@@ -107,8 +107,25 @@ async function main() {
   assert.strictEqual(typeof win.GVApp.install, 'function', 'GVApp.install() kurulum çağrısı olmalı');
   assert.strictEqual(win.GVApp.isApp, false, 'normal tarayıcıda uygulama kipi KAPALI olmalı');
   assert.ok(!win.document.body.classList.contains('gv-app'), 'tarayıcıda gv-app sınıfı eklenmemeli');
-  assert.ok(win.document.getElementById('gvInstallBtn'), '"Uygulamayı yükle" düğmesi DOM\'da bulunmalı');
-  assert.ok(win.document.getElementById('gvInstallBtn').hidden, 'düğme kurulabilir olana kadar gizli kalmalı');
+  // Düğme artık üst barda gizli durmuyor; alt menüde (footer) üç durumu
+  // da açıkça anlatıyor: mağaza adresi varsa Google Play'e götürür,
+  // tarayıcı kurulabilir diyorsa kurulumu başlatır, ikisi de yoksa
+  // "Yakında Google Play'de" der ve tıklanmaz.
+  // Düğmenin durumunu js/webview.js sayfa 'load' olayında yazar; jsdom'da
+  // bu, GVApp kurulduktan birkaç yüz ms sonra olabilir.
+  const t1 = Date.now();
+  while (Date.now() - t1 < 8000) {
+    const b = win.document.getElementById('gvInstallBtn');
+    if (b && !b.hidden) break;
+    await new Promise(r => setTimeout(r, 120));
+  }
+  const kur = win.document.getElementById('gvInstallBtn');
+  assert.ok(kur, 'mobil uygulama düğmesi DOM\'da bulunmalı');
+  assert.ok(kur.closest('.gv-footer'), 'düğme alt menüde (footer) durmalı');
+  assert.ok(!kur.hidden, 'tarayıcıda düğme görünür olmalı');
+  assert.ok(kur.classList.contains('soon'), 'mağaza adresi yokken "yakında" durumunda olmalı');
+  assert.ok(/Yakında|Google Play/i.test(win.document.getElementById('gvInstallLabel').textContent),
+    'etiket ne yapılacağını söylemeli, görülen: ' + win.document.getElementById('gvInstallLabel').textContent);
   try { win.close(); } catch (_) {}
   console.log('  ✓ 5) index.html uygulama katmanını yüklüyor; tarayıcıda davranış değişmiyor');
 
