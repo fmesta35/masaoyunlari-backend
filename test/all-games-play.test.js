@@ -136,7 +136,7 @@ async function main() {
     const mi = payloads.findIndex(p => p.gameState.turn === p.seat);   // bilardoda sıra KOLTUK numarasıdır
     assert.ok(mi >= 0, 'bilardo: sırası gelen koltuk');
     const ups = cl.map(s => once(s, 'gameStateUpdated', 10000));
-    cl[mi].emit('bilardoShoot', { roomId: id, angle: 0.15, power: 7 });
+    cl[mi].emit('bilardoShoot', { roomId: id, angle: 0.15, power: 0.7 });
     const after = await Promise.all(ups);
     assert.ok(after[0].gameState.shots >= 1, 'bilardo: vuruş sayacı artmalı');
     assert.strictEqual(after[0].gameState.shots, after[1].gameState.shots, 'bilardo: iki istemcide aynı');
