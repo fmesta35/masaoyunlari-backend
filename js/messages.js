@@ -33,6 +33,7 @@
     bad_bid:        '🔢 Geçersiz ihale — listedeki değerlerden birini seçin.',
     bad_trump:      '👑 Geçersiz koz — dört seriden birini seçin.',
     bad_shot:       '🎱 Vuruş yapılamadı — açı ve gücü ayarlayıp tekrar deneyin.',
+    cue_unavailable:'🎱 Beyaz top masada değil — vuruş yapılamıyor.',
     early_eight:    '🎱 Önce kendi gruplarınızı bitirmelisiniz; 8 numara en sona kalır.',
     must_draw:      '🀄 Önce yerden ya da desteden taş çekmelisiniz.',
     must_discard:   '🀄 Elinizde fazla taş var — bir taş atmalısınız.',
