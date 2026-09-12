@@ -237,4 +237,38 @@ function logChat(m) {
   callJson(REMOTE + '/social.php?action=chatLog', { key: KEY, body: m }).catch(() => {});
 }
 
-module.exports = { enabled, installProxy, me, meFull, userPublic, isFriendPair, hasRequest, hasRequestOrNull, isFriendPairOrNull, recordMatch, logChat, REMOTE };
+// ---------------- PUAN SİSTEMİ (uzak mod → Yöncü MySQL) ----------------
+// Kurallar Render'da (scoring.js) işler, KALICILIK Yöncü'dedir. Yazma
+// ateş-unut: puan yazımı maç bitişini bekletmemeli.
+function puanYaz(olaylar) {
+  if (!Array.isArray(olaylar) || !olaylar.length) return;
+  callJson(REMOTE + '/social.php?action=scoreWrite', { key: KEY, body: { olaylar } }).then(r => {
+    if (!r.data || !r.data.ok) console.warn('puan Yöncü\'ye yazılamadı:', (r.data && r.data.error) || r.status);
+  }).catch(() => {});
+}
+// Okuma: istemci profil/istatistik ekranında bekler, o yüzden Promise döner.
+function puanOzet(uid) {
+  return callJson(REMOTE + '/social.php?action=scoreSummary&uid=' + encodeURIComponent(uid), { key: KEY })
+    .then(r => (r.data && r.data.ok) ? r.data.ozet : null).catch(() => null);
+}
+function puanSiralama(limit, gameId) {
+  const q = '&limit=' + encodeURIComponent(limit || 20) + (gameId ? '&game=' + encodeURIComponent(gameId) : '');
+  return callJson(REMOTE + '/social.php?action=scoreBoard' + q, { key: KEY })
+    .then(r => (r.data && r.data.ok) ? (r.data.siralama || []) : []).catch(() => []);
+}
+function puanSifirla(byUserId, mode) {
+  return callJson(REMOTE + '/social.php?action=scoreReset', { key: KEY, body: { by: byUserId, mode } })
+    .then(r => r.data || { ok: false }).catch(() => ({ ok: false }));
+}
+function puanAyarOku() {
+  return callJson(REMOTE + '/social.php?action=scoreSettings', { key: KEY })
+    .then(r => (r.data && r.data.ok) ? r.data : { periyot: 'kapali', sonSifirlama: 0 })
+    .catch(() => ({ periyot: 'kapali', sonSifirlama: 0 }));
+}
+function puanAyarYaz(periyot) {
+  return callJson(REMOTE + '/social.php?action=scoreSettings', { key: KEY, body: { periyot } })
+    .then(r => r.data || { ok: false }).catch(() => ({ ok: false }));
+}
+
+module.exports = { enabled, installProxy, me, meFull, userPublic, isFriendPair, hasRequest, hasRequestOrNull, isFriendPairOrNull, recordMatch, logChat,
+  puanYaz, puanOzet, puanSiralama, puanSifirla, puanAyarOku, puanAyarYaz, REMOTE };

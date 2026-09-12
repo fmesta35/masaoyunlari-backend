@@ -235,20 +235,24 @@ async function main() {
     await sleep(300);
   }
 
-  // ============ C) Oyuncu terki → player_left + oda beklemeye döner ============
+  // ============ C) 4 kişilik masada terk → YAPAY ZEKÂ DEVRALIR ============
+  // KURAL DEĞİŞTİ (kullanıcının isteği): 3–4 kişilik oyunlarda bir oyuncu
+  // masayı terk edince maç ARTIK BİTMİYOR. Koltuğu, maçın el sayısı
+  // tamamlanana kadar idareci yapay zekâ devralır; kalan oyuncular oyunu
+  // sonuna kadar oynayabilir. (2 kişilik oyunlarda terk hâlâ hükmen
+  // mağlubiyettir — bkz. test/ai-takeover.test.js bölüm 6.)
   {
     const { socks } = await setupMatch(BASE, '903', 'C');
-    const ended = once(socks[0], 'gameEnded');
-    socks[2].emit('leaveRoom'); // 🚪 Ayrıl düğmesi akışı (disconnect 30 sn yeniden-bağlanma payı tanır)
-    const ge = await ended;
-    assert.strictEqual(ge.reason, 'player_left', 'terk edince maç player_left biter');
-    assert.ok(typeof ge.winnerSeat === 'number', 'kalanlardan lider kazanır');
-    assert.strictEqual(ge.youWon, ge.seat === ge.winnerSeat, 'youWon kişiye özel');
-    await sleep(900); // POST_GAME_HOLD_MS=400 + sıfırlama payı
+    const devraldi = once(socks[0], 'aiTookSeat');
+    socks[2].emit('leaveRoom'); // 🚪 Ayrıl düğmesi akışı
+    const haber = await devraldi;
+    assert.ok(typeof haber.seat === 'number', 'devralınan koltuk bildirildi');
+    assert.strictEqual(haber.geriDonebilir, false, 'test oyuncuları misafir — geri dönüş yok');
+    await sleep(300);
     const roomNow = await httpRooms(BASE, 'okey').then(rs => rs.find(r => String(r.id) === '903'));
-    assert.strictEqual(roomNow.status, 'waiting', 'oda beklemeye döndü (takılma yok)');
-    assert.strictEqual(roomNow.players, 3, 'kalan 3 oyuncu odada');
-    console.log('  ✓ C1) player_left bitiş + oda evrensel sıfırlayıcıyla beklemeye döndü');
+    assert.strictEqual(roomNow.status, 'playing', 'maç ÇÖKMEDİ — devam ediyor');
+    assert.strictEqual(roomNow.players, 4, 'koltuk odada duruyor (motor bozulmaz)');
+    console.log('  ✓ C1) 4 kişilik masada terk: maç sürüyor, koltuğu yapay zekâ devraldı');
 
     for (const s of socks) if (s.connected) s.disconnect();
     await sleep(300);

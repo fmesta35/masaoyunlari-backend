@@ -261,6 +261,134 @@ if ($action === 'recordMatch') {
     gv_json(array('ok' => true));
 }
 
+/* ==========================================================================
+ * PUAN SİSTEMİ (kalıcılık)
+ * --------------------------------------------------------------------------
+ * Kurallar Render tarafındadır (scoring.js); burada YALNIZ kayıt ve
+ * toplama yapılır. Tüm uçlar sunucu anahtarıyla korunur — tarayıcı
+ * doğrudan puan yazamaz (hile önleme).
+ * ========================================================================== */
+
+/* Render maç bitişinde/terkte puan olaylarını toplu gönderir. */
+if ($action === 'scoreWrite') {
+    gv_require_server_key();
+    $olaylar = $in['olaylar'] ?? array();
+    if (!is_array($olaylar) || !count($olaylar)) gv_json(array('ok' => true));
+    $pdo = gv_pdo();
+    $st = $pdo->prepare("INSERT INTO gv_score_events(user_id,game_id,kind,points,room_id,ts) VALUES(?,?,?,?,?,?)");
+    $pdo->beginTransaction();
+    try {
+        foreach ($olaylar as $o) {
+            $uid = intval($o['uid'] ?? 0);
+            if ($uid <= 0) continue;                       // misafir: puan yok
+            $st->execute(array($uid, strval($o['gameId'] ?? ''), strval($o['tur'] ?? ''),
+                intval($o['puan'] ?? 0), strval($o['roomId'] ?? ''), $now));
+        }
+        $pdo->commit();
+    } catch (Exception $e) {
+        $pdo->rollBack();
+        gv_json(array('ok' => false, 'error' => 'puan yazılamadı'));
+    }
+    gv_json(array('ok' => true));
+}
+
+/* Bir üyenin puan özeti — OYUN TÜRÜNE GÖRE AYRI. */
+if ($action === 'scoreSummary') {
+    gv_require_server_key();
+    $uid = intval($_GET['uid'] ?? 0);
+    if ($uid <= 0) gv_json(array('ok' => false, 'error' => 'uid yok'));
+    $pdo = gv_pdo();
+    $t0 = gv_score_reset_at();
+    $st = $pdo->prepare("SELECT game_id, kind, COUNT(*) adet, SUM(points) puan
+                           FROM gv_score_events WHERE user_id = ? AND ts >= ?
+                          GROUP BY game_id, kind");
+    $st->execute(array($uid, $t0));
+    $harita = array();
+    foreach ($st->fetchAll() as $r) {
+        $g = $r['game_id'];
+        if (!isset($harita[$g])) {
+            $harita[$g] = array('gameId' => $g, 'puan' => 0, 'mac' => 0, 'galibiyet' => 0,
+                                'beraberlik' => 0, 'maglubiyet' => 0, 'terk' => 0, 'donus' => 0);
+        }
+        $adet = intval($r['adet']);
+        $harita[$g]['puan'] += intval($r['puan']);
+        $k = $r['kind'];
+        if ($k === 'win' || $k === 'win_left') { $harita[$g]['galibiyet'] += $adet; $harita[$g]['mac'] += $adet; }
+        elseif ($k === 'draw') { $harita[$g]['beraberlik'] += $adet; $harita[$g]['mac'] += $adet; }
+        elseif ($k === 'loss' || $k === 'timeout') { $harita[$g]['maglubiyet'] += $adet; $harita[$g]['mac'] += $adet; }
+        elseif ($k === 'leave') $harita[$g]['terk'] += $adet;
+        elseif ($k === 'rejoin') $harita[$g]['donus'] += $adet;
+    }
+    $oyunlar = array_values($harita);
+    usort($oyunlar, function ($a, $b) { return $b['puan'] - $a['puan']; });
+    $toplam = 0;
+    $genel = array('mac' => 0, 'galibiyet' => 0, 'beraberlik' => 0, 'maglubiyet' => 0, 'terk' => 0);
+    foreach ($oyunlar as $g) {
+        $toplam += $g['puan'];
+        $genel['mac'] += $g['mac']; $genel['galibiyet'] += $g['galibiyet'];
+        $genel['beraberlik'] += $g['beraberlik']; $genel['maglubiyet'] += $g['maglubiyet'];
+        $genel['terk'] += $g['terk'];
+    }
+    // TABAN: toplam puan eksiye düşmez (tek tek olaylar eksi kalabilir).
+    gv_json(array('ok' => true, 'ozet' => array(
+        'toplam' => max(0, $toplam), 'oyunlar' => $oyunlar, 'genel' => $genel, 'sifirlandi' => $t0)));
+}
+
+/* Sıralama tablosu. */
+if ($action === 'scoreBoard') {
+    gv_require_server_key();
+    $limit = max(1, min(100, intval($_GET['limit'] ?? 20)));
+    $game = isset($_GET['game']) && $_GET['game'] !== '' ? strval($_GET['game']) : null;
+    $pdo = gv_pdo();
+    $t0 = gv_score_reset_at();
+    if ($game !== null) {
+        $st = $pdo->prepare("SELECT u.id, u.name, SUM(e.points) puan
+                               FROM gv_score_events e JOIN gv_users u ON u.id = e.user_id
+                              WHERE e.ts >= ? AND e.game_id = ?
+                              GROUP BY u.id, u.name ORDER BY puan DESC LIMIT " . $limit);
+        $st->execute(array($t0, $game));
+    } else {
+        $st = $pdo->prepare("SELECT u.id, u.name, SUM(e.points) puan
+                               FROM gv_score_events e JOIN gv_users u ON u.id = e.user_id
+                              WHERE e.ts >= ?
+                              GROUP BY u.id, u.name ORDER BY puan DESC LIMIT " . $limit);
+        $st->execute(array($t0));
+    }
+    $out = array();
+    foreach ($st->fetchAll() as $r) {
+        $out[] = array('id' => intval($r['id']), 'name' => $r['name'], 'puan' => max(0, intval($r['puan'])));
+    }
+    gv_json(array('ok' => true, 'siralama' => $out));
+}
+
+/* Kurucu: sıfırla. Veri SİLİNMEZ — yeni sıfırlama noktası işaretlenir. */
+if ($action === 'scoreReset') {
+    gv_require_server_key();
+    $pdo = gv_pdo();
+    $pdo->prepare("INSERT INTO gv_score_resets(ts,by_user,mode) VALUES(?,?,?)")
+        ->execute(array($now, isset($in['by']) ? intval($in['by']) : null,
+                        strval($in['mode'] ?? 'manuel')));
+    gv_json(array('ok' => true, 'ts' => $now));
+}
+
+/* Kurucu: otomatik sıfırlama periyodu (oku/yaz). */
+if ($action === 'scoreSettings') {
+    gv_require_server_key();
+    $pdo = gv_pdo();
+    if (isset($in['periyot'])) {
+        $p = strval($in['periyot']);
+        $izin = array('kapali', 'haftalik', 'aylik', 'ceyrek', 'yarim', 'yillik');
+        if (!in_array($p, $izin, true)) gv_json(array('ok' => false, 'error' => 'Geçersiz periyot.'));
+        $pdo->prepare("INSERT INTO gv_settings(skey,value,updated_at) VALUES('score_reset_period',?,?)
+                       ON DUPLICATE KEY UPDATE value = VALUES(value), updated_at = VALUES(updated_at)")
+            ->execute(array($p, $now));
+        gv_json(array('ok' => true, 'periyot' => $p));
+    }
+    $r = $pdo->query("SELECT value FROM gv_settings WHERE skey = 'score_reset_period'")->fetch();
+    gv_json(array('ok' => true, 'periyot' => $r ? strval($r['value']) : 'kapali',
+                  'sonSifirlama' => gv_score_reset_at()));
+}
+
 if ($action === 'chatLog') {
     gv_require_server_key();
     $scope = ($in['scope'] ?? 'room') === 'global' ? 'global' : 'room';

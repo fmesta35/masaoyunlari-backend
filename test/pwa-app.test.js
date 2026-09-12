@@ -113,12 +113,23 @@ async function main() {
   // "Yakında Google Play'de" der ve tıklanmaz.
   // Düğmenin durumunu js/webview.js sayfa 'load' olayında yazar; jsdom'da
   // bu, GVApp kurulduktan birkaç yüz ms sonra olabilir.
+  // KARARSIZ TEST DÜZELTMESİ: düğme HTML'de zaten görünür durumda
+  // duruyor, bu yüzden "hidden değilse çık" koşulu webview.js daha
+  // etiketleri yazmadan sağlanıyordu ve test rastgele düşüyordu.
+  // Artık düğmenin GERÇEKTEN işlenmiş olmasını bekliyoruz: etiket üç
+  // bilinen metinden biri olana kadar.
+  // Etiketin İLK HÂLİ de "Yakında Google Play'de" olduğu için metne
+  // bakarak beklemek yetmiyordu. Kesin ölçüt: GVApp kurulana kadar bekle,
+  // sonra durumu yazan fonksiyonu AÇIKÇA çağır — böylece 'load' olayının
+  // jsdom'da ne zaman düştüğüne bağlı kararsızlık tamamen kalkar.
   const t1 = Date.now();
   while (Date.now() - t1 < 8000) {
-    const b = win.document.getElementById('gvInstallBtn');
-    if (b && !b.hidden) break;
-    await new Promise(r => setTimeout(r, 120));
+    if (win.GVApp && typeof win.GVApp.refreshInstallUI === 'function') break;
+    await new Promise(r => setTimeout(r, 100));
   }
+  assert.ok(win.GVApp && typeof win.GVApp.refreshInstallUI === 'function',
+    'js/webview.js yüklenip GVApp kurulmalı');
+  win.GVApp.refreshInstallUI();
   const kur = win.document.getElementById('gvInstallBtn');
   assert.ok(kur, 'mobil uygulama düğmesi DOM\'da bulunmalı');
   assert.ok(kur.closest('.gv-footer'), 'düğme alt menüde (footer) durmalı');

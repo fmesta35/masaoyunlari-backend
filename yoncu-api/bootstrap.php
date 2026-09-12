@@ -179,6 +179,28 @@ function gv_schema($pdo) {
         ts BIGINT NOT NULL,
         INDEX (room_id), INDEX (ts)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci");
+    // ---- PUAN SİSTEMİ ----
+    // Puanlar TOPLAM olarak değil OLAY olarak tutulur: her galibiyet,
+    // mağlubiyet, terk ve dönüş ayrı satırdır. Böylece (1) oyun türüne göre
+    // ayrı istatistik tek GROUP BY ile çıkar, (2) kurucu "sıfırla" dediğinde
+    // veri SİLİNMEZ — yalnız yeni bir sıfırlama noktası işaretlenir.
+    $pdo->exec("CREATE TABLE IF NOT EXISTS gv_score_events(
+        id BIGINT AUTO_INCREMENT PRIMARY KEY,
+        user_id INT NOT NULL,
+        game_id VARCHAR(32) NOT NULL,
+        kind VARCHAR(16) NOT NULL,
+        points INT NOT NULL,
+        room_id VARCHAR(32) NULL,
+        ts BIGINT NOT NULL,
+        INDEX (user_id, game_id), INDEX (ts)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci");
+    $pdo->exec("CREATE TABLE IF NOT EXISTS gv_score_resets(
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        ts BIGINT NOT NULL,
+        by_user INT NULL,
+        mode VARCHAR(16) NULL,
+        INDEX (ts)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci");
     // Yönetici (kurucu) paneli ayarları: hazır masa yapılandırması (JSON).
     $pdo->exec("CREATE TABLE IF NOT EXISTS gv_settings(
         skey VARCHAR(64) PRIMARY KEY,
@@ -256,6 +278,13 @@ function gv_email_ok($e) {
 }
 
 // Sunucu (Render) anahtarı — yalnız backend'in yazma uçlarında zorunlu.
+// En son puan sıfırlama anı: bundan ÖNCEKİ olaylar toplamlara girmez.
+function gv_score_reset_at() {
+    $pdo = gv_pdo();
+    $r = $pdo->query("SELECT ts FROM gv_score_resets ORDER BY ts DESC LIMIT 1")->fetch();
+    return $r ? intval($r['ts']) : 0;
+}
+
 function gv_require_server_key() {
     $k = $_SERVER['HTTP_X_GV_KEY'] ?? '';
     if (!hash_equals(strval(GV_SERVER_KEY), strval($k))) {

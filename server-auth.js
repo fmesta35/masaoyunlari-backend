@@ -169,6 +169,10 @@ function installAuth(app, deps) {
     console.warn('⚠️  Auth endpoints 503 (db yok).');
     // DB yoksa hiçbir üye mevcut değil → jetonlar kesin geçersizdir.
     return { isOnline: () => false, uidFromUserKey, recordMatch: () => {}, attachSocket: () => {},
+      // Puan sistemi: veritabanı yoksa sessizce devre dışı (uydurma veri yok).
+      puanYaz: () => {}, puanOzet: () => ({ toplam: 0, oyunlar: [], genel: {} }),
+      puanSiralama: () => [], puanSifirla: () => ({ ok: false, error: 'Veritabanı yok.' }),
+      puanAyarOku: () => ({ periyot: 'kapali', sonSifirlama: 0 }), puanAyarYaz: () => ({ ok: false }),
       userFromReq: () => null,
       userFromReqAsync: async () => null,
       verifyToken: async () => null, verifyTokenFull: async () => ({ uid: null, status: 'invalid' }),
@@ -520,6 +524,127 @@ function installAuth(app, deps) {
     } catch (e) { console.warn('maç kaydı yazılamadı:', e.message); }
   }
 
+  // ---------------- PUAN SİSTEMİ (yerel mod) ----------------
+  // Kurallar scoring.js'te; burada YALNIZ kalıcılık var. Puanlar toplam
+  // olarak değil OLAY olarak yazılır (score_events): oyun türüne göre ayrı
+  // istatistik ve "sıfırla" işlemi bu sayede veri silmeden yapılabiliyor.
+
+  // En son sıfırlama anı: bundan ÖNCEKİ olaylar toplamlara girmez.
+  function puanSifirNoktasi() {
+    if (!db) return 0;
+    try {
+      const r = db.prepare('SELECT ts FROM score_resets ORDER BY ts DESC LIMIT 1').get();
+      return r ? Number(r.ts) : 0;
+    } catch (_) { return 0; }
+  }
+
+  // Olay listesini yazar. Tek işlemde (transaction) yazılır ki maç bitişinde
+  // yarım kalmış puan tablosu oluşmasın.
+  function puanYaz(olaylar) {
+    if (!db || !Array.isArray(olaylar) || !olaylar.length) return;
+    try {
+      const ins = db.prepare('INSERT INTO score_events(user_id,game_id,kind,points,room_id,ts) VALUES(?,?,?,?,?,?)');
+      const t = now();
+      db.transaction(list => {
+        for (const o of list) {
+          if (!o || !(Number(o.uid) > 0)) continue;
+          ins.run(Number(o.uid), String(o.gameId || ''), String(o.tur || ''),
+                  Math.round(Number(o.puan) || 0), String(o.roomId || ''), t);
+        }
+      })(olaylar);
+    } catch (e) { console.warn('puan yazılamadı:', e.message); }
+  }
+
+  // Bir üyenin puan özeti — OYUN TÜRÜNE GÖRE AYRI (kullanıcının isteği).
+  function puanOzet(uid) {
+    const bos = { toplam: 0, oyunlar: [], genel: { mac: 0, galibiyet: 0, beraberlik: 0,
+                  maglubiyet: 0, terk: 0 } };
+    if (!db || !(Number(uid) > 0)) return bos;
+    try {
+      const t0 = puanSifirNoktasi();
+      const rows = db.prepare(
+        `SELECT game_id, kind, COUNT(*) adet, SUM(points) puan
+           FROM score_events WHERE user_id = ? AND ts >= ?
+          GROUP BY game_id, kind`
+      ).all(Number(uid), t0);
+      const harita = new Map();
+      for (const r of rows) {
+        let g = harita.get(r.game_id);
+        if (!g) {
+          g = { gameId: r.game_id, puan: 0, mac: 0, galibiyet: 0, beraberlik: 0,
+                maglubiyet: 0, terk: 0, donus: 0 };
+          harita.set(r.game_id, g);
+        }
+        const adet = Number(r.adet) || 0;
+        g.puan += Number(r.puan) || 0;
+        if (r.kind === 'win' || r.kind === 'win_left') { g.galibiyet += adet; g.mac += adet; }
+        else if (r.kind === 'draw') { g.beraberlik += adet; g.mac += adet; }
+        else if (r.kind === 'loss' || r.kind === 'timeout') { g.maglubiyet += adet; g.mac += adet; }
+        else if (r.kind === 'leave') g.terk += adet;
+        else if (r.kind === 'rejoin') g.donus += adet;
+      }
+      const oyunlar = [...harita.values()].sort((a, b) => b.puan - a.puan);
+      const genel = { mac: 0, galibiyet: 0, beraberlik: 0, maglubiyet: 0, terk: 0 };
+      let toplam = 0;
+      oyunlar.forEach(g => {
+        toplam += g.puan;
+        genel.mac += g.mac; genel.galibiyet += g.galibiyet;
+        genel.beraberlik += g.beraberlik; genel.maglubiyet += g.maglubiyet;
+        genel.terk += g.terk;
+      });
+      // TABAN: toplam puan eksiye düşmez (tek tek olaylar eksi kalabilir).
+      return { toplam: Math.max(0, toplam), oyunlar, genel, sifirlandi: t0 };
+    } catch (e) { console.warn('puan özeti okunamadı:', e.message); return bos; }
+  }
+
+  // Sıralama tablosu (ilk N üye). Oyun türü verilirse o oyuna göre.
+  function puanSiralama(limit, gameId) {
+    if (!db) return [];
+    try {
+      const t0 = puanSifirNoktasi();
+      const n = Math.min(100, Math.max(1, Number(limit) || 20));
+      const kosul = gameId ? ' AND e.game_id = ?' : '';
+      const args = gameId ? [t0, String(gameId), n] : [t0, n];
+      const rows = db.prepare(
+        `SELECT u.id, u.name, SUM(e.points) puan
+           FROM score_events e JOIN users u ON u.id = e.user_id
+          WHERE e.ts >= ?${kosul}
+          GROUP BY u.id, u.name ORDER BY puan DESC LIMIT ?`
+      ).all(...args);
+      return rows.map(r => ({ id: r.id, name: r.name, puan: Math.max(0, Number(r.puan) || 0) }));
+    } catch (e) { console.warn('sıralama okunamadı:', e.message); return []; }
+  }
+
+  // Kurucu: puanları sıfırla. Veri SİLİNMEZ — yeni bir sıfırlama noktası
+  // işaretlenir, toplamlar o andan itibaren sayılır (geri alınabilir).
+  function puanSifirla(byUserId, mode) {
+    if (!db) return { ok: false, error: 'Veritabanı yok.' };
+    try {
+      const t = now();
+      db.prepare('INSERT INTO score_resets(ts,by_user,mode) VALUES(?,?,?)')
+        .run(t, Number(byUserId) || null, String(mode || 'manuel'));
+      return { ok: true, ts: t };
+    } catch (e) { return { ok: false, error: e.message }; }
+  }
+
+  // Kurucu ayarı: otomatik sıfırlama periyodu (settings tablosunda).
+  function puanAyarOku() {
+    if (!db) return { periyot: 'kapali', sonSifirlama: 0 };
+    try {
+      const r = db.prepare('SELECT value FROM settings WHERE skey = ?').get('score_reset_period');
+      return { periyot: r ? String(r.value) : 'kapali', sonSifirlama: puanSifirNoktasi() };
+    } catch (_) { return { periyot: 'kapali', sonSifirlama: 0 }; }
+  }
+  function puanAyarYaz(periyot) {
+    if (!db) return { ok: false };
+    try {
+      db.prepare('INSERT INTO settings(skey,value,updated_at) VALUES(?,?,?) ' +
+                 'ON CONFLICT(skey) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at')
+        .run('score_reset_period', String(periyot || 'kapali'), now());
+      return { ok: true };
+    } catch (e) { return { ok: false, error: e.message }; }
+  }
+
   // ---------------- soket katmanı ----------------
   function attachSocket(socket) {
     socket.on('authHello', payload => {
@@ -625,6 +750,8 @@ function installAuth(app, deps) {
 
   console.log('👤 Üyelik & sosyal katman aktif (auth + profil + arkadaş + davet).');
   return { isOnline, onlineCount, uidFromUserKey, recordMatch, attachSocket, userById,
+    // Puan sistemi (scoring.js kuralları + score_events kalıcılığı)
+    puanYaz, puanOzet, puanSiralama, puanSifirla, puanAyarOku, puanAyarYaz,
     // Kurucu Paneli yetki kontrolü (server.js requireAdmin): istemcinin
     // oturum sahibini (e-posta dahil) döndürür.
     userFromReq: (req) => authFromReq(req),
@@ -876,6 +1003,13 @@ function installRemoteMode(app, deps) {
 
   console.log('👤 Üyelik UZAK modda: Yöncü PHP/MySQL — Render sadece soket/proxy.');
   return { isOnline, onlineCount, uidFromUserKey, recordMatch, attachSocket, logChat, userById: () => null,
+    // Puan sistemi — UZAK MOD: kurallar Render'da, kalıcılık Yöncü MySQL'de.
+    puanYaz: (o) => remote.puanYaz(o),
+    puanOzet: (uid) => remote.puanOzet(uid),
+    puanSiralama: (n, g) => remote.puanSiralama(n, g),
+    puanSifirla: (by, mode) => remote.puanSifirla(by, mode),
+    puanAyarOku: () => remote.puanAyarOku(),
+    puanAyarYaz: (p) => remote.puanAyarYaz(p),
     // Kurucu Paneli yetkisi — UZAK MOD. Eskiden bu API userFromReq'i HİÇ
     // döndürmüyordu; server.js'teki requireAdmin bu yüzden üretimde kurucuya
     // bile 403 veriyordu (/api/admin/stats hiç çalışmadı). Kimlik artık

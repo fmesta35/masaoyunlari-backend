@@ -3,6 +3,8 @@ const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
 const cors = require('cors');
+const scoring = require('./scoring');   // puan/ceza kuralları (tek doğruluk kaynağı)
+const ai = require('./ai-player');      // terk eden oyuncunun yerine idareten oynayan yapay zekâ
 const { Chess } = require('chess.js');
 const tavlaEngine = require('./tavla-engine');
 const pistiEngine = require('./pisti-engine');
@@ -562,6 +564,14 @@ function createRoom(id, gameId, maxPlayers, durationMinutes, meta) {
 
 function resetRoomToWaiting(room) {
   if (!room) return;
+  // Maç bitti: yapay zekânın tuttuğu koltuklar serbest kalır. Bot yalnız
+  // "el sayısı tamamlanana kadar" oynar (kullanıcının kuralı); yeni maça
+  // devam etmez, koltuğu boşaltır.
+  (room.players || []).forEach(p => {
+    if (!p || !p.aiControlled) return;
+    if (p.aiTimer) { clearTimeout(p.aiTimer); p.aiTimer = null; }
+  });
+  room.players = (room.players || []).filter(p => !p || !p.aiControlled);
   room.status = 'waiting';
   room.chess = null;
   room.tavla = null;
@@ -608,7 +618,10 @@ function publicPlayer(p) {
     name: p.name,
     color: p.color,
     seat: p.seat,
-    isReady: !!p.isReady
+    isReady: !!p.isReady,
+    // Koltuk yapay zekâda mı? İstemci bu bayrakla oyuncu kartına
+    // "🤖 idareci" rozeti basar; masadaki herkes durumu görür.
+    ai: !!p.aiControlled
   };
 }
 
@@ -885,6 +898,8 @@ function cardGameState(room, forSeat) {
 function emitCardState(room, event='gameStateUpdated') {
   room.players.forEach(p => emitToPlayer(p, event, { roomId: room.id, seat:p.seat, gameState:cardGameState(room,p.seat), isSpectator:false }));
   (room.spectators||[]).forEach(p => emitToPlayer(p,event,{roomId:room.id,seat:null,gameState:cardGameState(room,null),isSpectator:true}));
+  // Sıra yapay zekâdaysa hamlesini zamanla (pişti/batak masaları).
+  try { aiSiraKontrol(room); } catch (_) {}
 }
 function startCardGame(room) {
   if (room.status==='playing' || room.players.length!==room.maxPlayers || !room.players.every(p=>p.isReady)) return;
@@ -1210,6 +1225,10 @@ function emitOkeyState(room, event) {
       gameState: buildOkeyState(room, null)
     });
   });
+  // Sıra yapay zekânın tuttuğu bir koltuktaysa hamlesini zamanla.
+  // Buraya bağlamak yeterli: okey masasındaki HER durum değişimi bu
+  // fonksiyondan geçer, dolayısıyla bot hiçbir turu kaçırmaz.
+  try { aiSiraKontrol(room); } catch (_) {}
 }
 
 // Tur sahibi değişince çağrılır: ana saat muhasebesi + tur sayacı sıfırlanır.
@@ -1385,6 +1404,195 @@ function okeyGuard(room, socket) {
   return player;
 }
 
+// ===========================================================================
+// YAPAY ZEKÂ DEVRALMA (3–4 kişilik oyunlar)
+// ---------------------------------------------------------------------------
+// Kullanıcının kuralı:
+//   * 2 kişilik oyunlarda terk = hükmen mağlubiyet (eskisi gibi).
+//   * 3–4 kişilik oyunlarda masayı terk eden oyuncunun yerine, MAÇIN EL
+//     SAYISI TAMAMLANANA KADAR idareten oynayan bir yapay zekâ geçer.
+//   * Koltuğu YALNIZ o koltukta oyuna başlamış ÜYE (sabit ID) geri alabilir.
+//     Misafir terk ettiyse koltuk maç sonuna kadar yapay zekâda kalır.
+//   * Terk eden −20 ceza alır; geri dönerse +10 iade edilir.
+//
+// Koltuk odadan SİLİNMEZ: motor durumu (eller, sıra, puanlar) koltuk
+// numarasına bağlıdır; koltuğu çıkarmak maçı bozardı. Bunun yerine
+// koltuk "yapay zekâ kontrolünde" işaretlenir.
+// ===========================================================================
+// Hamle gecikmesi: bot anında oynarsa masa "hileli" hissettirir; insanlar
+// neler olduğunu takip edemez. Testlerde GV_AI_DELAY_MS ile kısaltılır.
+const AI_HAMLE_GECIKME_MS = Math.max(0, Number(process.env.GV_AI_DELAY_MS) || 1400);
+
+function aiOyunuDestekliyor(room) {
+  return !!room && ai.aiDestekli(room.gameId) && (room.maxPlayers || 0) >= 3;
+}
+
+function aiKoltuklari(room) {
+  return (room.players || []).filter(p => p && p.aiControlled);
+}
+
+// Koltuğu yapay zekâya devret.
+function aiDevral(room, player, sebep) {
+  if (!room || !player) return false;
+  player.aiControlled = true;
+  player.aiSince = now();
+  player.isReady = true;
+  // Yalnız ÜYE koltuğu geri alabilir: misafirde userId yoktur, o yüzden
+  // rezervasyon da yoktur (kullanıcının kuralı).
+  player.aiReservedUserId = Number(player.userId) > 0 ? Number(player.userId) : null;
+  player.aiOriginalName = player.aiOriginalName || player.name;
+  player.name = (player.aiOriginalName || 'Oyuncu') + ' 🤖';
+  player.disconnectedAt = null;
+  player.id = 'ai:' + room.id + ':' + player.seat;   // soketi yok
+  console.log(`[ODA #${room.id}] koltuk ${player.seat} yapay zekâya devredildi (${sebep || 'terk'})` +
+              (player.aiReservedUserId ? ` — üye #${player.aiReservedUserId} geri dönebilir` : ' — misafir, geri dönüş yok'));
+  io.to(room.id).emit('aiTookSeat', {
+    roomId: room.id, seat: player.seat, name: player.name,
+    geriDonebilir: !!player.aiReservedUserId,
+    mesaj: (player.aiOriginalName || 'Bir oyuncu') + ' masadan ayrıldı; yerine yapay zekâ oynuyor.'
+  });
+  return true;
+}
+
+// Koltuğu geri ver (üye döndü).
+function aiBirak(room, player, socket) {
+  if (!room || !player) return false;
+  player.aiControlled = false;
+  player.aiSince = null;
+  player.name = player.aiOriginalName || player.name;
+  player.aiOriginalName = null;
+  player.id = socket.id;
+  player.disconnectedAt = null;
+  if (player.aiTimer) { clearTimeout(player.aiTimer); player.aiTimer = null; }
+  io.to(room.id).emit('aiLeftSeat', {
+    roomId: room.id, seat: player.seat, name: player.name,
+    mesaj: player.name + ' oyuna geri döndü.'
+  });
+  return true;
+}
+
+// Sırası yapay zekâdaki bir koltuktaysa hamlesini zamanla.
+function aiSiraKontrol(room) {
+  if (!room || room.status !== 'playing') return;
+  const botlar = aiKoltuklari(room);
+  if (!botlar.length) return;
+  for (const bot of botlar) {
+    if (bot.aiTimer) continue;
+    if (!aiSirasiMi(room, bot.seat)) continue;
+    bot.aiTimer = setTimeout(() => {
+      bot.aiTimer = null;
+      try { aiOyna(room, bot); } catch (e) { console.warn('yapay zekâ hamlesi başarısız:', e.message); }
+    }, AI_HAMLE_GECIKME_MS);
+    if (bot.aiTimer.unref) bot.aiTimer.unref();
+  }
+}
+
+function aiSirasiMi(room, seat) {
+  if (room.okey && room.okey.roundState) {
+    return !room.okey.between && room.okey.roundState.turn === seat && !room.okey.roundState.finished;
+  }
+  if (room.cardGame) {
+    const c = room.cardGame;
+    if (c.finished) return false;
+    if (room.gameId === 'batak') {
+      if (c.phase === 'bid') return c.bidTurn === seat;
+      if (c.phase === 'trump') return c.bidder === seat;
+      return c.turn === seat;
+    }
+    return c.turn === seat;
+  }
+  return false;
+}
+
+// Yapay zekânın hamlesini UYGULA. Gerçek oyuncunun soket yolundan geçen
+// motor çağrılarının aynısını kullanır — kural kaçağı olmaz.
+function aiOyna(room, bot) {
+  if (!rooms.get(room.id) || room.status !== 'playing' || !bot.aiControlled) return;
+  if (!aiSirasiMi(room, bot.seat)) return;
+
+  if (room.okey && room.okey.roundState) {
+    const st8 = room.okey.roundState;
+    const h = ai.okeyHamle(st8, bot.seat, okeyEngine);
+    if (!h) return;
+    let res = null;
+    if (h.tur === 'draw') {
+      res = h.kaynak === 'prev' ? okeyEngine.drawFromPrev(st8, bot.seat) : okeyEngine.drawFromDeck(st8, bot.seat);
+      // Yanlış kaynak reddedilirse diğerini dene (kilitlenme olmasın).
+      if (!res.ok) res = okeyEngine.drawFromDeck(st8, bot.seat);
+      if (!res.ok) res = okeyEngine.drawFromPrev(st8, bot.seat);
+    } else if (h.tur === 'finish') {
+      res = okeyEngine.finish(st8, bot.seat, h.tileId);
+      // Bitiş geçersizse normal atışa düş.
+      if (!res.ok) res = okeyEngine.discard(st8, bot.seat, h.tileId);
+    } else {
+      res = okeyEngine.discard(st8, bot.seat, h.tileId);
+    }
+    if (!res || !res.ok) {
+      // Son çare: elindeki İLK taşı at; oyun asla kilitlenmesin.
+      const hand = (st8.hands || [])[bot.seat] || [];
+      if (st8.phase === 'discard' && hand.length) okeyEngine.discard(st8, bot.seat, hand[0].id);
+      else if (st8.phase === 'draw') okeyEngine.drawFromDeck(st8, bot.seat);
+    }
+    okeyAdvanceClock(room);
+    if (room.okey.strikes) room.okey.strikes[bot.seat] = 0;
+    if (st8.finished) okeyRoundFinished(room);
+    else emitOkeyState(room);
+    emitRoom(room);
+    aiSiraKontrol(room);
+    return;
+  }
+
+  if (room.cardGame) {
+    const c = room.cardGame;
+    const h = room.gameId === 'batak' ? ai.batakHamle(c, bot.seat) : ai.pistiHamle(c, bot.seat);
+    if (!h) return;
+    let res = null;
+    if (h.tur === 'bid') res = batakEngine.bid(c, bot.seat, h.value);
+    else if (h.tur === 'trump') res = batakEngine.trump(c, bot.seat, h.suit);
+    else if (room.gameId === 'batak') res = batakEngine.play(c, bot.seat, h.index);
+    else res = pistiEngine.play(c, bot.seat, h.index);
+    if (res && !res.ok) {
+      // Son çare: ilk geçerli kartı sırayla dene.
+      const hand = (c.hands || [])[bot.seat] || [];
+      for (let i = 0; i < hand.length; i++) {
+        const r2 = room.gameId === 'batak' ? batakEngine.play(c, bot.seat, i) : pistiEngine.play(c, bot.seat, i);
+        if (r2 && r2.ok) break;
+      }
+    }
+    room.moveStartedAt = now();
+    room.moveWarned = false;
+    if (c.finished) {
+      room.status = 'finished';
+      const kazanan = room.gameId === 'batak'
+        ? c.scores.indexOf(Math.max(...c.scores))
+        : (c.result ? c.result.winner : null);
+      room.result = { reason: 'finished', winner: kazanan, winnerSeat: kazanan };
+      emitCardState(room);
+      room.players.forEach(q => emitToPlayer(q, 'gameEnded', {
+        roomId: room.id, reason: 'finished', winnerSeat: kazanan,
+        youWon: q.seat === kazanan, gameState: cardGameState(room, q.seat)
+      }));
+      scheduleRoomReset(room);
+    } else {
+      emitCardState(room);
+    }
+    emitRoom(room);
+    aiSiraKontrol(room);
+  }
+}
+
+// Bir üyenin geri dönebileceği (yapay zekânın tuttuğu) koltuğu bul.
+function aiBekleyenKoltuk(userId) {
+  const uid = Number(userId);
+  if (!(uid > 0)) return null;
+  for (const room of rooms.values()) {
+    if (room.status !== 'playing') continue;
+    const p = (room.players || []).find(x => x && x.aiControlled && Number(x.aiReservedUserId) === uid);
+    if (p) return { room, player: p };
+  }
+  return null;
+}
+
 function okeyAct(room, socket, act) {
   const player = okeyGuard(room, socket);
   if (!player) return false;
@@ -1461,6 +1669,28 @@ function removeSpectator(room, spec) {
 // oda tamamen boşaldıysa kalıcı masalar sıfırlanır, normal odalar silinir.
 // Eskiden bu zamanlayıcı YALNIZCA 'player_left' yolunda kuruluyordu; diğer
 // bitişlerde oda lobide sonsuza dek "Oynanıyor 2/2" olarak takılı kalıyordu.
+// ---------------------------------------------------------------------------
+// PUAN YAZIMI — tek geçit
+// Kurallar scoring.js'te, kalıcılık üyelik katmanında (yerel SQLite veya
+// Yöncü MySQL). Burada yalnız güvenli çağrı var: puan sistemi çökse bile
+// oyun akışı ETKİLENMEZ (try/catch + boş olay ayıklama).
+// ---------------------------------------------------------------------------
+function puanYaz(olaylar) {
+  try {
+    const liste = (Array.isArray(olaylar) ? olaylar : [olaylar]).filter(Boolean);
+    if (!liste.length) return;
+    if (authApi && typeof authApi.puanYaz === 'function') authApi.puanYaz(liste);
+  } catch (e) { console.warn('puan yazılamadı:', e.message); }
+}
+
+// Terk edip el bitmeden geri dönen üyeye +10 iadesi (iyi niyet).
+function puanDonusYaz(room, player) {
+  if (!room || !player || !(Number(player.userId) > 0)) return;
+  puanYaz([scoring.donusOlayi({
+    uid: player.userId, ad: player.name, gameId: room.gameId, roomId: room.id
+  })]);
+}
+
 function cancelRoomReset(room) {
   if (room && room.resetTimer) {
     clearTimeout(room.resetTimer);
@@ -1496,6 +1726,33 @@ function scheduleRoomReset(room) {
         winnerName,
         reason: res.reason || 'finished'
       });
+      // PUAN: maç sonucundan puan olayları üretilip üye profillerine işlenir.
+      // Terk edenlerin −20'si ayrılma ANINDA yazıldı; burada yalnız masada
+      // kalıp maçı bitirenler puanlanır (terk eden geri döndüyse o da bu
+      // listededir ve normal sonuç puanını alır — kullanıcının kuralı).
+      const beraberlikNedenleri = ['draw', 'stalemate', 'threefold_repetition',
+                                   'fifty_move', 'insufficient_material'];
+      const berabere = beraberlikNedenleri.includes(String(res.reason || ''));
+      const sureAsimiNedeni = res.reason === 'move_timeout' || res.reason === 'timeout' ||
+                              res.reason === 'time_expired';
+      puanYaz(scoring.macOlaylari({
+        gameId: room.gameId,
+        roomId: room.id,
+        // El sayısı çarpanı: 3 el ×1, 5 el ×1.25, 7 el ×1.5
+        elSayisi: room.okeyMaxRounds || room.cardRounds || 1,
+        rakipTerkiyle: res.reason === 'player_left',
+        // Yapay zekânın oynadığı koltuklar puan ALMAZ: o eli masadan
+        // ayrılmış bir üyenin yerine bot oynadı; galibiyeti ona yazmak
+        // masada kalanlara haksızlık olurdu. Geri dönen oyuncu artık
+        // aiControlled değildir ve normal puanını alır.
+        oyuncular: (room.players || []).filter(p => !p.aiControlled).map(p => ({
+          uid: p.userId, ad: p.name,
+          kazandi: !!(winnerName && p.name === winnerName),
+          berabere,
+          // Süre aşımı puanı YALNIZ kaybedene: kazanan tam galibiyet alır.
+          sureAsimi: sureAsimiNedeni && !(winnerName && p.name === winnerName)
+        }))
+      }));
     } catch (e) { console.warn('maç kaydı atlandı:', e.message); }
   }
   const roomId = room.id;
@@ -1542,6 +1799,34 @@ function removePlayerFromRoom(room, player, message) {
   // Maç geçmişi bütünlüğü: oyun SIRASINDA ayrılan üye de kayda dahil edilsin.
   if (room.status === 'playing') {
     (room.__leftPlayers = room.__leftPlayers || []).push({ name: player.name, userId: player.userId || null });
+    // CEZA: masayı terk −20 puan. Maç bitişini beklemeyiz; terk eden
+    // oyuncu geri dönerse +10 iadesi AYRI bir olay olarak yazılır
+    // (bkz. puanDonusYaz). Misafirlerde uid yoktur → puan işlenmez.
+    puanYaz([scoring.terkOlayi({
+      uid: player.userId, ad: player.name, gameId: room.gameId, roomId: room.id
+    })]);
+
+    // 3–4 KİŞİLİK OYUNLAR: maç ÇÖKMEZ, koltuğu yapay zekâ devralır ve el
+    // sayısı tamamlanana kadar idareten oynar. Koltuk odadan silinmez;
+    // motorun eli/sırası koltuk numarasına bağlıdır. Üye terk ettiyse
+    // koltuk ona rezervedir (geri dönebilir), misafir terk ettiyse maç
+    // sonuna kadar yapay zekâda kalır. 2 kişilikte bu yol İŞLEMEZ —
+    // orada terk eskisi gibi hükmen mağlubiyettir.
+    if (aiOyunuDestekliyor(room) && !player.aiControlled) {
+      const kalanInsan = (room.players || []).filter(p => p !== player && !p.aiControlled).length;
+      // Masada en az BİR gerçek oyuncu kalmalı; herkes gittiyse botların
+      // kendi kendine oynaması anlamsızdır — masa kapanır.
+      if (kalanInsan >= 1) {
+        aiDevral(room, player, 'masayı terk');
+        emitRoom(room);
+        if (room.okey) emitOkeyState(room); else if (room.cardGame) emitCardState(room);
+        aiSiraKontrol(room);
+        return;
+      }
+      console.log(`[ODA #${room.id}] masada gerçek oyuncu kalmadı; yapay zekâ devralmıyor, masa kapanıyor.`);
+      (room.players || []).forEach(p => { if (p.aiTimer) { clearTimeout(p.aiTimer); p.aiTimer = null; } });
+      room.players = (room.players || []).filter(p => !p.aiControlled);
+    }
   }
   room.players = room.players.filter(p => p !== player);
 
@@ -1681,6 +1966,15 @@ function removePlayerFromRoom(room, player, message) {
 io.on('connection', socket => {
   console.log(`[BAĞLANDI] ${socket.id}`);
   if (authApi) authApi.attachSocket(socket);
+
+  // GERÇEK VARLIK: istemci kim olduğunu (üye uid'i veya kalıcı cihaz
+  // anahtarı) bildirir; aynı kişinin kaç sekmesi olursa olsun TEK kişi
+  // sayılır. Giriş yapınca istemci bunu tekrar gönderir ve kayıt
+  // ziyaretçiden üyeye taşınır.
+  socket.on('gvPresence', payload => {
+    try { presenceSoketBagla(socket, payload && payload.uid, payload && payload.cihaz); } catch (_) {}
+  });
+  socket.on('disconnect', () => { try { presenceSoketKopar(socket); } catch (_) {} });
 
   socket.on('subscribeLobby', payload => {
     const gameId = String((payload && payload.gameId) || 'chess');
@@ -2439,6 +2733,63 @@ io.on('connection', socket => {
     okeyAct(room, socket, (st8, seat) => okeyEngine.finish(st8, seat, String(data.tileId)));
   });
 
+  // ---------- YAPAY ZEKÂDAN KOLTUĞU GERİ ALMA ----------
+  // Kullanıcının kuralı: "Oyundan düşmüş oyuncu üye girişi yaparak web
+  // sitesine tekrar giriş yaparsa, ekranda pop-up olarak 'oyuna kaldığın
+  // yerden devam et' veya 'pes et' seçenekleri çıkar."
+  //
+  // İstemci giriş yapar yapmaz bunu sorar; sunucu yalnız o üyeye ait
+  // rezerve koltuğu döndürür. Misafirler için hiç kayıt yoktur.
+  socket.on('gvResumeCheck', (_payload, cb) => {
+    const uid = Number(socket.userId);
+    const bul = aiBekleyenKoltuk(uid);
+    const cevap = bul ? {
+      ok: true, devamEdilebilir: true,
+      roomId: bul.room.id, gameId: bul.room.gameId, seat: bul.player.seat,
+      masaAdi: bul.room.name || ('Masa #' + bul.room.id),
+      el: (bul.room.okey && bul.room.okey.currentRound) || null,
+      toplamEl: bul.room.okeyMaxRounds || bul.room.cardRounds || null
+    } : { ok: true, devamEdilebilir: false };
+    if (typeof cb === 'function') cb(cevap);
+    else socket.emit('gvResumeState', cevap);
+  });
+
+  // "Kaldığın yerden devam et" — yapay zekâ çekilir, oyuncu koltuğa döner.
+  socket.on('gvResumeSeat', (payload, cb) => {
+    const uid = Number(socket.userId);
+    const yanit = (o) => { if (typeof cb === 'function') cb(o); else socket.emit('gvResumeResult', o); };
+    if (!(uid > 0)) return yanit({ ok: false, error: 'Koltuğa dönmek için üye girişi gerekir.' });
+    const bul = aiBekleyenKoltuk(uid);
+    if (!bul) return yanit({ ok: false, error: 'Dönebileceğiniz bir masa kalmadı — maç bitmiş olabilir.' });
+    if (payload && payload.roomId && String(payload.roomId) !== String(bul.room.id)) {
+      return yanit({ ok: false, error: 'Bu masa size ait değil.' });
+    }
+    const { room, player } = bul;
+    aiBirak(room, player, socket);
+    socket.roomId = room.id;
+    socket.join(room.id);
+    // İYİ NİYET İADESİ: terk edince −20 almıştı, dönünce +10 geri alır.
+    // Sonrasında normal puanlama devam eder (kullanıcının kuralı).
+    puanDonusYaz(room, player);
+    emitRoom(room);
+    if (room.okey) emitOkeyState(room); else if (room.cardGame) emitCardState(room);
+    yanit({ ok: true, roomId: room.id, gameId: room.gameId, seat: player.seat });
+  });
+
+  // "Pes et" — koltuk yapay zekâda kalır, oyuncu lobiye döner. Ceza zaten
+  // ayrılırken yazıldı (−20); pes etmek EK ceza getirmez, yalnız geri
+  // dönüş hakkı (ve +10 iadesi) kaybedilir.
+  socket.on('gvForfeitSeat', (_payload, cb) => {
+    const uid = Number(socket.userId);
+    const bul = uid > 0 ? aiBekleyenKoltuk(uid) : null;
+    if (bul) {
+      bul.player.aiReservedUserId = null;   // koltuk artık geri alınamaz
+      console.log(`[ODA #${bul.room.id}] üye #${uid} pes etti; koltuk maç sonuna kadar yapay zekâda.`);
+    }
+    const o = { ok: true, gameId: bul ? bul.room.gameId : null };
+    if (typeof cb === 'function') cb(o); else socket.emit('gvForfeitResult', o);
+  });
+
   socket.on('leaveRoom', () => {
     const roomId = socket.roomId;
     if (!roomId) return;
@@ -2847,12 +3198,109 @@ app.get('/api/admin/stats', async (req, res) => {
   });
 });
 
+// ============================================================================
+// GERÇEK VARLIK (PRESENCE) SAYACI
+// ----------------------------------------------------------------------------
+// NEDEN: "çevrimiçi oyuncu" sayısı io.engine.clientsCount ile veriliyordu.
+// Bu SOKET sayar, KİŞİ değil: aynı kullanıcının 3 sekmesi 3 kişi gibi
+// görünüyor, sayfayı kapatan birinin soketi ise bir süre daha açık kalıp
+// olmayan bir kalabalık üretiyordu. Kullanıcının şartı net: "İstatistik
+// değerlerimiz ve verilerimiz tamamen gerçeği yansıtmalıdır."
+//
+// ÇÖZÜM: kişiyi kimliğiyle sayarız.
+//   - Üye girişi yapmışsa anahtar  'u:<uid>'  → kaç sekme açarsa açsın 1 kişi
+//   - Ziyaretçi ise anahtar        'g:<cihaz anahtarı>' → localStorage'da
+//     tutulan kalıcı rastgele anahtar; aynı tarayıcının tüm sekmeleri 1 kişi
+// Bir kişi "sitede" sayılır ANCAK:
+//   - açık en az bir soketi varsa (oyun/lobi/sohbet sayfası), VEYA
+//   - son PRESENCE_TTL içinde HTTP nabzı geldiyse (sadece ana sayfada duran
+//     kullanıcı da sayılsın diye).
+// Sekme kapanınca soket düşer ve nabız kesilir → kişi en geç TTL içinde
+// listeden çıkar. Böylece sayı anlık gerçeği yansıtır.
+// ============================================================================
+const PRESENCE_TTL = 45000;      // nabız gelmezse kişi bu süre sonunda düşer
+const presence = new Map();      // anahtar -> { uye, uid, sonHttp, soketler:Set }
+
+function presenceKey(uid, cihaz) {
+  const n = Number(uid);
+  if (Number.isInteger(n) && n > 0) return 'u:' + n;
+  const t = String(cihaz || '').replace(/[^A-Za-z0-9_-]/g, '').slice(0, 48);
+  return t ? 'g:' + t : null;
+}
+
+function presenceGet(key) {
+  let e = presence.get(key);
+  if (!e) {
+    e = { uye: key.charAt(0) === 'u', uid: key.charAt(0) === 'u' ? Number(key.slice(2)) : null,
+          sonHttp: 0, soketler: new Set() };
+    presence.set(key, e);
+  }
+  return e;
+}
+
+function presenceCanli(e) {
+  return e.soketler.size > 0 || (now() - e.sonHttp) < PRESENCE_TTL;
+}
+
+// HTTP nabzı (ana sayfada duran, soket açmamış ziyaretçiler için).
+function presenceNabiz(uid, cihaz) {
+  const key = presenceKey(uid, cihaz);
+  if (!key) return null;
+  const e = presenceGet(key);
+  e.sonHttp = now();
+  return e;
+}
+
+// Soket bağlanınca/kimliğini bildirince çağrılır.
+function presenceSoketBagla(socket, uid, cihaz) {
+  const key = presenceKey(uid, cihaz);
+  if (!key) return;
+  // Ziyaretçiyken giriş yaparsa eski (g:) kaydından soketi sök.
+  if (socket.__gvPKey && socket.__gvPKey !== key) presenceSoketKopar(socket);
+  socket.__gvPKey = key;
+  presenceGet(key).soketler.add(socket.id);
+}
+
+function presenceSoketKopar(socket) {
+  const key = socket.__gvPKey;
+  if (!key) return;
+  const e = presence.get(key);
+  if (!e) return;
+  e.soketler.delete(socket.id);
+  // Soketi kalmadıysa ve HTTP nabzı da eskiyse kişiyi hemen düşür:
+  // sekmeyi kapatan biri sayacı şişirmesin.
+  if (!presenceCanli(e)) presence.delete(key);
+}
+
+function presenceSupur() {
+  for (const [k, e] of presence) {
+    // Sunucuda gerçekten bağlı olmayan soket kimliklerini ayıkla (Render
+    // uyku/uyanma sonrası hayalet kayıtlar oluşabiliyor).
+    for (const sid of e.soketler) {
+      if (!io.sockets.sockets.get(sid)) e.soketler.delete(sid);
+    }
+    if (!presenceCanli(e)) presence.delete(k);
+  }
+}
+
+function presenceSayim() {
+  presenceSupur();
+  let uye = 0, ziyaretci = 0;
+  for (const e of presence.values()) { if (e.uye) uye++; else ziyaretci++; }
+  return { toplam: uye + ziyaretci, uye, ziyaretci };
+}
+
+const presenceTimer = setInterval(presenceSupur, 15000);
+if (presenceTimer.unref) presenceTimer.unref();
+
 // CANLI SAYAÇLAR (KAMU) — ana sayfadaki karşılama şeridi için.
 // Ana sayfada bu sayılar SABİT yazılmıştı (3.421 çevrimiçi, 1.205 aktif oda
 // gibi uydurma değerler): siteye kim girerse girsin aynı rakamları
 // görüyordu. Bu uç gerçek durumu döndürür ve yönetici yetkisi istemez;
 // hiçbir kişisel bilgi taşımaz, yalnızca sayılar.
-app.get('/api/live-stats', (_req, res) => {
+// POST ile çağrıldığında gövdedeki { uid, cihaz } aynı zamanda varlık
+// nabzıdır — istemci tek istekte hem "buradayım" der hem sayıları alır.
+function liveStatsGovde() {
   let aktifOda = 0, oynanan = 0, masadaki = 0;
   for (const r of rooms.values()) {
     const n = (r.players || []).length;
@@ -2860,18 +3308,148 @@ app.get('/api/live-stats', (_req, res) => {
     if (r.status === 'playing') oynanan++;
     masadaki += n;
   }
-  const uye = (authApi && typeof authApi.onlineCount === 'function') ? authApi.onlineCount() : 0;
-  res.set('Cache-Control', 'no-store');
-  res.json({
+  const k = presenceSayim();
+  return {
     ok: true,
-    online: io.engine ? io.engine.clientsCount : masadaki,   // bağlı tüm oyuncular
-    members: uye,                                            // bunların üye olanları
+    online: k.toplam,          // sitede GERÇEKTEN bulunan kişi sayısı
+    members: k.uye,            // bunların üye girişi yapmış olanları
+    guests: k.ziyaretci,       // ziyaretçiler
     activeRooms: aktifOda,
     playingRooms: oynanan,
     seatedPlayers: masadaki,
-    tournaments: 0,           // turnuva motoru henüz yok — uydurma sayı vermiyoruz
+    tournaments: 0,            // turnuva motoru henüz yok — uydurma sayı vermiyoruz
     now: Date.now()
-  });
+  };
+}
+
+app.get('/api/live-stats', (_req, res) => {
+  res.set('Cache-Control', 'no-store');
+  res.json(liveStatsGovde());
+});
+
+// ============================================================================
+// PUAN UÇLARI
+// ============================================================================
+// Üyenin KENDİ puan özeti — oyun türüne göre AYRI (kullanıcının isteği:
+// "Profilde tutulacak istatistikler, oyun türlerine göre ayrı ayrı
+// gösterilecek."). Yetki: oturum sahibi kendi verisini görür.
+app.get('/api/scores/me', async (req, res) => {
+  let u = null;
+  try {
+    if (authApi && typeof authApi.userFromReqAsync === 'function') u = await authApi.userFromReqAsync(req);
+  } catch (_) { u = null; }
+  if (!u) return res.status(401).json({ ok: false, error: 'Puanları görmek için üye girişi yapmalısınız.' });
+  let ozet = null;
+  try { ozet = await authApi.puanOzet(u.id); } catch (_) { ozet = null; }
+  res.set('Cache-Control', 'no-store');
+  res.json({ ok: true, ozet: ozet || { toplam: 0, oyunlar: [], genel: {} },
+             etiketler: scoring.ETIKET });
+});
+
+// Sıralama (kamu) — puan tablosunun herkese açık görünümü.
+app.get('/api/scores/board', async (req, res) => {
+  const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 20));
+  const game = req.query.game ? String(req.query.game).slice(0, 24) : null;
+  let siralama = [];
+  try {
+    if (authApi && typeof authApi.puanSiralama === 'function') {
+      siralama = await authApi.puanSiralama(limit, game);
+    }
+  } catch (_) { siralama = []; }
+  res.set('Cache-Control', 'no-store');
+  res.json({ ok: true, siralama: siralama || [] });
+});
+
+// Puan tablosu kuralları (istemci "nasıl puan kazanırım" ekranını buradan
+// çizer — kuralların tek kaynağı sunucudur, istemci kendi tablosunu tutmaz).
+app.get('/api/scores/rules', (_req, res) => {
+  res.json({ ok: true, puan: scoring.PUAN, etiket: scoring.ETIKET,
+             carpanlar: { '3': 1, '5': 1.25, '7': 1.5 },
+             periyotlar: scoring.PERIYOT_ETIKET });
+});
+
+// ---- KURUCU: puan sıfırlama (İstatistikler başlığı altında) ----
+// İki seçenek (kullanıcının isteği):
+//   1) ELLE  — kurucu butona basar, puanlar o an sıfırlanır
+//   2) OTOMATİK — haftalık / aylık / 3 aylık / 6 aylık / yıllık periyot
+// Sıfırlama VERİ SİLMEZ: yeni bir "sıfırlama noktası" işaretlenir ve
+// toplamlar o andan itibaren sayılır. Böylece yanlışlıkla basılırsa
+// geçmiş kayıt kaybolmaz.
+app.get('/api/admin/scores/settings', async (req, res) => {
+  if (!await requireAdmin(req, res)) return;
+  let ayar = { periyot: 'kapali', sonSifirlama: 0 };
+  try { ayar = (await authApi.puanAyarOku()) || ayar; } catch (_) {}
+  res.json({ ok: true, periyot: ayar.periyot || 'kapali',
+             sonSifirlama: ayar.sonSifirlama || 0,
+             secenekler: scoring.PERIYOT_ETIKET });
+});
+
+app.post('/api/admin/scores/settings', async (req, res) => {
+  const u = await requireAdmin(req, res);
+  if (!u) return;
+  const p = String((req.body && req.body.periyot) || 'kapali');
+  if (!Object.prototype.hasOwnProperty.call(scoring.PERIYOTLAR, p)) {
+    return res.status(400).json({ ok: false, error: 'Geçersiz periyot.' });
+  }
+  let r = { ok: false };
+  try { r = (await authApi.puanAyarYaz(p)) || { ok: false }; } catch (e) { r = { ok: false, error: e.message }; }
+  if (!r.ok) return res.status(500).json({ ok: false, error: r.error || 'Ayar kaydedilemedi.' });
+  console.log('[PUAN] otomatik sıfırlama periyodu: ' + p + ' (kurucu #' + u.id + ')');
+  res.json({ ok: true, periyot: p });
+});
+
+app.post('/api/admin/scores/reset', async (req, res) => {
+  const u = await requireAdmin(req, res);
+  if (!u) return;
+  let r = { ok: false };
+  try { r = (await authApi.puanSifirla(u.id, 'manuel')) || { ok: false }; }
+  catch (e) { r = { ok: false, error: e.message }; }
+  if (!r.ok) return res.status(500).json({ ok: false, error: r.error || 'Sıfırlanamadı.' });
+  console.log('[PUAN] tüm puanlar ELLE sıfırlandı (kurucu #' + u.id + ')');
+  res.json({ ok: true, ts: r.ts || Date.now() });
+});
+
+// OTOMATİK SIFIRLAMA ZAMANLAYICISI
+// Kurucu bir periyot seçtiyse, süresi dolduğunda puanlar kendiliğinden
+// sıfırlanır. Saatte bir kontrol yeter (periyotlar en az haftalık).
+async function puanOtomatikKontrol() {
+  if (!authApi || typeof authApi.puanAyarOku !== 'function') return;
+  try {
+    const ayar = (await authApi.puanAyarOku()) || {};
+    const ms = scoring.PERIYOTLAR[String(ayar.periyot || 'kapali')] || 0;
+    if (!ms) return;                                   // kapalı
+    const son = Number(ayar.sonSifirlama) || 0;
+    // Hiç sıfırlanmadıysa ilk periyodu ŞİMDİDEN başlat (geçmişi silme).
+    if (!son) { await authApi.puanSifirla(null, 'otomatik'); return; }
+    if (Date.now() - son >= ms) {
+      await authApi.puanSifirla(null, 'otomatik');
+      console.log('[PUAN] otomatik sıfırlama uygulandı (' + ayar.periyot + ')');
+    }
+  } catch (e) { console.warn('otomatik puan sıfırlama kontrolü başarısız:', e.message); }
+}
+const puanTimer = setInterval(puanOtomatikKontrol, 3600000);
+if (puanTimer.unref) puanTimer.unref();
+setTimeout(puanOtomatikKontrol, 30000);   // açılıştan 30 sn sonra bir kez
+
+// Sekme kapanırken gönderilen "ayrılıyorum" işareti (sendBeacon).
+// Nabız kesilse de kişi 45 sn daha sayılırdı; bu uç sayacı ANINDA düzeltir.
+app.post('/api/presence-bye', (req, res) => {
+  try {
+    const b = req.body || {};
+    const key = presenceKey(b.uid, b.cihaz || b.k);
+    const e = key ? presence.get(key) : null;
+    // Soketi hâlâ açıksa kişi gerçekten sitededir (başka sekmesi olabilir):
+    // yalnız HTTP nabzını sıfırlarız, kaydı silmeyiz.
+    if (e) { e.sonHttp = 0; if (!e.soketler.size) presence.delete(key); }
+  } catch (_) {}
+  res.json({ ok: true });
+});
+
+app.post('/api/live-stats', (req, res) => {
+  const b = req.body || {};
+  presenceNabiz(b.uid, b.cihaz || b.k);
+  res.set('Cache-Control', 'no-store');
+  res.json(liveStatsGovde());
 });
 
 // Çevrimiçi durum haritalaması (arkadaş listesi / profil bayrakları).
@@ -3011,6 +3589,8 @@ if (require.main === module) {
 module.exports = { app, server, io, rooms, start, listPublicRooms, publicRoom, seedPresetTables,
   // Yönetici (kurucu) paneli + hazır masa yönetimi (testler için de export):
   ALL_GAMES, STANDARD_PRESET_GAMES, PRESET_GAME_BASES, defaultPresetConfig, normPresetConfig,
-  presetTablesFromConfig, applyPresetConfig, loadPresetConfigLocal, savePresetConfigLocal, gameVisible };
+  presetTablesFromConfig, applyPresetConfig, loadPresetConfigLocal, savePresetConfigLocal, gameVisible,
+  // Puan sistemi test kancaları (yalnız testler kullanır; üretimde etkisi yok).
+  __test: { puanYaz, puanDonusYaz, scoring, presenceSayim } };
 // Eski test uyumluluğu: PRESET_TABLES artık yapılandırmadan üretilir.
 Object.defineProperty(module.exports, 'PRESET_TABLES', { get: () => presetTablesFromConfig(presetConfig) });

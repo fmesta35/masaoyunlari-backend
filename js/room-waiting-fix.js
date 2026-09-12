@@ -321,9 +321,13 @@
         }
         return '<div class="gvp gvp-empty ' + sp + '"><div class="av">🪑</div><div class="nm">' + emptyTxt + '</div><div class="st">Boş Sandalye</div></div>';
       }
-      const ava = isOkeyGame
+      // Koltuk yapay zekâdaysa (oyuncu masayı terk etti, bot idareten
+      // oynuyor) bunu masadaki herkes görsün — kimin gerçek oyuncu
+      // olduğu belirsiz kalmasın.
+      const botKoltuk = !!p.ai;
+      const ava = botKoltuk ? '🤖' : (isOkeyGame
         ? seatAva[i % seatAva.length]
-        : (p.color === 'white' ? '⚪' : '🔴');
+        : (p.color === 'white' ? '⚪' : '🔴'));
       const nmHtml = Number(p.uid) > 0 && !isMe(p)
         ? '<span class="gv-u" data-uid="' + Number(p.uid) + '">' + esc(p.name || 'Oyuncu') + '</span>'
         : esc(p.name || 'Oyuncu');
@@ -333,7 +337,7 @@
       return '<div class="gvp ' + sp + ' ' + (p.isReady ? 'ready' : '') + '">' +
         '<div class="av">' + ava + '</div>' +
         '<div class="nm">' + nmHtml + (isMe(p) ? ' <b>(Siz)</b>' : '') + '</div>' +
-        '<div class="st">' + (p.isReady ? '✅ HAZIR' : '⏳ BEKLİYOR') + '</div>' +
+        '<div class="st">' + (botKoltuk ? '🤖 İdareci' : (p.isReady ? '✅ HAZIR' : '⏳ BEKLİYOR')) + '</div>' +
         kickBtn +
         '</div>';
     };

@@ -91,8 +91,12 @@ const GAMES = [
     move: function (win, root) { click(win, root.querySelector('.c4-drop-btn[data-c="3"]')); }
   },
   {
-    id: 'bilardo', sel: '.bil-table', label: 'Bilardo',
-    move: function (win, root) { click(win, root.querySelector('#bilShoot')); }
+    // Bilardo istemcisi yenilendi: tahta artık <canvas class="bil-canvas">,
+    // vuruş düğmesi de #bilOnlineShoot. Eski seçiciler (.bil-table /
+    // #bilShoot) artık hiçbir şeyi bulamıyor ve test "tahta çizilmedi"
+    // diye zaman aşımına düşüyordu.
+    id: 'bilardo', sel: '.bil-canvas', label: 'Bilardo',
+    move: function (win, root) { click(win, root.querySelector('#bilOnlineShoot')); }
   }
 ];
 

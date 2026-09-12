@@ -75,6 +75,30 @@ try {
       value TEXT NOT NULL,
       updated_at INTEGER
     );
+    -- PUAN SİSTEMİ ------------------------------------------------------
+    -- Puanlar TOPLAM olarak değil OLAY olarak tutulur: her galibiyet,
+    -- mağlubiyet, terk ve dönüş ayrı bir satırdır. Nedeni:
+    --   * oyun türüne göre ayrı istatistik tek bir GROUP BY ile çıkar
+    --   * kurucu "sıfırla" dediğinde veri SİLİNMEZ, yalnız yeni bir
+    --     sıfırlama noktası işaretlenir (geçmiş korunur, geri alınabilir)
+    CREATE TABLE IF NOT EXISTS score_events(
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      game_id TEXT NOT NULL,
+      kind TEXT NOT NULL,          -- win|draw|loss|timeout|win_left|leave|rejoin
+      points INTEGER NOT NULL,
+      room_id TEXT,
+      ts INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_score_user ON score_events(user_id, game_id);
+    CREATE INDEX IF NOT EXISTS idx_score_ts ON score_events(ts);
+    -- Sıfırlama noktaları: en son satırın ts'inden ÖNCEKİ olaylar sayılmaz.
+    CREATE TABLE IF NOT EXISTS score_resets(
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      ts INTEGER NOT NULL,
+      by_user INTEGER,
+      mode TEXT                    -- manuel | otomatik
+    );
   `);
   // Eski veritabanları: kurucu bayrağı sütunu sonradan eklendi (idempotent).
   try {

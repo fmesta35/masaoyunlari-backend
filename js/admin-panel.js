@@ -361,6 +361,23 @@
         '<h4 style="margin-bottom:10px;font-size:.9em">📊 Yönetici İstatistikleri ' +
         '<span style="font-size:.7em;color:var(--text3);font-weight:400">(canlı, 30 sn&#39;de bir yenilenir)</span></h4>' +
         '<div class="stats" id="adminStatsGrid" style="margin-bottom:0"><div style="color:var(--text3);font-size:.85em">⏳ Yükleniyor...</div></div>' +
+        // PUAN SIFIRLAMA — kullanıcının isteği: "İstatistikler başlığı
+        // altında olsun." İki seçenek: (1) elle, (2) seçilen periyotta
+        // otomatik. Sıfırlama veriyi SİLMEZ; yalnız yeni bir sayım
+        // noktası koyar, geçmiş kayıt korunur.
+        '<div id="adminScoreReset" style="margin-top:14px;border-top:1px solid var(--border);padding-top:12px">' +
+          '<h4 style="margin-bottom:8px;font-size:.88em">🏆 Puan Tablosu Sıfırlama</h4>' +
+          '<p style="color:var(--text3);font-size:.76em;margin-bottom:10px">' +
+            'Sıfırlama kayıtları silmez: yeni bir sayım dönemi başlatır, ' +
+            'eski veriler veritabanında korunur.</p>' +
+          '<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">' +
+            '<label style="font-size:.8em;color:var(--text2)">Otomatik dönem:</label>' +
+            '<select id="adminScorePeriod" style="padding:7px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg3);color:var(--text);font-size:.82em"></select>' +
+            '<button type="button" id="adminScorePeriodSave" class="btn btn-sm">💾 Dönemi Kaydet</button>' +
+            '<button type="button" id="adminScoreResetNow" class="btn btn-sm btn-d">🧹 Şimdi Sıfırla</button>' +
+          '</div>' +
+          '<div id="adminScoreResetInfo" style="font-size:.75em;color:var(--text3);margin-top:8px"></div>' +
+        '</div>' +
       '</div>';
     if (anchor && anchor.parentNode === home) home.insertBefore(statsSection, anchor.nextSibling);
     else home.insertBefore(statsSection, home.firstChild);
@@ -370,6 +387,44 @@
     if (statsSection && statsSection.isConnected) statsSection.remove();
     statsSection = null;
   }
+  // ---- Puan sıfırlama denetimleri (İstatistikler başlığı altında) ----
+  let scoreUISetup = false;
+  async function refreshScoreReset() {
+    const sel = document.getElementById('adminScorePeriod');
+    const info = document.getElementById('adminScoreResetInfo');
+    if (!sel) return;
+    let r = null;
+    try { r = await api(BACKEND + '/api/admin/scores/settings', null, 'GET'); } catch (_) {}
+    if (!r || !r.ok) { if (info) info.textContent = '⚠️ Puan ayarları okunamadı.'; return; }
+    const sec = r.secenekler || {};
+    sel.innerHTML = Object.keys(sec).map(k =>
+      '<option value="' + k + '"' + (k === r.periyot ? ' selected' : '') + '>' + sec[k] + '</option>').join('');
+    if (info) {
+      info.textContent = r.sonSifirlama
+        ? 'Son sıfırlama: ' + new Date(Number(r.sonSifirlama)).toLocaleString('tr-TR')
+        : 'Henüz hiç sıfırlanmadı — tüm puanlar ilk günden beri sayılıyor.';
+    }
+    if (scoreUISetup) return;
+    scoreUISetup = true;
+    const kaydet = document.getElementById('adminScorePeriodSave');
+    const simdi = document.getElementById('adminScoreResetNow');
+    if (kaydet) kaydet.addEventListener('click', async () => {
+      const r2 = await api(BACKEND + '/api/admin/scores/settings', { periyot: sel.value }, 'POST');
+      if (r2 && r2.ok) { toast('✅ Otomatik sıfırlama dönemi kaydedildi.', 'success'); refreshScoreReset(); }
+      else toast('⚠️ ' + ((r2 && r2.error) || 'Kaydedilemedi.'), 'error');
+    });
+    if (simdi) simdi.addEventListener('click', async () => {
+      // Geri alınamaz görünen bir işlem: tek tıkla olmasın.
+      if (!window.confirm('Tüm oyuncuların puanları sıfırlanacak ve yeni bir dönem başlayacak.\n\nEski kayıtlar silinmez, yalnız sayım bu andan itibaren yapılır.\n\nOnaylıyor musunuz?')) return;
+      const r2 = await api(BACKEND + '/api/admin/scores/reset', {}, 'POST');
+      if (r2 && r2.ok) {
+        toast('✅ Puanlar sıfırlandı; yeni dönem başladı.', 'success');
+        refreshScoreReset();
+        if (window.GVScores && GVScores.refresh) GVScores.refresh();
+      } else toast('⚠️ ' + ((r2 && r2.error) || 'Sıfırlanamadı.'), 'error');
+    });
+  }
+
   async function refreshHeroStats() {
     if (!ensureStatsSection()) return;
     const grid = document.getElementById('adminStatsGrid');
@@ -407,6 +462,7 @@
     } catch (e) {
       grid.innerHTML = '<div style="color:#ff7675;font-size:.85em">⚠️ İstatistik alınamadı</div>';
     }
+    refreshScoreReset();
   }
 
   // ---------------- üst bar butonu + giriş ----------------

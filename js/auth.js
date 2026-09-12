@@ -121,6 +121,9 @@
     });
     authHelloAll();
     refreshAttestation(); // soket kimliği için imzalı belgeyi hemen tazele
+    // Çevrimiçi sayacı kimliği kişi başına sayar: giriş yapınca kayıt
+    // "ziyaretçi"den "üye"ye taşınmalı, yoksa aynı kişi iki kez sayılır.
+    try { window.dispatchEvent(new Event('gv:authChanged')); } catch (_) {}
   }
 
   function clearUser() {
@@ -132,6 +135,7 @@
     ['checkAuthState', 'updateAuthState', 'updateScoreUI'].forEach(fn => {
       if (typeof window[fn] === 'function') try { window[fn](); } catch (_) {}
     });
+    try { window.dispatchEvent(new Event('gv:authChanged')); } catch (_) {}
   }
 
   // ---------- Soketlere kimlik (çevrimiçi + davet + sohbet) ----------
