@@ -21,6 +21,7 @@
 
 const assert = require('assert');
 const io = require('socket.io-client');
+const { JSDOM, VirtualConsole } = require('jsdom');
 const bilardoEngine = require('../bilardo-engine');
 
 function conn(url, name) {
@@ -36,8 +37,11 @@ async function main() {
   // ---------- 1) motor seviyesi: frames tutarlılığı ----------
   {
     const st = bilardoEngine.init();
-    const cue = st.balls.find(b => b.id === 'cue');
-    const cueX0 = cue.x, cueY0 = cue.y;
+    // NOT: motor içeride SI birimiyle (metre) çalışır; kareler ve istemci
+    // görünümü PİKSELDİR. Karşılaştırmalar bu yüzden viewBalls() üzerinden
+    // yapılır (fizik motoru baştan yazıldığında bu ayrım netleşti).
+    const gorunum0 = bilardoEngine.viewBalls(st);
+    const cueX0 = gorunum0[0].x, cueY0 = gorunum0[0].y;
     const r = bilardoEngine.shoot(st, 0, 0.15, 0.85);
     assert.ok(r.ok, 'geçerli vuruş kabul edilmeli');
     const frames = r.shot.frames;
@@ -54,7 +58,8 @@ async function main() {
     // farklıdır; tıpkı gerçek bilardoda topun tekrar baş noktasına konması gibi.
     const scratch = r.shot.potted.includes('cue');
     const lastFrame = frames[frames.length - 1];
-    st.balls.forEach((b, idx) => {
+    const gorunumSon = bilardoEngine.viewBalls(st);
+    gorunumSon.forEach((b, idx) => {
       if (b.potted) { assert.strictEqual(lastFrame[idx], null, 'cepteki top son karede gösterilmemeli: ' + b.id); return; }
       if (b.id === 'cue' && scratch) return;
       assert.ok(Math.abs(lastFrame[idx][0] - b.x) < 0.6 && Math.abs(lastFrame[idx][1] - b.y) < 0.6,
@@ -106,8 +111,158 @@ async function main() {
     totalMs + 'ms, ' + fa.frames.length + ' kare, ~' + fa.frameMs + 'ms/kare)');
 
   a.disconnect(); b.disconnect();
+
+  // ---------- 3) GERÇEK istemci (jsdom): "bir görünüp bir kaybolma" hatası
+  //    bir daha YOK — nihai durum gelince eski (yarım kalmış) animasyon
+  //    döngüsü tuvali ASLA geri yazamıyor ----------
+  //
+  // Kullanıcı raporu: bilardoda toplar "bir görünüp bir kayboluyor, silik,
+  // gerçeği yansıtmıyor". Kök neden: eski istemci kodu vuruş animasyonunu
+  // sabit adımlı setInterval ile oynatıyordu ve bind() (sunucudan taze/gerçek
+  // durum geldiğinde tetiklenen yeniden çizim) bu döngüyü HİÇ iptal etmiyordu.
+  // Sekme arka plana alınıp da geri dönüldüğünde veya ana iş parçacığı
+  // yoğunken, tarayıcı setInterval çağrılarını geciktirip sonra art arda
+  // boşaltıyor; bu da NİHAİ (doğru) kareyi bind() çizdikten SONRA bile eski,
+  // güncelliğini yitirmiş kare(ler)in üzerine tekrar yazmasına yol açıyordu.
+  //
+  // Bu test, istemcinin requestAnimationFrame çağrılarını KASITLI olarak
+  // yavaşlatıp (250ms/kare) sunucunun gerçek (çok daha hızlı) gecikmeli nihai
+  // durumunun, istemci animasyonu HÂLÂ ortasındayken gelmesini garantiler —
+  // tam da hatanın oluştuğu yarış durumunu deterministik biçimde tetikler.
+  // Tuval çizimlerini (canvas 2D API) küçük bir sahte bağlamla kaydedip,
+  // nihai (yetkili) durum geldikten SONRA tuvale ekstra/eski bir kare daha
+  // YAZILMADIĞINI doğrular.
+  {
+    // Az önceki #2'de zaten çalışan sunucuyu YENİDEN KULLAN — server.js'in
+    // http sunucusu tekil (modül kapsamında) olduğundan start()'ı iki kez
+    // çağırmak "already listening" hatası verir.
+    const BASE = url;
+
+    async function makeClient(label) {
+      const vc = new VirtualConsole();
+      vc.on('jsdomError', () => {});
+      vc.on('error', () => {});
+      const dom = await JSDOM.fromURL(BASE + '/index.html', {
+        resources: 'usable', runScripts: 'dangerously', pretendToBeVisual: true,
+        virtualConsole: vc,
+        beforeParse(w) {
+          w.GV_BACKEND_URL = BASE;
+          w.fetch = (...a) => fetch(...a);
+          w.confirm = () => true;
+
+          // ---- tuval 2D bağlamını gözlemlenebilir sahte bir bağlamla değiştir ----
+          // (bu ortamda gerçek 'canvas' paketi kurulu değil, getContext('2d') null
+          //  döner; bu sahte bağlam olmadan çizim kodu sessizce hiçbir şey yapmaz.)
+          w.__drawLog = [];
+          let curFrame = null;
+          const gradient = { addColorStop() {} };
+          const noop = () => {};
+          const fakeCtx = new Proxy({}, {
+            get(_t, prop) {
+              if (prop === 'clearRect') return () => { curFrame = { t: Date.now(), pts: [] }; w.__drawLog.push(curFrame); };
+              if (prop === 'translate') return (x, y) => { if (curFrame) curFrame.pts.push([x, y]); };
+              if (prop === 'createLinearGradient' || prop === 'createRadialGradient') return () => gradient;
+              return noop;
+            }
+          });
+          w.HTMLCanvasElement.prototype.getContext = function (type) { return type === '2d' ? fakeCtx : null; };
+
+          // ---- istemcinin gördüğü SAATİ kasıtlı yavaşlat (gerçek hızın 1/25'i) ----
+          // playShotFrames() ilerlemesini DUVAR SAATİNE göre hesaplar (nowMs()).
+          // Bu saati yavaşlatmak, istemcinin "az zaman geçti" sanmasına yol
+          // açar — sunucunun GERÇEK (yavaşlatılmamış) nihai durumu normal
+          // hızında gelirken istemci animasyonu kendi (yavaş) saatine göre
+          // HÂLÂ yolun başındadır. Böylece gerçek tarayıcıda sekme arka plana
+          // alındığında/CPU yoğunken oluşan yarış durumu güvenilir ve
+          // deterministik biçimde tetiklenir — requestAnimationFrame'in
+          // KENDİSİ normal hızında (gerçek ~16ms) çalışmaya devam eder, yani
+          // DÜZELTME olmasaydı tick() her ~16ms'de bir tuvale gereksiz/eski
+          // bir kare daha yazardı.
+          if (w.performance && typeof w.performance.now === 'function') {
+            const realPerfNow = w.performance.now.bind(w.performance);
+            const t0 = realPerfNow();
+            const SLOW = 25;
+            w.performance.now = () => t0 + (realPerfNow() - t0) / SLOW;
+          }
+        }
+      });
+      const win = dom.window;
+      win.__gvErrors = [];
+      win.addEventListener('error', e => win.__gvErrors.push(String(e.message || e)));
+      return { dom, win, label };
+    }
+    const sleep2 = ms => new Promise(r => setTimeout(r, ms));
+    async function waitFor2(fn, timeoutMs, what) {
+      const t0 = Date.now();
+      while (Date.now() - t0 < (timeoutMs || 20000)) {
+        try { const v = fn(); if (v) return v; } catch (_) {}
+        await sleep2(100);
+      }
+      throw new Error('zaman aşımı: ' + what);
+    }
+    function click2(win, el) { el.dispatchEvent(new win.MouseEvent('click', { bubbles: true, cancelable: true })); }
+
+    const roomId2 = 'bil-anim-race-test';
+    const A = await makeClient('A'), B = await makeClient('B');
+    for (const c of [A, B]) {
+      await waitFor2(() => c.win.GV && c.win.st && c.win.GVArena, 25000, c.label + ' hazır');
+      await waitFor2(() => typeof c.win.__gvStartRealRoomWaiting === 'function', 25000, c.label + ' roomfix');
+      c.win.st.curGame = 'bilardo';
+      c.win.GV.joinRoom(roomId2);
+    }
+    for (const c of [A, B]) {
+      await waitFor2(() => c.win.document.querySelector('#gv-real-chess-wait .gv-ready'), 15000, c.label + ' HAZIRIM');
+      c.win.document.querySelector('#gv-real-chess-wait .gv-ready').click();
+    }
+    for (const c of [A, B]) {
+      await waitFor2(() => c.win.document.querySelector('#boardArea .bil-canvas'), 25000, c.label + ' bilardo tahtası');
+    }
+
+    const mover = await waitFor2(() => {
+      const s = A.win.GVArena.state();
+      return s && s.turn === A.win.GVArena.seat() ? A : (s && s.turn === B.win.GVArena.seat() ? B : null);
+    }, 15000, 'sırası gelen oyuncu');
+    const watcher = mover === A ? B : A; // rakip pencere: kendi animasyonunu izleyeceğiz
+
+    const shootBtn = watcher.win.document.getElementById('bilOnlineShoot');
+    // rakip için buton devre dışı (sırası değil) — animasyon her iki pencerede de
+    // aynı sunucu yayınından oynatıldığından watcher'ı gözlemlemek yeterli ve
+    // "kendi vuruşum" akışından bağımsız, saf senkronizasyon davranışını test eder
+    assert.ok(watcher.win.document.querySelector('#boardArea .bil-canvas'), 'izleyici tahtayı görmeli');
+
+    const moveBtn = mover.win.document.getElementById('bilOnlineShoot');
+    click2(mover.win, moveBtn); // varsayılan güçle (%55) vuruş yapar
+
+    // watcher'ın animasyonu (kasıtlı 250ms/kare) başlasın
+    await waitFor2(() => watcher.win.__drawLog.length >= 1, 8000, 'watcher animasyonu başlamalı');
+
+    // sunucunun GERÇEK (hızlı) nihai durumu gelene kadar bekle — bu, watcher'ın
+    // YAVAŞLATILMIŞ animasyonu daha bitmeden gerçekleşmeli (yarış tetiklenir)
+    const finalShots = await waitFor2(() => {
+      const s = watcher.win.GVArena.state();
+      return s && s.shots >= 1 ? s.shots : null;
+    }, 15000, 'watcher nihai (yetkili) durumu almalı');
+    assert.ok(finalShots >= 1, 'watcher yetkili durumu almış olmalı');
+    const logLenAtFinal = watcher.win.__drawLog.length;
+
+    // ekstra bekleme: DÜZELTME olmasaydı, yavaşlatılmış eski döngü bu pencerede
+    // birkaç kare daha (250ms aralıklarla) çizmeye devam ederdi
+    await sleep2(1500);
+    const logLenAfterWait = watcher.win.__drawLog.length;
+
+    assert.ok(logLenAfterWait <= logLenAtFinal + 2,
+      'nihai durum geldikten SONRA tuvale eski/gecikmiş animasyon karesi YAZILMAMALI ' +
+      '(nihaide ' + logLenAtFinal + ' kare vardı, 1.5sn sonra ' + logLenAfterWait + ' kare — ' +
+      'artış varsa "bir görünüp bir kaybolma" hatası geri gelmiş demektir)');
+    console.log('  ✓ 3) nihai durum geldiğinde eski animasyon döngüsü hemen durur — "bir görünüp bir kaybolma" hatası yok (' +
+      logLenAtFinal + ' → ' + logLenAfterWait + ' kare, 1.5sn bekleme)');
+
+    for (const c of [A, B]) { try { c.win.close(); } catch (_) {} }
+    await sleep2(120);
+  }
+
   srv.server.close();
-  console.log('OK bilardo vuruş animasyonu: flyordie tarzı kare kare canlı akış + gecikmeli yetkili sonuç');
+  console.log('OK bilardo vuruş animasyonu: flyordie tarzı kare kare canlı akış + gecikmeli yetkili sonuç + senkronizasyon güvenliği');
   process.exit(0);
 }
 

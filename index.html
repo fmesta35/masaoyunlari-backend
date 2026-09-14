@@ -120,7 +120,23 @@ button,input,select{font-family:var(--font)}
 .mv{display:flex;justify-content:space-between;padding:3px 7px;border-bottom:1px solid var(--border)}
 .mv:nth-child(even){background:var(--card)}
 .chat{display:flex;flex-direction:column;background:var(--card);border-radius:var(--r);border:1px solid var(--border);overflow:hidden}
-.chat-h{padding:8px 12px;border-bottom:1px solid var(--border);font-weight:600;font-size:.85em}
+.chat-h{padding:8px 12px;border-bottom:1px solid var(--border);font-weight:600;font-size:.85em;display:flex;align-items:center;justify-content:space-between;gap:10px}
+/* SOHBET AÇ/KAPA ANAHTARI (kullanıcı isteği): açıkken yeşil "Sohbet Açık",
+   kapalıyken kırmızı-beyaz "Sohbet Kapalı". Kapatan kullanıcı oda
+   sohbetini HİÇ görmez (mesajlar ona çizilmez — bkz. js/chat.js). */
+.chat-switch{display:inline-flex;align-items:center;gap:7px;border:1px solid;border-radius:999px;padding:3px 7px 3px 10px;cursor:pointer;font:inherit;font-size:.8em;font-weight:700;line-height:1;white-space:nowrap;transition:background .15s,border-color .15s,color .15s}
+.chat-switch.on{color:#2ee08a;border-color:rgba(46,224,138,.5);background:rgba(46,224,138,.12)}
+.chat-switch.off{color:#fff;border-color:#ff6b6b;background:#d63031}
+.chat-switch-track{position:relative;width:30px;height:16px;border-radius:999px;flex:0 0 auto;transition:background .15s}
+.chat-switch.on .chat-switch-track{background:rgba(46,224,138,.55)}
+.chat-switch.off .chat-switch-track{background:rgba(255,255,255,.42)}
+.chat-switch-knob{position:absolute;top:2px;left:2px;width:12px;height:12px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.45);transition:transform .16s}
+.chat-switch.on .chat-switch-knob{transform:translateX(14px)}
+.chat-off{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;padding:16px;text-align:center}
+.chat-off-ico{font-size:1.7em;opacity:.85}
+.chat-off-t{font-weight:800;color:#ff6b6b;letter-spacing:.02em}
+.chat-off-s{font-size:.76em;color:var(--text2);max-width:210px;line-height:1.45}
+@media(prefers-reduced-motion:reduce){.chat-switch,.chat-switch-track,.chat-switch-knob{transition:none}}
 .chat-msgs{flex:1;overflow-y:auto;padding:8px;display:flex;flex-direction:column;gap:6px}
 .chat-msg{display:flex;gap:6px;font-size:.82em}
 .m-body{background:var(--bg3);padding:5px 9px;border-radius:10px;max-width:85%}
@@ -349,8 +365,23 @@ button,input,select{font-family:var(--font)}
 .bil-player-name{font-size:.84em;color:rgba(255,255,255,.7);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:210px}.bil-player-score{font-size:1.15em;font-weight:800}.bil-match{text-align:center}.bil-round{font-size:.7em;letter-spacing:.14em;text-transform:uppercase;color:#d6b46a}.bil-match-score{font-size:1.25em;font-weight:900;letter-spacing:.08em}
 .bil-stage{position:relative;padding:22px;background:radial-gradient(ellipse at 50% 10%,rgba(255,255,255,.11),transparent 48%),linear-gradient(180deg,#282b31,#111318);border:1px solid rgba(255,255,255,.1);border-radius:18px;box-shadow:0 28px 60px rgba(0,0,0,.42);overflow:hidden}
 .bil-stage:before{content:'';position:absolute;left:10%;right:10%;bottom:-18px;height:42px;background:rgba(0,0,0,.65);filter:blur(18px);border-radius:50%}
-.bil-canvas-wrap{position:relative;max-width:900px;margin:auto;perspective:1200px}.bil-canvas{display:block;width:100%;height:auto;aspect-ratio:2/1;border-radius:14px;touch-action:none;cursor:crosshair;filter:drop-shadow(0 22px 20px rgba(0,0,0,.48));transform:rotateX(2.2deg);transform-origin:center bottom;background:#151515}
-.bil-controls{display:grid;grid-template-columns:1fr minmax(220px,360px) auto;align-items:center;gap:16px;margin-top:18px}.bil-help{font-size:.78em;color:rgba(255,255,255,.62);line-height:1.45}.bil-power{height:12px;background:#080a0d;border:1px solid rgba(255,255,255,.16);border-radius:4px;overflow:hidden;position:relative}.bil-power>i{display:block;width:0;height:100%;background:linear-gradient(90deg,#5cad74 0 45%,#e2b65c 72%,#d9544d 100%);box-shadow:0 0 12px currentColor;transition:width .04s linear}.bil-power-label{font:700 .74em var(--mono);color:#eee;margin-bottom:6px;display:flex;justify-content:space-between}.bil-reset{min-height:44px;padding:0 15px;border:1px solid rgba(255,255,255,.18);border-radius:8px;background:#20242b;color:#fff;cursor:pointer;font-weight:700}.bil-reset:hover{border-color:#d6b46a;color:#f1d18d}
+.bil-canvas-wrap{position:relative;max-width:900px;margin:auto;perspective:1200px}
+/* Masa oranı SUNUCU geometrisiyle aynı: 900×500 (gerçek 2:1 oyun yüzeyi +
+   bant payı). Fizik motoru baştan yazılırken masa gerçek turnuva ölçüsüne
+   (2,54 m × 1,27 m) geçtiği için buradaki oran da güncellendi. */
+.bil-canvas{display:block;width:100%;height:auto;aspect-ratio:9/5;border-radius:14px;touch-action:none;cursor:crosshair;filter:drop-shadow(0 22px 20px rgba(0,0,0,.48));transform:rotateX(2.2deg);transform-origin:center bottom;background:#151515}
+.bil-controls{display:grid;grid-template-columns:minmax(160px,1fr) minmax(260px,2fr) auto;align-items:center;gap:16px;margin-top:18px}.bil-help{font-size:.78em;color:rgba(255,255,255,.62);line-height:1.45}.bil-power{height:12px;background:#080a0d;border:1px solid rgba(255,255,255,.16);border-radius:4px;overflow:hidden;position:relative}.bil-power>i{display:block;width:0;height:100%;background:linear-gradient(90deg,#5cad74 0 45%,#e2b65c 72%,#d9544d 100%);box-shadow:0 0 12px currentColor;transition:width .04s linear}.bil-power-label{font:700 .74em var(--mono);color:#eee;margin-bottom:6px;display:flex;justify-content:space-between}.bil-reset{min-height:44px;padding:0 15px;border:1px solid rgba(255,255,255,.18);border-radius:8px;background:#20242b;color:#fff;cursor:pointer;font-weight:700}.bil-reset:hover{border-color:#d6b46a;color:#f1d18d}
+/* Yeni vuruş kontrolleri: falso (vuruş noktası) + güç + ısteka açısı */
+.bil-tools{display:flex;gap:14px;align-items:flex-start;flex-wrap:wrap}
+.bil-tool{display:flex;flex-direction:column;gap:6px;align-items:center}
+.bil-tool.grow{flex:1;min-width:200px;align-items:stretch}
+.bil-tool-h{font:700 .68em var(--mono);letter-spacing:.12em;color:#d6b46a}
+#bilSpin{background:#0d1013;border:1px solid rgba(255,255,255,.16);border-radius:50%;cursor:crosshair;touch-action:none}
+.bil-mini{min-height:26px;padding:0 10px;font-size:.72em;font-weight:700;border:1px solid rgba(255,255,255,.18);border-radius:6px;background:#20242b;color:#fff;cursor:pointer}
+.bil-mini:hover{border-color:#d6b46a;color:#f1d18d}
+#bilPower,#bilElev{width:100%;accent-color:#d6b46a;cursor:pointer}
+#bilPower:disabled,#bilElev:disabled{opacity:.45;cursor:not-allowed}
+.bil-foul{margin-top:10px;padding:7px 10px;border-radius:8px;background:rgba(214,48,49,.16);border:1px solid rgba(255,107,107,.4);color:#ffb3b3;font-size:.8em;font-weight:600;text-align:center}
 .bil-callout{position:absolute;inset:0;display:none;align-items:center;justify-content:center;background:rgba(5,7,9,.78);backdrop-filter:blur(5px);z-index:4}.bil-callout.show{display:flex}.bil-result-card{width:min(430px,88%);padding:28px;background:#161a20;border:1px solid rgba(214,180,106,.45);border-radius:12px;text-align:center;box-shadow:0 24px 70px rgba(0,0,0,.55)}.bil-result-card h2{margin-bottom:8px}.bil-result-card p{color:rgba(255,255,255,.72);margin-bottom:18px}.bil-result-actions{display:flex;justify-content:center;gap:10px;flex-wrap:wrap}
 @media(max-width:700px){.bil-stage{padding:10px}.bil-hud{grid-template-columns:1fr auto 1fr;padding:9px}.bil-player-name{max-width:90px}.bil-avatar{width:32px;height:32px}.bil-controls{grid-template-columns:1fr;gap:10px}.bil-reset{width:100%}.bil-canvas{transform:none}.bil-help{text-align:center}}
 @media(prefers-reduced-motion:reduce){.bil-canvas,.bil-power>i{transition:none}}
@@ -1354,9 +1385,20 @@ body.gv-app input,body.gv-app textarea,body.gv-app .chat-msgs,body.gv-app .moves
           </div>
           <div class="card" style="padding:10px"><h4 style="margin-bottom:6px;font-size:.88em">📝 Hamleler</h4><div class="moves" id="moveHist"></div></div>
           <div class="chat" style="height:280px">
-            <div class="chat-h">💬 Sohbet</div>
+            <div class="chat-h">
+              <span>💬 Sohbet</span>
+              <button type="button" id="gvChatToggle" class="chat-switch on" role="switch" aria-checked="true" title="Sohbeti aç/kapat">
+                <span class="chat-switch-txt">Sohbet Açık</span>
+                <span class="chat-switch-track"><span class="chat-switch-knob"></span></span>
+              </button>
+            </div>
             <div class="chat-msgs" id="gameChat"></div>
-            <div class="chat-input">
+            <div class="chat-off" id="gvChatOff" hidden>
+              <div class="chat-off-ico">🔕</div>
+              <div class="chat-off-t">Sohbet Kapalı</div>
+              <div class="chat-off-s">Mesajlar gösterilmiyor. Açmak için yukarıdaki anahtarı kullanın.</div>
+            </div>
+            <div class="chat-input" id="gvChatInputRow">
               <input placeholder="Mesaj..." id="gcInput" onkeydown="if(event.key==='Enter')GV.sendChat('game')"><button onclick="GV.sendChat('game')">➤</button>
             </div>
           </div>
@@ -4608,7 +4650,7 @@ GV.init();
 <script src="js/reversi-online.js?v=20260904b" defer></script>
 <script src="js/gomoku-online.js?v=20260904b" defer></script>
 <script src="js/connect4-online.js?v=20260904b" defer></script>
-<script src="js/bilardo-online.js?v=20260908a" defer></script>
+<script src="js/bilardo-online.js?v=20260914b" defer></script>
 <script src="js/battleship-online.js?v=20260914a" defer></script>
 <script src="js/chat.js?v=20260821c" defer></script>
 <script src="js/leave-guard.js?v=20260908b" defer></script>

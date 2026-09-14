@@ -872,7 +872,10 @@ function moveClockOf(room) {
   };
 }
 
-function bilardoState(room, seat) { const b=room.bilardo; return {kind:'bilardo',status:room.status,turn:b.turn,winner:b.winner,balls:b.balls.map(x=>({...x})),seat,playerColor:seat===0?'r':'y',shots:b.shots,score:b.score.slice(),result:b.result||null,...moveClockOf(room)}; }
+// Bilardo durumu: toplar İSTEMCİ PİKSELİNE çevrilerek gönderilir (motor
+// içeride SI birimiyle — metre — çalışır). Masa geometrisi de pakete
+// eklenir ki istemci kendi kopyasını tutup sunucudan sapmasın.
+function bilardoState(room, seat) { const b=room.bilardo; return {kind:'bilardo',status:room.status,turn:b.turn,winner:b.winner,balls:bilardoEngine.viewBalls(b),table:bilardoEngine.constants,seat,playerColor:seat===0?'r':'y',shots:b.shots,score:b.score.slice(),groups:b.groups?b.groups.slice():[null,null],result:b.result||null,lastShot:b.lastShot?{foul:!!b.lastShot.foul,potted:b.lastShot.potted.slice(),firstHit:b.lastShot.firstHit,cueRespot:b.lastShot.cueRespot||null}:null,...moveClockOf(room)}; }
 function emitBilardoState(room,event='gameStateUpdated'){room.players.forEach(p=>emitToPlayer(p,event,{roomId:room.id,seat:p.seat,gameState:bilardoState(room,p.seat),isSpectator:false}));(room.spectators||[]).forEach(p=>emitToPlayer(p,event,{roomId:room.id,seat:null,gameState:bilardoState(room,null),isSpectator:true}));}
 function startBilardo(room){if(room.status==='playing'||room.players.length!==2||!room.players.every(p=>p.isReady))return;room.status='playing';room.result=null;room.bilardo=bilardoEngine.init();room.turnStartedAt=now();touchMoveTimer(room);emitRoom(room);room.players.forEach(p=>emitToPlayer(p,'gameStarted',{roomId:room.id,seat:p.seat,playerColor:p.seat===0?'r':'y',players:publicRoom(room).players,gameState:bilardoState(room,p.seat)}));emitBilardoState(room);}
 function connect4State(room, seat) { const c=room.connect4; return {kind:'connect4',status:room.status,turn:c.turn,winner:c.winner,board:c.board.map(x=>x.slice()),seat,playerColor:seat===0?'r':'y',moves:c.moves,result:c.result||null,...moveClockOf(room)}; }
@@ -1997,7 +2000,11 @@ function removePlayerFromRoom(room, player, message) {
   // DONMUŞ bir tahtayla kalıyor, ne "kazandınız" bildirimi görüyor ne de
   // lobiye dönebiliyordu; üstelik oda 'waiting'e düştüğü için hamle
   // süresi denetimi de artık çalışmıyor, sayaç sıfırda takılıp kalıyordu.
-  if (wasPlaying && (room.dama || room.reversi || room.gomoku || room.connect4 || room.bilardo || room.cardGame)) {
+  // ⚠ Yeni bir oyun eklendiğinde BU LİSTEYE de eklenmeli: eksik kalırsa oda
+  // aşağıdaki resetRoomToWaiting()'e düşer, status 'waiting' olur ve o andan
+  // sonra hamle süresi denetimi de çalışmaz (saat 0'da donar). Amiral Battı
+  // tam olarak bu yüzden rakip ayrılınca bitmiyordu.
+  if (wasPlaying && (room.dama || room.reversi || room.gomoku || room.connect4 || room.bilardo || room.battleship || room.cardGame)) {
     const kalanKoltuklar = room.players.map(p => p.seat);
     let winnerSeat = kalanKoltuklar[0];
     if (kalanKoltuklar.length > 1) {
@@ -2014,6 +2021,7 @@ function removePlayerFromRoom(room, player, message) {
       room.gomoku ? gomokuState(room, seat) :
       room.connect4 ? connect4State(room, seat) :
       room.bilardo ? bilardoState(room, seat) :
+      room.battleship ? battleshipState(room, seat) :
       cardGameState(room, seat);
 
     room.players.forEach(p => emitToPlayer(p, 'gameEnded', {
@@ -2781,9 +2789,11 @@ io.on('connection', socket => {
   // yayılır; masanın gerçek son durumu (gameStateUpdated/gameEnded) topların
   // ekranda yuvarlanma süresi kadar GECİKMELİ gönderilir — böylece oyuncular
   // vuruşun canlı oynandığını görür, sonuç aniden "ışınlanmaz".
-  socket.on('bilardoShoot', data => { const room=rooms.get(socket.roomId||String(data?.roomId||'')); const p=room?.bilardo&&room.players.find(x=>x.id===socket.id); if(!p||room.status!=='playing')return socket.emit('bilardoRejected',{roomId:room?.id||data?.roomId,reason:'not_in_room'}); const r=bilardoEngine.shoot(room.bilardo,p.seat,Number(data.angle),Number(data.power)); if(!r.ok)return socket.emit('bilardoRejected',{roomId:room.id,reason:r.reason,gameState:bilardoState(room,p.seat)}); touchMoveTimer(room);
+  socket.on('bilardoShoot', data => { const room=rooms.get(socket.roomId||String(data?.roomId||'')); const p=room?.bilardo&&room.players.find(x=>x.id===socket.id); if(!p||room.status!=='playing')return socket.emit('bilardoRejected',{roomId:room?.id||data?.roomId,reason:'not_in_room'}); // Falso (spinX/spinY) ve ısteka yükseklik açısı (elevation) da istemciden
+    // gelir; hepsi motorda kırpılıp doğrulanır — istemciye GÜVENİLMEZ.
+    const r=bilardoEngine.shoot(room.bilardo,p.seat,Number(data.angle),Number(data.power),{spinX:Number(data.spinX)||0,spinY:Number(data.spinY)||0,elevation:Number(data.elevation)||0}); if(!r.ok)return socket.emit('bilardoRejected',{roomId:room.id,reason:r.reason,gameState:bilardoState(room,p.seat)}); touchMoveTimer(room);
     const frames=(r.shot&&r.shot.frames)||[]; const frameMs=(bilardoEngine.constants&&bilardoEngine.constants.frameMs)||17;
-    if(frames.length)io.to(room.id).emit('bilardoShotFrames',{roomId:room.id,frames,frameMs,meta:room.bilardo.balls.map(b=>({id:b.id,n:b.n,type:b.type}))});
+    if(frames.length)io.to(room.id).emit('bilardoShotFrames',{roomId:room.id,frames,frameMs,events:r.shot.events||[],meta:room.bilardo.balls.map(b=>({id:b.id,n:b.n,type:b.type}))});
     const finalize=()=>{ if(room.bilardo.status==='finished'){room.status='finished';room.result=room.bilardo.result;} emitBilardoState(room);emitRoom(room);if(room.status==='finished')room.players.forEach(q=>emitToPlayer(q,'gameEnded',{roomId:room.id,reason:room.bilardo.result?.reason||'finished',winnerSeat:room.bilardo.winner,youWon:q.seat===room.bilardo.winner,gameState:bilardoState(room,q.seat)})); };
     const animMs=Math.max(0,(frames.length-1)*frameMs);
     if(animMs>0)setTimeout(finalize,animMs); else finalize();

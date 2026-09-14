@@ -21,6 +21,53 @@
   let unread = 0;
   const seenIds = new Set(); // çift soketten GELEN aynı mesajın yankısını önler
 
+  /* ---------- SOHBET AÇ/KAPA (kişisel tercih, bu tarayıcıya özel) ----------
+     Kullanıcı isteği: oyuncular oyun içinde birbirlerinin mesajlarını
+     görmek istemezse tek dokunuşla susturabilsin. KAPALIYKEN oda sohbeti
+     bu kullanıcıya HİÇ çizilmez (mesaj sunucudan gelmeye devam eder,
+     yalnızca gösterilmez) ve okunmamış rozeti de artmaz. Yeniden açınca
+     akış o andan itibaren görünür — geçmiş sunucudan tazelenir.
+     Tercih localStorage'da tutulur, sayfa yenilense de korunur. */
+  const MUTE_KEY = 'gv-chat-muted';
+  let sohbetKapali = (function () {
+    try { return localStorage.getItem(MUTE_KEY) === '1'; } catch (_) { return false; }
+  })();
+  function odaSusturuldu() { return sohbetKapali && mode === 'room'; }
+
+  function anahtarUygula() {
+    const btn = document.getElementById('gvChatToggle');
+    if (btn) {
+      btn.classList.toggle('on', !sohbetKapali);
+      btn.classList.toggle('off', sohbetKapali);
+      btn.setAttribute('aria-checked', sohbetKapali ? 'false' : 'true');
+      const txt = btn.querySelector('.chat-switch-txt');
+      if (txt) txt.textContent = sohbetKapali ? 'Sohbet Kapalı' : 'Sohbet Açık';
+    }
+    const liste = document.getElementById('gameChat');
+    const kapaliNot = document.getElementById('gvChatOff');
+    const girdiSatiri = document.getElementById('gvChatInputRow');
+    if (liste) { liste.hidden = sohbetKapali; if (sohbetKapali) liste.innerHTML = ''; }
+    if (kapaliNot) kapaliNot.hidden = !sohbetKapali;
+    if (girdiSatiri) girdiSatiri.hidden = sohbetKapali;
+    if (sohbetKapali) {
+      const yan = document.getElementById('gvChatList');
+      if (yan && mode === 'room') yan.innerHTML = '';
+    }
+  }
+  function anahtarBagla() {
+    const btn = document.getElementById('gvChatToggle');
+    if (!btn || btn.__gvBagli) return;
+    btn.__gvBagli = true;
+    btn.addEventListener('click', () => {
+      sohbetKapali = !sohbetKapali;
+      try { localStorage.setItem(MUTE_KEY, sohbetKapali ? '1' : '0'); } catch (_) {}
+      anahtarUygula();
+      if (!sohbetKapali) { lastHistKey = ''; reloadHistory(true); }
+      toast(sohbetKapali ? '🔕 Sohbet kapatıldı — mesajlar gösterilmeyecek.' : '🔔 Sohbet açıldı.',
+            sohbetKapali ? 'warning' : 'success');
+    });
+  }
+
   function st8() { return window.st || {}; }
   function esc(v) {
     return String(v == null ? '' : v).replace(/[&<>'"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[c]));
@@ -149,6 +196,8 @@
   function renderList(messages) {
     const list = document.getElementById('gvChatList');
     if (!list) return;
+    // Masa sohbeti kapatıldıysa yan çekmecede de gösterilmez.
+    if (odaSusturuldu()) { list.innerHTML = '<div class="gc-empty">🔕 Sohbet kapalı.</div>'; return; }
     // Süresi dolmuş genel sohbet mesajları istemcide de gösterilmez.
     if (mode === 'global' && messages) messages = messages.filter(m => Date.now() - Number(m.ts || 0) < 60000);
     if (!messages || !messages.length) {
@@ -167,6 +216,7 @@
   }
 
   function appendMsg(m) {
+    if (odaSusturuldu()) return;                         // kapalıyken hiç çizilmez
     const list = document.getElementById('gvChatList');
     if (!list) return;
     const empty = list.querySelector('.gc-empty');
@@ -200,6 +250,7 @@
   function paintGameChat(messages) {
     const list = document.getElementById('gameChat');
     if (!list) return;
+    if (sohbetKapali) { list.innerHTML = ''; return; }   // kapalıyken hiç çizilmez
     list.innerHTML = (messages || []).map(m => {
       const uid = Number(m.uid) > 0 ? ` data-uid="${Number(m.uid)}"` : '';
       return `<div class="chat-msg"><div class="avatar sm">${esc((m.name || 'O').substring(0, 1))}</div><div class="m-body"><div class="m-name" style="color:var(--accent)"${uid}>${esc(m.name)}</div><div>${esc(m.text)}</div></div></div>`;
@@ -207,6 +258,7 @@
     list.scrollTop = list.scrollHeight;
   }
   function mirrorToGameChat(m) {
+    if (sohbetKapali) return;                            // kapalıyken hiç çizilmez
     const list = document.getElementById('gameChat');
     if (!list || m.scope !== 'room') return;
     if (curRoomId && String(m.roomId) !== String(curRoomId)) return;
@@ -269,6 +321,9 @@
       if (!msg) return;
       if (msg.id && seenIds.has(msg.id)) return; // iki soket de açıksa yankı düşmesin
       if (msg.id) { seenIds.add(msg.id); if (seenIds.size > 300) { const it = seenIds.values(); for (let i = 0; i < 150; i++) seenIds.delete(it.next().value); } }
+      // Sohbeti kapatan kullanıcı masa mesajlarını görmez; okunmamış
+      // rozeti de artmaz (yoksa kapalı sohbet sürekli "yeni mesaj" derdi).
+      if (sohbetKapali && msg.scope === 'room') return;
       mirrorToGameChat(msg);
       const mine = msg.scope === 'room'
         ? (mode === 'room' && String(msg.roomId) === String(curRoomId))
@@ -325,6 +380,10 @@
 
   // ---------- Durum taraması ----------
   function tick() {
+    // Aç/kapa anahtarı MİSAFİR için de çalışmalı: aşağıdaki üye-olmayan
+    // dalı erken return ettiği için bu iki çağrı en üstte durur.
+    anahtarBagla();
+    anahtarUygula();
     const member = isMember();
     // GEZİNME BALONCUĞU + genel sohbet paneli üyelere özeldir. AMA masa
     // içindeki gömülü sohbet kutusu (#gameChat, index.html'de ayrı bir
@@ -370,11 +429,13 @@
     }
     const inp = document.getElementById('gvChatText');
     const btn = document.getElementById('gvChatSend');
+    const susturuldu = odaSusturuldu();
     if (inp) {
-      inp.disabled = !member;
-      inp.placeholder = member ? 'Mesajınızı yazın...' : 'Mesaj yazmak için giriş yapın (okumaya devam edebilirsiniz)';
+      inp.disabled = !member || susturuldu;
+      inp.placeholder = susturuldu ? 'Sohbet kapalı — açmak için anahtarı kullanın'
+        : (member ? 'Mesajınızı yazın...' : 'Mesaj yazmak için giriş yapın (okumaya devam edebilirsiniz)');
     }
-    if (btn) btn.disabled = !member;
+    if (btn) btn.disabled = !member || susturuldu;
     const sock = pickSocket();
     if (sock && sock !== attachedSock) { attach(sock); attachedSock = sock; }
     if (open) reloadHistory(false);
