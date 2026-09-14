@@ -746,6 +746,22 @@
     if (!sock || sock.__gvSocial) return;
     sock.__gvSocial = true;
     sock.on('gameInvite', onGameInvite);
+    /* KURUCU YAPTIRIMI — kısıtlama uygulandığında/kaldırıldığında ilgili
+       kullanıcıya AÇIKLAYICI bildirim düşer (kullanıcı isteği: "Kısıtlama
+       getirildiğinde ilgili kullanıcıya bildirim gider ve bu bildirimde
+       durumu açıklayıcı bir bildirim gider"). Sohbet kutusunun kilidini
+       js/chat.js aynı olaylarla ayrıca uygular. */
+    sock.on('chatSanction', p => {
+      if (!p) return;
+      notifyBell(String(p.baslik || '🔇 Sohbet kısıtlaması uygulandı'),
+        String(p.aciklama || 'Oyun içi ve genel sohbete mesaj gönderemezsiniz.'),
+        { type: 'sanction', tur: String(p.tur || 'chat'), bitis: p.bitis == null ? null : Number(p.bitis) });
+    });
+    sock.on('chatSanctionLifted', p => {
+      notifyBell(String((p && p.baslik) || '✅ Sohbet kısıtlaması kaldırıldı'),
+        String((p && p.aciklama) || 'Sohbete yeniden yazabilirsiniz.'),
+        { type: 'sanctionLifted', tur: String((p && p.tur) || 'chat') });
+    });
     // Arkadaşlık isteği anlık bildirimleri (çevrimdışıysa periyodik tarama yakalar)
     sock.on('friendRequest', p => {
       if (!p || !p.fromId) return;

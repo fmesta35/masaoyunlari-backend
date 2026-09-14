@@ -68,6 +68,75 @@
     });
   }
 
+  /* ---------- KURUCU YAPTIRIMI (sohbet kısıtlaması) ----------
+     Kurucu bir üyeyi susturduğunda o üye HEM masa HEM genel sohbete
+     yazamaz. Bu KİŞİSEL anahtardan (yukarısı) tamamen ayrıdır:
+      * anahtar  = kullanıcının kendi tercihi, istediği an geri alır
+      * yaptırım = kurucunun kararı, kullanıcı kaldıramaz
+     Son söz her zaman SUNUCUNUNDUR (mesaj yine de gönderilirse reddedilir);
+     buradaki kilit yalnızca kullanıcıya durumu AÇIKÇA göstermek içindir. */
+  let yaptirim = null;          // { bitis, sebep, aciklama } | null
+  let yaptirimSoruldu = false;  // /api/sanctions/me bir kez sorulsun
+
+  function backendUrl() {
+    return String(window.GV_BACKEND_URL || 'https://masaoyunlari-backend.onrender.com').replace(/\/+$/, '');
+  }
+  function yaptirimBitti() {
+    return !!(yaptirim && yaptirim.bitis != null && Number(yaptirim.bitis) <= Date.now());
+  }
+  function susturulduMu() { if (yaptirimBitti()) yaptirim = null; return !!yaptirim; }
+
+  // Sayfa açılışında / girişten sonra kendi durumunu sor: kullanıcı
+  // kısıtlıyken sekmeyi yenilese de kutuyu KİLİTLİ bulur.
+  function yaptirimSor() {
+    if (yaptirimSoruldu || !isMember()) return;
+    yaptirimSoruldu = true;
+    let tok = null;
+    try { tok = localStorage.getItem('gv-auth-token'); } catch (_) {}
+    if (!tok) { yaptirimSoruldu = false; return; }
+    fetch(backendUrl() + '/api/sanctions/me', {
+      headers: { Authorization: 'Bearer ' + tok, 'X-GV-Token': tok }
+    }).then(r => r.json()).then(d => {
+      yaptirim = (d && d.ok && d.yaptirim) ? d.yaptirim : null;
+      yaptirimUygulaUI();
+      // Kullanıcı kısıtlıyken siteye YENİDEN girdiyse (bildirim anında
+      // çevrimdışıydı) durumu bir kez açıkça hatırlat: sohbet kutusu yalnız
+      // masadayken görünür, ana sayfadaki kullanıcı yoksa hiçbir şey görmezdi.
+      if (yaptirim) toast('🔇 ' + (yaptirim.aciklama || 'Sohbet yetkiniz kısıtlandı.'), 'warning');
+    }).catch(() => { yaptirimSoruldu = false; });
+  }
+
+  // Kısıtlı kullanıcının masa sohbetinde gördüğü AÇIKLAYICI kutu.
+  function yaptirimUygulaUI() {
+    const kisitli = susturulduMu();
+    let ban = document.getElementById('gvChatBan');
+    const inputRow = document.getElementById('gvChatInputRow');
+    if (kisitli && !ban && inputRow && inputRow.parentNode) {
+      ban = document.createElement('div');
+      ban.className = 'chat-off chat-ban';
+      ban.id = 'gvChatBan';
+      inputRow.parentNode.insertBefore(ban, inputRow);
+    }
+    if (ban) {
+      ban.hidden = !kisitli;
+      if (kisitli) {
+        ban.innerHTML = '<div class="chat-off-ico">🔇</div>' +
+          '<div class="chat-off-t">Sohbet Kısıtlandı</div>' +
+          '<div class="chat-off-s">' + esc(yaptirim.aciklama ||
+            ('Oyun içi ve genel sohbete mesaj gönderemezsiniz.' + (yaptirim.sebep ? ' Gerekçe: ' + yaptirim.sebep : ''))) +
+          '</div>';
+      }
+    }
+    // Masa içi kutu ve gezinme panelindeki yazma alanı kilitlenir.
+    const gi = document.getElementById('gcInput');
+    if (gi) {
+      gi.disabled = kisitli;
+      if (kisitli) gi.placeholder = 'Sohbet kısıtlandı';
+      else if (gi.placeholder === 'Sohbet kısıtlandı') gi.placeholder = 'Mesaj...';
+    }
+    if (inputRow && kisitli) inputRow.hidden = true;
+  }
+
   function st8() { return window.st || {}; }
   function esc(v) {
     return String(v == null ? '' : v).replace(/[&<>'"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[c]));
@@ -331,7 +400,26 @@
       if (open && mine) appendMsg(msg);
       else { unread++; paintBadge(); }
     });
-    sock.on('chatRejected', p => { toast('💬 ' + ((p && p.reason) || 'Mesaj gönderilemedi.'), 'warning'); });
+    sock.on('chatRejected', p => {
+      // Sunucu yaptırım yüzünden reddettiyse durumu hemen yansıt (kullanıcı
+      // başka bir cihazdan kısıtlanmış olabilir).
+      if (p && p.yaptirim) { yaptirim = Object.assign({ aciklama: p.reason }, p.yaptirim); yaptirimUygulaUI(); }
+      toast('💬 ' + ((p && p.reason) || 'Mesaj gönderilemedi.'), 'warning');
+    });
+    // KURUCU YAPTIRIMI — anlık bildirim (server.js /api/admin/sanctions).
+    sock.on('chatSanction', p => {
+      if (!p) return;
+      yaptirim = { bitis: (p.bitis == null ? null : Number(p.bitis)), sebep: String(p.sebep || ''), aciklama: String(p.aciklama || '') };
+      yaptirimUygulaUI();
+      toast('🔇 ' + (p.aciklama || 'Sohbet yetkiniz kısıtlandı.'), 'warning');
+    });
+    sock.on('chatSanctionLifted', () => {
+      yaptirim = null;
+      yaptirimUygulaUI();
+      const ir = document.getElementById('gvChatInputRow');
+      if (ir && !sohbetKapali) ir.hidden = false;
+      toast('✅ Sohbet kısıtlamanız kaldırıldı.', 'success');
+    });
     sock.on('connect', () => reloadHistory(true));
   }
 
@@ -354,6 +442,10 @@
     const text = String(inp.value || '').trim();
     if (!text) return;
     if (!isMember()) { toast('💬 Sohbette yazabilmek için üye girişi yapmalısınız.', 'warning'); return; }
+    if (susturulduMu()) {
+      toast('🔇 ' + (yaptirim.aciklama || 'Sohbet yetkiniz kısıtlandı.'), 'warning');
+      return;
+    }
     const sock = ensureSocket();
     if (!sock || !sock.connected) {
       toast('💬 Sunucuya bağlanılıyor — birkaç saniye sonra tekrar deneyin.', 'warning');
@@ -384,6 +476,8 @@
     // dalı erken return ettiği için bu iki çağrı en üstte durur.
     anahtarBagla();
     anahtarUygula();
+    yaptirimSor();          // üye girişi varsa kendi kısıtlama durumunu öğren
+    yaptirimUygulaUI();     // süresi dolduysa kilit kendiliğinden kalkar
     const member = isMember();
     // GEZİNME BALONCUĞU + genel sohbet paneli üyelere özeldir. AMA masa
     // içindeki gömülü sohbet kutusu (#gameChat, index.html'de ayrı bir
@@ -430,12 +524,14 @@
     const inp = document.getElementById('gvChatText');
     const btn = document.getElementById('gvChatSend');
     const susturuldu = odaSusturuldu();
+    const kisitli = susturulduMu();   // KURUCU yaptırımı (kullanıcı kaldıramaz)
     if (inp) {
-      inp.disabled = !member || susturuldu;
-      inp.placeholder = susturuldu ? 'Sohbet kapalı — açmak için anahtarı kullanın'
+      inp.disabled = !member || susturuldu || kisitli;
+      inp.placeholder = kisitli ? '🔇 Sohbet yetkiniz kısıtlandı'
+        : susturuldu ? 'Sohbet kapalı — açmak için anahtarı kullanın'
         : (member ? 'Mesajınızı yazın...' : 'Mesaj yazmak için giriş yapın (okumaya devam edebilirsiniz)');
     }
-    if (btn) btn.disabled = !member || susturuldu;
+    if (btn) btn.disabled = !member || susturuldu || kisitli;
     const sock = pickSocket();
     if (sock && sock !== attachedSock) { attach(sock); attachedSock = sock; }
     if (open) reloadHistory(false);

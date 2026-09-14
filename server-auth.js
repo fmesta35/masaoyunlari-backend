@@ -133,6 +133,17 @@ function isOnline(userId) { const s = online.get(Number(userId)); return !!(s &&
 // bağlı olan üye adedi.
 function onlineCount() { let n = 0; for (const s of online.values()) if (s && s.size) n++; return n; }
 
+// Bir ÜYENİN açık tüm soketlerine olay gönder (yaptırım bildirimi gibi
+// kişiye özel anlık uyarılar için). Üye çevrimdışıysa sessizce hiçbir şey
+// yapmaz — kalıcı durum zaten veritabanındadır, kullanıcı girince görür.
+function emitToUser(userId, event, payload) {
+  const set = online.get(Number(userId));
+  if (!set || !set.size) return 0;
+  let n = 0;
+  set.forEach(s => { try { s.emit(event, payload); n++; } catch (_) {} });
+  return n;
+}
+
 // Kimlik authHello ile SONRADAN çözüldüyse (join anında üyelik backend'i
 // yavaştı VEYA oyuncu MASADAYKEN misafirden üyeye geçtiyse — oyun esnasında
 // giriş yaptı), soket bir odaysa oda kaydındaki üye alanlarını güncelle:
@@ -182,6 +193,12 @@ function installAuth(app, deps) {
       puanYaz: () => {}, puanOzet: () => ({ toplam: 0, oyunlar: [], genel: {} }),
       puanSiralama: () => [], puanSifirla: () => ({ ok: false, error: 'Veritabanı yok.' }),
       puanAyarOku: () => ({ periyot: 'kapali', sonSifirlama: 0 }), puanAyarYaz: () => ({ ok: false }),
+      // Yaptırım sistemi: veritabanı yoksa kimse kısıtlı değildir.
+      emitToUser,
+      yaptirimUygula: () => ({ ok: false, error: 'Veritabanı yok.' }),
+      yaptirimKaldir: () => ({ ok: false, error: 'Veritabanı yok.' }),
+      yaptirimAktif: () => null,
+      yaptirimListe: () => [],
       userFromReq: () => null,
       userFromReqAsync: async () => null,
       verifyToken: async () => null, verifyTokenFull: async () => ({ uid: null, status: 'invalid' }),
@@ -654,6 +671,86 @@ function installAuth(app, deps) {
     } catch (e) { return { ok: false, error: e.message }; }
   }
 
+  // ======================= ÜYE YAPTIRIMLARI =======================
+  // Kurucunun bir üyeye uyguladığı kısıtlama. ŞİMDİLİK TEK TÜR: 'chat' —
+  // kullanıcının HEM oyun içi (masa) HEM genel sohbeti kapatılır.
+  //
+  // Tasarım kararları:
+  //  * expires_at NULL → SÜRESİZ. Süre girilirse bitiş anı MUTLAK zaman
+  //    olarak saklanır (sunucu yeniden başlasa da yaptırım aynen sürer).
+  //  * Kayıt SİLİNMEZ; kaldırma lifted_at ile işaretlenir (denetim izi).
+  //  * Aynı üyeye yeni yaptırım gelirse öncekiler kaldırılmış sayılır —
+  //    her zaman TEK aktif kayıt olur, "hangisi geçerli" belirsizliği yok.
+  function yaptirimSatirTemiz(r) {
+    if (!r) return null;
+    return {
+      id: Number(r.id), userId: Number(r.user_id), tur: String(r.kind || 'chat'),
+      sebep: r.reason ? String(r.reason) : '',
+      byUid: r.by_user != null ? Number(r.by_user) : null,
+      baslangic: Number(r.created_at) || 0,
+      bitis: r.expires_at != null ? Number(r.expires_at) : null,   // null = süresiz
+      kaldirildi: r.lifted_at != null ? Number(r.lifted_at) : null
+    };
+  }
+
+  // Bir üyenin YÜRÜRLÜKTEKİ yaptırımı (yoksa null). Süresi dolmuş kayıt
+  // otomatik olarak geçersizdir — ayrı bir temizleyici işe gerek yok.
+  function yaptirimAktif(uid, tur) {
+    if (!db || !(Number(uid) > 0)) return null;
+    try {
+      const r = db.prepare(
+        `SELECT * FROM sanctions
+          WHERE user_id = ? AND kind = ? AND lifted_at IS NULL
+            AND (expires_at IS NULL OR expires_at > ?)
+          ORDER BY id DESC LIMIT 1`
+      ).get(Number(uid), String(tur || 'chat'), now());
+      return yaptirimSatirTemiz(r);
+    } catch (e) { console.warn('yaptırım okunamadı:', e.message); return null; }
+  }
+
+  // Kurucu: yaptırım uygula. sureMs null/0 → SÜRESİZ.
+  function yaptirimUygula(p) {
+    if (!db) return { ok: false, error: 'Veritabanı yok.' };
+    const uid = Number(p && p.uid);
+    if (!(uid > 0)) return { ok: false, error: 'Kullanıcı bulunamadı.' };
+    const tur = String((p && p.tur) || 'chat');
+    const t = now();
+    const sureMs = Number(p && p.sureMs);
+    const bitis = (Number.isFinite(sureMs) && sureMs > 0) ? t + Math.round(sureMs) : null;
+    try {
+      // Önceki aktif kayıtları kapat (tek aktif yaptırım kuralı).
+      db.prepare('UPDATE sanctions SET lifted_at = ?, lifted_by = ? WHERE user_id = ? AND kind = ? AND lifted_at IS NULL')
+        .run(t, Number(p && p.byUid) || null, uid, tur);
+      db.prepare('INSERT INTO sanctions(user_id,kind,reason,by_user,created_at,expires_at) VALUES(?,?,?,?,?,?)')
+        .run(uid, tur, String((p && p.sebep) || '').slice(0, 240), Number(p && p.byUid) || null, t, bitis);
+      return { ok: true, yaptirim: yaptirimAktif(uid, tur) };
+    } catch (e) { return { ok: false, error: e.message }; }
+  }
+
+  // Kurucu: yaptırımı kaldır (kayıt silinmez, kaldırıldı işaretlenir).
+  function yaptirimKaldir(uid, byUid, tur) {
+    if (!db) return { ok: false, error: 'Veritabanı yok.' };
+    try {
+      const r = db.prepare('UPDATE sanctions SET lifted_at = ?, lifted_by = ? WHERE user_id = ? AND kind = ? AND lifted_at IS NULL')
+        .run(now(), Number(byUid) || null, Number(uid), String(tur || 'chat'));
+      return { ok: true, kaldirilan: r.changes || 0 };
+    } catch (e) { return { ok: false, error: e.message }; }
+  }
+
+  // Kurucu paneli listesi: YÜRÜRLÜKTEKİ tüm yaptırımlar (üye adıyla).
+  function yaptirimListe() {
+    if (!db) return [];
+    try {
+      const rows = db.prepare(
+        `SELECT s.*, u.name AS uname, u.email AS uemail
+           FROM sanctions s LEFT JOIN users u ON u.id = s.user_id
+          WHERE s.lifted_at IS NULL AND (s.expires_at IS NULL OR s.expires_at > ?)
+          ORDER BY s.created_at DESC LIMIT 500`
+      ).all(now());
+      return rows.map(r => Object.assign(yaptirimSatirTemiz(r), { ad: r.uname || '', eposta: r.uemail || '' }));
+    } catch (e) { console.warn('yaptırım listesi okunamadı:', e.message); return []; }
+  }
+
   // ---------------- soket katmanı ----------------
   function attachSocket(socket) {
     socket.on('authHello', payload => {
@@ -761,6 +858,8 @@ function installAuth(app, deps) {
   return { isOnline, onlineCount, uidFromUserKey, recordMatch, attachSocket, userById,
     // Puan sistemi (scoring.js kuralları + score_events kalıcılığı)
     puanYaz, puanOzet, puanSiralama, puanSifirla, puanAyarOku, puanAyarYaz,
+    // Yaptırım sistemi (sohbet kısıtlaması) — kalıcılık SQLite'ta.
+    emitToUser, yaptirimUygula, yaptirimKaldir, yaptirimAktif, yaptirimListe,
     // Kurucu Paneli yetki kontrolü (server.js requireAdmin): istemcinin
     // oturum sahibini (e-posta dahil) döndürür.
     userFromReq: (req) => authFromReq(req),
@@ -1020,6 +1119,13 @@ function installRemoteMode(app, deps) {
     puanSifirla: (by, mode) => remote.puanSifirla(by, mode),
     puanAyarOku: () => remote.puanAyarOku(),
     puanAyarYaz: (p) => remote.puanAyarYaz(p),
+    // Yaptırım sistemi — UZAK MOD: kurallar/anlık uygulama Render'da,
+    // kalıcılık Yöncü MySQL'de (puan sistemiyle birebir aynı kalıp).
+    emitToUser,
+    yaptirimUygula: (p) => remote.yaptirimUygula(p),
+    yaptirimKaldir: (uid, by, tur) => remote.yaptirimKaldir(uid, by, tur),
+    yaptirimAktif: (uid, tur) => remote.yaptirimAktif(uid, tur),
+    yaptirimListe: () => remote.yaptirimListe(),
     // Kurucu Paneli yetkisi — UZAK MOD. Eskiden bu API userFromReq'i HİÇ
     // döndürmüyordu; server.js'teki requireAdmin bu yüzden üretimde kurucuya
     // bile 403 veriyordu (/api/admin/stats hiç çalışmadı). Kimlik artık

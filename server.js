@@ -152,10 +152,19 @@ function chatHasProfanity(text) {
   // Harf harf yazma kaçışı ("a q", "s i k t i r"): yan yana tek harfli
   // parçaları birleştirip liste ile karşılaştır (kelime içi yanlış
   // pozitif olmaması için sadece tek-harf zincirleri birleştirilir).
+  //
+  // ⚠ ÇÖKME DÜZELTMESİ: bu döngü eskiden `const t`'ye değer atıyordu
+  // ("t = undefined"). Mesajın SON parçası tek harfliyse (ör. "tamam o",
+  // ya da rakam katlaması sonrası "...-1" → "i") bu satır
+  // "TypeError: Assignment to constant variable" fırlatıp SUNUCU SÜRECİNİ
+  // düşürüyordu — sıradan bir sohbet mesajıyla tetiklenen gerçek bir
+  // çökme yoluydu. Döngü artık son turu (i === tokens.length) sanal bir
+  // "ayraç" sayar ve biriken zinciri orada sınar; hiçbir değişkene yeniden
+  // atama yapılmaz.
   let run = '';
   for (let i = 0; i <= tokens.length; i++) {
-    const t = tokens[i];
-    if (t && t.length === 1) { run += t; if (i === tokens.length - 1) t = undefined; else continue; }
+    const t = i < tokens.length ? tokens[i] : null;   // son tur: zinciri kapat
+    if (t && t.length === 1) { run += t; continue; }
     if (run) {
       const r = run; run = '';
       if (CHAT_BAD_EXACT.indexOf(r) !== -1) return true;
@@ -180,6 +189,78 @@ function chatIsMember(socket, payload) {
   const k = payload && payload.memberKey;
   return typeof k === 'string' && k.startsWith('user:');
 }
+// ============================================================================
+// ÜYE YAPTIRIMLARI — SOHBET KISITLAMASI (susturma)
+// ============================================================================
+// Kurucu bir üyeyi susturduğunda o üye HEM oyun içi (masa) HEM genel
+// sohbete yazamaz. Kalıcı kayıt üyelik katmanındadır (yerelde SQLite,
+// üretimde Yöncü MySQL); burada yalnızca UYGULAMA ve küçük bir ÖNBELLEK
+// vardır — her mesajda veritabanına/PHP'ye gidilmez.
+//
+// Önbellek sözleşmesi:
+//   yok            → hiç sorulmadı (ilk mesajda sorulur)
+//   { bitis:null } → SÜRESİZ susturma
+//   { bitis:ts }   → ts anına kadar susturma (ts geçince kendiliğinden düşer)
+//   { yok:true }   → yaptırım YOK (negatif önbellek, TTL kadar geçerli)
+const SANCTION_TTL_MS = Number(process.env.GV_SANCTION_TTL_MS) || 60000;
+const sanctionCache = new Map();   // uid -> { yok?, bitis, sebep, ts }
+
+function sanctionCacheSet(uid, y) {
+  uid = Number(uid);
+  if (!(uid > 0)) return;
+  if (!y) sanctionCache.set(uid, { yok: true, ts: Date.now() });
+  else sanctionCache.set(uid, { yok: false, bitis: (y.bitis == null ? null : Number(y.bitis)),
+                                sebep: String(y.sebep || ''), ts: Date.now() });
+}
+function sanctionCacheDrop(uid) { sanctionCache.delete(Number(uid)); }
+
+// Üyenin YÜRÜRLÜKTEKİ sohbet yaptırımı (yoksa null). Önbellek bayatsa
+// üyelik katmanından tazelenir; uzak modda bu bir PHP çağrısıdır, o
+// yüzden fonksiyon async'tir.
+async function sohbetYaptirimi(uid) {
+  uid = Number(uid);
+  if (!(uid > 0)) return null;
+  const c = sanctionCache.get(uid);
+  const taze = c && (Date.now() - c.ts) < SANCTION_TTL_MS;
+  if (taze) {
+    if (c.yok) return null;
+    if (c.bitis != null && c.bitis <= Date.now()) { sanctionCache.delete(uid); return null; }
+    return { bitis: c.bitis, sebep: c.sebep };
+  }
+  let y = null;
+  try {
+    if (authApi && typeof authApi.yaptirimAktif === 'function') y = await authApi.yaptirimAktif(uid, 'chat');
+  } catch (_) { y = null; }
+  // Süresi dolmuşsa yok say (kalıcı katman da böyle sayar).
+  if (y && y.bitis != null && Number(y.bitis) <= Date.now()) y = null;
+  sanctionCacheSet(uid, y);
+  return y ? { bitis: (y.bitis == null ? null : Number(y.bitis)), sebep: String(y.sebep || '') } : null;
+}
+
+// "1 gün 3 saat" gibi insan okunur kalan süre (bildirim ve ret mesajları).
+function sureMetni(ms) {
+  ms = Math.max(0, Math.round(Number(ms) || 0));
+  const dk = Math.floor(ms / 60000);
+  const gun = Math.floor(dk / 1440), saat = Math.floor((dk % 1440) / 60), kalanDk = dk % 60;
+  if (gun >= 365) { const y = Math.floor(gun / 365); return y + ' yıl' + (gun % 365 ? ' ' + (gun % 365) + ' gün' : ''); }
+  if (gun > 0) return gun + ' gün' + (saat ? ' ' + saat + ' saat' : '');
+  if (saat > 0) return saat + ' saat' + (kalanDk ? ' ' + kalanDk + ' dakika' : '');
+  return Math.max(1, kalanDk) + ' dakika';
+}
+function yaptirimBitisMetni(bitis) {
+  if (bitis == null) return 'süresiz (kurucu kaldırana kadar)';
+  const d = new Date(Number(bitis));
+  return sureMetni(Number(bitis) - Date.now()) + ' (' +
+    d.toLocaleString('tr-TR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) +
+    ' tarihine kadar)';
+}
+// Kullanıcının mesaj kutusunda göreceği AÇIKLAYICI metin.
+function yaptirimAciklama(y) {
+  const sebep = y && y.sebep ? ' Gerekçe: ' + y.sebep : '';
+  return '🔇 Sohbet yetkiniz kısıtlandı — oyun içi ve genel sohbete mesaj gönderemezsiniz. ' +
+         'Kalan süre: ' + yaptirimBitisMetni(y ? y.bitis : null) + '.' + sebep;
+}
+
 function pushChat(roomId, msg) {
   const hist = chatRoomHist.get(roomId) || [];
   hist.push(msg);
@@ -2094,7 +2175,7 @@ io.on('connection', socket => {
   });
 
   // ---- SOHBET: masa içi (room) ve genel (global) ----
-  socket.on('chatMessage', payload => {
+  socket.on('chatMessage', async payload => {
     const scope = payload && payload.scope === 'global' ? 'global' : 'room';
     const text = chatSanitize(payload && payload.text);
     if (!text) return;
@@ -2111,6 +2192,30 @@ io.on('connection', socket => {
     if (chatHasProfanity(text)) {
       return socket.emit('chatRejected', { reason: '🚫 Küfür ve argo kullanılamaz.' });
     }
+    // ---- YAPTIRIM DENETİMİ (kurucunun uyguladığı sohbet kısıtlaması) ----
+    // Kullanıcı isteği: "tüm sohbetler kapatılsın kullanıcının (oyun içi ve
+    // genel sohbet)". Bu yüzden denetim HER İKİ kapsamda da çalışır.
+    // Kimlik yalnız DOĞRULANMIŞ üyeliktir (socket.userId); istemcinin
+    // gönderdiği userKey kanıt değildir, yoksa susturulan kişi sekmesini
+    // yenileyip misafir gibi yazmaya devam edebilirdi — bu yüzden GENEL
+    // sohbet zaten üyelik ister, MASA sohbetinde ise kimliği oda kaydından
+    // da çözeriz (aşağıdaki chatUid ile aynı kaynak).
+    {
+      const rid0 = String(socket.roomId || '');
+      const room0 = rid0 ? rooms.get(rid0) : null;
+      let uid0 = socket.userId || null;
+      if (!uid0 && room0) {
+        const pl0 = (room0.players || []).find(p => p.id === socket.id);
+        const sp0 = (room0.spectators || []).find(x => x.id === socket.id);
+        uid0 = (pl0 || sp0)?.userId || null;
+      }
+      if (uid0 > 0) {
+        const y = await sohbetYaptirimi(uid0);
+        if (y) return socket.emit('chatRejected', { reason: yaptirimAciklama(y), yaptirim: { bitis: y.bitis, sebep: y.sebep } });
+      }
+    }
+
+
     const t = now();
     const rateMs = scope === 'global' ? CHAT_GLOBAL_RATE_MS : CHAT_RATE_MS;
     if (socket.__lastChatAt && t - socket.__lastChatAt < rateMs) {
@@ -3593,6 +3698,138 @@ app.post('/api/admin/scores/reset', async (req, res) => {
   if (!r.ok) return res.status(500).json({ ok: false, error: r.error || 'Sıfırlanamadı.' });
   console.log('[PUAN] tüm puanlar ELLE sıfırlandı (kurucu #' + u.id + ')');
   res.json({ ok: true, ts: r.ts || Date.now() });
+});
+
+// ============================================================================
+// KURUCU: ÜYE YAPTIRIMLARI (şimdilik yalnız SOHBET / MESAJ kısıtlaması)
+// ============================================================================
+// Kullanıcının isteği: "üyelere yaptırım uyarlama özelliği gelsin ... tüm
+// sohbetler kapatılsın kullanıcının (oyun içi ve genel sohbet) 1 gün, 1
+// hafta, 1 ay, 1 yıl, sınırsız, belirli süreli girilen süre de sessizlik.
+// Kısıtlama getirildiğinde ilgili kullanıcıya bildirim gider."
+//
+// Süre seçenekleri TEK KAYNAK burada tanımlıdır; kurucu paneli listeyi bu
+// uçtan okur, böylece istemci ile sunucu asla ayrışmaz.
+const YAPTIRIM_SURELERI = {
+  '1g':      { etiket: '1 Gün',    ms: 86400000 },
+  '1h':      { etiket: '1 Hafta',  ms: 7 * 86400000 },
+  '1a':      { etiket: '1 Ay',     ms: 30 * 86400000 },
+  '1y':      { etiket: '1 Yıl',    ms: 365 * 86400000 },
+  'sinirsiz':{ etiket: 'Sınırsız', ms: null },
+  'ozel':    { etiket: 'Belirli süre (dakika)', ms: 0 }   // dakika alanından gelir
+};
+const YAPTIRIM_TURLERI = {
+  chat: { etiket: 'Sohbet ve mesaj kısıtlaması',
+          aciklama: 'Oyun içi (masa) ve genel sohbete mesaj gönderemez.' }
+};
+const YAPTIRIM_OZEL_MAX_DK = 525600;   // 1 yıl — üstü "sınırsız" ile yapılır
+
+// Yaptırım süre seçenekleri + türleri (panel bu listeyi çizer).
+app.get('/api/admin/sanctions/options', async (req, res) => {
+  if (!await requireAdmin(req, res)) return;
+  res.json({ ok: true,
+    sureler: Object.keys(YAPTIRIM_SURELERI).map(k => ({ id: k, etiket: YAPTIRIM_SURELERI[k].etiket })),
+    turler: Object.keys(YAPTIRIM_TURLERI).map(k => ({ id: k, ...YAPTIRIM_TURLERI[k] })),
+    ozelMaxDakika: YAPTIRIM_OZEL_MAX_DK });
+});
+
+// Yürürlükteki tüm yaptırımlar (panel listesi).
+app.get('/api/admin/sanctions', async (req, res) => {
+  if (!await requireAdmin(req, res)) return;
+  let liste = [];
+  try { liste = (await authApi.yaptirimListe()) || []; } catch (_) { liste = []; }
+  res.set('Cache-Control', 'no-store');
+  res.json({ ok: true, liste });
+});
+
+// Yaptırım UYGULA. Kalıcı kayıt üyelik katmanına yazılır (yerelde SQLite,
+// üretimde Yöncü MySQL), ardından Render ANINDA uygular: önbellek tazelenir
+// ve kullanıcının açık tüm sekmelerine AÇIKLAYICI bildirim düşer.
+app.post('/api/admin/sanctions', async (req, res) => {
+  const u = await requireAdmin(req, res);
+  if (!u) return;
+  const b = req.body || {};
+  const uid = Number(b.userId || b.uid);
+  if (!(uid > 0)) return res.status(400).json({ ok: false, error: 'Kullanıcı seçilmedi.' });
+  if (Number(uid) === Number(u.id)) return res.status(400).json({ ok: false, error: 'Kendinize yaptırım uygulayamazsınız.' });
+  const tur = String(b.tur || 'chat');
+  if (!YAPTIRIM_TURLERI[tur]) return res.status(400).json({ ok: false, error: 'Geçersiz yaptırım türü.' });
+  const sureId = String(b.sure || 'sinirsiz');
+  const secim = YAPTIRIM_SURELERI[sureId];
+  if (!secim) return res.status(400).json({ ok: false, error: 'Geçersiz süre seçeneği.' });
+  let sureMs = secim.ms;                                  // null → süresiz
+  if (sureId === 'ozel') {
+    const dk = Math.floor(Number(b.dakika));
+    if (!(dk > 0) || dk > YAPTIRIM_OZEL_MAX_DK) {
+      return res.status(400).json({ ok: false, error: 'Süre 1 ile ' + YAPTIRIM_OZEL_MAX_DK + ' dakika arasında olmalı.' });
+    }
+    sureMs = dk * 60000;
+  }
+  const sebep = String(b.sebep || '').replace(/[<>]/g, '').trim().slice(0, 240);
+
+  let r = { ok: false };
+  try {
+    r = (await authApi.yaptirimUygula({ uid, tur, sureMs, sebep, byUid: u.id })) || { ok: false };
+  } catch (e) { r = { ok: false, error: e.message }; }
+  if (!r.ok) return res.status(500).json({ ok: false, error: r.error || 'Yaptırım kaydedilemedi.' });
+
+  const bitis = (sureMs == null) ? null : Date.now() + sureMs;
+  if (tur === 'chat') sanctionCacheSet(uid, { bitis, sebep });
+
+  // Kullanıcıya AÇIKLAYICI anlık bildirim (çevrimdışıysa bir sonraki
+  // mesaj denemesinde aynı açıklamayı ret mesajı olarak görür).
+  try {
+    if (authApi && typeof authApi.emitToUser === 'function') {
+      authApi.emitToUser(uid, 'chatSanction', {
+        tur, bitis, sebep,
+        baslik: '🔇 Sohbet kısıtlaması uygulandı',
+        aciklama: yaptirimAciklama({ bitis, sebep }),
+        sureMetni: yaptirimBitisMetni(bitis)
+      });
+    }
+  } catch (_) {}
+  console.log('[YAPTIRIM] #' + uid + ' ' + tur + ' kısıtlandı (' + (bitis ? new Date(bitis).toISOString() : 'süresiz') + ') — kurucu #' + u.id);
+  res.json({ ok: true, yaptirim: { userId: uid, tur, bitis, sebep } });
+});
+
+// Yaptırımı KALDIR.
+app.post('/api/admin/sanctions/lift', async (req, res) => {
+  const u = await requireAdmin(req, res);
+  if (!u) return;
+  const uid = Number((req.body && (req.body.userId || req.body.uid)));
+  if (!(uid > 0)) return res.status(400).json({ ok: false, error: 'Kullanıcı seçilmedi.' });
+  const tur = String((req.body && req.body.tur) || 'chat');
+  let r = { ok: false };
+  try { r = (await authApi.yaptirimKaldir(uid, u.id, tur)) || { ok: false }; }
+  catch (e) { r = { ok: false, error: e.message }; }
+  if (!r.ok) return res.status(500).json({ ok: false, error: r.error || 'Kaldırılamadı.' });
+  if (tur === 'chat') sanctionCacheSet(uid, null);
+  try {
+    if (authApi && typeof authApi.emitToUser === 'function') {
+      authApi.emitToUser(uid, 'chatSanctionLifted', {
+        tur,
+        baslik: '✅ Sohbet kısıtlaması kaldırıldı',
+        aciklama: 'Sohbet kısıtlamanız kaldırıldı — oyun içi ve genel sohbete yeniden yazabilirsiniz.'
+      });
+    }
+  } catch (_) {}
+  console.log('[YAPTIRIM] #' + uid + ' ' + tur + ' kısıtlaması kaldırıldı — kurucu #' + u.id);
+  res.json({ ok: true, kaldirilan: r.kaldirilan || 0 });
+});
+
+// ÜYENİN KENDİ yaptırım durumu: giriş yaptığında/sayfayı yenilediğinde
+// sohbet kutusunun kilitli görünmesi için (kurucu yetkisi GEREKMEZ, kişi
+// yalnız kendi durumunu görür).
+app.get('/api/sanctions/me', async (req, res) => {
+  let u = null;
+  try {
+    if (authApi && typeof authApi.userFromReqAsync === 'function') u = await authApi.userFromReqAsync(req);
+  } catch (_) { u = null; }
+  res.set('Cache-Control', 'no-store');
+  if (!u || !u.id) return res.json({ ok: true, yaptirim: null });
+  const y = await sohbetYaptirimi(u.id);
+  res.json({ ok: true, yaptirim: y ? { tur: 'chat', bitis: y.bitis, sebep: y.sebep,
+                                       aciklama: yaptirimAciklama(y) } : null });
 });
 
 // OTOMATİK SIFIRLAMA ZAMANLAYICISI

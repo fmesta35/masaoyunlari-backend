@@ -99,6 +99,24 @@ try {
       by_user INTEGER,
       mode TEXT                    -- manuel | otomatik
     );
+    -- ÜYE YAPTIRIMLARI ---------------------------------------------------
+    -- Kurucunun bir üyeye uyguladığı kısıtlama. Şimdilik tek tür: 'chat'
+    -- (hem OYUN İÇİ masa sohbeti hem GENEL sohbet susturulur).
+    --  * expires_at NULL  → SÜRESİZ (kurucu kaldırana kadar)
+    --  * lifted_at  NULL  → hâlâ yürürlükte
+    -- Kayıt SİLİNMEZ: kaldırılan yaptırım da geçmişte kalır (denetim izi).
+    CREATE TABLE IF NOT EXISTS sanctions(
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      kind TEXT NOT NULL,          -- chat (ileride: ban, oyun yasağı...)
+      reason TEXT,
+      by_user INTEGER,
+      created_at INTEGER NOT NULL,
+      expires_at INTEGER,          -- NULL = süresiz
+      lifted_at INTEGER,
+      lifted_by INTEGER
+    );
+    CREATE INDEX IF NOT EXISTS idx_sanction_user ON sanctions(user_id, kind);
   `);
   // Eski veritabanları: kurucu bayrağı sütunu sonradan eklendi (idempotent).
   try {

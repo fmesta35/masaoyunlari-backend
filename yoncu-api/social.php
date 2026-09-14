@@ -16,6 +16,10 @@
  *    POST ?action=recordMatch {...}       → {ok}                     (X-GV-Key: Render)
  *    POST ?action=chatLog {...}           → {ok}                     (X-GV-Key: Render)
  *    GET  ?action=chatHistory&scope&roomId→ {ok,messages[]}          (herkese açık)
+ *    POST ?action=sanctionApply {...}     → {ok,yaptirim}           (X-GV-Key: Render)
+ *    POST ?action=sanctionLift  {uid}     → {ok,kaldirilan}          (X-GV-Key: Render)
+ *    GET  ?action=sanctionActive&uid&tur  → {ok,yaptirim|null}       (X-GV-Key: Render)
+ *    GET  ?action=sanctionList            → {ok,liste[]}             (X-GV-Key: Render)
  *
  *  Çevrimiçi/çevrimdışı bilgisi Render'da tutulur (socket); buradaki
  *  "friends" yanıtı online bayrağı OLMADAN döner — bayrağı ISTEMCİ
@@ -387,6 +391,94 @@ if ($action === 'scoreSettings') {
     $r = $pdo->query("SELECT value FROM gv_settings WHERE skey = 'score_reset_period'")->fetch();
     gv_json(array('ok' => true, 'periyot' => $r ? strval($r['value']) : 'kapali',
                   'sonSifirlama' => gv_score_reset_at()));
+}
+
+/* ==========================================================================
+ * ÜYE YAPTIRIMLARI (kalıcılık)
+ * --------------------------------------------------------------------------
+ * Kurucu doğrulaması Render tarafındadır (requireAdmin); burada YALNIZ
+ * kayıt tutulur. Tüm uçlar sunucu anahtarıyla korunur — tarayıcı doğrudan
+ * yaptırım uygulayamaz ya da kaldıramaz.
+ *
+ *  * expires_at NULL → SÜRESİZ,  lifted_at NULL → hâlâ yürürlükte
+ *  * Kayıt SİLİNMEZ; kaldırma lifted_at ile işaretlenir (denetim izi).
+ * ========================================================================== */
+function gv_sanction_row($r) {
+    if (!$r) return null;
+    return array(
+        'id' => intval($r['id']), 'userId' => intval($r['user_id']),
+        'tur' => strval($r['kind']), 'sebep' => strval($r['reason'] === null ? '' : $r['reason']),
+        'byUid' => $r['by_user'] === null ? null : intval($r['by_user']),
+        'baslangic' => intval($r['created_at']),
+        'bitis' => $r['expires_at'] === null ? null : intval($r['expires_at']),
+        'kaldirildi' => $r['lifted_at'] === null ? null : intval($r['lifted_at'])
+    );
+}
+
+function gv_sanction_active($pdo, $uid, $tur, $now) {
+    $s = $pdo->prepare("SELECT * FROM gv_sanctions
+                         WHERE user_id = ? AND kind = ? AND lifted_at IS NULL
+                           AND (expires_at IS NULL OR expires_at > ?)
+                         ORDER BY id DESC LIMIT 1");
+    $s->execute(array($uid, $tur, $now));
+    return gv_sanction_row($s->fetch());
+}
+
+if ($action === 'sanctionApply') {
+    gv_require_server_key();
+    $uid = intval($in['uid'] ?? 0);
+    if ($uid <= 0) gv_json(array('ok' => false, 'error' => 'Kullanıcı bulunamadı.'));
+    $tur = strval($in['tur'] ?? 'chat');
+    $sureMs = isset($in['sureMs']) ? floatval($in['sureMs']) : 0;
+    $bitis = ($sureMs > 0) ? intval($now + round($sureMs)) : null;   // 0/boş → süresiz
+    $sebep = strval($in['sebep'] ?? '');
+    if (function_exists('mb_substr')) $sebep = mb_substr($sebep, 0, 240, 'UTF-8'); else $sebep = substr($sebep, 0, 240);
+    $by = isset($in['byUid']) ? intval($in['byUid']) : null;
+    $pdo = gv_pdo();
+    // Tek aktif yaptırım kuralı: öncekiler kapatılır.
+    $pdo->prepare("UPDATE gv_sanctions SET lifted_at = ?, lifted_by = ? WHERE user_id = ? AND kind = ? AND lifted_at IS NULL")
+        ->execute(array($now, $by, $uid, $tur));
+    $pdo->prepare("INSERT INTO gv_sanctions(user_id,kind,reason,by_user,created_at,expires_at) VALUES(?,?,?,?,?,?)")
+        ->execute(array($uid, $tur, $sebep, $by, $now, $bitis));
+    gv_json(array('ok' => true, 'yaptirim' => gv_sanction_active($pdo, $uid, $tur, $now)));
+}
+
+if ($action === 'sanctionLift') {
+    gv_require_server_key();
+    $uid = intval($in['uid'] ?? 0);
+    if ($uid <= 0) gv_json(array('ok' => false, 'error' => 'Kullanıcı bulunamadı.'));
+    $tur = strval($in['tur'] ?? 'chat');
+    $by = isset($in['byUid']) ? intval($in['byUid']) : null;
+    $pdo = gv_pdo();
+    $st = $pdo->prepare("UPDATE gv_sanctions SET lifted_at = ?, lifted_by = ? WHERE user_id = ? AND kind = ? AND lifted_at IS NULL");
+    $st->execute(array($now, $by, $uid, $tur));
+    gv_json(array('ok' => true, 'kaldirilan' => $st->rowCount()));
+}
+
+if ($action === 'sanctionActive') {
+    gv_require_server_key();
+    $uid = intval($_GET['uid'] ?? 0);
+    $tur = strval($_GET['tur'] ?? 'chat');
+    if ($uid <= 0) gv_json(array('ok' => true, 'yaptirim' => null));
+    gv_json(array('ok' => true, 'yaptirim' => gv_sanction_active(gv_pdo(), $uid, $tur, $now)));
+}
+
+if ($action === 'sanctionList') {
+    gv_require_server_key();
+    $pdo = gv_pdo();
+    $s = $pdo->prepare("SELECT s.*, u.name AS uname, u.email AS uemail
+                          FROM gv_sanctions s LEFT JOIN gv_users u ON u.id = s.user_id
+                         WHERE s.lifted_at IS NULL AND (s.expires_at IS NULL OR s.expires_at > ?)
+                         ORDER BY s.created_at DESC LIMIT 500");
+    $s->execute(array($now));
+    $liste = array();
+    foreach ($s->fetchAll() as $r) {
+        $row = gv_sanction_row($r);
+        $row['ad'] = strval($r['uname'] === null ? '' : $r['uname']);
+        $row['eposta'] = strval($r['uemail'] === null ? '' : $r['uemail']);
+        $liste[] = $row;
+    }
+    gv_json(array('ok' => true, 'liste' => $liste));
 }
 
 if ($action === 'chatLog') {

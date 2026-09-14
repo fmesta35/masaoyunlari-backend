@@ -207,6 +207,10 @@ button,input,select{font-family:var(--font)}
 .chat-off-ico{font-size:1.7em;opacity:.85}
 .chat-off-t{font-weight:800;color:#ff6b6b;letter-spacing:.02em}
 .chat-off-s{font-size:.76em;color:var(--text2);max-width:210px;line-height:1.45}
+/* KURUCU YAPTIRIMI: kullanıcının kendi kapattığı sohbetten (yukarıdaki
+   .chat-off) görsel olarak AYRILIR — bu kilidi kullanıcı kaldıramaz. */
+.chat-ban{background:rgba(255,107,107,.08);border-top:2px solid rgba(255,107,107,.45)}
+.chat-ban .chat-off-s{max-width:230px}
 @media(prefers-reduced-motion:reduce){.chat-switch,.chat-switch-track,.chat-switch-knob{transition:none}}
 .chat-msgs{flex:1;overflow-y:auto;padding:8px;display:flex;flex-direction:column;gap:6px}
 .chat-msg{display:flex;gap:6px;font-size:.82em}
@@ -2059,7 +2063,8 @@ function logout(){
 function renderNotifList(){
   const list = document.getElementById('notifList');
   if(!list) return;
-  const NICON = { gameInvite:'🎮', friendRequest:'👥', friendAccepted:'✅', friendDeclined:'🚫' };
+  const NICON = { gameInvite:'🎮', friendRequest:'👥', friendAccepted:'✅', friendDeclined:'🚫',
+                  sanction:'🔇', sanctionLifted:'✅' };
   list.innerHTML = st.notifications.length ? st.notifications.map(n => {
     let actions = '';
     if(n.actionData && n.actionData.type === 'friendRequest'){

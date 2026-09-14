@@ -270,5 +270,31 @@ function puanAyarYaz(periyot) {
     .then(r => r.data || { ok: false }).catch(() => ({ ok: false }));
 }
 
+
+// ---------------- ÜYE YAPTIRIMLARI (uzak mod → Yöncü MySQL) ----------------
+// Kurallar ve ANLIK uygulama Render'da (soket katmanı), KALICILIK Yöncü'de.
+// Yazma uçları sunucu anahtarıyla korunur: tarayıcı doğrudan yaptırım
+// uygulayamaz/kaldıramaz — yalnız Render'ın kurucu doğrulamasından geçer.
+function yaptirimUygula(p) {
+  return callJson(REMOTE + '/social.php?action=sanctionApply', { key: KEY, body: p })
+    .then(r => r.data || { ok: false }).catch(() => ({ ok: false, error: 'Yöncü\'ye ulaşılamadı.' }));
+}
+function yaptirimKaldir(uid, byUid, tur) {
+  return callJson(REMOTE + '/social.php?action=sanctionLift', { key: KEY, body: { uid, byUid, tur: tur || 'chat' } })
+    .then(r => r.data || { ok: false }).catch(() => ({ ok: false, error: 'Yöncü\'ye ulaşılamadı.' }));
+}
+// Tek üyenin yürürlükteki yaptırımı (yoksa null). Sohbet denetimi bunu
+// önbellekler — her mesajda PHP'ye gidilmez.
+function yaptirimAktif(uid, tur) {
+  return callJson(REMOTE + '/social.php?action=sanctionActive&uid=' + encodeURIComponent(uid) +
+                  '&tur=' + encodeURIComponent(tur || 'chat'), { key: KEY }, 2000)
+    .then(r => (r.data && r.data.ok) ? (r.data.yaptirim || null) : null).catch(() => null);
+}
+function yaptirimListe() {
+  return callJson(REMOTE + '/social.php?action=sanctionList', { key: KEY })
+    .then(r => (r.data && r.data.ok) ? (r.data.liste || []) : []).catch(() => []);
+}
+
 module.exports = { enabled, installProxy, me, meFull, userPublic, isFriendPair, hasRequest, hasRequestOrNull, isFriendPairOrNull, recordMatch, logChat,
-  puanYaz, puanOzet, puanSiralama, puanSifirla, puanAyarOku, puanAyarYaz, REMOTE };
+  puanYaz, puanOzet, puanSiralama, puanSifirla, puanAyarOku, puanAyarYaz,
+  yaptirimUygula, yaptirimKaldir, yaptirimAktif, yaptirimListe, REMOTE };

@@ -170,41 +170,216 @@
   }
 
   // ---------- SEKME 1: Kullanıcı & Roller ----------
+  /* ÜYE YAPTIRIMLARI (kullanıcı isteği):
+       "üyelere yaptırım uyarlama özelliği gelsin ... tüm sohbetler
+        kapatılsın kullanıcının (oyun içi ve genel sohbet) 1 gün, 1 hafta,
+        1 ay, 1 yıl, sınırsız, belirli süreli girilen süre de sessizlik.
+        Kısıtlama getirildiğinde ilgili kullanıcıya bildirim gider ...
+        şimdilik sadece mesaj ve sohbet kısıtlaması yaptırımı uygulansın"
+
+     Veri yolu: yaptırım uçları HER ORTAMDA Render'dadır (oyun sunucusu
+     kısıtlamayı anında uygulayan taraf odur). Render kalıcı kaydı üyelik
+     katmanına yazar — yerelde SQLite, üretimde Yöncü MySQL. Kurucu
+     doğrulaması sunucuda (requireAdmin); buradaki arayüz yalnız görünüm. */
+  let sanctionMap = {};        // userId -> aktif yaptırım
+  let sanctionOpts = null;     // sunucudan gelen süre/tür seçenekleri
+  let sanctionUser = null;     // penceresi açık olan üye
+
+  async function fetchSanctions() {
+    const r = await api(BACKEND + '/api/admin/sanctions', null, 'GET');
+    const m = {};
+    if (r && r.ok) (r.liste || []).forEach(y => { m[Number(y.userId)] = y; });
+    return m;
+  }
+  async function fetchSanctionOpts() {
+    if (sanctionOpts) return sanctionOpts;
+    const r = await api(BACKEND + '/api/admin/sanctions/options', null, 'GET');
+    // Sunucuya ulaşılamazsa panel yine de çalışsın (aynı kimlikler).
+    sanctionOpts = (r && r.ok) ? r : {
+      sureler: [{ id: '1g', etiket: '1 Gün' }, { id: '1h', etiket: '1 Hafta' },
+                { id: '1a', etiket: '1 Ay' }, { id: '1y', etiket: '1 Yıl' },
+                { id: 'sinirsiz', etiket: 'Sınırsız' }, { id: 'ozel', etiket: 'Belirli süre (dakika)' }],
+      turler: [{ id: 'chat', etiket: 'Sohbet ve mesaj kısıtlaması',
+                 aciklama: 'Oyun içi (masa) ve genel sohbete mesaj gönderemez.' }],
+      ozelMaxDakika: 525600
+    };
+    return sanctionOpts;
+  }
+
+  // "2 gün 3 saat" gibi kalan süre metni (sunucudaki sureMetni ile aynı dil).
+  function kalanSure(bitis) {
+    if (bitis == null) return 'süresiz';
+    const ms = Number(bitis) - Date.now();
+    if (ms <= 0) return 'doldu';
+    const dk = Math.floor(ms / 60000);
+    const gun = Math.floor(dk / 1440), saat = Math.floor((dk % 1440) / 60);
+    if (gun >= 365) return Math.floor(gun / 365) + ' yıl';
+    if (gun > 0) return gun + ' gün' + (saat ? ' ' + saat + ' saat' : '');
+    if (saat > 0) return saat + ' saat';
+    return Math.max(1, dk) + ' dakika';
+  }
+
   function renderUsersTab(body) {
     body.innerHTML = '<div style="text-align:center;padding:26px;color:var(--text2)">⏳ Üyeler yükleniyor...</div>';
-    fetchUsers().then(r => {
+    Promise.all([fetchUsers(), fetchSanctions()]).then(([r, sm]) => {
       if (!r.ok) { body.innerHTML = `<div style="text-align:center;padding:26px;color:#ff7675">⚠️ ${esc(r.error || 'Yüklenemedi')}</div>`; return; }
       usersLoaded = true;
+      sanctionMap = sm || {};
       const users = r.users || [];
+      const kisitli = Object.keys(sanctionMap).length;
       body.innerHTML = `
-        <div style="font-weight:800;font-size:.95em;margin-bottom:10px">TÜM KULLANICILAR (${users.length})</div>
-        <div style="border:1px solid var(--border);border-radius:12px;overflow:hidden">
-          <table style="width:100%;border-collapse:collapse;font-size:.88em">
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px">
+          <div style="font-weight:800;font-size:.95em">TÜM KULLANICILAR (${users.length})</div>
+          ${kisitli ? `<span style="background:rgba(255,118,117,.15);color:#ff7675;font-weight:800;font-size:.75em;padding:4px 9px;border-radius:8px">🔇 ${kisitli} kısıtlı üye</span>` : ''}
+        </div>
+        <div style="font-size:.76em;color:var(--text3);margin-bottom:10px">Yaptırım uygulanan üyeye <b>anında bildirim</b> gider; oyun içi ve genel sohbete mesaj gönderemez.</div>
+        <div style="border:1px solid var(--border);border-radius:12px;overflow-x:auto">
+          <table style="width:100%;border-collapse:collapse;font-size:.88em;min-width:520px">
             <thead><tr style="background:var(--bg3);text-align:left">
               <th style="padding:10px 14px">KULLANICI</th>
               <th style="padding:10px 14px">KATILIM</th>
-              <th style="padding:10px 14px;text-align:right">ROL</th>
+              <th style="padding:10px 14px">DURUM</th>
+              <th style="padding:10px 14px;text-align:right">ROL / İŞLEM</th>
             </tr></thead>
             <tbody>
-              ${users.map(u => `
-              <tr style="border-top:1px solid var(--border)">
-                <td style="padding:11px 14px">
-                  <div style="font-weight:700;color:var(--accent)">${esc(u.name)}</div>
-                  <div style="font-size:.82em;color:var(--text3)">${esc(u.email)}</div>
-                </td>
-                <td style="padding:11px 14px;color:var(--text2)">${trDate(u.createdAt)}</td>
-                <td style="padding:11px 14px;text-align:right">
-                  ${u.role === 'kurucu'
-                    ? '<span style="background:rgba(253,203,110,.18);color:#fdcb6e;font-weight:800;font-size:.8em;padding:4px 10px;border-radius:8px">KURUCU (SİZ)</span>'
-                    : '<span style="background:var(--bg3);color:var(--text2);font-weight:700;font-size:.8em;padding:4px 10px;border-radius:8px">Üye</span>'}
-                </td>
-              </tr>`).join('')}
+              ${users.map(u => userRow(u)).join('')}
             </tbody>
           </table>
         </div>`;
+      body.querySelectorAll('[data-sanc]').forEach(b => b.addEventListener('click', () => {
+        const uid = Number(b.getAttribute('data-uid'));
+        const user = users.find(x => Number(x.id) === uid);
+        if (!user) return;
+        if (b.getAttribute('data-sanc') === 'lift') liftSanction(user, body);
+        else openSanctionModal(user, body);
+      }));
     }).catch(e => {
       body.innerHTML = `<div style="text-align:center;padding:26px;color:#ff7675">⚠️ ${esc(e.message || 'Bağlantı hatası')}</div>`;
     });
+  }
+
+  function userRow(u) {
+    const y = sanctionMap[Number(u.id)];
+    const kurucu = u.role === 'kurucu';
+    return `
+      <tr style="border-top:1px solid var(--border)">
+        <td style="padding:11px 14px">
+          <div style="font-weight:700;color:var(--accent)">${esc(u.name)}</div>
+          <div style="font-size:.82em;color:var(--text3)">${esc(u.email)}</div>
+        </td>
+        <td style="padding:11px 14px;color:var(--text2)">${trDate(u.createdAt)}</td>
+        <td style="padding:11px 14px">
+          ${y
+            ? `<span title="${esc(y.sebep || 'Gerekçe belirtilmedi')}" style="background:rgba(255,118,117,.15);color:#ff7675;font-weight:800;font-size:.76em;padding:4px 9px;border-radius:8px;white-space:nowrap">🔇 Sohbet kısıtlı · ${esc(kalanSure(y.bitis))}</span>`
+            : '<span style="color:#00b894;font-weight:700;font-size:.78em">✓ Kısıtlama yok</span>'}
+        </td>
+        <td style="padding:11px 14px;text-align:right;white-space:nowrap">
+          ${kurucu
+            ? '<span style="background:rgba(253,203,110,.18);color:#fdcb6e;font-weight:800;font-size:.8em;padding:4px 10px;border-radius:8px">KURUCU (SİZ)</span>'
+            : `<span style="background:var(--bg3);color:var(--text2);font-weight:700;font-size:.8em;padding:4px 10px;border-radius:8px">Üye</span>
+               <button type="button" data-sanc="open" data-uid="${u.id}" style="margin-left:6px;border:1px solid var(--border);background:var(--bg3);color:var(--text);border-radius:8px;padding:5px 10px;cursor:pointer;font-size:.8em">⚖️ Yaptırım</button>
+               ${y ? `<button type="button" data-sanc="lift" data-uid="${u.id}" style="margin-left:4px;border:none;background:rgba(0,184,148,.15);color:#00b894;border-radius:8px;padding:5px 10px;cursor:pointer;font-size:.8em;font-weight:700">✓ Kaldır</button>` : ''}`}
+        </td>
+      </tr>`;
+  }
+
+  // ---- Yaptırım penceresi ----
+  function sanctionModal() {
+    let m = document.getElementById('adminSanctionModal');
+    if (m) return m;
+    m = document.createElement('div');
+    m.className = 'modal-bg';
+    m.id = 'adminSanctionModal';
+    m.innerHTML = `
+      <div class="modal" style="max-width:480px;width:94%;padding:0;overflow:hidden">
+        <div style="background:linear-gradient(135deg,#d63031,#ff7675);padding:14px 18px;display:flex;justify-content:space-between;align-items:center">
+          <h3 style="margin:0;font-size:1.05em;color:#fff">⚖️ Üyeye Yaptırım Uygula</h3>
+          <button type="button" style="background:rgba(255,255,255,.25);border:none;color:#fff;width:28px;height:28px;border-radius:50%;cursor:pointer" onclick="GV.hideModal('adminSanctionModal')">✕</button>
+        </div>
+        <div id="adminSanctionBody" style="padding:16px"></div>
+      </div>`;
+    document.body.appendChild(m);
+    m.addEventListener('click', e => { if (e.target === m) GV.hideModal('adminSanctionModal'); });
+    return m;
+  }
+
+  async function openSanctionModal(user, listBody) {
+    sanctionUser = user;
+    const opts = await fetchSanctionOpts();
+    const m = sanctionModal();
+    const b = m.querySelector('#adminSanctionBody');
+    const y = sanctionMap[Number(user.id)];
+    b.innerHTML = `
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
+        <div style="width:38px;height:38px;border-radius:50%;background:var(--bg3);display:flex;align-items:center;justify-content:center;font-weight:800">${esc(String(user.name || '?').slice(0, 2).toUpperCase())}</div>
+        <div><div style="font-weight:800">${esc(user.name)}</div><div style="font-size:.78em;color:var(--text3)">${esc(user.email)}</div></div>
+      </div>
+      ${y ? `<div style="background:rgba(255,118,117,.1);border:1px solid rgba(255,118,117,.3);border-radius:10px;padding:9px 12px;font-size:.8em;color:#ff7675;margin-bottom:12px">
+               🔇 Bu üye hâlihazırda kısıtlı — kalan süre: <b>${esc(kalanSure(y.bitis))}</b>${y.sebep ? ' · Gerekçe: ' + esc(y.sebep) : ''}.
+               <div style="color:var(--text3);margin-top:3px">Yeni yaptırım uygularsanız mevcut kısıtlamanın yerine geçer.</div>
+             </div>` : ''}
+      <div style="font-weight:800;font-size:.82em;margin-bottom:6px">YAPTIRIM TÜRÜ</div>
+      <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:14px">
+        ${(opts.turler || []).map((t, i) => `
+          <label style="display:flex;gap:9px;align-items:flex-start;border:1px solid var(--border);border-radius:10px;padding:10px 12px;cursor:pointer;background:var(--bg2)">
+            <input type="radio" name="sancTur" value="${esc(t.id)}" ${i === 0 ? 'checked' : ''} style="margin-top:3px">
+            <span><b style="font-size:.9em">🔇 ${esc(t.etiket)}</b>
+              <div style="font-size:.76em;color:var(--text3)">${esc(t.aciklama || '')}</div></span>
+          </label>`).join('')}
+      </div>
+      <div style="font-weight:800;font-size:.82em;margin-bottom:6px">SÜRE</div>
+      <select id="sancSure" style="width:100%;padding:9px 11px;border-radius:9px;border:1px solid var(--border);background:var(--bg3);color:var(--text);font-size:.88em">
+        ${(opts.sureler || []).map(o => `<option value="${esc(o.id)}">${esc(o.etiket)}</option>`).join('')}
+      </select>
+      <div id="sancOzelWrap" style="display:none;margin-top:8px">
+        <input id="sancDakika" type="number" min="1" max="${Number(opts.ozelMaxDakika) || 525600}" placeholder="Süre (dakika)"
+          style="width:100%;padding:9px 11px;border-radius:9px;border:1px solid var(--border);background:var(--bg3);color:var(--text);font-size:.88em">
+        <div style="font-size:.72em;color:var(--text3);margin-top:4px">Örnek: 90 → 1 saat 30 dakika sessizlik.</div>
+      </div>
+      <div style="font-weight:800;font-size:.82em;margin:14px 0 6px">GEREKÇE <span style="font-weight:400;color:var(--text3)">(kullanıcıya bildirimde gösterilir)</span></div>
+      <textarea id="sancSebep" rows="2" maxlength="240" placeholder="Örn: Sohbette küfür ve hakaret"
+        style="width:100%;padding:9px 11px;border-radius:9px;border:1px solid var(--border);background:var(--bg3);color:var(--text);font-size:.86em;resize:vertical"></textarea>
+      <div id="sancErr" style="color:#ff7675;font-size:.8em;margin-top:8px;display:none"></div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px">
+        <button type="button" class="btn btn-sm" onclick="GV.hideModal('adminSanctionModal')">Vazgeç</button>
+        <button type="button" id="sancApply" style="background:linear-gradient(135deg,#d63031,#ff7675);color:#fff;border:none;padding:10px 18px;border-radius:9px;font-weight:800;cursor:pointer">⚖️ Yaptırımı Uygula</button>
+      </div>`;
+    const sel = b.querySelector('#sancSure');
+    const ozel = b.querySelector('#sancOzelWrap');
+    sel.addEventListener('change', () => { ozel.style.display = sel.value === 'ozel' ? 'block' : 'none'; });
+    b.querySelector('#sancApply').addEventListener('click', () => applySanction(listBody));
+    if (window.GV && GV.showModal) GV.showModal('adminSanctionModal');
+    else m.classList.add('show');
+  }
+
+  async function applySanction(listBody) {
+    const m = document.getElementById('adminSanctionModal');
+    if (!m || !sanctionUser) return;
+    const err = m.querySelector('#sancErr');
+    const btn = m.querySelector('#sancApply');
+    const tur = (m.querySelector('input[name="sancTur"]:checked') || {}).value || 'chat';
+    const sure = m.querySelector('#sancSure').value;
+    const dakika = Number(m.querySelector('#sancDakika') ? m.querySelector('#sancDakika').value : 0);
+    const sebep = String(m.querySelector('#sancSebep').value || '').trim();
+    const goster = msg => { err.textContent = '⚠️ ' + msg; err.style.display = 'block'; };
+    err.style.display = 'none';
+    if (sure === 'ozel' && !(dakika > 0)) return goster('Süreyi dakika olarak girin.');
+    btn.disabled = true; btn.textContent = '⏳ Uygulanıyor...';
+    const r = await api(BACKEND + '/api/admin/sanctions',
+      { userId: sanctionUser.id, tur, sure, dakika, sebep }, 'POST');
+    btn.disabled = false; btn.textContent = '⚖️ Yaptırımı Uygula';
+    if (!r.ok) return goster(r.error || 'Yaptırım uygulanamadı.');
+    toast('🔇 ' + sanctionUser.name + ' için sohbet kısıtlaması uygulandı — kullanıcıya bildirim gönderildi.', 'success');
+    if (window.GV && GV.hideModal) GV.hideModal('adminSanctionModal');
+    if (listBody) renderUsersTab(listBody);
+  }
+
+  async function liftSanction(user, listBody) {
+    if (!window.confirm(user.name + ' üyesinin sohbet kısıtlaması kaldırılsın mı?')) return;
+    const r = await api(BACKEND + '/api/admin/sanctions/lift', { userId: user.id, tur: 'chat' }, 'POST');
+    if (!r.ok) { toast('⚠️ ' + (r.error || 'Kaldırılamadı.'), 'error'); return; }
+    toast('✅ ' + user.name + ' üyesinin sohbet kısıtlaması kaldırıldı.', 'success');
+    if (listBody) renderUsersTab(listBody);
   }
 
   // ---------- SEKME 2: Oyunlar ----------

@@ -201,6 +201,24 @@ function gv_schema($pdo) {
         mode VARCHAR(16) NULL,
         INDEX (ts)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci");
+    // ---- ÜYE YAPTIRIMLARI ----
+    // Kurucunun bir üyeye uyguladığı kısıtlama. Şimdilik tek tür: 'chat'
+    // (hem OYUN İÇİ masa sohbeti hem GENEL sohbet susturulur).
+    //  * expires_at NULL → SÜRESİZ (kurucu kaldırana kadar)
+    //  * lifted_at  NULL → hâlâ yürürlükte
+    // Kayıt SİLİNMEZ: kaldırılan yaptırım da geçmişte kalır (denetim izi).
+    $pdo->exec("CREATE TABLE IF NOT EXISTS gv_sanctions(
+        id BIGINT AUTO_INCREMENT PRIMARY KEY,
+        user_id INT NOT NULL,
+        kind VARCHAR(16) NOT NULL,
+        reason VARCHAR(255) NULL,
+        by_user INT NULL,
+        created_at BIGINT NOT NULL,
+        expires_at BIGINT NULL,
+        lifted_at BIGINT NULL,
+        lifted_by INT NULL,
+        INDEX (user_id, kind), INDEX (expires_at)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci");
     // Yönetici (kurucu) paneli ayarları: hazır masa yapılandırması (JSON).
     $pdo->exec("CREATE TABLE IF NOT EXISTS gv_settings(
         skey VARCHAR(64) PRIMARY KEY,
