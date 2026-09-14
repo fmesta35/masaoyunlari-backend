@@ -88,12 +88,23 @@ async function main() {
   }, 15000, 'üye listesi');
 
   // ---- 1) satırda yaptırım düğmesi + durum ----
-  const yapBtn = body.querySelector('[data-sanc="open"][data-uid="' + ugiris.user.id + '"]');
+  const yapBtn = body.querySelector('[data-sanc="open"][data-sanc-uid="' + ugiris.user.id + '"]');
   assert.ok(yapBtn, 'her üyenin satırında "⚖️ Yaptırım" düğmesi olmalı');
   assert.ok(/Kısıtlama yok/.test(body.innerHTML), 'kısıtsız üye için durum sütunu "Kısıtlama yok" demeli');
-  assert.ok(!body.querySelector('[data-sanc="open"][data-uid="' + kgiris.user.id + '"]'),
+  assert.ok(!body.querySelector('[data-sanc="open"][data-sanc-uid="' + kgiris.user.id + '"]'),
     'kurucunun kendi satırında yaptırım düğmesi OLMAMALI');
-  console.log('  ✓ 1) üye satırlarında yaptırım düğmesi + kısıtlama durumu sütunu var');
+  // ⚠ REGRESYON: js/social.js sayfanın tamamında `[data-uid]` taşıyan HER
+  // öğeye tıklanınca profil penceresi açıyor. Yaptırım düğmesi `data-uid`
+  // taşırsa tek tıkla İKİ pencere birden açılır (kullanıcı raporu). Düğme
+  // kendi özniteliğini kullanmalı; `data-uid` yalnız üye ADINDA olmalı.
+  assert.ok(!yapBtn.hasAttribute('data-uid'),
+    'yaptırım düğmesi data-uid TAŞIMAMALI (yoksa profil penceresi de açılır)');
+  assert.ok(!body.querySelector('[data-sanc][data-uid]'),
+    'hiçbir yaptırım düğmesi data-uid taşımamalı');
+  const isimEl = [...body.querySelectorAll('[data-uid="' + ugiris.user.id + '"]')]
+    .find(el => /Yaramaz/.test(el.textContent));
+  assert.ok(isimEl, 'üye ADI tıklanabilir olmalı (isme tıklayınca bilgileri açılır)');
+  console.log('  ✓ 1) üye satırlarında yaptırım düğmesi + durum sütunu; isim tıklanabilir, düğme profil açmıyor');
 
   // ---- 2) pencere: süre seçenekleri + tür + gerekçe ----
   yapBtn.click();
@@ -106,10 +117,16 @@ async function main() {
   for (const k of ['1g', '1h', '1a', '1y', 'sinirsiz', 'ozel']) {
     assert.ok(sec.includes(k), 'süre seçeneği eksik: ' + k);
   }
-  const turler = [...modal.querySelectorAll('input[name="sancTur"]')].map(r => r.value);
-  assert.deepStrictEqual(turler, ['chat'], 'şimdilik yalnız sohbet/mesaj kısıtlaması sunulmalı');
+  // Tek tür olduğu için seçim düğmesi YOK: sabit bilgi kartı gösterilir
+  // (tek seçenekli radyo kullanıcıyı "neyi seçeceğim?" diye şaşırtıyordu).
+  assert.strictEqual(modal.querySelectorAll('input[type="radio"]').length, 0,
+    'tek tür varken radyo düğmesi gösterilmemeli');
+  const turKart = modal.querySelector('#sancTurKart');
+  assert.ok(turKart, 'yaptırım türü sabit bilgi kartı olarak gösterilmeli');
+  assert.strictEqual(turKart.getAttribute('data-tur'), 'chat', 'tür sunucudan gelmeli');
+  assert.ok(/Sohbet ve mesaj kısıtlaması/.test(turKart.textContent), 'kart türü açıkça yazmalı');
   assert.ok(modal.querySelector('#sancSebep'), 'gerekçe alanı olmalı');
-  console.log('  ✓ 2) pencere: 6 süre seçeneği (' + sec.join(', ') + '), tek tür (sohbet), gerekçe alanı');
+  console.log('  ✓ 2) pencere: 6 süre seçeneği (' + sec.join(', ') + '), sabit tür kartı (sohbet), gerekçe alanı');
 
   // ---- 3) "belirli süre" seçilince dakika kutusu ----
   const sel = modal.querySelector('#sancSure');
@@ -118,6 +135,18 @@ async function main() {
   sel.dispatchEvent(new kw.Event('change', { bubbles: true }));
   assert.strictEqual(modal.querySelector('#sancOzelWrap').style.display, 'block', '"belirli süre" seçilince dakika kutusu açılmalı');
   console.log('  ✓ 3) "Belirli süre" seçilince dakika kutusu açılıyor');
+
+  // ---- 1b) yaptırım düğmesi SADECE yaptırım penceresini açmalı ----
+  // Profil penceresi bir .modal-bg DEĞİL: js/social.js onu #gvProfileModal
+  // olarak kurar ve style.display ile açar — bu yüzden doğrudan onu sınıyoruz.
+  const prof = kw.document.getElementById('gvProfileModal');
+  assert.ok(!prof || prof.style.display === 'none' || prof.style.display === '',
+    'yaptırıma tıklayınca ÜYE PROFİLİ penceresi açılmamalı (display=' + (prof && prof.style.display) + ')');
+  const digerAcik = [...kw.document.querySelectorAll('.modal-bg.show')]
+    .filter(m => m.id !== 'adminSanctionModal' && m.id !== 'adminPanelModal');
+  assert.strictEqual(digerAcik.length, 0,
+    'başka pencere de açılmamalı, açılan: ' + digerAcik.map(m => m.id).join(', '));
+  console.log('  ✓ 1b) yaptırım düğmesi yalnız yaptırım penceresini açıyor (profil açılmıyor)');
 
   // ---------- KISITLANACAK KULLANICININ EKRANI ----------
   const uw = await pencere(BASE, ugiris.token);
@@ -164,6 +193,25 @@ async function main() {
   await bekle(() => uw.document.getElementById('gcInput').disabled === false ? true : null, 8000, 'kilidin açılması');
   console.log('  ✓ 6) kurucu kaldırınca kullanıcının kilidi anında kalktı');
 
+  // ---- 7) ÜYE ADINA tıklayınca profil bilgileri açılmalı ----
+  // Kullanıcı isteği: "üye ismine tıkladığımda bilgileri gözükmeli."
+  const isim = [...kw.document.getElementById('adminPanelBody')
+    .querySelectorAll('[data-uid="' + ugiris.user.id + '"]')].find(el => /Yaramaz/.test(el.textContent));
+  assert.ok(isim, 'üye adı data-uid taşımalı (profil için)');
+  isim.dispatchEvent(new kw.MouseEvent('click', { bubbles: true, cancelable: true }));
+  const pf = await bekle(() => {
+    const el = kw.document.getElementById('gvProfileModal');
+    return (el && el.style.display === 'flex') ? el : null;
+  }, 10000, 'isme tıklayınca profil penceresi');
+  assert.ok(pf, 'üye adına tıklayınca profil penceresi açılmalı');
+  console.log('  ✓ 7) üye adına tıklayınca üye bilgileri (profil) açılıyor');
+
+  // Profil penceresi açılırken /api/users/:id/profile + online-status
+  // isteklerini başlatır. Sunucuyu bu istekler UÇUŞTAYKEN kapatırsak
+  // undici "fetch failed" ile süreci düşürüyor — testin sonucuyla ilgisi
+  // olmayan bir yıkım (teardown) yarışı. Önce istekleri bitmeye bırak.
+  await sleep(1500);
+  process.on('uncaughtException', () => {});   // kapanış sırasında geç düşen istek
   kw.close(); uw.close();
   serverModule.io && serverModule.io.close();
   await new Promise(r => server.close(r));

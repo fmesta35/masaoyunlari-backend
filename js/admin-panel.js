@@ -246,8 +246,15 @@
             </tbody>
           </table>
         </div>`;
-      body.querySelectorAll('[data-sanc]').forEach(b => b.addEventListener('click', () => {
-        const uid = Number(b.getAttribute('data-uid'));
+      /* ⚠ ÇAKIŞMA NOTU: bu düğmelerde eskiden `data-uid` vardı. js/social.js
+         sayfanın TAMAMINDA `[data-uid]` taşıyan her öğeye tıklanınca profil
+         penceresini açan tek bir dinleyici kuruyor — bu yüzden "Yaptırım"a
+         basınca yaptırım penceresiyle BİRLİKTE üye profili de açılıyordu.
+         Düğmeler artık `data-sanc-uid` kullanır; `data-uid` yalnız üye
+         ADINDA durur, böylece "isme tıkla → bilgileri gör" çalışır. */
+      body.querySelectorAll('[data-sanc]').forEach(b => b.addEventListener('click', e => {
+        e.stopPropagation();
+        const uid = Number(b.getAttribute('data-sanc-uid'));
         const user = users.find(x => Number(x.id) === uid);
         if (!user) return;
         if (b.getAttribute('data-sanc') === 'lift') liftSanction(user, body);
@@ -264,7 +271,8 @@
     return `
       <tr style="border-top:1px solid var(--border)">
         <td style="padding:11px 14px">
-          <div style="font-weight:700;color:var(--accent)">${esc(u.name)}</div>
+          <div ${kurucu ? '' : `data-uid="${u.id}"`} style="font-weight:700;color:var(--accent)${kurucu ? '' : ';cursor:pointer'}"
+               ${kurucu ? '' : 'title="Üye bilgilerini aç"'}>${esc(u.name)}</div>
           <div style="font-size:.82em;color:var(--text3)">${esc(u.email)}</div>
         </td>
         <td style="padding:11px 14px;color:var(--text2)">${trDate(u.createdAt)}</td>
@@ -277,8 +285,8 @@
           ${kurucu
             ? '<span style="background:rgba(253,203,110,.18);color:#fdcb6e;font-weight:800;font-size:.8em;padding:4px 10px;border-radius:8px">KURUCU (SİZ)</span>'
             : `<span style="background:var(--bg3);color:var(--text2);font-weight:700;font-size:.8em;padding:4px 10px;border-radius:8px">Üye</span>
-               <button type="button" data-sanc="open" data-uid="${u.id}" style="margin-left:6px;border:1px solid var(--border);background:var(--bg3);color:var(--text);border-radius:8px;padding:5px 10px;cursor:pointer;font-size:.8em">⚖️ Yaptırım</button>
-               ${y ? `<button type="button" data-sanc="lift" data-uid="${u.id}" style="margin-left:4px;border:none;background:rgba(0,184,148,.15);color:#00b894;border-radius:8px;padding:5px 10px;cursor:pointer;font-size:.8em;font-weight:700">✓ Kaldır</button>` : ''}`}
+               <button type="button" data-sanc="open" data-sanc-uid="${u.id}" style="margin-left:6px;border:1px solid var(--border);background:var(--bg3);color:var(--text);border-radius:8px;padding:5px 10px;cursor:pointer;font-size:.8em">⚖️ Yaptırım</button>
+               ${y ? `<button type="button" data-sanc="lift" data-sanc-uid="${u.id}" style="margin-left:4px;border:none;background:rgba(0,184,148,.15);color:#00b894;border-radius:8px;padding:5px 10px;cursor:pointer;font-size:.8em;font-weight:700">✓ Kaldır</button>` : ''}`}
         </td>
       </tr>`;
   }
@@ -319,13 +327,18 @@
                <div style="color:var(--text3);margin-top:3px">Yeni yaptırım uygularsanız mevcut kısıtlamanın yerine geçer.</div>
              </div>` : ''}
       <div style="font-weight:800;font-size:.82em;margin-bottom:6px">YAPTIRIM TÜRÜ</div>
-      <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:14px">
-        ${(opts.turler || []).map((t, i) => `
-          <label style="display:flex;gap:9px;align-items:flex-start;border:1px solid var(--border);border-radius:10px;padding:10px 12px;cursor:pointer;background:var(--bg2)">
-            <input type="radio" name="sancTur" value="${esc(t.id)}" ${i === 0 ? 'checked' : ''} style="margin-top:3px">
-            <span><b style="font-size:.9em">🔇 ${esc(t.etiket)}</b>
-              <div style="font-size:.76em;color:var(--text3)">${esc(t.aciklama || '')}</div></span>
-          </label>`).join('')}
+      <!-- Şu an TEK tür var (sohbet/mesaj kısıtlaması). Tek seçenekli bir
+           radyo düğmesi hem seçim yapılacakmış izlenimi veriyor hem de
+           kafa karıştırıyordu; bu yüzden tür SABİT bir bilgi kartı olarak
+           gösterilir. İkinci tür eklendiğinde liste yeniden seçilebilir
+           hale gelir (aşağıdaki turId bunun için sunucudan okunur). -->
+      <div id="sancTurKart" data-tur="${esc(((opts.turler || [])[0] || {}).id || 'chat')}"
+           style="display:flex;gap:10px;align-items:flex-start;border:1px solid var(--border);border-radius:10px;padding:11px 13px;margin-bottom:14px;background:var(--bg2)">
+        <span style="font-size:1.15em;line-height:1.2">🔇</span>
+        <span style="flex:1;min-width:0">
+          <b style="font-size:.9em">${esc(((opts.turler || [])[0] || {}).etiket || 'Sohbet ve mesaj kısıtlaması')}</b>
+          <div style="font-size:.76em;color:var(--text3);margin-top:2px">${esc(((opts.turler || [])[0] || {}).aciklama || '')}</div>
+        </span>
       </div>
       <div style="font-weight:800;font-size:.82em;margin-bottom:6px">SÜRE</div>
       <select id="sancSure" style="width:100%;padding:9px 11px;border-radius:9px;border:1px solid var(--border);background:var(--bg3);color:var(--text);font-size:.88em">
@@ -357,7 +370,8 @@
     if (!m || !sanctionUser) return;
     const err = m.querySelector('#sancErr');
     const btn = m.querySelector('#sancApply');
-    const tur = (m.querySelector('input[name="sancTur"]:checked') || {}).value || 'chat';
+    const kart = m.querySelector('#sancTurKart');
+    const tur = (kart && kart.getAttribute('data-tur')) || 'chat';
     const sure = m.querySelector('#sancSure').value;
     const dakika = Number(m.querySelector('#sancDakika') ? m.querySelector('#sancDakika').value : 0);
     const sebep = String(m.querySelector('#sancSebep').value || '').trim();
