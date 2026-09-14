@@ -15,6 +15,7 @@ const reversiEngine = require('./reversi-engine');
 const gomokuEngine = require('./gomoku-engine');
 const connect4Engine = require('./connect4-engine');
 const bilardoEngine = require('./bilardo-engine');
+const battleshipEngine = require('./battleship-engine');
 const { db } = require('./db'); // kurucu paneli: üye listesi + masa ayarları (SQLite, yerel mod)
 const playCounts = require('./play-counts'); // gerçek "kaç kez oynandı" sayaçları (mod bağımsız)
 
@@ -94,6 +95,8 @@ const MAX_ROOM_PLAYERS = 2;
 const MAX_PLAYERS_BY_GAME = { okey: 4, okey101: 4, pisti: 4, batak: 4 };
 const ONLINE_CARD_GAMES = new Set(['pisti', 'batak']);
 const ONLINE_BOARD_GAMES = new Set(['dama','turkdamasi','reversi']);
+// Amiral Battı 2 kişilik oynanır (MAX_ROOM_PLAYERS varsayılanı yeterli),
+// ek bir maxPlayers girdisine gerek yok.
 function maxPlayersFor(gameId) {
   return MAX_PLAYERS_BY_GAME[gameId] || MAX_ROOM_PLAYERS;
 }
@@ -224,7 +227,7 @@ const disconnectTimers = new Map();
 // o hesap sabit "kurucu123" şifresiyle otomatik açılıyordu.)
 const ADMIN_EMAIL = String(process.env.GV_ADMIN_EMAIL || '').trim().toLowerCase();
 const ALL_GAMES = ['chess', 'tavla', 'okey', 'okey101', 'pisti', 'batak',
-  'dama', 'turkdamasi', 'reversi', 'gomoku', 'connect4', 'bilardo'];
+  'dama', 'turkdamasi', 'reversi', 'gomoku', 'connect4', 'bilardo', 'battleship'];
 
 const PRESET_TYPES = [
   ...Array(4).fill({ type: 'fast', label: '⚡ Hızlı', durationMinutes: 10 }),
@@ -237,7 +240,8 @@ const PRESET_GAME_BASES = {
   chess: 101, tavla: 201, pisti: 341, batak: 361,
   // bilardo 921: 901-910 aralığı okey test süitinin oda kimlikleriyle
   // çakışmasın diye atlandı.
-  dama: 401, turkdamasi: 501, reversi: 601, gomoku: 701, connect4: 801, bilardo: 921
+  dama: 401, turkdamasi: 501, reversi: 601, gomoku: 701, connect4: 801, bilardo: 921,
+  battleship: 1001
 };
 const STANDARD_PRESET_GAMES = Object.keys(PRESET_GAME_BASES);
 // Hazır masası SABİT olan oyunlar (panel yalnızca görünürlük yönetir):
@@ -850,6 +854,10 @@ function turnSeatOf(room) {
   if (room.gomoku) return room.gomoku.turn === 'b' ? 0 : 1;
   if (room.connect4) return room.connect4.turn === 'r' ? 0 : 1;
   if (room.bilardo) return room.bilardo.turn;
+  // Yerleştirme (placing) fazında tur sahibi yok — her iki oyuncu da
+  // BAĞIMSIZ olarak filosunu diziyor; hamle-zaman-aşımı saati bu yüzden
+  // burada değil, enforceOnlineMoveTimeout içindeki özel dala bağlıdır.
+  if (room.battleship) return room.battleship.phase === 'battle' ? room.battleship.turn : null;
   if (room.cardGame) return room.cardGame.turn;
   return null;
 }
@@ -882,6 +890,59 @@ function damaState(room, seat) { const d=room.dama; const isTurk=room.gameId==='
   const color = seat === 0 ? (isTurk ? 'w' : 'r') : 'b'; return {kind:room.gameId,status:room.status,turn:d.turn,winner:d.winner,board:d.board.map(r=>r.slice()),captures:{...d.captures},seat,playerColor:color,legalMoves:seat===null?[]:d.turn===color?engine.allMoves(d):[],...moveClockOf(room)}; }
 function emitDamaState(room,event='gameStateUpdated'){room.players.forEach(p=>emitToPlayer(p,event,{roomId:room.id,seat:p.seat,gameState:damaState(room,p.seat),isSpectator:false}));(room.spectators||[]).forEach(p=>emitToPlayer(p,event,{roomId:room.id,seat:null,gameState:damaState(room,null),isSpectator:true}));}
 function startDama(room){if(room.status==='playing'||room.players.length!==2||!room.players.every(p=>p.isReady))return;room.status='playing';room.result=null;room.dama=room.gameId==='turkdamasi'?turkDamaEngine.init():damaEngine.init();room.turnStartedAt=now();touchMoveTimer(room);emitRoom(room);room.players.forEach(p=>emitToPlayer(p,'gameStarted',{roomId:room.id,seat:p.seat,playerColor:p.seat===0?(room.gameId==='turkdamasi'?'w':'r'):'b',players:publicRoom(room).players,gameState:damaState(room,p.seat)}));emitDamaState(room);}
+
+// ============== AMİRAL BATTI (Battleship) — koltuk-bazlı sis-of-war ==============
+// Diğer tahta oyunlarının aksine burada durum tamamen simetrik değil:
+// her koltuk kendi filosunu TAM görür, rakibinkini yalnızca "attığım
+// atışlar" (isabet/ıska/battı) üzerinden görür — rakibin vurulmamış gemi
+// konumları hiçbir zaman istemciye gönderilmez (okey'in gizli-el emsaline
+// benzer bir şekillendirme; bkz. buildOkeyState).
+function battleshipState(room, seat) {
+  const b = room.battleship;
+  const other = seat === 0 ? 1 : (seat === 1 ? 0 : null);
+  const myShips = (seat !== null && b.ships[seat])
+    ? b.ships[seat].map(s => ({ id: s.id, name: s.name, size: s.size, cells: s.cells.map(x => x.slice()), hits: s.hits.slice() }))
+    : null;
+  // Rakibin bana attığı atışlar — KENDİ tahtamda (isabet/ıska) göstermek için.
+  const incomingShots = ((other !== null && b.shots[other]) || []).slice();
+  // Benim rakibe attığım atışlar — rakip tahtasının sis-of-war görünümü için.
+  const myShots = ((seat !== null && b.shots[seat]) || []).slice();
+  // Rakip filosu: yalnızca TÜR + BATTI/BATMADI — konum asla gönderilmez.
+  const enemyFleet = battleshipEngine.SHIPS.map(def => {
+    const ship = (other !== null && b.ships[other]) ? b.ships[other].find(s => s.id === def.id) : null;
+    return { id: def.id, name: def.name, size: def.size, sunk: ship ? ship.hits.every(Boolean) : false };
+  });
+  return {
+    kind: 'battleship',
+    status: room.status,
+    phase: b.phase,
+    seat,
+    turn: b.turn,
+    winner: b.winner,
+    result: b.result,
+    ready: { mine: seat !== null ? !!b.ready[seat] : false, opponent: other !== null ? !!b.ready[other] : false },
+    fleetDefs: battleshipEngine.SHIPS,
+    size: battleshipEngine.SIZE,
+    myShips,
+    incomingShots,
+    myShots,
+    enemyFleet,
+    ...moveClockOf(room)
+  };
+}
+function emitBattleshipState(room, event = 'gameStateUpdated') {
+  room.players.forEach(p => emitToPlayer(p, event, { roomId: room.id, seat: p.seat, gameState: battleshipState(room, p.seat), isSpectator: false }));
+  (room.spectators || []).forEach(p => emitToPlayer(p, event, { roomId: room.id, seat: null, gameState: battleshipState(room, null), isSpectator: true }));
+}
+function startBattleship(room) {
+  if (room.status === 'playing' || room.players.length !== 2 || !room.players.every(p => p.isReady)) return;
+  room.status = 'playing'; room.result = null;
+  room.battleship = battleshipEngine.init();
+  room.turnStartedAt = now(); touchMoveTimer(room);
+  emitRoom(room);
+  room.players.forEach(p => emitToPlayer(p, 'gameStarted', { roomId: room.id, seat: p.seat, players: publicRoom(room).players, gameState: battleshipState(room, p.seat) }));
+  emitBattleshipState(room);
+}
 
 function cardGameState(room, forSeat) {
   const st = room.cardGame;
@@ -920,6 +981,7 @@ function buildBoardState(room, opts) {
   if (room.gomoku) return gomokuState(room, opts && opts.seat);
   if (room.connect4) return connect4State(room, opts && opts.seat);
   if (room.bilardo) return bilardoState(room, opts && opts.seat);
+  if (room.battleship) return battleshipState(room, opts && opts.seat);
   return null;
 }
 
@@ -977,6 +1039,7 @@ function emitPlayingSnapshot(room, socketId, player) {
     return;
   }
   if (room && room.status === 'playing' && room.bilardo) { const p=player?player.seat:null; io.to(socketId).emit('gameStarted',{roomId:room.id,seat:p,isSpectator:!player,players:publicRoom(room).players,gameState:bilardoState(room,p)}); io.to(socketId).emit('gameStateUpdated',{roomId:room.id,seat:p,isSpectator:!player,gameState:bilardoState(room,p)}); return; }
+  if (room && room.status === 'playing' && room.battleship) { const p=player?player.seat:null; io.to(socketId).emit('gameStarted',{roomId:room.id,seat:p,isSpectator:!player,players:publicRoom(room).players,gameState:battleshipState(room,p)}); io.to(socketId).emit('gameStateUpdated',{roomId:room.id,seat:p,isSpectator:!player,gameState:battleshipState(room,p)}); return; }
   if (room && room.status === 'playing' && room.connect4) { const p=player?player.seat:null; io.to(socketId).emit('gameStarted',{roomId:room.id,seat:p,isSpectator:!player,players:publicRoom(room).players,gameState:connect4State(room,p)}); io.to(socketId).emit('gameStateUpdated',{roomId:room.id,seat:p,isSpectator:!player,gameState:connect4State(room,p)}); return; }
   if (room && room.status === 'playing' && room.gomoku) { const p=player?player.seat:null; io.to(socketId).emit('gameStarted',{roomId:room.id,seat:p,isSpectator:!player,players:publicRoom(room).players,gameState:gomokuState(room,p)}); io.to(socketId).emit('gameStateUpdated',{roomId:room.id,seat:p,isSpectator:!player,gameState:gomokuState(room,p)}); return; }
   if (room && room.status === 'playing' && room.reversi) { const p=player?player.seat:null; io.to(socketId).emit('gameStarted',{roomId:room.id,seat:p,isSpectator:!player,players:publicRoom(room).players,gameState:reversiState(room,p)}); io.to(socketId).emit('gameStateUpdated',{roomId:room.id,seat:p,isSpectator:!player,gameState:reversiState(room,p)}); return; }
@@ -1100,6 +1163,7 @@ function startRoomGame(room) {
   if (room.gameId === 'gomoku') return startGomoku(room);
   if (room.gameId === 'connect4') return startConnect4(room);
   if (room.gameId === 'bilardo') return startBilardo(room);
+  if (room.gameId === 'battleship') return startBattleship(room);
   if (ONLINE_BOARD_GAMES.has(room.gameId)) return startDama(room);
   // Okey motoru (okey-engine.js + startOkey) entegre edildiğinde devreye girer.
   // 'okey101' aynı motordan, varyant bayrağıyla oynanır (101 puan hedefi).
@@ -2725,6 +2789,39 @@ io.on('connection', socket => {
     if(animMs>0)setTimeout(finalize,animMs); else finalize();
   });
 
+  // ---------- AMİRAL BATTI (Battleship) eylemleri (sunucu yetkili) ----------
+  // Yerleştirme: touchMoveTimer() BİLİNÇLİ OLARAK çağrılmaz — tek taraflı
+  // yerleştirme, karşı tarafın süresini uzatmamalı (bkz. enforceOnlineMoveTimeout
+  // içindeki 'placing' fazı özel dalı: süre maç başından itibaren işler).
+  socket.on('battleshipPlace', data => {
+    const room = rooms.get(socket.roomId || String(data?.roomId || ''));
+    const p = room?.battleship && room.players.find(x => x.id === socket.id);
+    if (!p || room.status !== 'playing') return socket.emit('battleshipRejected', { roomId: room?.id || data?.roomId, reason: 'not_in_room' });
+    const r = battleshipEngine.place(room.battleship, p.seat, data && data.placements);
+    if (!r.ok) return socket.emit('battleshipRejected', { roomId: room.id, reason: r.reason, shipId: r.shipId, gameState: battleshipState(room, p.seat) });
+    emitBattleshipState(room);
+    emitRoom(room);
+  });
+  socket.on('battleshipFire', data => {
+    const room = rooms.get(socket.roomId || String(data?.roomId || ''));
+    const p = room?.battleship && room.players.find(x => x.id === socket.id);
+    if (!p || room.status !== 'playing') return socket.emit('battleshipRejected', { roomId: room?.id || data?.roomId, reason: 'not_in_room' });
+    const r = battleshipEngine.fire(room.battleship, p.seat, data && data.r, data && data.c);
+    if (!r.ok) return socket.emit('battleshipRejected', { roomId: room.id, reason: r.reason, gameState: battleshipState(room, p.seat) });
+    touchMoveTimer(room);
+    // Herkese (her iki oyuncuya + izleyicilere) tek seferlik atış SONUCU
+    // yayını — istemci bunu "kendi hamlem" / "rakibin hamlesi" olarak ayırt
+    // edip belirgin isabet/ıska/batırma efekti + Türkçe seslendirme tetikler.
+    io.to(room.id).emit('battleshipShotResult', { roomId: room.id, seat: p.seat, r: Number(data.r), c: Number(data.c), result: r.result, shipId: r.shipId, sunkShip: r.sunkShip });
+    if (room.battleship.phase === 'finished') { room.status = 'finished'; room.result = room.battleship.result; }
+    emitBattleshipState(room);
+    emitRoom(room);
+    if (room.status === 'finished') {
+      room.players.forEach(q => emitToPlayer(q, 'gameEnded', { roomId: room.id, reason: room.battleship.result?.reason || 'finished', winnerSeat: room.battleship.winner, youWon: q.seat === room.battleship.winner, gameState: battleshipState(room, q.seat) }));
+      (room.spectators || []).forEach(q => emitToPlayer(q, 'gameEnded', { roomId: room.id, reason: room.battleship.result?.reason || 'finished', winnerSeat: room.battleship.winner, youWon: false, isSpectator: true, gameState: battleshipState(room, null) }));
+    }
+  });
+
   // ---------- CONNECT4 eylemleri (sunucu yetkili) ----------
   socket.on('connect4Move', data => { const room=rooms.get(socket.roomId||String(data?.roomId||'')); const p=room?.connect4&&room.players.find(x=>x.id===socket.id); if(!p||room.status!=='playing')return socket.emit('connect4Rejected',{roomId:room?.id||data?.roomId,reason:'not_in_room'}); const r=connect4Engine.play(room.connect4,p.seat,Number(data.col)); if(!r.ok)return socket.emit('connect4Rejected',{roomId:room.id,reason:r.reason,gameState:connect4State(room,p.seat)}); if(room.connect4.status==='finished'){room.status='finished';room.result=room.connect4.result;} touchMoveTimer(room);emitConnect4State(room);emitRoom(room);if(room.status==='finished')room.players.forEach(q=>emitToPlayer(q,'gameEnded',{roomId:room.id,reason:'finished',winnerSeat:room.connect4.winner,youWon:q.seat===room.connect4.winner,gameState:connect4State(room,q.seat)})); });
 
@@ -2970,7 +3067,28 @@ const clockTimer = setInterval(() => {
   // Sıra kimde? — tek kaynak turnSeatOf() (durum paketleriyle birebir aynı).
   function cardMoveTurn(room) { return turnSeatOf(room); }
 function enforceOnlineMoveTimeout(room) {
-  if (!room.moveStartedAt || !room.players.length || (!room.dama && !room.reversi && !room.gomoku && !room.connect4 && !room.bilardo && !room.cardGame)) return false;
+  if (!room.moveStartedAt || !room.players.length || (!room.dama && !room.reversi && !room.gomoku && !room.connect4 && !room.bilardo && !room.battleship && !room.cardGame)) return false;
+  // Amiral Battı 'placing' fazında kimsenin "sırası" yok (bkz. turnSeatOf),
+  // bu yüzden genel tek-koltuklu zaman-aşımı mantığı burada işlemez —
+  // ayrı bir dal: süresi dolduğunda HANGİ koltuk(lar) hâlâ hazır değilse
+  // o(nlar) hükmen kaybeder (ikisi de değilse oda iptal edilir).
+  if (room.battleship && room.battleship.phase === 'placing') {
+    const elapsed = now() - room.moveStartedAt;
+    if (elapsed < MOVE_FORFEIT_MS) return false;
+    const notReady = room.battleship.seats.filter(s => !room.battleship.ready[s]);
+    if (!notReady.length) return false;
+    const stateFor = p => battleshipState(room, p);
+    if (notReady.length === 2) {
+      room.status = 'aborted'; room.result = { reason: 'placement_timeout' };
+      room.players.forEach(p => emitToPlayer(p, 'gameEnded', { roomId: room.id, reason: 'placement_timeout', winnerSeat: null, youWon: false, gameState: stateFor(p.seat) }));
+    } else {
+      const winner = notReady[0] === 0 ? 1 : 0;
+      room.status = 'finished'; room.result = { reason: 'placement_timeout', winnerSeat: winner };
+      room.players.forEach(p => emitToPlayer(p, 'gameEnded', { roomId: room.id, reason: 'placement_timeout', winnerSeat: winner, youWon: p.seat === winner, gameState: stateFor(p.seat) }));
+    }
+    emitBattleshipState(room); emitRoom(room); scheduleRoomReset(room);
+    return true;
+  }
   const elapsed=now()-room.moveStartedAt, seat=cardMoveTurn(room); if (seat===null) return false;
   if (!room.moveWarned && elapsed>=(room.gameId==='pisti'?Math.min(MOVE_WARN_MS, PISTI_TURN_MS-1000):MOVE_WARN_MS)) { room.moveWarned=true; io.to(room.id).emit('moveTimeWarning',{roomId:room.id,seat,remainingMs:Math.max(0,MOVE_FORFEIT_MS-elapsed)}); }
   if (elapsed<(room.gameId==='pisti'?PISTI_TURN_MS:MOVE_FORFEIT_MS)) return false;
@@ -2989,10 +3107,10 @@ function enforceOnlineMoveTimeout(room) {
     winner = seat === 0 ? 1 : 0;
   }
   room.status='finished'; room.result={reason:'move_timeout',winnerSeat:winner};
-  const stateFor=(p)=>room.dama?damaState(room,p):room.reversi?reversiState(room,p):room.gomoku?gomokuState(room,p):room.connect4?connect4State(room,p):room.bilardo?bilardoState(room,p):cardGameState(room,p);
+  const stateFor=(p)=>room.dama?damaState(room,p):room.reversi?reversiState(room,p):room.gomoku?gomokuState(room,p):room.connect4?connect4State(room,p):room.bilardo?bilardoState(room,p):room.battleship?battleshipState(room,p):cardGameState(room,p);
   room.players.forEach(p=>emitToPlayer(p,'gameEnded',{roomId:room.id,reason:'move_timeout',winnerSeat:winner,youWon:p.seat===winner,gameState:stateFor(p.seat)}));
   (room.spectators||[]).forEach(p=>emitToPlayer(p,'gameEnded',{roomId:room.id,reason:'move_timeout',winnerSeat:winner,youWon:false,isSpectator:true,gameState:stateFor(null)}));
-  if (room.dama) emitDamaState(room); else if(room.reversi) emitReversiState(room); else if(room.gomoku) emitGomokuState(room); else if(room.connect4) emitConnect4State(room); else if(room.bilardo) emitBilardoState(room); else emitCardState(room);
+  if (room.dama) emitDamaState(room); else if(room.reversi) emitReversiState(room); else if(room.gomoku) emitGomokuState(room); else if(room.connect4) emitConnect4State(room); else if(room.bilardo) emitBilardoState(room); else if(room.battleship) emitBattleshipState(room); else emitCardState(room);
   emitRoom(room); scheduleRoomReset(room); return true;
 }
 

@@ -160,7 +160,7 @@
     var g;
     try { g = new URLSearchParams(location.search).get('game'); } catch (_) { return; }
     if (!g) return;
-    var esle = { billiards: 'bilardo', pool: 'bilardo', backgammon: 'tavla', chess: 'chess', okey101: 'okey101' };
+    var esle = { billiards: 'bilardo', pool: 'bilardo', backgammon: 'tavla', chess: 'chess', okey101: 'okey101', battleship: 'battleship', navalbattle: 'battleship' };
     g = esle[g] || g;
     var t0 = Date.now();
     var bekle = setInterval(function () {

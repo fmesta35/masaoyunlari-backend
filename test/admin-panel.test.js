@@ -49,13 +49,13 @@ async function main() {
 
   // ---------- 1) yeni hazır masalar ----------
   const counts = {};
-  for (const g of ['chess', 'tavla', 'okey', 'dama', 'turkdamasi', 'reversi', 'gomoku', 'connect4', 'bilardo']) {
+  for (const g of ['chess', 'tavla', 'okey', 'dama', 'turkdamasi', 'reversi', 'gomoku', 'connect4', 'bilardo', 'battleship']) {
     counts[g] = (await roomsOf(BASE, g)).length;
   }
   assert.strictEqual(counts.chess, 10, 'satranç 10 masa');
   assert.strictEqual(counts.tavla, 10, 'tavla 10 masa');
   assert.strictEqual(counts.okey, 18, 'okey 18 masa');
-  for (const g of ['dama', 'turkdamasi', 'reversi', 'gomoku', 'connect4', 'bilardo']) {
+  for (const g of ['dama', 'turkdamasi', 'reversi', 'gomoku', 'connect4', 'bilardo', 'battleship']) {
     assert.strictEqual(counts[g], 10, g + ' 10 masa');
   }
   const dama = await roomsOf(BASE, 'dama');
@@ -64,7 +64,7 @@ async function main() {
   assert.strictEqual(dama[4].name, '♟️ Normal Masa #405', '5. masa Normal (ilk normal)');
   assert.strictEqual(dama[7].name, '🧠 Düşünen Masa #408', '8. masa Düşünen (ilk düşünen)');
   assert.strictEqual(dama[0].maxPlayers, 2, '2 kişilik');
-  console.log('  ✓ 1) 6 yeni oyun × 10 hazır masa (Hızlı/Normal/Düşünen) + satranç/tavla/okey mevcut');
+  console.log('  ✓ 1) 7 yeni oyun × 10 hazır masa (Hızlı/Normal/Düşünen) + satranç/tavla/okey mevcut');
 
   // ---------- 2) kurucu hesabı + admin yetki ----------
   const login = await api(BASE, '/api/auth/login', { email: 'kurucu@kurucu.com', password: 'test-kurucu-sifresi-9271' }, 'POST');
@@ -88,7 +88,7 @@ async function main() {
   // ---------- 2b) ana sayfa istatistikleri (canlı, yalnız kurucu) ----------
   const stats = await api(BASE, '/api/admin/stats', null, 'GET', login.token);
   assert.ok(stats.ok && stats.stats, 'istatistik döner');
-  assert.strictEqual(stats.stats.totalGames, 12, '12 oyun türü');
+  assert.strictEqual(stats.stats.totalGames, 13, '13 oyun türü');
   assert.ok(stats.stats.onlineUsers >= 0, 'online kullanıcı sayısı');
   assert.ok(stats.stats.totalUsers >= 2, 'toplam üye (kurucu + basit)');
   assert.ok('newUsersToday' in stats.stats && 'newUsersWeek' in stats.stats && 'newUsersMonth' in stats.stats, 'günlük/haftalık/aylık yeni üye');

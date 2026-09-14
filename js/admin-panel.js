@@ -26,7 +26,7 @@
 
   // Standart hazır-masa (10 masa) açan oyunlar; okey sabit 18 masa;
   // diğerleri (kart oyunları vb.) yalnız görünürlük yönetilir.
-  const STANDARD = ['chess', 'tavla', 'okey', 'okey101', 'pisti', 'batak', 'dama', 'turkdamasi', 'reversi', 'gomoku', 'connect4', 'bilardo'];
+  const STANDARD = ['chess', 'tavla', 'okey', 'okey101', 'pisti', 'batak', 'dama', 'turkdamasi', 'reversi', 'gomoku', 'connect4', 'bilardo', 'battleship'];
   const FIXED = [];
   const TYPE_DEFS = [
     { type: 'fast', label: '⚡ Hızlı (10 dk)', duration: 10 },
@@ -109,7 +109,7 @@
   }
 
   // Varsayılan ayarlar (sunucudakiyle aynı kalıp):
-  const BASE = { chess: 101, tavla: 201, dama: 401, turkdamasi: 501, reversi: 601, gomoku: 701, connect4: 801, bilardo: 921, okey: 301, okey101: 331, pisti: 341, batak: 361 };
+  const BASE = { chess: 101, tavla: 201, dama: 401, turkdamasi: 501, reversi: 601, gomoku: 701, connect4: 801, bilardo: 921, okey: 301, okey101: 331, pisti: 341, batak: 361, battleship: 1001 };
   function defaultTables(gid) {
     const out = [];
     for (const t of TYPE_DEFS) {

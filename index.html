@@ -355,6 +355,65 @@ button,input,select{font-family:var(--font)}
 @media(max-width:700px){.bil-stage{padding:10px}.bil-hud{grid-template-columns:1fr auto 1fr;padding:9px}.bil-player-name{max-width:90px}.bil-avatar{width:32px;height:32px}.bil-controls{grid-template-columns:1fr;gap:10px}.bil-reset{width:100%}.bil-canvas{transform:none}.bil-help{text-align:center}}
 @media(prefers-reduced-motion:reduce){.bil-canvas,.bil-power>i{transition:none}}
 
+/* AMİRAL BATTI (Battleship) — okyanus temalı, iki ayrı görünüm:
+   yerleştirme (tek ızgara) ve muharebe (iki ızgara yan yana). */
+.bs-wrap{max-width:900px;margin:0 auto;color:#eaf2f6}
+.bs-place-head{text-align:center;margin-bottom:12px}
+.bs-place-head h3{margin:0 0 4px}
+.bs-place-head p{color:rgba(234,242,246,.72);font-size:.85em;margin:0}
+.bs-countdown{margin-top:6px;font:700 .85em var(--mono);color:#ffd166}
+.bs-fleet-list{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-bottom:10px}
+.bs-fleet-btn{display:inline-flex;align-items:center;gap:6px;padding:8px 12px;border-radius:10px;border:1px solid rgba(255,255,255,.18);background:#132a3a;color:#eaf2f6;font-weight:700;cursor:pointer;font-size:.85em}
+.bs-fleet-btn.sel{outline:2px solid #4fc3e0;box-shadow:0 0 14px rgba(79,195,224,.5)}
+.bs-fleet-btn.placed{opacity:.55}
+.bs-fleet-size{opacity:.65;font-weight:500}
+.bs-place-tools{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-bottom:14px}
+.bs-grid-wrap{display:flex;justify-content:center;margin-bottom:14px;overflow-x:auto}
+.bs-grid{display:inline-block;background:linear-gradient(180deg,#0b3a54,#082b3f);border:4px solid #05202f;border-radius:10px;padding:6px}
+.bs-row{display:flex}
+.bs-row.bs-head .bs-collabel{width:30px;height:20px;display:flex;align-items:center;justify-content:center;font-size:.7em;font-weight:700;color:rgba(234,242,246,.55)}
+.bs-rowlabel{width:20px;min-width:20px;height:30px;display:flex;align-items:center;justify-content:center;font-size:.7em;font-weight:700;color:rgba(234,242,246,.55)}
+.bs-cell{width:30px;height:30px;box-sizing:border-box;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.03);position:relative;cursor:default}
+.bs-cell.empty{cursor:pointer}
+.bs-cell.empty:hover{background:rgba(79,195,224,.18)}
+.bs-cell.ship{background:linear-gradient(145deg,#4fc3e0,#1f6f8a);border-color:rgba(255,255,255,.28)}
+.bs-cell.ship.k-carrier{background:linear-gradient(145deg,#6fd0e8,#2478a0)}
+.bs-cell.ship.k-battleship{background:linear-gradient(145deg,#5cc0e0,#1f6f8a)}
+.bs-cell.ship.k-cruiser{background:linear-gradient(145deg,#4fb0d0,#1a5f7a)}
+.bs-cell.ship.k-submarine{background:linear-gradient(145deg,#3fa0c8,#155066)}
+.bs-cell.ship.k-destroyer{background:linear-gradient(145deg,#3090b8,#0f4052)}
+.bs-cell.live{cursor:crosshair}
+.bs-cell.live:hover{background:rgba(255,209,102,.28)}
+.bs-cell.fog{background:rgba(255,255,255,.02)}
+.bs-cell.miss::after{content:'';position:absolute;left:50%;top:50%;width:8px;height:8px;border-radius:50%;background:rgba(234,242,246,.55);transform:translate(-50%,-50%)}
+.bs-cell.hit{background:linear-gradient(145deg,#ff7b54,#c0392b)}
+.bs-cell.hit::after{content:'💥';position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:.8em}
+.bs-cell.sunk{background:linear-gradient(145deg,#4a4a4a,#161616)}
+.bs-cell.sunk::after{content:'☠️';position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:.75em}
+.bs-cell.bs-latest{animation:bsPulse .7s ease-out 1}
+@keyframes bsPulse{0%{box-shadow:0 0 0 0 rgba(255,209,102,.9)}100%{box-shadow:0 0 0 12px rgba(255,209,102,0)}}
+.bs-ready-btn{display:block;margin:0 auto;min-height:46px;padding:0 22px}
+.bs-status{text-align:center;padding:10px;background:var(--card);border-radius:var(--r);margin-bottom:12px;font-weight:700;position:relative}
+.bs-status.mine{background:linear-gradient(135deg,rgba(79,195,224,.22),rgba(79,195,224,.06))}
+.bs-voice-toggle{position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;font-size:1.1em;cursor:pointer}
+.bs-battlefield{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin-bottom:14px}
+.bs-board-col{text-align:center}
+.bs-board-col h4{margin:0 0 8px;font-size:.9em;color:rgba(234,242,246,.8)}
+.bs-fleet-status{text-align:center;margin-bottom:12px}
+.bs-fleet-status-title{font-size:.75em;letter-spacing:.1em;text-transform:uppercase;color:rgba(234,242,246,.55);margin-bottom:6px}
+.bs-fleet-status-list{display:flex;flex-wrap:wrap;gap:6px;justify-content:center}
+.bs-fleet-chip{padding:5px 10px;border-radius:8px;background:#132a3a;border:1px solid rgba(255,255,255,.14);font-size:.8em;font-weight:600}
+.bs-fleet-chip.sunk{opacity:.5;text-decoration:line-through}
+.bs-log{max-width:420px;margin:0 auto;max-height:150px;overflow-y:auto;background:rgba(0,0,0,.22);border-radius:10px;padding:8px}
+.bs-log-empty{text-align:center;color:rgba(234,242,246,.5);font-size:.8em;padding:6px}
+.bs-log-item{font-size:.8em;padding:4px 8px;border-radius:6px;margin-bottom:3px}
+.bs-log-item.mine{background:rgba(79,195,224,.14)}
+.bs-log-item.opp{background:rgba(255,123,84,.14)}
+.bs-log-item.sunk{font-weight:800}
+@media(max-width:700px){.bs-cell{width:24px;height:24px}.bs-rowlabel{width:16px;min-width:16px;height:24px}.bs-row.bs-head .bs-collabel{width:24px;height:16px}.bs-battlefield{gap:10px}}
+@media(max-width:420px){.bs-cell{width:20px;height:20px}.bs-rowlabel{width:14px;min-width:14px;height:20px}.bs-row.bs-head .bs-collabel{width:20px;height:14px}}
+@media(prefers-reduced-motion:reduce){.bs-cell.bs-latest{animation:none}}
+
 .card-wrap{max-width:700px;margin:0 auto}
 .card-table{background:radial-gradient(ellipse at center,#0d5c2d,#0a3d1e);border:12px solid #1a472a;border-radius:24px;padding:30px;min-height:380px;position:relative}
 .card-score{display:flex;gap:12px;justify-content:center;margin-bottom:12px;flex-wrap:wrap}
@@ -1587,13 +1646,13 @@ body.gv-app input,body.gv-app textarea,body.gv-app .chat-msgs,body.gv-app .moves
 <script>
 const GV=(function(){'use strict';
 
-const TWO_PLAYER_GAMES = ['chess', 'tavla', 'dama', 'turkdamasi', 'reversi', 'gomoku', 'connect4', 'bilardo'];
+const TWO_PLAYER_GAMES = ['chess', 'tavla', 'dama', 'turkdamasi', 'reversi', 'gomoku', 'connect4', 'bilardo', 'battleship'];
 // Masa listesi sunucudan (Render) gelen gerçek zamanlı oyunlar.
 // Bu oyunlarda ASLA sahte/demo masa üretilmez.
 // SUNUCUDA GERÇEK MASALARI OLAN OYUNLAR: lobi listesi Render'dan gelir.
 // Damalar/reversi/gomoku/connect4/bilardo da 10'ar hazır masa açıldı —
 // bekleme odaları (otur/kalk/hazırım) tümünde aynı şekilde çalışır.
-const ONLINE_GAMES = ['chess', 'tavla', 'okey', 'okey101', 'dama', 'turkdamasi', 'reversi', 'gomoku', 'connect4', 'bilardo'];
+const ONLINE_GAMES = ['chess', 'tavla', 'okey', 'okey101', 'dama', 'turkdamasi', 'reversi', 'gomoku', 'connect4', 'bilardo', 'battleship'];
 // Okey VE 101 Okey ONLINE (gerçek oyuncular, sunucu yetkili). Bot yedeği
 // yalnızca henüz online motoru olmayan (pişti, batak) oyunlarda devrede.
 const BOT_FALLBACK_GAMES = ['pisti', 'batak'];
@@ -1616,10 +1675,11 @@ const GAMES={
   reversi:{name:'Reversi',icon:'⚫',cat:'strategy',bg:'linear-gradient(150deg,#111,#2e2e2e 55%,#565656)'},
   gomoku:{name:'Gomoku',icon:'⚪',cat:'strategy',bg:'linear-gradient(150deg,#3c2c14,#7a5326 55%,#b28a47)'},
   connect4:{name:'Connect4',icon:'🔴',cat:'strategy',bg:'linear-gradient(150deg,#0b2560,#1746a8 55%,#e8495a)'},
-  bilardo:{name:'Bilardo',icon:'🎱',cat:'board',bg:'linear-gradient(150deg,#07301d,#0f5c34 55%,#188a4e)'}
+  bilardo:{name:'Bilardo',icon:'🎱',cat:'board',bg:'linear-gradient(150deg,#07301d,#0f5c34 55%,#188a4e)'},
+  battleship:{name:'Amiral Battı',icon:'🚢',cat:'strategy',bg:'linear-gradient(150deg,#041a2e,#0b3a54 55%,#1f7fa8)'}
 };
 
-const ROOMS = { chess:[], tavla:[], dama:[], turkdamasi:[], okey:[], okey101:[], pisti:[], batak:[], reversi:[], gomoku:[], connect4:[], bilardo:[] };
+const ROOMS = { chess:[], tavla:[], dama:[], turkdamasi:[], okey:[], okey101:[], pisti:[], batak:[], reversi:[], gomoku:[], connect4:[], bilardo:[], battleship:[] };
 
 const RULES={
   chess:`<div class="rules-content"><h3>🎯 Amaç</h3><p>Rakibin şahını mat etmek.</p></div>`,
@@ -1633,7 +1693,8 @@ const RULES={
   reversi:`<div class="rules-content"><h3>🎯 Reversi</h3><p>8x8 tahta. Rakip taşları çevirerek al.</p></div>`,
   gomoku:`<div class="rules-content"><h3>🎯 Gomoku</h3><p>15x15 tahta. 5 taş sırala.</p></div>`,
   connect4:`<div class="rules-content"><h3>🎯 Connect4</h3><p>4 sırala = KAZAN</p></div>`,
-  bilardo:`<div class="rules-content"><h3>🎯 8-Top Bilardo</h3><p>Kendi grubunu bitir + 8'i potla.</p></div>`
+  bilardo:`<div class="rules-content"><h3>🎯 8-Top Bilardo</h3><p>Kendi grubunu bitir + 8'i potla.</p></div>`,
+  battleship:`<div class="rules-content"><h3>🎯 Amiral Battı</h3><p>10x10 haritada filonu gizle, rakibinkini önce sen bul ve batır.</p><ul><li>Filo: Uçak Gemisi (5), Zırhlı (4), Kruvazör (3), Denizaltı (3), Muhrip (2).</li><li>Yerleştirme bittikten sonra sıra ile ateş edilir — isabet olsa da sıra rakibe geçer.</li><li>Rakibin TÜM filosunu batıran kazanır.</li></ul></div>`
 };
 
 const OKEY_COLORS=['t-red','t-black','t-blue','t-yellow'];
@@ -1648,7 +1709,7 @@ const RANKS=[
 
 const GAME_REWARDS={
   chess:{win:25,lose:-12,draw:0,forfeit:-30,disqualify:-40},tavla:{win:25,lose:-12,forfeit:-30,disqualify:-40,winMars:37},
-  dama:{win:25,lose:-12,forfeit:-30,disqualify:-40},turkdamasi:{win:25,lose:-12,forfeit:-30,disqualify:-40},bilardo:{win:25,lose:-12,forfeit:-30,disqualify:-40},
+  dama:{win:25,lose:-12,forfeit:-30,disqualify:-40},turkdamasi:{win:25,lose:-12,forfeit:-30,disqualify:-40},bilardo:{win:25,lose:-12,forfeit:-30,disqualify:-40},battleship:{win:25,lose:-12,forfeit:-30,disqualify:-40},
   okey:{win:30,winWithOkey:37,winPairs:45,lose:-15,forfeit:-35,disqualify:-50},okey101:{win:30,winWithOkey:37,winPairs:45,lose:-15,forfeit:-35,disqualify:-50},
   batak:{win:30,winFull:45,lose:-15,forfeit:-35,disqualify:-50},
   pisti:{win:20,lose:-10,forfeit:-25,disqualify:-35},reversi:{win:20,lose:-10,forfeit:-25,disqualify:-35},
@@ -1667,7 +1728,8 @@ const GAME_THRESHOLDS={
   reversi:{legend:2200,champion:2000,elite:1800,grandmaster:1600,master:1300,uzman:1000,tecrubeli:700,cirak:300,caylak:1},
   gomoku:{legend:2000,champion:1800,elite:1600,grandmaster:1400,master:1100,uzman:800,tecrubeli:500,cirak:200,caylak:1},
   connect4:{legend:2100,champion:1900,elite:1700,grandmaster:1500,master:1200,uzman:900,tecrubeli:600,cirak:300,caylak:1},
-  bilardo:{legend:2000,champion:1800,elite:1600,grandmaster:1400,master:1100,uzman:800,tecrubeli:500,cirak:200,caylak:1}
+  bilardo:{legend:2000,champion:1800,elite:1600,grandmaster:1400,master:1100,uzman:800,tecrubeli:500,cirak:200,caylak:1},
+  battleship:{legend:2100,champion:1900,elite:1700,grandmaster:1500,master:1200,uzman:900,tecrubeli:600,cirak:300,caylak:1}
 };
 
 const LB_DATA={
@@ -1698,7 +1760,7 @@ let st={
   timers:{t1:600,t2:600,player:1},boards:{},lastToast:null,lastToastTime:0,roomConfig:null,
   isGuest: true,
   user: { name: 'Ziyaretçi#' + visitorCounter, score: 0, level: 1 },
-  scores:{chess:0,tavla:0,dama:0,turkdamasi:0,okey:0,okey101:0,pisti:0,batak:0,reversi:0,gomoku:0,connect4:0,bilardo:0},
+  scores:{chess:0,tavla:0,dama:0,turkdamasi:0,okey:0,okey101:0,pisti:0,batak:0,reversi:0,gomoku:0,connect4:0,bilardo:0,battleship:0},
   currentLBTab:'overall',currentTournTab:'all',okTimerInt:null,roomWaitingInt:null,
   roomWaitingState: null, notifications: [], activeInviteData: null
 };
@@ -1792,7 +1854,7 @@ function submitLogin(){
   const u = document.getElementById('loginUser').value.trim() || ('Ahmet K.');
   st.isGuest = false;
   st.user = { name: u, score: 14540, level: 42 };
-  st.scores = {chess:1756,tavla:1420,dama:1180,turkdamasi:1050,okey:2150,okey101:1890,pisti:980,batak:1340,reversi:850,gomoku:720,connect4:1050,bilardo:640};
+  st.scores = {chess:1756,tavla:1420,dama:1180,turkdamasi:1050,okey:2150,okey101:1890,pisti:980,batak:1340,reversi:850,gomoku:720,connect4:1050,bilardo:640,battleship:0};
   checkAuthState();
   updateAuthState();
   updateScoreUI();
@@ -1823,7 +1885,7 @@ function logout(){
   visitorCounter = Math.floor(100 + Math.random() * 900);
   st.isGuest = true;
   st.user = { name: 'Ziyaretçi#' + visitorCounter, score: 0, level: 1 };
-  st.scores = {chess:0,tavla:0,dama:0,turkdamasi:0,okey:0,okey101:0,pisti:0,batak:0,reversi:0,gomoku:0,connect4:0,bilardo:0};
+  st.scores = {chess:0,tavla:0,dama:0,turkdamasi:0,okey:0,okey101:0,pisti:0,batak:0,reversi:0,gomoku:0,connect4:0,bilardo:0,battleship:0};
   checkAuthState();
   updateAuthState();
   updateScoreUI();
@@ -2576,7 +2638,7 @@ function startCountdownAndBeginGame(room) {
 }
 
 function getGamePlayerCount(gid){return TWO_PLAYER_GAMES.includes(gid) ? 2 : 4;}
-function hasActiveMatch(){/* ONLINE tahta oyunları (dama, reversi, gomoku, connect4, bilardo, kart) ortak yaşam döngüsünde çizilir ve st.boards'a hiç yazmaz; bu yüzden maç sürerken bile 'aktif maç yok' sanılıyor, oyuncu terk uyarısını görmeden masadan çıkabiliyordu. */try{const _a=window.GVArena&&GVArena.state();if(_a&&_a.status==='playing')return true;}catch(_){}if(st.onlineClock)return false;const a=['chess','tavla','dama','turkdamasi','pisti','batak','reversi','gomoku','connect4','okey','okey101','bilardo'];if(!a.includes(st.curGame))return false;const g=st.boards[st.curGame];return g&&!g.gameEnded;}
+function hasActiveMatch(){/* ONLINE tahta oyunları (dama, reversi, gomoku, connect4, bilardo, kart) ortak yaşam döngüsünde çizilir ve st.boards'a hiç yazmaz; bu yüzden maç sürerken bile 'aktif maç yok' sanılıyor, oyuncu terk uyarısını görmeden masadan çıkabiliyordu. */try{const _a=window.GVArena&&GVArena.state();if(_a&&_a.status==='playing')return true;}catch(_){}if(st.onlineClock)return false;const a=['chess','tavla','dama','turkdamasi','pisti','batak','reversi','gomoku','connect4','okey','okey101','bilardo','battleship'];if(!a.includes(st.curGame))return false;const g=st.boards[st.curGame];return g&&!g.gameEnded;}
 function hasActiveGame(){return hasActiveMatch();}
 
 function leaveRoom(){
@@ -4547,6 +4609,7 @@ GV.init();
 <script src="js/gomoku-online.js?v=20260904b" defer></script>
 <script src="js/connect4-online.js?v=20260904b" defer></script>
 <script src="js/bilardo-online.js?v=20260908a" defer></script>
+<script src="js/battleship-online.js?v=20260914a" defer></script>
 <script src="js/chat.js?v=20260821c" defer></script>
 <script src="js/leave-guard.js?v=20260908b" defer></script>
 <script src="js/auth.js?v=20260912a" defer></script>

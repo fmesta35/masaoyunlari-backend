@@ -16,7 +16,7 @@
   // masada-bekleme görünümünü (otur/kalk/hazırım/izle) kullanır.
   // (Kart oyunları ve diğerleri için ilgili online modül ayrıca devreye girer.)
   const BRIDGE_GAMES = ['chess', 'satranc', 'satranç', 'tavla', 'okey', 'okey101',
-    'pisti', 'batak', 'dama', 'turkdamasi', 'reversi', 'gomoku', 'connect4', 'bilardo'];
+    'pisti', 'batak', 'dama', 'turkdamasi', 'reversi', 'gomoku', 'connect4', 'bilardo', 'battleship'];
   const normGame = (g) => {
     g = String(g || '').toLowerCase().trim();
     if (g === 'satranc' || g === 'satranç') return 'chess';
@@ -37,7 +37,7 @@
     const title = (document.getElementById('grTitle')?.textContent || '').toLowerCase();
     if (/satranç|satranc|tavla/i.test(title)) return true;
     if (/okey/i.test(title)) return true; // 'Okey' ve '101 Okey' ikisi de sunucu yetkili
-    if (/pişti|pisti|batak|dama|reversi|gomoku|connect|bilardo/i.test(title)) return true;
+    if (/pişti|pisti|batak|dama|reversi|gomoku|connect|bilardo|amiral|battleship/i.test(title)) return true;
 
     return !!window.__gvChessOnlineRequested || !!window.__gvTavlaOnlineRequested || !!window.__gvOkeyOnlineRequested || !!window.__gvOnlineRequested;
   }
@@ -62,6 +62,7 @@
       if (/gomoku/i.test(title)) return 'gomoku';
       if (/connect/i.test(title)) return 'connect4';
       if (/bilardo/i.test(title)) return 'bilardo';
+      if (/amiral|battleship/i.test(title)) return 'battleship';
     }
     return 'chess';
   }
@@ -488,7 +489,7 @@
 
   function ensureOnlineAdapter(payload, done) {
     const game = activeGame();
-    const files = { dama:'dama-online.js', turkdamasi:'turkdamasi-online.js', reversi:'reversi-online.js', gomoku:'gomoku-online.js', connect4:'connect4-online.js', bilardo:'bilardo-online.js' };
+    const files = { dama:'dama-online.js', turkdamasi:'turkdamasi-online.js', reversi:'reversi-online.js', gomoku:'gomoku-online.js', connect4:'connect4-online.js', bilardo:'bilardo-online.js', battleship:'battleship-online.js' };
     const file = files[game];
     if (!file) return done();
     const flag = '__gv' + game.charAt(0).toUpperCase() + game.slice(1) + 'OnlineLoaded';
@@ -984,7 +985,7 @@
     if (ag === 'tavla') window.__gvTavlaOnlineRequested = true;
     else if (ag === 'okey' || ag === 'okey101') window.__gvOkeyOnlineRequested = true;
     else if (ag === 'chess') window.__gvChessOnlineRequested = true;
-    else window.__gvOnlineRequested = true; // damalar/reversi/gomoku/connect4/bilardo
+    else window.__gvOnlineRequested = true; // damalar/reversi/gomoku/connect4/bilardo/battleship
     localStorage.setItem('gv-room-id', roomId);
     if (state()) state().curPage = 'room';
     connect();

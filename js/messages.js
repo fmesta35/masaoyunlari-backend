@@ -42,7 +42,18 @@
     not_a_win_hand: '🀄 Bu el bitmiş sayılmıyor — perler ve seriler tamamlanmalı.',
     roll_first:     '🎲 Önce zar atmalısınız.',
     round_over:     '⏹️ Bu el kapandı, yeni el bekleniyor.',
-    real_okey_discarded: '⚠️ Gerçek okeyi açık attınız! 101 puan ceza aldınız.'
+    real_okey_discarded: '⚠️ Gerçek okeyi açık attınız! 101 puan ceza aldınız.',
+
+    // ---- Amiral Battı (Battleship) ----
+    bad_seat: '🔌 Masayla bağlantı kurulamadı. Sayfayı yenileyip tekrar deneyin.',
+    wrong_phase: '🚫 Bu işlem şu anki oyun aşamasında yapılamaz.',
+    already_ready: '✅ Filonuzu zaten onayladınız — rakibinizi bekleyin.',
+    invalid_fleet: '🚢 Filo eksik ya da hatalı — 5 geminin tümünü yerleştirmelisiniz.',
+    missing_ship: '🚢 Filonuzda eksik bir gemi var — tüm gemileri yerleştirin.',
+    duplicate_ship: '🚢 Bir gemi birden fazla kez yerleştirilemez.',
+    out_of_bounds: '🗺️ Bu yerleşim harita sınırlarının dışına taşıyor.',
+    overlap: '🚢 Gemiler birbiriyle çakışamaz — başka bir yer seçin.',
+    already_fired: '🎯 Bu kareye zaten ateş ettiniz — başka bir kare seçin.'
   };
 
   // ---- Oyun bitiş sebepleri ----
@@ -88,6 +99,19 @@
         threefold_repetition: 'Aynı konum üç kez tekrarlandı.'
       }[r] || 'İki taraf da kazanamadı.';
       return { ikon: '🤝', baslik: 'Berabere', metin: acik };
+    }
+    if (r === 'fleet_sunk') {
+      return o.youWon
+        ? { ikon: '🏆', baslik: 'Filoyu batırdınız!', metin: 'Rakibinizin TÜM filosunu batırdınız — zafer sizin!' }
+        : { ikon: '🚢', baslik: 'Filonuz battı', metin: 'Tüm gemileriniz battı; bu maçı rakibiniz kazandı.' };
+    }
+    if (r === 'placement_timeout') {
+      if (o.winnerSeat === null || o.winnerSeat === undefined) {
+        return { ikon: '⏱️', baslik: 'Yerleştirme süresi doldu', metin: 'İki taraf da filosunu süresinde tamamlamadı; masa iptal edildi.' };
+      }
+      return o.youWon
+        ? { ikon: '🏆', baslik: 'Kazandınız', metin: 'Rakibiniz filosunu süresinde yerleştirmedi.' }
+        : { ikon: '⏱️', baslik: 'Süre doldu', metin: 'Filonuzu süresinde yerleştiremediniz; maç rakibinize gitti.' };
     }
     return o.youWon
       ? { ikon: '🏆', baslik: 'Kazandınız', metin: 'Tebrikler, bu masayı siz kazandınız!' }
