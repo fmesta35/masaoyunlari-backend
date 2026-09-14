@@ -16,6 +16,8 @@
  */
 process.env.GV_MOVE_WARN_MS = '400';
 process.env.GV_MOVE_FORFEIT_MS = '1500';
+// Yerleştirme artık AYRI bir bütçe (canlıda 90 sn); testte kısaltılır.
+process.env.GV_BATTLESHIP_PLACE_MS = '2500';
 
 const assert = require('assert');
 const io = require('socket.io-client');
@@ -143,7 +145,32 @@ async function main() {
     console.log('  ✓ 5) terk sonrası oda "finished" — sessizce waiting\'e düşmüyor');
   }
 
+  // ---- 6) Yerleştirmede geçen süre İLK HAMLEDEN düşülmemeli ----
+  // Hata: hamle saati maç başında başlıyordu; yerleştirme hamle süresinden
+  // uzun sürdüğünde muharebe başlar başlamaz sırası gelen oyuncu daha ilk
+  // atışını yapamadan hükmen mağlup oluyordu. Hamle saati artık faz
+  // 'battle'a geçtiği anda sıfırlanır.
+  {
+    const id = 'bs-end-6';
+    const { a, b } = await masaKur(url, id);
+    // Hamle süresinden (1500 ms) DAHA UZUN bekle, ama yerleştirme
+    // süresini (2500 ms) aşma:
+    await new Promise(r => setTimeout(r, 1900));
+    const battleA = waitFor(a, 'gameStateUpdated', p => p.gameState.phase === 'battle');
+    a.emit('battleshipPlace', { roomId: id, placements: fleet() });
+    b.emit('battleshipPlace', { roomId: id, placements: fleet() });
+    await battleA;
+    // Muharebe başladıktan sonra, hamle süresi kadar bekle: maç BİTMEMELİ.
+    let erkenBitis = null;
+    a.once('gameEnded', p => { erkenBitis = p; });
+    await new Promise(r => setTimeout(r, 1200));
+    assert.strictEqual(erkenBitis, null,
+      'yerleştirmede geçen süre yüzünden ilk hamlede hükmen mağlubiyet OLMAMALI');
+    a.disconnect(); b.disconnect();
+    console.log('  ✓ 6) hamle saati muharebe başlayınca sıfırlanıyor (yerleştirme süresi hamleden düşülmüyor)');
+  }
+
   srv.server.close();
-  console.log('OK amiral battı bitiş yolları: yerleştirme/hamle zaman aşımı + terk');
+  console.log('OK amiral battı bitiş yolları: yerleştirme/hamle zaman aşımı + terk + saat sıfırlama');
 }
 main().catch(e => { console.error(e); try { srv.server.close(); } catch (_) {} process.exit(1); });

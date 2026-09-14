@@ -100,8 +100,75 @@ button,input,select{font-family:var(--font)}
 .room-status{padding:2px 9px;border-radius:8px;font-size:.72em;font-weight:600}
 .gr-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px}
 .gr-actions{display:flex;gap:5px;flex-wrap:wrap}
-#pg-room:fullscreen,#pg-room:-webkit-full-screen{background:var(--bg,#0f1115);padding:14px 16px;overflow:auto;box-sizing:border-box}
-#pg-room:fullscreen .game-layout,#pg-room:-webkit-full-screen .game-layout{height:calc(100vh - 90px)}
+/* ===================== TAM EKRAN OYUN ODASI =====================
+   Kullanıcı isteği: "tam ekran seçildiğinde scroll down-up seçeneği
+   olmasın, her şey optimize görüntü ekrana sığsın. Yukarıdaki sayaçlar
+   yatay yerine dikey alt üst olarak yerleştirilebilir, böylece oyun
+   dashboard biraz daha geniş alana sahip olur."
+
+   Çözüm: oda tam ekranda bir GRID olur. Süre kartları üstteki yatay
+   şeritten çıkıp sağ kolona DİKEY olarak taşınır; böylece tahtaya
+   ayrılan yükseklik ~90 px artar ve ekran kaydırmadan sığar.
+   .game-layout `display:contents` ile saydamlaşır — çocukları (tahta ve
+   yan panel) doğrudan dış grid'e yerleşir.
+
+     ┌──────────────── başlık ────────────────┐
+     │                              │ ⏱ süre 1│
+     │            TAHTA             │ ⏱ süre 2│
+     │        (tüm yükseklik)       ├─────────┤
+     │                              │ yan panel│
+     └──────────────────────────────┴─────────┘                        */
+#pg-room.gv-fs{
+  background:var(--bg,#0f1115);padding:10px 12px;box-sizing:border-box;
+  height:100vh;width:100vw;overflow:hidden;              /* KAYDIRMA YOK */
+  display:grid;grid-template-columns:minmax(0,1fr) minmax(190px,240px);
+  grid-template-rows:auto auto minmax(0,1fr);column-gap:12px;row-gap:8px
+}
+#pg-room.gv-fs .gr-header{grid-column:1/-1;grid-row:1;margin:0}
+#pg-room.gv-fs .game-layout{display:contents}
+#pg-room.gv-fs .game-board-area{grid-column:1;grid-row:2/4;min-width:0;min-height:0;
+  display:flex;align-items:center;justify-content:center;overflow:hidden}
+#pg-room.gv-fs .timers{grid-column:2;grid-row:2;flex-direction:column;gap:6px;margin:0}
+#pg-room.gv-fs .timer{padding:6px 8px}
+#pg-room.gv-fs .timer-time,#pg-room.gv-fs .timer-move{font-size:1.35em}
+#pg-room.gv-fs .game-side{grid-column:2;grid-row:3;width:auto;min-height:0;overflow:auto;gap:8px}
+#pg-room.gv-fs .game-side .chat{height:auto;flex:1;min-height:120px}
+/* Tahta içeriği: taşmak yerine KÜÇÜLSÜN */
+#pg-room.gv-fs .game-board-area>*{margin:0;max-width:100%;max-height:100%}
+#pg-room.gv-fs .dama-wrap,#pg-room.gv-fs .tdama-wrap,#pg-room.gv-fs .rv-wrap,
+#pg-room.gv-fs .gm-wrap,#pg-room.gv-fs .c4-wrap,#pg-room.gv-fs .bil-wrap,
+#pg-room.gv-fs .bs-wrap,#pg-room.gv-fs .card-wrap,#pg-room.gv-fs .chess-wrapper,
+#pg-room.gv-fs .tavla-wrap{
+  max-width:none;width:auto;height:100%;max-height:100%;min-height:0;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px
+}
+#pg-room.gv-fs .dama-board,#pg-room.gv-fs .tdama-board,#pg-room.gv-fs .rv-board,
+#pg-room.gv-fs .gm-board,#pg-room.gv-fs .c4-board,#pg-room.gv-fs .chess{
+  width:auto;height:auto;max-height:100%;max-width:100%;min-height:0
+}
+/* Bilardo: masa esner, HUD ve kumanda sabit kalır */
+#pg-room.gv-fs .bil-stage{flex:1;min-height:0;width:100%;display:flex;flex-direction:column}
+#pg-room.gv-fs .bil-canvas-wrap{flex:1;min-height:0;display:flex;align-items:center;justify-content:center}
+#pg-room.gv-fs .bil-canvas{height:100%;width:auto;max-width:100%;max-height:100%}
+/* Amiral Battı: hücre ölçüsü hem yüksekliğe hem genişliğe göre daralır */
+#pg-room.gv-fs .bs-wrap{--bs-cell:min(34px, calc((100vh - 300px) / 10), calc((100vw - 340px) / 21))}
+#pg-room.gv-fs .okey-table{max-height:100%;min-height:0}
+
+/* MOBİL TAM EKRAN: süre kartları yine DİKEY (dar bir şerit), tahta
+   kalan tüm alanı alır. Yan panel gizlenir — sohbet zaten yüzen
+   baloncuktan açılıyor; amaç telefonda tahtayı büyütmek. */
+@media(max-width:760px){
+  #pg-room.gv-fs{grid-template-columns:86px minmax(0,1fr);grid-template-rows:auto minmax(0,1fr);
+    padding:6px 8px;column-gap:8px}
+  #pg-room.gv-fs .gr-header{grid-column:1/-1;grid-row:1}
+  #pg-room.gv-fs .timers{grid-column:1;grid-row:2;align-self:start}
+  #pg-room.gv-fs .timer{padding:5px 4px}
+  #pg-room.gv-fs .timer-name{font-size:.62em}
+  #pg-room.gv-fs .timer-time,#pg-room.gv-fs .timer-move{font-size:1em}
+  #pg-room.gv-fs .game-board-area{grid-column:2;grid-row:2}
+  #pg-room.gv-fs .game-side{display:none}
+  #pg-room.gv-fs .bs-wrap{--bs-cell:min(28px, calc((100vh - 230px) / 10), calc((100vw - 130px) / 21))}
+}
 #gvFullscreenBtn.is-full{background:var(--accent,#00cec9);color:#04201f;border-color:var(--accent,#00cec9)}
 .timers{display:flex;gap:10px;margin-bottom:14px}
 .timer{flex:1;text-align:center;padding:10px;background:var(--card);border:2px solid var(--border);border-radius:var(--r);transition:.3s}
@@ -133,6 +200,10 @@ button,input,select{font-family:var(--font)}
 .chat-switch-knob{position:absolute;top:2px;left:2px;width:12px;height:12px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.45);transition:transform .16s}
 .chat-switch.on .chat-switch-knob{transform:translateX(14px)}
 .chat-off{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;padding:16px;text-align:center}
+/* display:flex taşıyan bu üç kutu `hidden` özniteliğini EZİYORDU (sınıf
+   seçicisi, tarayıcının [hidden]{display:none} kuralını yener): sohbet
+   açıkken bile "Sohbet Kapalı" paneli ekranda kalıyordu. */
+.chat-off[hidden],.chat-msgs[hidden],.chat-input[hidden]{display:none!important}
 .chat-off-ico{font-size:1.7em;opacity:.85}
 .chat-off-t{font-weight:800;color:#ff6b6b;letter-spacing:.02em}
 .chat-off-s{font-size:.76em;color:var(--text2);max-width:210px;line-height:1.45}
@@ -381,48 +452,94 @@ button,input,select{font-family:var(--font)}
 .bil-mini:hover{border-color:#d6b46a;color:#f1d18d}
 #bilPower,#bilElev{width:100%;accent-color:#d6b46a;cursor:pointer}
 #bilPower:disabled,#bilElev:disabled{opacity:.45;cursor:not-allowed}
+.bil-hint{display:block;margin-top:4px;color:rgba(255,255,255,.5);font-size:.92em}
 .bil-foul{margin-top:10px;padding:7px 10px;border-radius:8px;background:rgba(214,48,49,.16);border:1px solid rgba(255,107,107,.4);color:#ffb3b3;font-size:.8em;font-weight:600;text-align:center}
 .bil-callout{position:absolute;inset:0;display:none;align-items:center;justify-content:center;background:rgba(5,7,9,.78);backdrop-filter:blur(5px);z-index:4}.bil-callout.show{display:flex}.bil-result-card{width:min(430px,88%);padding:28px;background:#161a20;border:1px solid rgba(214,180,106,.45);border-radius:12px;text-align:center;box-shadow:0 24px 70px rgba(0,0,0,.55)}.bil-result-card h2{margin-bottom:8px}.bil-result-card p{color:rgba(255,255,255,.72);margin-bottom:18px}.bil-result-actions{display:flex;justify-content:center;gap:10px;flex-wrap:wrap}
 @media(max-width:700px){.bil-stage{padding:10px}.bil-hud{grid-template-columns:1fr auto 1fr;padding:9px}.bil-player-name{max-width:90px}.bil-avatar{width:32px;height:32px}.bil-controls{grid-template-columns:1fr;gap:10px}.bil-reset{width:100%}.bil-canvas{transform:none}.bil-help{text-align:center}}
 @media(prefers-reduced-motion:reduce){.bil-canvas,.bil-power>i{transition:none}}
 
-/* AMİRAL BATTI (Battleship) — okyanus temalı, iki ayrı görünüm:
-   yerleştirme (tek ızgara) ve muharebe (iki ızgara yan yana). */
-.bs-wrap{max-width:900px;margin:0 auto;color:#eaf2f6}
-.bs-place-head{text-align:center;margin-bottom:12px}
+/* ===================== AMİRAL BATTI (Battleship) =====================
+   Izgara artık gerçek bir CSS grid: etiketler ayrı, hücreler ayrı bir
+   katmanda. Gemiler hücrelerin ÜZERİNE mutlak konumlanır — böylece her
+   gemi kapladığı hücrelere tam oturan tek bir çizim olarak görünür ve
+   sürüklenebilir. Hücre boyu tek değişkenden (--bs-cell) gelir; web ve
+   mobil aynı davranır, yalnız ölçü değişir. */
+.bs-wrap{--bs-cell:34px;max-width:960px;margin:0 auto;color:#eaf2f6}
+.bs-place-head{text-align:center;margin-bottom:10px}
 .bs-place-head h3{margin:0 0 4px}
 .bs-place-head p{color:rgba(234,242,246,.72);font-size:.85em;margin:0}
-.bs-countdown{margin-top:6px;font:700 .85em var(--mono);color:#ffd166}
-.bs-fleet-list{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-bottom:10px}
-.bs-fleet-btn{display:inline-flex;align-items:center;gap:6px;padding:8px 12px;border-radius:10px;border:1px solid rgba(255,255,255,.18);background:#132a3a;color:#eaf2f6;font-weight:700;cursor:pointer;font-size:.85em}
-.bs-fleet-btn.sel{outline:2px solid #4fc3e0;box-shadow:0 0 14px rgba(79,195,224,.5)}
-.bs-fleet-btn.placed{opacity:.55}
-.bs-fleet-size{opacity:.65;font-weight:500}
-.bs-place-tools{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-bottom:14px}
-.bs-grid-wrap{display:flex;justify-content:center;margin-bottom:14px;overflow-x:auto}
-.bs-grid{display:inline-block;background:linear-gradient(180deg,#0b3a54,#082b3f);border:4px solid #05202f;border-radius:10px;padding:6px}
-.bs-row{display:flex}
-.bs-row.bs-head .bs-collabel{width:30px;height:20px;display:flex;align-items:center;justify-content:center;font-size:.7em;font-weight:700;color:rgba(234,242,246,.55)}
-.bs-rowlabel{width:20px;min-width:20px;height:30px;display:flex;align-items:center;justify-content:center;font-size:.7em;font-weight:700;color:rgba(234,242,246,.55)}
-.bs-cell{width:30px;height:30px;box-sizing:border-box;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.03);position:relative;cursor:default}
-.bs-cell.empty{cursor:pointer}
-.bs-cell.empty:hover{background:rgba(79,195,224,.18)}
-.bs-cell.ship{background:linear-gradient(145deg,#4fc3e0,#1f6f8a);border-color:rgba(255,255,255,.28)}
-.bs-cell.ship.k-carrier{background:linear-gradient(145deg,#6fd0e8,#2478a0)}
-.bs-cell.ship.k-battleship{background:linear-gradient(145deg,#5cc0e0,#1f6f8a)}
-.bs-cell.ship.k-cruiser{background:linear-gradient(145deg,#4fb0d0,#1a5f7a)}
-.bs-cell.ship.k-submarine{background:linear-gradient(145deg,#3fa0c8,#155066)}
-.bs-cell.ship.k-destroyer{background:linear-gradient(145deg,#3090b8,#0f4052)}
+.bs-countdown{margin-top:6px;font:700 .95em var(--mono);color:#ffd166}
+.bs-countdown.urgent{color:#ff6b6b}
+.bs-place-tools{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-bottom:12px}
+.bs-grid-wrap{display:flex;justify-content:center;margin-bottom:12px;overflow-x:auto}
+
+/* ---- tahta ---- */
+.bs-board{display:grid;grid-template-columns:auto auto;grid-template-rows:auto auto;gap:3px;
+  background:linear-gradient(180deg,#0b3a54,#082b3f);border:4px solid #05202f;border-radius:10px;padding:6px}
+.bs-collabels{display:grid;grid-template-columns:repeat(10,var(--bs-cell))}
+.bs-rowlabels{display:grid;grid-template-rows:repeat(10,var(--bs-cell))}
+.bs-collabels span,.bs-rowlabels span{display:flex;align-items:center;justify-content:center;
+  font-size:.7em;font-weight:700;color:rgba(234,242,246,.55)}
+.bs-cells{position:relative;display:grid;grid-template-columns:repeat(10,var(--bs-cell));
+  grid-template-rows:repeat(10,var(--bs-cell));touch-action:none}
+.bs-cell{box-sizing:border-box;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.03);position:relative}
+.bs-place-grid .bs-cell{cursor:pointer}
+.bs-place-grid .bs-cell:hover{background:rgba(79,195,224,.14)}
+.bs-cell.ok{background:rgba(46,224,138,.38);border-color:rgba(46,224,138,.7)}
+.bs-cell.bad{background:rgba(255,107,107,.38);border-color:rgba(255,107,107,.7)}
 .bs-cell.live{cursor:crosshair}
 .bs-cell.live:hover{background:rgba(255,209,102,.28)}
 .bs-cell.fog{background:rgba(255,255,255,.02)}
-.bs-cell.miss::after{content:'';position:absolute;left:50%;top:50%;width:8px;height:8px;border-radius:50%;background:rgba(234,242,246,.55);transform:translate(-50%,-50%)}
+.bs-cell.miss::after{content:'';position:absolute;left:50%;top:50%;width:8px;height:8px;border-radius:50%;
+  background:rgba(234,242,246,.62);transform:translate(-50%,-50%)}
 .bs-cell.hit{background:linear-gradient(145deg,#ff7b54,#c0392b)}
 .bs-cell.hit::after{content:'💥';position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:.8em}
 .bs-cell.sunk{background:linear-gradient(145deg,#4a4a4a,#161616)}
 .bs-cell.sunk::after{content:'☠️';position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:.75em}
-.bs-cell.bs-latest{animation:bsPulse .7s ease-out 1}
+.bs-cell.bs-latest{animation:bsPulse .7s ease-out 1;z-index:3}
 @keyframes bsPulse{0%{box-shadow:0 0 0 0 rgba(255,209,102,.9)}100%{box-shadow:0 0 0 12px rgba(255,209,102,0)}}
+
+/* ---- gemi çizimi (hücrelerin üzerinde) ---- */
+.bs-ship{position:absolute;left:calc(var(--c) * var(--bs-cell));top:calc(var(--r) * var(--bs-cell));
+  width:calc(var(--n) * var(--bs-cell));height:var(--bs-cell);z-index:2;cursor:grab;touch-action:none;
+  filter:drop-shadow(0 2px 3px rgba(0,0,0,.45))}
+.bs-ship[data-dir="v"]{width:var(--bs-cell);height:calc(var(--n) * var(--bs-cell))}
+.bs-ship-art{width:100%;height:100%}
+.bs-ship[data-dir="v"] .bs-ship-art{width:calc(var(--n) * var(--bs-cell));height:var(--bs-cell);
+  transform-origin:top left;transform:translateX(var(--bs-cell)) rotate(90deg)}
+.bs-art{display:block;width:100%;height:100%}
+.bs-ship.locked{cursor:default}
+.bs-ship.under{z-index:1;opacity:.95}
+.bs-ship.wrecked{filter:grayscale(1) brightness(.6)}
+.bs-ship:active{cursor:grabbing}
+/* döndürme tutamağı: orta boy, görülebilir ve tıklanabilir */
+.bs-rot{position:absolute;right:calc(-0.42 * var(--bs-cell));top:50%;transform:translateY(-50%);
+  width:calc(0.78 * var(--bs-cell));height:calc(0.78 * var(--bs-cell));min-width:22px;min-height:22px;
+  border-radius:50%;border:2px solid #0b3a54;background:#ffd166;color:#08324a;
+  font:900 .95em/1 system-ui,sans-serif;display:flex;align-items:center;justify-content:center;
+  cursor:pointer;z-index:4;padding:0;box-shadow:0 2px 6px rgba(0,0,0,.5)}
+.bs-ship[data-dir="v"] .bs-rot{right:auto;top:auto;left:50%;bottom:calc(-0.42 * var(--bs-cell));
+  transform:translateX(-50%)}
+.bs-rot:hover{background:#fff0c2}
+
+/* ---- dizilmemiş gemiler (sürüklenecek tepsi) ---- */
+.bs-tray{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;margin-bottom:10px}
+.bs-tray-ship{display:flex;flex-direction:column;align-items:center;gap:4px;padding:6px 8px;border-radius:10px;
+  background:#102a3c;border:1px solid rgba(255,255,255,.16);cursor:grab;touch-action:none;user-select:none}
+.bs-tray-ship:hover{border-color:#4fc3e0}
+.bs-tray-ship:active{cursor:grabbing}
+.bs-tray-art{width:calc(var(--n) * var(--bs-cell) * .7);height:calc(var(--bs-cell) * .7);pointer-events:none}
+.bs-tray-art.v{transform:rotate(90deg);margin:calc(var(--bs-cell) * .35) 0}
+.bs-tray-name{font-size:.72em;font-weight:700;color:rgba(234,242,246,.8);white-space:nowrap}
+.bs-tray-done{font-size:.85em;font-weight:700;color:#2ee08a}
+/* sürükleme hayaleti: imleci izler */
+.bs-drag-ghost{position:fixed;z-index:9999;pointer-events:none;opacity:.92;
+  width:calc(var(--n) * var(--cell));height:var(--cell);filter:drop-shadow(0 6px 10px rgba(0,0,0,.6))}
+.bs-drag-ghost[data-dir="v"]{width:var(--cell);height:calc(var(--n) * var(--cell))}
+.bs-drag-ghost[data-dir="v"] .bs-ship-art{width:calc(var(--n) * var(--cell));height:var(--cell);
+  transform-origin:top left;transform:translateX(var(--cell)) rotate(90deg)}
+.bs-drag-ghost .bs-ship-art{width:100%;height:100%}
+
 .bs-ready-btn{display:block;margin:0 auto;min-height:46px;padding:0 22px}
 .bs-status{text-align:center;padding:10px;background:var(--card);border-radius:var(--r);margin-bottom:12px;font-weight:700;position:relative}
 .bs-status.mine{background:linear-gradient(135deg,rgba(79,195,224,.22),rgba(79,195,224,.06))}
@@ -435,14 +552,15 @@ button,input,select{font-family:var(--font)}
 .bs-fleet-status-list{display:flex;flex-wrap:wrap;gap:6px;justify-content:center}
 .bs-fleet-chip{padding:5px 10px;border-radius:8px;background:#132a3a;border:1px solid rgba(255,255,255,.14);font-size:.8em;font-weight:600}
 .bs-fleet-chip.sunk{opacity:.5;text-decoration:line-through}
-.bs-log{max-width:420px;margin:0 auto;max-height:150px;overflow-y:auto;background:rgba(0,0,0,.22);border-radius:10px;padding:8px}
+.bs-log{max-width:420px;margin:0 auto;max-height:140px;overflow-y:auto;background:rgba(0,0,0,.22);border-radius:10px;padding:8px}
 .bs-log-empty{text-align:center;color:rgba(234,242,246,.5);font-size:.8em;padding:6px}
 .bs-log-item{font-size:.8em;padding:4px 8px;border-radius:6px;margin-bottom:3px}
 .bs-log-item.mine{background:rgba(79,195,224,.14)}
 .bs-log-item.opp{background:rgba(255,123,84,.14)}
 .bs-log-item.sunk{font-weight:800}
-@media(max-width:700px){.bs-cell{width:24px;height:24px}.bs-rowlabel{width:16px;min-width:16px;height:24px}.bs-row.bs-head .bs-collabel{width:24px;height:16px}.bs-battlefield{gap:10px}}
-@media(max-width:420px){.bs-cell{width:20px;height:20px}.bs-rowlabel{width:14px;min-width:14px;height:20px}.bs-row.bs-head .bs-collabel{width:20px;height:14px}}
+/* Mobil: yalnız hücre ölçüsü küçülür — etkileşim ve görünüm aynıdır. */
+@media(max-width:760px){.bs-wrap{--bs-cell:28px}.bs-battlefield{gap:12px}}
+@media(max-width:420px){.bs-wrap{--bs-cell:24px}}
 @media(prefers-reduced-motion:reduce){.bs-cell.bs-latest{animation:none}}
 
 .card-wrap{max-width:700px;margin:0 auto}
@@ -3100,9 +3218,15 @@ function toggleFullscreen(){
   }
 }
 function _gvSyncFullscreenBtn(){
+  const oda = document.getElementById('pg-room');
+  const dolu = _gvFsEl() === oda;
+  /* Tam ekran düzeni CSS'te `:fullscreen` yerine BU SINIFA bağlıdır.
+     Sebep: `:fullscreen` ile `:-webkit-full-screen` aynı seçici listesinde
+     olamaz (tarayıcı tanımadığı birini görünce kuralın TAMAMINI atar), ayrı
+     ayrı yazmak da bütün bloğu ikiye katlar. Tek sınıf her yerde çalışır. */
+  if(oda) oda.classList.toggle('gv-fs', dolu);
   const btn = document.getElementById('gvFullscreenBtn');
   if(!btn) return;
-  const dolu = _gvFsEl() === document.getElementById('pg-room');
   btn.classList.toggle('is-full', dolu);
   btn.innerHTML = dolu ? '⛶ Standart' : '⛶ Tam Ekran';
   btn.title = dolu ? 'Tam ekrandan çık' : 'Tam ekran';
@@ -4651,7 +4775,7 @@ GV.init();
 <script src="js/gomoku-online.js?v=20260904b" defer></script>
 <script src="js/connect4-online.js?v=20260904b" defer></script>
 <script src="js/bilardo-online.js?v=20260914b" defer></script>
-<script src="js/battleship-online.js?v=20260914a" defer></script>
+<script src="js/battleship-online.js?v=20260915a" defer></script>
 <script src="js/chat.js?v=20260821c" defer></script>
 <script src="js/leave-guard.js?v=20260908b" defer></script>
 <script src="js/auth.js?v=20260912a" defer></script>

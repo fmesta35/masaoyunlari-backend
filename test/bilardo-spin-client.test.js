@@ -146,6 +146,28 @@ async function main() {
     `(spinX=${gonderilen.spinX.toFixed(2)}, spinY=${gonderilen.spinY.toFixed(2)}, ` +
     `açı=${Math.round(gonderilen.elevation * 180 / Math.PI)}°)`);
 
+  // ---- 6) SAĞ TIK ıstekayı bırakır: çekiş iptal olur, VURUŞ GİTMEZ ----
+  // Kullanıcı isteği: "güç aşamasına geçtikten sonra tekrar yön
+  // değiştirilemiyor... mouse sağ click ile ıstakayı serbest bırakma
+  // fonksiyonu olsun."
+  {
+    await sleep(300);
+    const cv2 = await waitFor(() => win.document.querySelector('#bilOnlineCanvas'), 8000, 'masa');
+    let gonderildi = false;
+    const onceki = sock.emit;
+    sock.emit = function (ev, p) { if (ev === 'bilardoShoot') gonderildi = true; return onceki.call(sock, ev, p); };
+    // basılı tut (güç aşaması) → sağ tık ile bırak → parmağı kaldır
+    cv2.dispatchEvent(new win.PointerEvent('pointerdown', { bubbles: true, clientX: 200, clientY: 200, pointerId: 7 }));
+    cv2.dispatchEvent(new win.PointerEvent('pointermove', { bubbles: true, clientX: 260, clientY: 240, pointerId: 7 }));
+    cv2.dispatchEvent(new win.MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+    cv2.dispatchEvent(new win.PointerEvent('pointerup', { bubbles: true, clientX: 260, clientY: 240, pointerId: 7 }));
+    await sleep(250);
+    assert.strictEqual(gonderildi, false,
+      'sağ tıkla bırakılan çekiş VURUŞ GÖNDERMEMELİ (oyuncu yeniden nişan alabilmeli)');
+    sock.emit = onceki;
+    console.log('  ✓ 6) sağ tık ıstekayı bırakıyor — iptal edilen çekiş vuruş göndermiyor');
+  }
+
   // ---- 5) sunucu falsolu vuruşu çözüp yayınlıyor ----
   const kareler = await kareSozu;
   assert.ok(kareler.frames.length > 5, 'falsolu vuruş da kare kare yayınlanmalı');

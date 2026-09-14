@@ -192,6 +192,10 @@ function pushChat(roomId, msg) {
 // (500 ms'de bir) sayacı sürekli başa döndürür ve denetim ölü kod olur.
 const MOVE_WARN_MS = Number(process.env.GV_MOVE_WARN_MS) || 40000;
 const MOVE_FORFEIT_MS = Number(process.env.GV_MOVE_FORFEIT_MS) || 60000;
+// Amiral Battı'da filo YERLEŞTİRME ayrı bir bütçedir: 5 gemiyi sürükleyip
+// yerleştirmek bir hamleden uzun sürer. Hamle saati ancak muharebe faz
+// başladığında devreye girer (bkz. battleshipPlace işleyicisi).
+const BATTLESHIP_PLACE_MS = Number(process.env.GV_BATTLESHIP_PLACE_MS) || 90000;
 const PISTI_TURN_MS = Number(process.env.GV_PISTI_TURN_MS) || 30000;
 // OKEY: tur başına süre (yerel motordaki 30 sn "SIRA" sayacının sunucu
 // karşılığı) + art arda sürünceme toleransı (3. strike = diskalifiye).
@@ -864,10 +868,14 @@ function turnSeatOf(room) {
 function moveClockOf(room) {
   const limit = room.gameId === 'pisti' ? PISTI_TURN_MS : MOVE_FORFEIT_MS;
   const playing = room.status === 'playing' && !!room.moveStartedAt;
+  const seat = turnSeatOf(room);
+  // Sırası olan KİMSE YOKSA (ör. Amiral Battı'nın yerleştirme fazı) hamle
+  // sayacı da olmamalı: eskiden üstteki şerit orada anlamsız bir geri
+  // sayım gösteriyordu. Yerleştirmenin kendi süresi ayrı alanda gider.
   return {
-    turnSeat: turnSeatOf(room),
+    turnSeat: seat,
     turnLimitMs: limit,
-    turnRemainingMs: playing ? Math.max(0, limit - (now() - room.moveStartedAt)) : null,
+    turnRemainingMs: (playing && seat !== null) ? Math.max(0, limit - (now() - room.moveStartedAt)) : null,
     serverNow: now()
   };
 }
@@ -924,6 +932,10 @@ function battleshipState(room, seat) {
     winner: b.winner,
     result: b.result,
     ready: { mine: seat !== null ? !!b.ready[seat] : false, opponent: other !== null ? !!b.ready[other] : false },
+    // Yerleştirme fazının KENDİ süresi (hamle saatinden bağımsız).
+    placeLimitMs: BATTLESHIP_PLACE_MS,
+    placeRemainingMs: b.phase === 'placing' && room.moveStartedAt
+      ? Math.max(0, BATTLESHIP_PLACE_MS - (now() - room.moveStartedAt)) : null,
     fleetDefs: battleshipEngine.SHIPS,
     size: battleshipEngine.SIZE,
     myShips,
@@ -2809,6 +2821,10 @@ io.on('connection', socket => {
     if (!p || room.status !== 'playing') return socket.emit('battleshipRejected', { roomId: room?.id || data?.roomId, reason: 'not_in_room' });
     const r = battleshipEngine.place(room.battleship, p.seat, data && data.placements);
     if (!r.ok) return socket.emit('battleshipRejected', { roomId: room.id, reason: r.reason, shipId: r.shipId, gameState: battleshipState(room, p.seat) });
+    // Muharebe fazı YENİ başladıysa hamle saatini SIFIRLA: yoksa yerleştirmede
+    // geçen süre ilk hamleden düşülüyor ve sırası gelen oyuncu daha ilk
+    // atışını yapamadan hükmen mağlup olabiliyordu.
+    if (room.battleship.phase === 'battle') touchMoveTimer(room);
     emitBattleshipState(room);
     emitRoom(room);
   });
@@ -3084,7 +3100,7 @@ function enforceOnlineMoveTimeout(room) {
   // o(nlar) hükmen kaybeder (ikisi de değilse oda iptal edilir).
   if (room.battleship && room.battleship.phase === 'placing') {
     const elapsed = now() - room.moveStartedAt;
-    if (elapsed < MOVE_FORFEIT_MS) return false;
+    if (elapsed < BATTLESHIP_PLACE_MS) return false;
     const notReady = room.battleship.seats.filter(s => !room.battleship.ready[s]);
     if (!notReady.length) return false;
     const stateFor = p => battleshipState(room, p);

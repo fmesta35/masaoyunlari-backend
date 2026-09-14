@@ -282,6 +282,12 @@
   // Vuruş ayarları render'lar arası KORUNUR (sunucudan durum gelince tahta
   // yeniden çizilir; oyuncunun seçtiği falso/açı sıfırlanmamalı).
   var setup = { spinX: 0, spinY: 0, elevation: 0, power: 0.55, aim: 0, roomId: null };
+  // ESC ile ıstekayı bırakma: dinleyici BİR KEZ bağlanır, güncel iptal
+  // fonksiyonunu buradan okur (her bind()'de yeni dinleyici eklenmez).
+  var iptalEdici = null;
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && typeof iptalEdici === 'function') iptalEdici();
+  });
   function resetSetupIfRoomChanged(m) {
     var rid = String(m.roomId == null ? '' : m.roomId);
     if (setup.roomId !== rid) { setup = { spinX: 0, spinY: 0, elevation: 0, power: 0.55, aim: 0, roomId: rid }; }
@@ -322,7 +328,8 @@
       var n = names(m), score = s.score || [0, 0], groups = s.groups || [null, null];
       var grup = function (g) { return g === 'solid' ? 'Düz toplar' : g === 'stripe' ? 'Çizgili toplar' : 'Açık masa'; };
       var durum = m.isSpectator ? '👁️ İzleyici modundasınız.'
-        : mine ? '<b>Sıra sizde.</b> Masada nişan alın, falso ve gücü ayarlayıp vurun.'
+        : mine ? '<b>Sıra sizde.</b> Nişan alın, falso ve gücü ayarlayıp vurun. ' +
+                 '<span class="bil-hint">Çekişi iptal edip yeniden nişan almak için <b>sağ tık</b> (veya ESC).</span>'
                : 'Rakibin vuruşu bekleniyor…';
       var faul = (s.lastShot && s.lastShot.foul) ? '<div class="bil-foul">⚠️ Son vuruş fauldü — beyaz top yeniden yerleştirildi.</div>' : '';
 
@@ -399,7 +406,22 @@
         if (btn) btn.disabled = true;
       }
 
+      /* ISTEKAYI BIRAK (kullanıcı isteği): güç aşamasına geçildikten sonra
+         açı kilitleniyordu; oyuncu nişanı yanlış aldığını fark edince
+         vuruşu yapmadan geri dönemiyordu. Artık SAĞ TIK (ya da ESC) ıstekayı
+         serbest bırakır: çekiş iptal olur, güç sıfırlanır ve nişan moduna
+         dönülür — hiçbir vuruş gönderilmez. */
+      var iptal = false;
+      function istekayiBirak() {
+        if (!drag) return;
+        drag = false; iptal = true;
+        setup.power = pw ? Math.max(0.05, Math.min(1, Number(pw.value) / 100)) : setup.power;
+        redraw();
+        if (window.GV && GV.toast) GV.toast('🎯 Isteka bırakıldı — yeniden nişan alabilirsiniz.', 'info');
+      }
+      iptalEdici = istekayiBirak;          // ESC için (tek, modül düzeyinde dinleyici)
       if (c && mine) {
+        c.addEventListener('contextmenu', function (e) { e.preventDefault(); istekayiBirak(); });
         c.addEventListener('pointermove', function (e) {
           var p = pt(e);
           var cue = liveBalls(s).find(function (b) { return b.id === 'cue' && !b.potted; });
@@ -414,15 +436,18 @@
           redraw();
         });
         c.addEventListener('pointerdown', function (e) {
-          drag = true; start = pt(e);
+          if (e.button === 2) { e.preventDefault(); istekayiBirak(); return; }   // sağ tık: bırak
+          drag = true; iptal = false; start = pt(e);
           if (c.setPointerCapture) { try { c.setPointerCapture(e.pointerId); } catch (_) {} }
         });
         c.addEventListener('pointerup', function () {
-          if (!drag) return;
+          if (!drag) { iptal = false; return; }
           drag = false;
+          if (iptal) { iptal = false; return; }        // iptal edilmiş çekiş vuruş YAPMAZ
           if (setup.power >= 0.05) fire();
         });
-        c.addEventListener('pointerleave', function () { drag = false; });
+        // İmleç masadan çıkarsa çekişi iptal et (yanlışlıkla vuruş olmasın)
+        c.addEventListener('pointerleave', function () { if (drag) istekayiBirak(); });
       }
       if (pw) pw.addEventListener('input', function () {
         setup.power = Math.max(0.05, Math.min(1, Number(pw.value) / 100));

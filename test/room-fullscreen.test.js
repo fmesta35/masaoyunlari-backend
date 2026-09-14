@@ -125,6 +125,43 @@ async function main() {
   assert.strictEqual(fsBtn.classList.contains('is-full'), false, 'ESC ile çıkışta da düğme senkron kalmalı');
   console.log('  ✓ 4) ESC gibi tarayıcı-kaynaklı çıkışlarda da düğme durumu senkron kalıyor');
 
+  // ---- 6) TAM EKRAN DÜZENİ: kaydırma yok + süre kartları DİKEY ----
+  // Kullanıcı isteği: "tam ekran seçildiğinde scroll down-up seçeneği
+  // olmasın, her şey ekrana sığsın. Yukarıdaki sayaçlar yatay yerine dikey
+  // alt üst olarak yerleştirilebilir, böylece oyun dashboard daha geniş
+  // alana sahip olur." Düzen `#pg-room.gv-fs` sınıfına bağlıdır (`:fullscreen`
+  // ile `:-webkit-full-screen` aynı seçici listesinde yaşayamadığı için).
+  A.GV.toggleFullscreen();                       // yeniden tam ekrana geç
+  await sleep(50);
+  assert.ok(pgRoom.classList.contains('gv-fs'), 'tam ekranda odaya gv-fs sınıfı eklenmeli');
+
+  /* NOT: bu jsdom kurulumu biçem sayfalarını hiç AYRIŞTIRMIYOR
+     (document.styleSheets[..].cssRules boş döner), bu yüzden kurallar
+     hesaplanmış stilden değil KAYNAKTAN doğrulanır. Amaç regresyonu
+     yakalamak: düzen kuralları yanlışlıkla silinirse test kırmızıya döner. */
+  const kaynak = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
+  const blok = (secici) => {
+    const i = kaynak.indexOf(secici + '{');
+    if (i === -1) return '';
+    return kaynak.slice(i, kaynak.indexOf('}', i) + 1);
+  };
+  const oda = blok('#pg-room.gv-fs');
+  assert.ok(/overflow:\s*hidden/.test(oda), 'tam ekranda oda KAYDIRILMAMALI (overflow:hidden)');
+  assert.ok(/height:\s*100vh/.test(oda), 'tam ekran odası ekran yüksekliğine sabitlenmeli');
+  assert.ok(/display:\s*grid/.test(oda), 'tam ekran düzeni grid olmalı (sayaçlar yan kolona taşınabilsin)');
+  assert.ok(/flex-direction:\s*column/.test(blok('#pg-room.gv-fs .timers')),
+    'süre kartları tam ekranda DİKEY dizilmeli');
+  assert.ok(/overflow:\s*hidden/.test(blok('#pg-room.gv-fs .game-board-area')),
+    'tahta alanı taşmamalı (içerik küçülmeli)');
+  assert.ok(kaynak.includes('#pg-room.gv-fs .game-layout{display:contents}'),
+    'yan panel ve tahta dış grid\'e katılmalı (display:contents)');
+  assert.ok(/@media\(max-width:760px\)\{[\s\S]{0,900}#pg-room\.gv-fs\{/.test(kaynak),
+    'mobilde de tam ekran düzeni tanımlı olmalı');
+  A.GV.toggleFullscreen();
+  await sleep(50);
+  assert.ok(!pgRoom.classList.contains('gv-fs'), 'standarda dönünce gv-fs kalkmalı');
+  console.log('  ✓ 6) tam ekranda kaydırma kapalı, süre kartları dikey, tahta alanı taşmıyor');
+
   // ---- Fullscreen API hiç desteklenmiyorsa sessizce (hatasız) düşmeli ----
   delete pgRoom.requestFullscreen;
   delete pgRoom.webkitRequestFullscreen;

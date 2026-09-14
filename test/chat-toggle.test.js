@@ -115,6 +115,30 @@ async function main() {
   await bekle(() => $('#gameChat').innerHTML.includes('gorunur-mesaj-2'), 4000, 'açıkken mesajın görünmesi');
   console.log('  ✓ 4) tekrar açınca "Sohbet Açık" ve mesajlar yeniden görünüyor');
 
+  // ---- 6) SOHBET AÇIKKEN "Sohbet Kapalı" uyarısı GÖRÜNMEMELİ ----
+  // Hata (kullanıcı raporu): uyarı sürekli ekrandaydı. Sebep CSS'ti —
+  // .chat-off/.chat-msgs/.chat-input üzerindeki `display:flex` sınıf kuralı,
+  // tarayıcının [hidden]{display:none} kuralını eziyordu. Artık açıkça
+  // `[hidden]` guard'ı var; kaynaktan doğruluyoruz (jsdom biçem sayfalarını
+  // ayrıştırmadığı için hesaplanmış stil güvenilir değil).
+  {
+    const fs2 = require('fs'), path2 = require('path');
+    const kaynak = fs2.readFileSync(path2.join(__dirname, '..', 'index.html'), 'utf8');
+    assert.ok(/\.chat-off\[hidden\][^{]*\{display:none!important\}/.test(kaynak.replace(/\s/g, '')) ||
+              /chat-off\[hidden\],\.chat-msgs\[hidden\],\.chat-input\[hidden\]\{display:none!important\}/
+                .test(kaynak.replace(/\s/g, '')),
+      'gizlenen sohbet kutuları için [hidden] kuralı olmalı (display:flex onu eziyordu)');
+    // Davranış: açıkken uyarı gizli, kapalıyken görünür olmalı
+    assert.ok($('#gvChatOff').hidden, 'sohbet AÇIKKEN "Sohbet Kapalı" uyarısı gizli olmalı');
+    btn.dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+    await bekle(() => btn.classList.contains('off'), 4000, 'kapanış');
+    assert.ok(!$('#gvChatOff').hidden, 'sohbet KAPALIYKEN uyarı görünmeli');
+    btn.dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+    await bekle(() => btn.classList.contains('on'), 4000, 'açılış');
+    assert.ok($('#gvChatOff').hidden, 'tekrar açılınca uyarı yine gizlenmeli');
+    console.log('  ✓ 6) "Sohbet Kapalı" uyarısı yalnızca sohbet kapalıyken görünüyor');
+  }
+
   // ---- 5) tercih kalıcı ----
   btn.dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
   await bekle(() => btn.classList.contains('off'), 4000, 'kapanış');
