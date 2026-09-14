@@ -35,17 +35,63 @@
     var walls=[dx>0?(C.R-C.r-cue.x)/dx:(C.L+C.r-cue.x)/dx,dy>0?(C.B-C.r-cue.y)/dy:(C.T+C.r-cue.y)/dy].filter(function(v){return v>0;});
     return {len:Math.min(best,Math.min.apply(Math,walls),520),hit:hit};
   }
-  function paint(canvas, state, aim, power, canAim) {
-    if(!canvas)return; var x=canvas.getContext('2d'),g; x.clearRect(0,0,C.W,C.H);
+  function drawScene(x) {
+    var g; x.clearRect(0,0,C.W,C.H);
     g=x.createLinearGradient(0,0,0,C.H);g.addColorStop(0,'#80552f');g.addColorStop(.28,'#3f2918');g.addColorStop(1,'#1d130d');x.fillStyle=g;x.beginPath();x.roundRect(8,8,C.W-16,C.H-16,25);x.fill();x.strokeStyle='#b98a51';x.lineWidth=2;x.stroke();
     g=x.createRadialGradient(450,205,45,450,225,520);g.addColorStop(0,'#16815e');g.addColorStop(.62,'#096344');g.addColorStop(1,'#043d2c');x.fillStyle=g;x.fillRect(C.L,C.T,C.R-C.L,C.B-C.T);x.strokeStyle='rgba(255,255,255,.08)';x.strokeRect(C.L,C.T,C.R-C.L,C.B-C.T);
     pockets().forEach(function(p){g=x.createRadialGradient(p.x-4,p.y-4,2,p.x,p.y,C.pocketR);g.addColorStop(0,'#181818');g.addColorStop(1,'#000');x.fillStyle=g;x.beginPath();x.arc(p.x,p.y,C.pocketR,0,Math.PI*2);x.fill();x.strokeStyle='#2c1a10';x.lineWidth=4;x.stroke();});
+  }
+  function paint(canvas, state, aim, power, canAim) {
+    if(!canvas)return; var x=canvas.getContext('2d'),g; drawScene(x);
     var balls=(state.balls||[]).map(function(b){return normalizedBall(b,state);}),cue=balls.find(function(b){return b.id==='cue'&&!b.potted;});
     if(canAim&&cue){var q=ray(state,cue,aim),dx=Math.cos(aim),dy=Math.sin(aim);x.save();x.setLineDash([8,8]);x.strokeStyle='rgba(255,255,255,.72)';x.lineWidth=1.4;x.beginPath();x.moveTo(cue.x+dx*14,cue.y+dy*14);x.lineTo(cue.x+dx*q.len,cue.y+dy*q.len);x.stroke();x.setLineDash([]);var pull=18+power*62;x.translate(cue.x-dx*pull,cue.y-dy*pull);x.rotate(aim);g=x.createLinearGradient(-235,0,0,0);g.addColorStop(0,'#26201c');g.addColorStop(.48,'#9a6030');g.addColorStop(.9,'#e0b66a');g.addColorStop(1,'#f1e3c2');x.fillStyle=g;x.fillRect(-235,-3,225,6);x.restore();}
     balls.forEach(function(b){if(!b.potted)drawBall(x,b);});
   }
+  /* Yalnız topları çizer (masa aynı) — vuruş animasyonu sırasında nişan/isteka
+     yok, sadece sunucudan gelen kare kare gerçek fizik konumları. */
+  function drawBallsOnly(canvas, balls) {
+    if (!canvas) return; var x = canvas.getContext('2d'); drawScene(x);
+    balls.forEach(function (b) { if (!b.potted) drawBall(x, b); });
+  }
+
+  /* ---------- VURUŞ ANİMASYONU (madde 5: flyordie gibi CANLI oynanış) ----------
+     Sunucu bir vuruşun TÜM fizik simülasyonunu tek seferde (senkron, hileye
+     kapalı) hesaplar ve topların yol boyunca konumlarını "frames" olarak
+     bilardoShotFrames olayıyla yayınlar. Bu katman o kareleri ~60/sn oynatarak
+     topların gerçekten yuvarlanıp çarpıştığını gösterir; sunucunun asıl
+     yetkili durumu (gameStateUpdated) animasyon süresi kadar gecikmeli geldiği
+     için animasyon araya girmeden sonuna kadar oynar. */
+  var shotAnim = { timer: null };
+  function stopShotAnim() { if (shotAnim.timer) { clearInterval(shotAnim.timer); shotAnim.timer = null; } }
+  function playShotFrames(payload) {
+    if (!payload || !Array.isArray(payload.frames) || !payload.frames.length) return;
+    stopShotAnim();
+    var meta = Array.isArray(payload.meta) ? payload.meta : [];
+    var frames = payload.frames;
+    var stepMs = Math.max(8, Number(payload.frameMs) || 17);
+    var roomId = String(payload.roomId == null ? '' : payload.roomId);
+    var i = 0;
+    shotAnim.timer = setInterval(function () {
+      if (window.GVArena && String(window.GVArena.roomId()) !== roomId) { stopShotAnim(); return; }
+      var c = document.getElementById('bilOnlineCanvas');
+      var frame = frames[i];
+      if (c && frame) {
+        var balls = [];
+        for (var k = 0; k < frame.length; k++) {
+          var pos = frame[k];
+          if (!pos) continue;
+          var mb = meta[k] || {};
+          balls.push({ id: mb.id, n: mb.n, type: mb.type, potted: false, x: pos[0], y: pos[1] });
+        }
+        drawBallsOnly(c, balls);
+      }
+      i++;
+      if (i >= frames.length) stopShotAnim();
+    }, stepMs);
+  }
   define({
     id:'bilardo', kinds:['bilardo'], reject:['bilardoRejected'],
+    events:{ bilardoShotFrames: function (payload) { playShotFrames(payload); } },
     render:function(m){
       var s=m.state||{}, mine=s.turn===m.seat&&!m.isSpectator, n=names(m), score=s.score||[0,0], groups=s.groups||[null,null];
       return '<div class="bil-wrap bil-online"><div class="bil-hud"><div class="bil-player '+(s.turn===0?'active':'')+'"><div class="bil-avatar">P1</div><div><div class="bil-player-name">'+n.p1+'</div><div class="bil-player-score">'+(groups[0]==='solid'?'Düz toplar':groups[0]==='stripe'?'Çizgili toplar':'Açık masa')+'</div></div></div><div class="bil-match"><div class="bil-round">CANLI 8-TOP</div><div class="bil-match-score">'+Number(score[0]||0)+' — '+Number(score[1]||0)+'</div></div><div class="bil-player right '+(s.turn===1?'active':'')+'"><div><div class="bil-player-name">'+n.p2+'</div><div class="bil-player-score">'+(groups[1]==='solid'?'Düz toplar':groups[1]==='stripe'?'Çizgili toplar':'Açık masa')+'</div></div><div class="bil-avatar">P2</div></div></div><div class="bil-stage"><div class="bil-canvas-wrap"><canvas class="bil-canvas" id="bilOnlineCanvas" width="900" height="450" aria-label="Çevrimiçi 8-top bilardo masası"></canvas></div><div class="bil-controls"><div class="bil-help">'+(m.isSpectator?'👁️ İzleyici modundasınız.':mine?'<b>Sıra sizde.</b> Nişan alın; basılı tutup geriye çekin ve bırakın.':'Rakibin vuruşu bekleniyor…')+'</div><div><div class="bil-power-label"><span>VURUŞ GÜCÜ</span><span id="bilOnlinePowerText">0%</span></div><div class="bil-power"><i id="bilOnlinePowerFill"></i></div></div><button class="bil-reset" id="bilOnlineShoot" '+(mine?'':'disabled')+'>Vuruşu Yap</button></div></div></div>';

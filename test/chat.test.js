@@ -3,12 +3,16 @@
 /*
  * SOHBET — masa içi + genel sohbet sunucu testleri.
  *
- *  Kurallar: yalnız ÜYELER yazabilir (misafirler okur), metin temizlenir,
- *  240 karakter sınırı, soket başına 1 sn hız sınırı, son 50 mesajlık geçmiş.
+ *  Kurallar: MASA (room) sohbetinde o masaya oturan HERKES (üye veya
+ *  misafir) yazabilir — ziyaretçiler birbirini görüp yazabilmeli. GENEL
+ *  (global, site geneli) sohbette hâlâ yalnız ÜYELER yazabilir. Metin
+ *  temizlenir, 240 karakter sınırı, soket başına 1 sn hız sınırı, son 50
+ *  mesajlık geçmiş.
  *
  *  A) Masa sohbeti: iki üye aynı odada -> mesaj herkese gider, isim oda
  *     kaydından gelir, HTML temizlenir, chatHistory dolu döner.
- *  B) Misafir yazamaz: oda içi ve genel sohbette chatRejected; yayın YAPILMAZ.
+ *  B) Masa sohbetinde misafir de yazabilir (üye görür + geçmişe düşer);
+ *     AYNI misafir genel sohbette hâlâ reddedilir.
  *  C) Genel sohbet: lobi soketinden üye (memberKey) gönderir -> diğer lobi
  *     soketi alır; genel geçmiş ayrı tutulur.
  *  D) Sınırlar: 240 karakter kırpması + 1 sn hız sınırı (ikinci mesaj red).
@@ -76,28 +80,34 @@ async function main() {
     console.log('  ✓ A) Masa sohbeti: üyeler konuştu, karşılıklı görüldü, geçmiş saklandı');
   }
 
-  // ---------- B) Misafir yazamaz ----------
+  // ---------- B) MASA sohbetinde misafir de yazabilir (kullanıcı isteği:
+  //  "ziyaretçiler oyun içerisinde birbirlerinin mesajlarını göremiyor" —
+  //  masa sohbeti artık üyelik istemez, o masaya OTURMUŞ olmak yeter).
+  //  GENEL (global) sohbet ise hâlâ yalnız üyelere açık. ----------
   {
     const g = await connect(BASE, 'G1');
     const u = await connect(BASE, 'U3');
     await join(u, '203', 'user:3', 'ÜyeÜç');
-    g.emit('joinRoom', { roomId: '203', gameId: 'tavla', userName: 'Misafir', userKey: 'guest:m1', maxPlayers: 2, asSpectator: true });
+    g.emit('joinRoom', { roomId: '203', gameId: 'tavla', userName: 'Misafir156', userKey: 'guest:m1', maxPlayers: 2, asSpectator: true });
     await once(g, 'joinedRoom');
 
-    const rejectP = once(g, 'chatRejected');
-    u.removeAllListeners('chatMessage');
-    let leaked = false;
-    u.on('chatMessage', () => { leaked = true; });
+    const got = once(u, 'chatMessage');
     g.emit('chatMessage', { scope: 'room', text: 'ben de yazayım' });
-    const rej = await rejectP;
-    assert.ok(/üye/i.test(rej.reason || ''), 'B: misafire üyelik nedeni açıklanır');
-    await sleep(250);
-    assert.strictEqual(leaked, false, 'B: misafir mesajı YAYINLANMAZ');
+    const m = await got;
+    assert.strictEqual(m.text, 'ben de yazayım', 'B1: misafirin masa mesajı üyeye ulaştı');
+    assert.strictEqual(m.name, 'Misafir156', 'B1: misafirin adı görünüyor');
 
     const hist = await chatHistory(u, 'room', '203');
-    assert.strictEqual(hist.messages.length, 0, 'B: oda geçmişine de düşmedi');
+    assert.ok(hist.messages.some(x => x.text === 'ben de yazayım'), 'B2: misafir mesajı oda geçmişine de düştü');
+
+    // Aynı misafir GENEL sohbette hâlâ reddedilir.
+    const rej = once(g, 'chatRejected');
+    g.emit('chatMessage', { scope: 'global', text: 'genelde de yazayım' });
+    const r = await rej;
+    assert.ok(/üye/i.test(r.reason || ''), 'B3: genel sohbette misafire üyelik nedeni açıklanır');
+
     g.close(); u.close();
-    console.log('  ✓ B) Misafir mesajı reddedildi; yayın ve geçmiş temiz');
+    console.log('  ✓ B) Masa sohbetinde misafir de yazıp görünüyor; genel sohbet hâlâ yalnız üyelere açık');
   }
 
   // ---------- C) Genel sohbet: lobi üzerinden ----------

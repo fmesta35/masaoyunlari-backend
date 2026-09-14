@@ -134,19 +134,28 @@ function isOnline(userId) { const s = online.get(Number(userId)); return !!(s &&
 function onlineCount() { let n = 0; for (const s of online.values()) if (s && s.size) n++; return n; }
 
 // Kimlik authHello ile SONRADAN çözüldüyse (join anında üyelik backend'i
-// yavaştı), soket bir odaysa oda kaydındaki üye alanlarını güncelle:
+// yavaştı VEYA oyuncu MASADAYKEN misafirden üyeye geçtiyse — oyun esnasında
+// giriş yaptı), soket bir odaysa oda kaydındaki üye alanlarını güncelle:
 // userId'siz oturan üyenin üye yetkileri (özel masada kurucu kaydı dahil)
-// sayfa yenilenmeden de aktifleşir. Yalnızca DEĞİŞEN alanda yayın yapılır.
-// (Yerel + uzak modun ikisinde de çağrılır — modül seviyesinde tanımlı.)
-function syncRoomIdentity(sock, rooms, emitRoom) {
+// sayfa yenilenmeden de aktifleşir. GÖRÜNEN AD da (me.name) burada
+// güncellenir — eskiden yalnız userId yazılıyordu, ad hep "Ziyaretçi#..."
+// olarak kalıyordu (koltuk etiketi VE sohbet ismi bu alandan okunur).
+// İzleyici kaydı da aynı şekilde senkronlanır. Yalnızca DEĞİŞEN alanda
+// yayın yapılır. (Yerel + uzak modun ikisinde de çağrılır — modül
+// seviyesinde tanımlı.)
+function syncRoomIdentity(sock, rooms, emitRoom, name) {
   const rid = sock && sock.roomId;
   if (!rid || !sock || !sock.userId) return;
   const r = rooms.get(String(rid));
-  if (!r || !Array.isArray(r.players)) return;
-  const me = r.players.find(p => p.id === sock.id);
-  if (!me) return;
+  if (!r) return;
   let changed = false;
-  if (!me.userId) { me.userId = sock.userId; changed = true; }
+  const uygula = rec => {
+    if (!rec) return;
+    if (!rec.userId) { rec.userId = sock.userId; changed = true; }
+    if (name && rec.name !== name) { rec.name = name; changed = true; }
+  };
+  if (Array.isArray(r.players)) uygula(r.players.find(p => p.id === sock.id));
+  if (Array.isArray(r.spectators)) uygula(r.spectators.find(s => s.id === sock.id));
   if (r.isPrivate && !r.creatorId) { r.creatorId = sock.userId; changed = true; }
   if (changed && emitRoom) { try { emitRoom(r); } catch (_) {} }
 }
@@ -657,7 +666,7 @@ function installAuth(app, deps) {
       if (!set) { set = new Set(); online.set(u.id, set); }
       set.add(socket);
       socket.emit('authReady', { ok: true, user: publicUser(u) });
-      if (identityChanged) syncRoomIdentity(socket, rooms, deps.emitRoom);
+      if (identityChanged) syncRoomIdentity(socket, rooms, deps.emitRoom, u.name);
     });
 
     socket.on('disconnect', () => {
@@ -811,6 +820,7 @@ function installRemoteMode(app, deps) {
         sock.userEmail = f.user.email;
         sock.userKey = 'user:' + sock.userId;
         meNow.userId = sock.userId;
+        if (f.user.name) meNow.name = f.user.name;
         if (!rNow.creatorId) rNow.creatorId = sock.userId;
         let set = online.get(sock.userId);
         if (!set) { set = new Set(); online.set(sock.userId, set); }
@@ -848,7 +858,7 @@ function installRemoteMode(app, deps) {
         if (!set) { set = new Set(); online.set(att.uid, set); }
         set.add(socket);
         socket.emit('authReady', { ok: true, user: { id: att.uid, name: att.name, email: null } });
-        if (identityChanged) syncRoomIdentity(socket, rooms, deps.emitRoom);
+        if (identityChanged) syncRoomIdentity(socket, rooms, deps.emitRoom, att.name || 'Oyuncu');
         return;
       }
       // 2) Klasik yol: PHP me (DDoS engellemedikçe / önbellek sıcakken).
@@ -869,7 +879,7 @@ function installRemoteMode(app, deps) {
         socket.emit('authReady', { ok: true, user: { id: socket.userId, name: u.name, email: u.email } });
         // PHP soğuk başlangıcı sırasında userId'siz oturan üye: kimlik
         // çözüldüğü anda oda kaydı (kurucu dahil) güncellenir.
-        if (identityChanged) syncRoomIdentity(socket, rooms, deps.emitRoom);
+        if (identityChanged) syncRoomIdentity(socket, rooms, deps.emitRoom, u.name);
       }).catch(() => {
         socket.emit('authReady', { ok: false, error: 'Üyelik sunucusuna ulaşılamadı.' });
         resolvePrivatePending(socket, token);

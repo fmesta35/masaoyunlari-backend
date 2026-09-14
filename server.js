@@ -16,6 +16,7 @@ const gomokuEngine = require('./gomoku-engine');
 const connect4Engine = require('./connect4-engine');
 const bilardoEngine = require('./bilardo-engine');
 const { db } = require('./db'); // kurucu paneli: üye listesi + masa ayarları (SQLite, yerel mod)
+const playCounts = require('./play-counts'); // gerçek "kaç kez oynandı" sayaçları (mod bağımsız)
 
 const app = express();
 app.use(cors({ origin: true, credentials: true }));
@@ -1605,6 +1606,18 @@ function okeyAct(room, socket, act) {
   // Başarılı eylem: saatleri muhasebele, strike sıfırla, herkese yayınla.
   okeyAdvanceClock(room);
   ok.strikes[player.seat] = 0;
+  // OKEY 101 CEZASI: gerçek okeyi açık atan oyuncunun adını da ekleyip
+  // odaya bildir (bkz. okey-engine.js discard() → res.penalty).
+  if (res.penalty) {
+    const penaltyPlayer = (room.players || []).find(p => p.seat === res.penalty.seat);
+    io.to(room.id).emit('okeyPenalty', {
+      roomId: room.id,
+      seat: res.penalty.seat,
+      name: penaltyPlayer ? penaltyPlayer.name : null,
+      amount: res.penalty.amount,
+      reason: res.penalty.reason
+    });
+  }
   if (ok.roundState.finished) {
     okeyRoundFinished(room);
   } else {
@@ -1701,6 +1714,14 @@ function cancelRoomReset(room) {
 function scheduleRoomReset(room) {
   if (!room) return;
   cancelRoomReset(room);
+  // GERÇEK OYNANMA SAYACI: üye/ziyaretçi ayrımı yok, authApi'den de
+  // BAĞIMSIZ — her tamamlanan maç (buradan, tek yoldan geçer) bir kez
+  // sayılır. Ana sayfadaki "Popüler Oyunlar" sıralaması ve kartlardaki
+  // "kaç kez oynandı" rakamı buradan gelir (artık uydurma sayı değil).
+  if (room.result && !room.__playCounted) {
+    room.__playCounted = true;
+    try { playCounts.bump(room.gameId); } catch (_) {}
+  }
   // Maç geçmişi: bitişte (her yol buradan geçer) üyeli oyuncular için tek
   // defalık kayıt düşülür (profilde "Son Maçlar" ve istatistikler bundan okunur).
   if (authApi && room.result && !room.__matchRecorded) {
@@ -1993,8 +2014,12 @@ io.on('connection', socket => {
     const scope = payload && payload.scope === 'global' ? 'global' : 'room';
     const text = chatSanitize(payload && payload.text);
     if (!text) return;
-    if (!chatIsMember(socket, payload)) {
-      return socket.emit('chatRejected', { reason: 'Sohbette yazabilmek için üye girişi yapmalısınız. Mesajları okumaya devam edebilirsiniz.' });
+    // MASA SOHBETİ (room): ziyaretçiler de birbirini görüp yazabilir — kısıtlı
+    // katılımcı listesi zaten socket.roomId ile (gerçekten o masaya OTURMUŞ
+    // olmakla) sağlanıyor, ayrıca üyelik şartı aranmaz. GENEL sohbet (global,
+    // herkese açık site geneli akış) hâlâ yalnızca üyelere açık.
+    if (scope === 'global' && !chatIsMember(socket, payload)) {
+      return socket.emit('chatRejected', { reason: 'Genel sohbette yazabilmek için üye girişi yapmalısınız. Mesajları okumaya devam edebilirsiniz.' });
     }
     if (chatHasLink(text)) {
       return socket.emit('chatRejected', { reason: '🔗 Link paylaşımı yasaktır.' });
@@ -2687,7 +2712,18 @@ io.on('connection', socket => {
   });
 
   // ---------- BİLARDO eylemleri (sunucu yetkili) ----------
-  socket.on('bilardoShoot', data => { const room=rooms.get(socket.roomId||String(data?.roomId||'')); const p=room?.bilardo&&room.players.find(x=>x.id===socket.id); if(!p||room.status!=='playing')return socket.emit('bilardoRejected',{roomId:room?.id||data?.roomId,reason:'not_in_room'}); const r=bilardoEngine.shoot(room.bilardo,p.seat,Number(data.angle),Number(data.power),data.targetId); if(!r.ok)return socket.emit('bilardoRejected',{roomId:room.id,reason:r.reason,gameState:bilardoState(room,p.seat)}); if(room.bilardo.status==='finished'){room.status='finished';room.result=room.bilardo.result;} touchMoveTimer(room);emitBilardoState(room);emitRoom(room);if(room.status==='finished')room.players.forEach(q=>emitToPlayer(q,'gameEnded',{roomId:room.id,reason:room.bilardo.result?.reason||'finished',winnerSeat:room.bilardo.winner,youWon:q.seat===room.bilardo.winner,gameState:bilardoState(room,q.seat)})); });
+  // flyordie tarzı akıcı oynanış (madde 5): fizik hâlâ tek seferde ve sunucuda
+  // hesaplanır (hile yok), ama sonuç istemcilere önce "kare kare" (bilardoShotFrames)
+  // yayılır; masanın gerçek son durumu (gameStateUpdated/gameEnded) topların
+  // ekranda yuvarlanma süresi kadar GECİKMELİ gönderilir — böylece oyuncular
+  // vuruşun canlı oynandığını görür, sonuç aniden "ışınlanmaz".
+  socket.on('bilardoShoot', data => { const room=rooms.get(socket.roomId||String(data?.roomId||'')); const p=room?.bilardo&&room.players.find(x=>x.id===socket.id); if(!p||room.status!=='playing')return socket.emit('bilardoRejected',{roomId:room?.id||data?.roomId,reason:'not_in_room'}); const r=bilardoEngine.shoot(room.bilardo,p.seat,Number(data.angle),Number(data.power)); if(!r.ok)return socket.emit('bilardoRejected',{roomId:room.id,reason:r.reason,gameState:bilardoState(room,p.seat)}); touchMoveTimer(room);
+    const frames=(r.shot&&r.shot.frames)||[]; const frameMs=(bilardoEngine.constants&&bilardoEngine.constants.frameMs)||17;
+    if(frames.length)io.to(room.id).emit('bilardoShotFrames',{roomId:room.id,frames,frameMs,meta:room.bilardo.balls.map(b=>({id:b.id,n:b.n,type:b.type}))});
+    const finalize=()=>{ if(room.bilardo.status==='finished'){room.status='finished';room.result=room.bilardo.result;} emitBilardoState(room);emitRoom(room);if(room.status==='finished')room.players.forEach(q=>emitToPlayer(q,'gameEnded',{roomId:room.id,reason:room.bilardo.result?.reason||'finished',winnerSeat:room.bilardo.winner,youWon:q.seat===room.bilardo.winner,gameState:bilardoState(room,q.seat)})); };
+    const animMs=Math.max(0,(frames.length-1)*frameMs);
+    if(animMs>0)setTimeout(finalize,animMs); else finalize();
+  });
 
   // ---------- CONNECT4 eylemleri (sunucu yetkili) ----------
   socket.on('connect4Move', data => { const room=rooms.get(socket.roomId||String(data?.roomId||'')); const p=room?.connect4&&room.players.find(x=>x.id===socket.id); if(!p||room.status!=='playing')return socket.emit('connect4Rejected',{roomId:room?.id||data?.roomId,reason:'not_in_room'}); const r=connect4Engine.play(room.connect4,p.seat,Number(data.col)); if(!r.ok)return socket.emit('connect4Rejected',{roomId:room.id,reason:r.reason,gameState:connect4State(room,p.seat)}); if(room.connect4.status==='finished'){room.status='finished';room.result=room.connect4.result;} touchMoveTimer(room);emitConnect4State(room);emitRoom(room);if(room.status==='finished')room.players.forEach(q=>emitToPlayer(q,'gameEnded',{roomId:room.id,reason:'finished',winnerSeat:room.connect4.winner,youWon:q.seat===room.connect4.winner,gameState:connect4State(room,q.seat)})); });
@@ -3065,6 +3101,12 @@ app.get('/api/rooms', (req, res) => {
 // görünürlük değişimi anında yansır.)
 app.get('/api/games-meta', (_req, res) => {
   res.json({ ok: true, games: ALL_GAMES.map(id => ({ id, visible: gameVisible(id) })) });
+});
+
+// GERÇEK oynanma sayaçları: ana sayfa "Popüler Oyunlar" sıralaması ve oyun
+// kartlarındaki "kaç kez oynandı" rakamı buradan okunur (bkz. play-counts.js).
+app.get('/api/game-play-counts', (_req, res) => {
+  res.json({ ok: true, counts: playCounts.all() });
 });
 
 // Yönetici (kurucu) yetki kontrolü — TÜM /api/admin/* uçlarının tek kapısı.

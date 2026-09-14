@@ -49,11 +49,37 @@ function once(socket, event, timeoutMs) {
   });
 }
 
-// 14 taş toplam 182 (14×13) + 1 fazlalık = 15 taşlık garantili 101 eli.
+// GERÇEKTEN GEÇERLİ 14 taş (dört küme: 13×4, 12×4, 11×3, 10×3 — aynı sayı
+// farklı renk) + 1 fazlalık = 15 taşlık garantili 101 eli. Toplam = 163.
+// (Düzeltme: eskiden 14 ADET AYNI taş kullanılıyordu — bu, meld/seri
+// GEÇERLİLİĞİ artık arandığı için hem geçersiz bir per/seri olurdu HEM DE
+// yanlışlıkla "7 çift" gibi okunurdu; bkz. okey-engine.js finish().)
+const GROUP_COLORS = ['t-red', 't-black', 't-blue', 't-yellow'];
 function craft101Hand(prefix) {
   const hand = [];
-  for (let i = 0; i < 14; i++) hand.push({ id: (prefix || 'big') + i, n: 13, c: 't-red', isFJ: false, isOkey: false });
+  let idc = 0;
+  [[13, 4], [12, 4], [11, 3], [10, 3]].forEach(([n, size]) => {
+    for (let i = 0; i < size; i++) {
+      hand.push({ id: (prefix || 'big') + '-' + (idc++), n, c: GROUP_COLORS[i], isFJ: false, isOkey: false });
+    }
+  });
   const extra = { id: (prefix || 'big') + '-extra', n: 1, c: 't-black', isFJ: false, isOkey: false };
+  hand.push(extra);
+  return { hand, extraId: extra.id };
+}
+
+// GEÇERLİ ama DÜŞÜK toplamlı 14 taş (dört küme: 1×4, 2×4, 3×3, 4×3) + 1
+// fazlalık — "geçerli per/seri ama 101'in altı" durumunu (not_101) test
+// etmek için. Toplam = 33.
+function craftLow101Hand(prefix) {
+  const hand = [];
+  let idc = 0;
+  [[1, 4], [2, 4], [3, 3], [4, 3]].forEach(([n, size]) => {
+    for (let i = 0; i < size; i++) {
+      hand.push({ id: (prefix || 'low') + '-' + (idc++), n, c: GROUP_COLORS[i], isFJ: false, isOkey: false });
+    }
+  });
+  const extra = { id: (prefix || 'low') + '-extra', n: 5, c: 't-yellow', isFJ: false, isOkey: false };
   hand.push(extra);
   return { hand, extraId: extra.id };
 }
@@ -200,17 +226,15 @@ async function main() {
     const seatA = 0;
     room.okey.roundState.turn = seatA;
     room.okey.roundState.phase = 'discard';
-    const low = [];
-    for (let i = 0; i < 14; i++) low.push({ id: 'low' + i, n: 4, c: 't-blue', isFJ: false, isOkey: false });
-    low.push({ id: 'low-x', n: 4, c: 't-blue', isFJ: false, isOkey: false });
-    room.okey.roundState.hands[seatA] = low; // toplam 60 → 14 taş asla 101 yapamaz
+    const low = craftLow101Hand('low'); // GEÇERLİ perler ama toplam 33 < 101
+    room.okey.roundState.hands[seatA] = low.hand;
 
     const rej = once(socks[0], 'okeyRejected');
-    socks[0].emit('okeyFinish', { tileId: 'low-x' });
+    socks[0].emit('okeyFinish', { tileId: low.extraId });
     const rejP = await rej;
-    assert.strictEqual(rejP.reason, 'not_101', '101 altı el reddedilir');
+    assert.strictEqual(rejP.reason, 'not_101', '101 altı el (geçerli per/seri ama toplam düşük) reddedilir');
     assert.strictEqual(room.okey.roundState.finished, false, 'el devam eder');
-    console.log('  ✓ D) not_101 reddi (toplam 60 < 101)');
+    console.log('  ✓ D) not_101 reddi (geçerli perler ama toplam 33 < 101)');
     for (const s of socks) s.disconnect();
     await sleep(300);
   }

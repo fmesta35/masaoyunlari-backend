@@ -621,15 +621,17 @@
     Object.values(map).forEach(c => { if (c % 2) singles++; });
     return okeys >= singles;
   }
-  function checkPer14(tiles, ro) {
+  // noWrap=true: 13→1 dönüşümlü seri (ör. 12-13-1) GEÇERSİZ — 101 Okey'de
+  // sunucuyla (okey-engine.js) AYNI kural, bkz. oradaki gerekçe.
+  function checkPer14(tiles, ro, noWrap) {
     if (tiles.length !== 14) return false;
     let okeys = 0;
     const reg = [];
     tiles.forEach(t => { if (isRealOkeyT(t, ro)) okeys++; else reg.push(t); });
     reg.sort((a, b) => a.c.localeCompare(b.c) || a.n - b.n);
-    return solveR(reg, okeys);
+    return solveR(reg, okeys, !!noWrap);
   }
-  function solveR(regular, okeys) {
+  function solveR(regular, okeys, noWrap) {
     if (regular.length === 0) return true;
     if (regular.length + okeys < 3) return false;
     const first = regular[0];
@@ -647,7 +649,7 @@
             const i = rem.findIndex(r => r.id === ct.id);
             if (i !== -1) rem.splice(i, 1); else valid = false;
           });
-          if (valid && solveR(rem, okeys - need)) return true;
+          if (valid && solveR(rem, okeys - need, noWrap)) return true;
         }
       }
     }
@@ -659,24 +661,29 @@
           let left = need;
           let possible = true;
           for (let step = 0; step < len; step++) {
-            let target = first.n + (step - anchor);
-            target = ((target - 1) % 13 + 13) % 13 + 1;
+            const raw = first.n + (step - anchor);
+            if (noWrap && (raw < 1 || raw > 13)) { possible = false; break; }
+            const target = ((raw - 1) % 13 + 13) % 13 + 1;
             const i = rem.findIndex(r => r.c === first.c && r.n === target);
             if (i !== -1) rem.splice(i, 1);
             else if (left > 0) left--;
             else { possible = false; break; }
           }
-          if (possible && left === 0 && solveR(rem, okeys - need)) return true;
+          if (possible && left === 0 && solveR(rem, okeys - need, noWrap)) return true;
         }
       }
     }
     return false;
   }
 
-  // Okey 101 (sunucuyla AYNI kural): kalan 14 taşın toplamı hedefe (101)
-  // ulaşmalı. Taş puanı = üzerindeki sayı; sahte okey göstergenin sayısını
-  // taşıdığı için her ikisinde de t.n geçerlidir.
-  function check101Local(tiles, target) {
+  // Okey 101 (sunucuyla AYNI kural, bkz. okey-engine.js finish()): kalan 14
+  // taş GERÇEKTEN geçerli perler/seriler olmalı VE toplamları hedefe (101)
+  // ulaşmalı — ya da 7 çift ile özel (puan şartsız) bitiş. Taş puanı =
+  // üzerindeki sayı; sahte okey göstergenin sayısını taşıdığı için her
+  // ikisinde de t.n geçerlidir.
+  function check101Local(tiles, target, ro) {
+    if (checkPairs14(tiles, ro)) return true;
+    if (!checkPer14(tiles, ro, true)) return false;
     if (!Array.isArray(tiles) || tiles.length !== 14) return false;
     let sum = 0;
     tiles.forEach(t => { sum += Number(t && t.n) || 0; });
@@ -695,10 +702,10 @@
         toast(`🔍 Eliniz ${target101} puan hedefiyle kontrol ediliyor...`, 'info');
         let canWin = false;
         for (let i = 0; i < tiles.length; i++) {
-          if (check101Local(tiles.filter((_, idx) => idx !== i), target101)) { canWin = true; break; }
+          if (check101Local(tiles.filter((_, idx) => idx !== i), target101, gs.realOkey)) { canWin = true; break; }
         }
-        if (canWin) toast(`🎉 Eliniz ${target101} puana ulaştı! 15. taşı ORTAYA BİTİR kutusuna sürükleyin.`, 'success');
-        else toast(`⚠️ Eliniz henüz bitmeye uygun değil — kalan 14 taşın toplamı ${target101} puana ulaşmalı.`, 'warning');
+        if (canWin) toast(`🎉 Eliniz bitmeye uygun (geçerli per/seri + ${target101} puan, ya da 7 çift)! 15. taşı ORTAYA BİTİR kutusuna sürükleyin.`, 'success');
+        else toast(`⚠️ Eliniz henüz bitmeye uygun değil — 14 taş GEÇERLİ per/seri olmalı ve toplamları ${target101} puana ulaşmalı (ya da 7 çift).`, 'warning');
       } else {
         let msg = `📊 Elinizde ${tiles.length} taş var. (Hedef: ${target101}) `;
         if (!myTurnNow()) msg += '⏳ Sıra sizde değil.';
@@ -926,6 +933,16 @@
       if (payload.isSpectator) { isSpectator = true; window.__gvIsSpectator = true; }
       if (typeof payload.seat === 'number') mySeat = payload.seat;
       apply(payload.gameState, 'gameStateUpdated');
+    });
+
+    // OKEY 101 CEZASI: gerçek okey taşı açık atıldığında herkese bildir
+    // (bkz. server.js okeyAct() → okey-engine.js discard() res.penalty).
+    socket.on('okeyPenalty', payload => {
+      if (!payload || String(payload.roomId) !== String(roomId)) return;
+      if (payload.reason === 'real_okey_discarded') {
+        const kim = (typeof mySeat === 'number' && payload.seat === mySeat) ? 'Sen' : (payload.name || 'Rakip');
+        toast(`⚠️ ${kim} gerçek okeyi açık attı! -${payload.amount} puan cezası.`, 'error');
+      }
     });
 
     socket.on('okeyRoundEnded', payload => {

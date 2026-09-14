@@ -326,13 +326,31 @@
   // ---------- Durum taraması ----------
   function tick() {
     const member = isMember();
-    // Sohbet SADECE üyeler içindir: misafir ise baloncuk+panel tamamen gizlenir.
+    // GEZİNME BALONCUĞU + genel sohbet paneli üyelere özeldir. AMA masa
+    // içindeki gömülü sohbet kutusu (#gameChat, index.html'de ayrı bir
+    // eleman) ziyaretçiler için de akmalı — aksi halde soket hiç
+    // bağlanmadığından ne geçmiş ne canlı mesaj hiç ulaşmaz ve "ziyaretçiler
+    // birbirinin mesajını göremiyor" hatası oluşur. Bu yüzden misafirken de
+    // masadaysak soketi kurup dinleyiciyi bağlıyoruz; yalnız baloncuk/panel
+    // gizli kalır.
     const fabEl = document.getElementById('gvChatFab');
     const panelEl = document.getElementById('gvChatPanel');
     if (!member) {
       if (fabEl) fabEl.style.display = 'none';
       if (panelEl) { panelEl.classList.remove('open'); panelEl.style.display = 'none'; }
       open = false;
+      const wantRoom = isRoomPage() && !!roomIdNow();
+      if (wantRoom) {
+        const nextRoom = roomIdNow();
+        if (mode !== 'room' || String(nextRoom) !== String(curRoomId)) {
+          mode = 'room'; curRoomId = nextRoom; lastHistKey = '';
+        }
+        const sock = ensureSocket();
+        if (sock && sock !== attachedSock) { attach(sock); attachedSock = sock; }
+        reloadHistory(false);
+      } else if (mode !== 'global') {
+        mode = 'global'; curRoomId = null; lastHistKey = '';
+      }
       return;
     }
     els();

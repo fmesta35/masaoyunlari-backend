@@ -42,7 +42,7 @@ function shuffle(arr, rng) {
 }
 
 function isRealOkeyTile(t, realOkey) {
-  if (!t) return false;
+  if (!t || !realOkey) return false;
   if (t.isFJ) return false; // sahte okey gösterge yerine geçer, okey DEĞİLDİR
   return t.c === realOkey.c && t.n === realOkey.n;
 }
@@ -70,18 +70,23 @@ function checkPairs(tiles, realOkey) {
   return okeyCount >= singles;
 }
 
-function checkPer(tiles, realOkey) {
+// noWrap=true: 13→1 dönüşümlü seriler (ör. 12-13-1) GEÇERSİZ sayılır.
+// Klasik Okey'de bu dönüşüm geçerlidir (varsayılan, noWrap=false); 101
+// Okey'de kullanıcının ilettiği referans görsellere göre GEÇERSİZDİR
+// (bkz. finish()'teki okey101 dalı) — bu ayrım o görsellerde açıkça
+// belirtilmişti.
+function checkPer(tiles, realOkey, noWrap) {
   if (tiles.length !== 14) return false;
   let okeys = 0;
   const regular = [];
   tiles.forEach(t => { (isRealOkeyTile(t, realOkey) ? okeys++ : regular.push(t)); });
   regular.sort((a, b) => a.c.localeCompare(b.c) || a.n - b.n);
-  return solveRecursive(regular, okeys);
+  return solveRecursive(regular, okeys, !!noWrap);
 }
 
 // Tamamını aynı sayı-farklı renk grupları veya aynı renk-seri gruplarına
 // ayırabilir mi? (gerçek okeyler joker gibi kullanılır)
-function solveRecursive(regular, okeys) {
+function solveRecursive(regular, okeys, noWrap) {
   if (regular.length === 0) return true;
   if (regular.length + okeys < 3) return false;
 
@@ -104,7 +109,7 @@ function solveRecursive(regular, okeys) {
           const idx = rem.findIndex(r => r.id === ct.id);
           if (idx !== -1) rem.splice(idx, 1); else valid = false;
         });
-        if (valid && solveRecursive(rem, okeys - need)) return true;
+        if (valid && solveRecursive(rem, okeys - need, noWrap)) return true;
       }
     }
   }
@@ -121,15 +126,19 @@ function solveRecursive(regular, okeys) {
         let okeysLeft = need;
         let possible = true;
         for (let step = 0; step < len; step++) {
-          let targetNum = first.n + (step - anchor);
-          targetNum = ((targetNum - 1) % 13 + 13) % 13 + 1; // 1..13 halkası
+          const rawNum = first.n + (step - anchor);
+          // noWrap (101 Okey): 13'ü geçip 1'e ya da 1'in altına inip 13'e
+          // sarma (ör. 12-13-1) YASAK — ham sayı 1..13 aralığından taşarsa
+          // bu kombinasyon tamamen geçersizdir.
+          if (noWrap && (rawNum < 1 || rawNum > 13)) { possible = false; break; }
+          const targetNum = ((rawNum - 1) % 13 + 13) % 13 + 1; // 1..13 halkası
           const idx = rem.findIndex(r => r.c === first.c && r.n === targetNum);
           if (idx !== -1) rem.splice(idx, 1);
           else if (okeysLeft > 0) okeysLeft--;
           else { possible = false; break; }
         }
         if (possible && okeysLeft === 0) {
-          if (solveRecursive(rem, okeys - need)) return true;
+          if (solveRecursive(rem, okeys - need, noWrap)) return true;
         }
       }
     }
@@ -265,9 +274,19 @@ function discard(state, seat, tileId) {
   if (idx === -1) return { ok: false, reason: 'tile_not_found' };
   const tile = hand.splice(idx, 1)[0];
   state.discardPiles[seat].push(tile);
+  // OKEY 101 CEZASI: gerçek okey taşını (bitiş dışında, sıradan bir atış
+  // olarak) AÇIK atmak 101 puan cezasıdır — referans kurallara göre bu taş
+  // sıradaki (sağdaki) oyuncunun eline geçebileceği için ağır cezalandırılır.
+  // Not: bitiren oyuncunun SON taşı finish() üzerinden ayrı işlenir, bu
+  // ceza yalnız normal atışlara uygulanır.
+  let penalty = null;
+  if (state.variant === 'okey101' && isRealOkeyTile(tile, state.realOkey)) {
+    state.scores[seat] = (state.scores[seat] || 0) - 101;
+    penalty = { seat, amount: 101, reason: 'real_okey_discarded' };
+  }
   state.turn = nextSeatOf(state, seat);
   state.phase = 'draw';
-  return { ok: true, tile, next: state.turn };
+  return { ok: true, tile, next: state.turn, penalty };
 }
 
 // Bitiş: tileId ortaya atılır; kalan 14 geçerli olmalı.
@@ -281,8 +300,27 @@ function finish(state, seat, tileId) {
   const tile = hand[idx];
   const remaining = hand.filter((_, i) => i !== idx);
 
-  // OKEY 101 varyantı: kalan 14 taşın toplamı hedefe (101) ulaşmalı.
+  // OKEY 101 varyantı (referans kurallara göre düzeltildi — bkz. RULES
+  // metni): kalan 14 taş GERÇEKTEN geçerli perler/seriler (ya da özel bir
+  // "çift" eli) OLMALI; salt rakamsal toplam ARTIK YETERLİ DEĞİL (eskiden
+  // rastgele 14 taşın toplamı 101'i geçtiğinde de "kazanç" sayılıyordu —
+  // bu, kullanıcının ilettiği referans görsellerdeki "perde/seri toplamı"
+  // ifadesiyle uyuşmuyordu). Ayrıca 101'de 13→1 dönüşümlü seriler (ör.
+  // 12-13-1) GEÇERSİZDİR (checkPer'e noWrap=true veriliyor).
   if (state.variant === 'okey101') {
+    const isPairs101 = checkPairs(remaining, state.realOkey);
+    const isValidMeld = checkPer(remaining, state.realOkey, true);
+    if (isPairs101) {
+      // Çift bitişi: özel/bonus bitiştir, puan hedefi aranmaz.
+      const gained = remainingPointsOf(state, seat);
+      hand.splice(idx, 1);
+      state.discardPiles[seat].push(tile);
+      state.scores[seat] = (state.scores[seat] || 0) + gained;
+      state.finished = true;
+      state.result = { winner: seat, winType: 'pairs', gained };
+      return { ok: true, winType: 'pairs', gained, tile };
+    }
+    if (!isValidMeld) return { ok: false, reason: 'not_a_win_hand' };
     if (!check101(remaining, state.target)) return { ok: false, reason: 'not_101' };
     const gained = remainingPointsOf(state, seat);
     hand.splice(idx, 1);
@@ -311,7 +349,12 @@ function finish(state, seat, tileId) {
 
 // Bir elin 14 taşıyla bitip bitmeyeceğini dışa aç (istemci "Kontrol" için).
 function canFinishWith14(tiles, realOkey, variant, target) {
-  if (variant === 'okey101') return check101(tiles, target);
+  if (variant === 'okey101') {
+    // 101'de de perler/seriler GERÇEKTEN geçerli olmalı (bkz. finish()
+    // içindeki gerekçe) — yalnız çift eli puan hedefinden muaftır.
+    if (checkPairs(tiles, realOkey)) return true;
+    return checkPer(tiles, realOkey, true) && check101(tiles, target);
+  }
   return checkPairs(tiles, realOkey) || checkPer(tiles, realOkey);
 }
 

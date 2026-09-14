@@ -41,7 +41,8 @@
     tile_not_found: '🀄 O taş elinizde görünmüyor — masayı yenileyin.',
     not_a_win_hand: '🀄 Bu el bitmiş sayılmıyor — perler ve seriler tamamlanmalı.',
     roll_first:     '🎲 Önce zar atmalısınız.',
-    round_over:     '⏹️ Bu el kapandı, yeni el bekleniyor.'
+    round_over:     '⏹️ Bu el kapandı, yeni el bekleniyor.',
+    real_okey_discarded: '⚠️ Gerçek okeyi açık attınız! 101 puan ceza aldınız.'
   };
 
   // ---- Oyun bitiş sebepleri ----

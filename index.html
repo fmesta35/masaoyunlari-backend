@@ -43,7 +43,12 @@ button,input,select{font-family:var(--font)}
 .online-dot{width:8px;height:8px;background:var(--success);border-radius:50%;display:inline-block}
 .offline-dot{width:8px;height:8px;background:var(--text3);border-radius:50%;display:inline-block}
 .layout{display:flex;height:calc(100vh - 56px)}
-.sidebar{width:240px;background:var(--bg2);border-right:1px solid var(--border);padding:10px;overflow-y:auto;flex-shrink:0;transition:transform .3s}
+/* Soldaki "Oyunlar" menüsü (arama + oyun listesi) kaldırıldı — kullanıcı
+   isteği: zaten üst menüde "Oyunlar" var, arama oraya taşındı (bkz.
+   #pg-games içindeki .sb-search). Bu <aside> artık YALNIZ mobilde
+   hamburger'la açılan site gezinme çekmecesi; masaüstünde hiç görünmez,
+   içerik alanı (.content) tüm genişliği kullanır. */
+.sidebar{display:none;width:240px;background:var(--bg2);border-right:1px solid var(--border);padding:10px;overflow-y:auto;flex-shrink:0;transition:transform .3s}
 .content{flex:1;overflow-y:auto;padding:15px}
 .right-panel{width:280px;background:var(--bg2);border-left:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0}
 .sb-title{font-size:.7em;text-transform:uppercase;letter-spacing:1.5px;color:var(--text3);padding:8px 10px 4px;font-weight:600;display:flex;justify-content:space-between;align-items:center}
@@ -67,13 +72,15 @@ button,input,select{font-family:var(--font)}
 .games-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:14px}
 .game-card{background:var(--card);border:1px solid var(--border);border-radius:var(--r2);overflow:hidden;cursor:pointer;transition:.3s;position:relative}
 .game-card:hover{border-color:var(--primary);transform:translateY(-4px);box-shadow:0 12px 40px rgba(108,92,231,.25)}
-.game-thumb{height:120px;display:flex;align-items:center;justify-content:center;font-size:3.5em}
+.game-thumb{height:120px;display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden;
+  background-image:repeating-linear-gradient(135deg,rgba(255,255,255,.07) 0 2px,transparent 2px 13px),radial-gradient(ellipse at 30% 20%,rgba(255,255,255,.20),transparent 60%)}
+.game-thumb .gt-badge{position:relative;z-index:1;width:60px;height:60px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+  font-size:1.9em;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.35);box-shadow:0 6px 18px rgba(0,0,0,.35),inset 0 1px 0 rgba(255,255,255,.25);
+  filter:drop-shadow(0 2px 3px rgba(0,0,0,.4))}
 .game-info{padding:12px}
 .game-info h3{font-size:.95em;margin-bottom:3px}
 .game-info p{font-size:.78em;color:var(--text2)}
-.game-players-count{margin-top:6px;font-size:.78em;color:var(--accent)}
-.game-tag{position:absolute;top:8px;right:8px;padding:2px 9px;border-radius:8px;font-size:.68em;font-weight:700;color:#fff}
-.game-tag.hot{background:var(--danger)}.game-tag.new{background:var(--success);color:#000}.game-tag.pop{background:var(--primary)}
+.game-players-count{margin-top:6px;font-size:.78em;color:var(--accent);display:flex;align-items:center;gap:4px}
 .btn{padding:9px 18px;border:none;border-radius:var(--r);cursor:pointer;font-weight:600;font-size:.88em;display:inline-flex;align-items:center;gap:6px}
 .btn-p{background:var(--gradient);color:#fff}
 .btn-a{background:var(--gradient2);color:#000}
@@ -93,6 +100,9 @@ button,input,select{font-family:var(--font)}
 .room-status{padding:2px 9px;border-radius:8px;font-size:.72em;font-weight:600}
 .gr-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px}
 .gr-actions{display:flex;gap:5px;flex-wrap:wrap}
+#pg-room:fullscreen,#pg-room:-webkit-full-screen{background:var(--bg,#0f1115);padding:14px 16px;overflow:auto;box-sizing:border-box}
+#pg-room:fullscreen .game-layout,#pg-room:-webkit-full-screen .game-layout{height:calc(100vh - 90px)}
+#gvFullscreenBtn.is-full{background:var(--accent,#00cec9);color:#04201f;border-color:var(--accent,#00cec9)}
 .timers{display:flex;gap:10px;margin-bottom:14px}
 .timer{flex:1;text-align:center;padding:10px;background:var(--card);border:2px solid var(--border);border-radius:var(--r);transition:.3s}
 .timer.active{border-color:var(--accent);background:rgba(0,206,201,.12);box-shadow:0 0 20px rgba(0,206,201,.3);transform:scale(1.02)}
@@ -620,7 +630,7 @@ button,input,select{font-family:var(--font)}
   .game-side{width:100%}
 }
 @media(max-width:800px){
-  .sidebar{position:fixed;left:0;top:56px;bottom:0;z-index:999;transform:translateX(-100%);width:260px}.sidebar.open{transform:translateX(0)}
+  .sidebar{display:block;position:fixed;left:0;top:56px;bottom:0;z-index:999;transform:translateX(-100%);width:260px}.sidebar.open{transform:translateX(0)}
   .hamburger{display:block}.nav{display:none}
   .games-grid{grid-template-columns:repeat(auto-fill,minmax(140px,1fr))}
   .game-layout{flex-direction:column}.game-side{width:100%}.timers{flex-direction:column}
@@ -724,28 +734,29 @@ html{scrollbar-gutter:stable}
 <!-- External Stylesheets -->
 <link rel="stylesheet" href="css/style.css">
 <style id="gv-extra-style">
-/* ===== Sol menü aç/kapa ===== */
-#sbCollapseBtn{position:absolute;top:10px;z-index:1001;width:26px;height:26px;border-radius:50%;border:1px solid var(--border);background:var(--bg2);color:var(--text);cursor:pointer;font-size:.72em;display:flex;align-items:center;justify-content:center;box-shadow:var(--shadow)}
-#sbCollapseBtn:hover{background:var(--bg3)}
-#sbReopen{position:fixed;left:10px;top:66px;z-index:998;width:36px;height:36px;border-radius:10px;border:1px solid var(--border);background:var(--bg2);color:var(--text);cursor:pointer;display:none;align-items:center;justify-content:center;font-size:1.05em;box-shadow:var(--shadow)}
-#sbReopen:hover{background:var(--bg3)}
-/* Gizleme davranışı YALNIZ masaüstünde: mobilde ana CSS'in sabit çekmece
-   (drawer) kuralları geçerli kalır — .sidebar'a bu kapsam dışında
-   position:relative vermek çekmeceyi bozar, dikkat! */
-@media(min-width:801px){
-  .sidebar{position:relative}
-  #sbCollapseBtn{right:-13px}
-  body.sb-closed .sidebar{display:none}
-  body.sb-closed #sbReopen{display:flex}
-}
+/* 101 Okey Öğrenme Modu — küçük, statik örnek taşlar (.ok-tile'ın basit
+   flex sürümü; sürükleme/slot mekaniği gerekmez, yalnız görsel anlatım). */
+.gv-tut-tiles{display:flex;gap:4px;flex-wrap:wrap;margin:10px 0}
+.gv-tut-tile{width:34px;height:48px;border-radius:5px;border:1px solid #b9a97f;
+  background:linear-gradient(180deg,#fffefa 0%,#f7f1e0 52%,#e7ddc1 100%);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.95),0 2px 4px rgba(0,0,0,.35);position:relative}
+.gv-tut-tile b{font-size:1.15em;font-weight:900;line-height:1}
+.gv-tut-tile span{width:5px;height:5px;border-radius:50%;margin-top:3px}
+.gv-tut-tile.t-red b,.gv-tut-tile.t-red span{color:#a5000f;background:#a5000f}
+.gv-tut-tile.t-blue b,.gv-tut-tile.t-blue span{color:#123a8a;background:#123a8a}
+.gv-tut-tile.t-black b,.gv-tut-tile.t-black span{color:#15171a;background:#15171a}
+.gv-tut-tile.t-yellow b,.gv-tut-tile.t-yellow span{color:#d9820a;background:#d9820a}
+.gv-tut-tile.okey{border:2px solid var(--success);box-shadow:0 0 8px var(--success)}
+.gv-tut-tile.bad{opacity:.55}
+.gv-tut-tile.bad::after{content:'✕';position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  font-size:1.6em;font-weight:900;color:var(--danger)}
+.gv-tut-quiz-opt{margin-right:6px;margin-top:8px}
+.gv-tut-result{margin-top:10px;font-weight:700}
 /* Arkadaşlar penceresi satır görünümü (social.js paintFriends) */
 #gvFriendsModalList .friend{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:10px}
 /* ===== Mobil / dar ekran optimizasyonu ===== */
 @media(max-width:800px){
-  body.sb-closed .sidebar{display:block}     /* masaüstü gizleme tercihi mobilde çekmeceyi bozmasın */
-  body.sb-closed #sbReopen{display:none}
-  #sbReopen{display:none}                    /* mobilde hamburger kullanılır */
-  #sbCollapseBtn{right:8px}
   .header{padding:0 8px;gap:6px;flex-wrap:nowrap;height:56px;overflow:visible;justify-content:flex-start}
   /* Marka HER ZAMAN okunaklı ve SOLDA — küçük ekranda da gizlenmez */
   .header .logo{font-size:1.02em;gap:6px;flex:none;min-width:0;white-space:nowrap}
@@ -986,6 +997,7 @@ body{padding-bottom:var(--gv-safe-b)}
   :root{--gv-chrome:200px}
   #pg-room .gr-header{gap:6px}
   #pg-room #grTitle{font-size:1.02em}
+  #pg-room .gr-actions .btn{padding:5px 7px;font-size:.72em}
   .timers{gap:6px}
   #pg-room .timer{padding:5px 6px}
   #pg-room .timer-time{font-size:1.02em}
@@ -1071,8 +1083,6 @@ body.gv-app input,body.gv-app textarea,body.gv-app .chat-msgs,body.gv-app .moves
     border:1px solid var(--border);border-radius:12px;background:var(--card);
     color:var(--text);font-size:1em;font-weight:600;cursor:pointer}
   .sb-nav-item:active{background:var(--card2)}
-  .sidebar .sb-title{margin-top:10px}
-  #sbCollapseBtn{display:none}
   /* Görünüm (karanlık/aydınlık) düğmesi mobilde de üst barda kalır —
      eskiden 560 px altında tamamen gizleniyordu. */
   #themeBtn{display:flex!important}
@@ -1164,34 +1174,31 @@ body.gv-app input,body.gv-app textarea,body.gv-app .chat-msgs,body.gv-app .moves
     <div id="headerAuthContainer" style="display: flex; gap: 8px;"></div>
   </div>
 </header>
-<button id="sbReopen" title="Oyunlar menüsünü aç" onclick="GV.collapseSidebar(false)">🎮</button>
 
 <!-- ANA SAYFA DÜZENİ -->
 <div class="layout">
-  <!-- SOL MENÜ -->
+  <!-- MOBİL MENÜ (yalnız hamburger'la açılan çekmece): kullanıcı isteği
+       üzerine soldaki "Oyunlar" menüsü (arama + oyun listesi) hem web'de
+       hem mobilde KALDIRILDI — zaten üst menüde "🎮 Oyunlar" var, arama
+       artık o sayfanın içinde (bkz. #pg-games). Bu <aside> masaüstünde
+       hiç görünmez (bkz. CSS); yalnız mobilde hamburger ile açılan site
+       gezinme çekmecesidir — telefonda üst bardaki gezinme düğmeleri
+       gizlendiği için İstatistikler/Sıralama/Turnuvalar/Rütbeler'e
+       ulaşmanın tek yolu budur. -->
   <aside class="sidebar" id="sidebar">
-    <button id="sbCollapseBtn" title="Menüyü gizle" onclick="GV.collapseSidebar(true)">◀</button>
-    <!-- MOBİL MENÜ: telefonda hamburger bu menüyü TAM EKRAN açar. Üst
-         bardaki gezinme düğmeleri dar ekranda gizlendiği için
-         İstatistikler / Sıralama / Turnuvalar / Rütbeler'e ulaşmanın
-         başka yolu yoktu; görünüm (tema) düğmesi de dar ekranda
-         tamamen kayboluyordu. Hepsi artık burada. -->
     <div class="sb-nav">
       <div class="sb-nav-head">
         <span>☰ Menü</span>
         <button class="sb-nav-x" type="button" onclick="GV.closeSidebar()" aria-label="Menüyü kapat">✕</button>
       </div>
-      <button class="sb-nav-item" onclick="GV.page('home')">🏠 Ana Sayfa</button>
-      <button class="sb-nav-item" onclick="GV.page('games')">🎮 Oyunlar</button>
-      <button class="sb-nav-item" onclick="GV.page('stats')">📊 İstatistikler</button>
-      <button class="sb-nav-item" onclick="GV.page('lb')">🏆 Sıralama</button>
-      <button class="sb-nav-item" onclick="GV.page('tourn')">⚔️ Turnuvalar</button>
-      <button class="sb-nav-item" onclick="GV.page('ranks')">🏅 Rütbeler</button>
+      <button class="sb-nav-item" data-p="home" onclick="GV.page('home')">🏠 Ana Sayfa</button>
+      <button class="sb-nav-item" data-p="games" onclick="GV.page('games')">🎮 Oyunlar</button>
+      <button class="sb-nav-item" data-p="stats" onclick="GV.page('stats')">📊 İstatistikler</button>
+      <button class="sb-nav-item" data-p="lb" onclick="GV.page('lb')">🏆 Sıralama</button>
+      <button class="sb-nav-item" data-p="tourn" onclick="GV.page('tourn')">⚔️ Turnuvalar</button>
+      <button class="sb-nav-item" data-p="ranks" onclick="GV.page('ranks')">🏅 Rütbeler</button>
       <button class="sb-nav-item" id="sbThemeBtn" onclick="GV.toggleTheme()">🌓 Görünümü Değiştir</button>
     </div>
-    <div class="sb-search"><span>🔍</span><input placeholder="Oyun ara..." oninput="GV.searchGames(this.value)"></div>
-    <div class="sb-title">🎮 Oyunlar</div>
-    <div id="sbGames"></div>
     <!-- Sol alt arkadaşlar bölümü kaldırıldı: artık üst bardaki 👥 butonu
          ortadaki Arkadaşlarım penceresini açıyor (js/social.js). -->
   </aside>
@@ -1247,6 +1254,7 @@ body.gv-app input,body.gv-app textarea,body.gv-app .chat-msgs,body.gv-app .moves
     <!-- TÜM OYUNLAR -->
     <div class="page" id="pg-games">
       <h1 style="margin-bottom:16px">🎮 Tüm Oyunlar</h1>
+      <div class="sb-search" style="max-width:340px;margin-bottom:16px"><span>🔍</span><input placeholder="Oyun ara..." oninput="GV.searchGames(this.value)"></div>
       <div class="games-grid" id="allGames"></div>
     </div>
 
@@ -1267,6 +1275,8 @@ body.gv-app input,body.gv-app textarea,body.gv-app .chat-msgs,body.gv-app .moves
       <div class="gr-header">
         <h2 id="grTitle">♟️ Oda #1234</h2>
         <div class="gr-actions">
+          <button class="btn btn-o btn-sm" id="gvFullscreenBtn" onclick="GV.toggleFullscreen()" title="Tam ekran">⛶ Tam Ekran</button>
+          <button class="btn btn-o btn-sm" id="gv101TutorBtn" onclick="GV.open101Tutorial()" title="101 Okey öğrenme modu" style="display:none">🦉 101 Okey Dersi</button>
           <button class="btn btn-o btn-sm" onclick="GV.showRules()">📖 Kurallar</button>
           <button class="btn btn-d btn-sm" onclick="GV.leaveRoom()">🚪 Ayrıl</button>
         </div>
@@ -1547,6 +1557,26 @@ body.gv-app input,body.gv-app textarea,body.gv-app .chat-msgs,body.gv-app .moves
 </div>
 
 <div class="modal-bg" id="rulesModal"><div class="modal"><button class="modal-x" onclick="GV.hideModal('rulesModal')">✕</button><h2>📖 Kurallar</h2><div id="rulesBody" style="line-height:1.8;font-size:.9em"></div></div></div>
+<!-- 101 OKEY ÖĞRENME MODU (madde 7) — ORİJİNAL karakter "Bilge Baykuş" ile
+     adım adım kural anlatımı. Hiçbir üçüncü taraf uygulamadan görsel/karakter
+     kopyalanmadı; taşlar sitenin KENDİ .ok-tile stiliyle çizilir. -->
+<div class="modal-bg" id="okeyTutorModal">
+  <div class="modal" style="max-width:520px">
+    <button class="modal-x" onclick="GV.hideModal('okeyTutorModal')">✕</button>
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:6px">
+      <div style="font-size:2.4em;line-height:1">🦉</div>
+      <div>
+        <h2 style="margin-bottom:2px">Bilge Baykuş'un 101 Okey Dersi</h2>
+        <div style="font-size:.75em;color:var(--text2)" id="gvTutStep">Adım 1/7</div>
+      </div>
+    </div>
+    <div id="gvTutBody" style="line-height:1.7;font-size:.92em;min-height:160px"></div>
+    <div style="display:flex;justify-content:space-between;gap:8px;margin-top:16px">
+      <button class="btn btn-o btn-sm" id="gvTutPrev" onclick="GV.tutorNav(-1)">◀ Geri</button>
+      <button class="btn btn-p btn-sm" id="gvTutNext" onclick="GV.tutorNav(1)">İleri ▶</button>
+    </div>
+  </div>
+</div>
 <div class="modal-bg" id="matchModal"><div class="modal center"><button class="modal-x" onclick="GV.cancelMatch()">✕</button><h2>⚡ Eşleşme</h2><div class="spinner" style="width:50px;height:50px;border-width:4px;margin:16px auto"></div><p id="matchTimer">00:00</p><button class="btn btn-d mt" onclick="GV.cancelMatch()">İptal</button></div></div>
 <div class="modal-bg" id="timeoutModal"><div class="modal center"><h2 id="toTitle">⏰ Diskalifiye!</h2><p id="toDesc" style="margin:16px 0; color:var(--text2);">Süreniz doldu.</p><button class="btn btn-p mt" onclick="GV.exitToLobby()">🏠 Lobiye Dön</button></div></div>
 <div class="modal-bg" id="addFriendModal"><div class="modal center" style="max-width:400px; width:90%;"><h2>👥 Arkadaş Ekle</h2><div class="fg" style="text-align:left; margin-top:15px;"><label>Kullanıcı Adı:</label><input type="text" id="afUsername" placeholder="Örn: Kullanıcı#2"></div><div style="display:flex; gap:10px; margin-top:20px;"><button class="btn btn-s flex:1" onclick="GV.hideModal('addFriendModal')">İptal</button><button class="btn btn-p flex:1" onclick="GV.submitAddFriend()">Ekle</button></div></div></div>
@@ -1568,19 +1598,25 @@ const ONLINE_GAMES = ['chess', 'tavla', 'okey', 'okey101', 'dama', 'turkdamasi',
 // yalnızca henüz online motoru olmayan (pişti, batak) oyunlarda devrede.
 const BOT_FALLBACK_GAMES = ['pisti', 'batak'];
 
+/* Her oyunun kendi "kapak" teması: gerçekçi fotoğraf yerine (bu ortamda
+   görsel üretim aracı yok) oyunun malzemesini (ahşap tavla, keçe bilardo
+   masası, okey taşı, kart destesi vb.) çağrıştıran, kendi özgün gradyan +
+   doku stilimiz. Kullanıcı isteği: "hot/popüler/yeni" rozetleri ve
+   uydurma "oyuncu sayısı" kaldırılıp yerine GERÇEK oynanma sayısı ve
+   daha gösterişli kapak görselleri konsun. */
 const GAMES={
-  chess:{name:'Satranç',icon:'♟️',cat:'strategy',p:1247},
-  tavla:{name:'Tavla',icon:'🎲',cat:'board',p:893},
-  dama:{name:'İngiliz Daması',icon:'⬛',cat:'strategy',p:654},
-  turkdamasi:{name:'Türk Daması',icon:'🔲',cat:'strategy',p:892},
-  okey:{name:'Okey',icon:'🀄',cat:'board',p:2134},
-  okey101:{name:'101 Okey',icon:'🀄',cat:'board',p:1503},
-  pisti:{name:'Pişti',icon:'🃏',cat:'card',p:430},
-  batak:{name:'Batak',icon:'🃏',cat:'card',p:782},
-  reversi:{name:'Reversi',icon:'⚫',cat:'strategy',p:321},
-  gomoku:{name:'Gomoku',icon:'⚪',cat:'strategy',p:210},
-  connect4:{name:'Connect4',icon:'🔴',cat:'strategy',p:562},
-  bilardo:{name:'Bilardo',icon:'🎱',cat:'board',p:340}
+  chess:{name:'Satranç',icon:'♟️',cat:'strategy',bg:'linear-gradient(150deg,#241b45,#4a3a86 55%,#6c5ce7)'},
+  tavla:{name:'Tavla',icon:'🎲',cat:'board',bg:'linear-gradient(150deg,#4a2f18,#8a5a2b 55%,#d19a3d)'},
+  dama:{name:'İngiliz Daması',icon:'⬛',cat:'strategy',bg:'linear-gradient(150deg,#181818,#3a3a3a 55%,#666)'},
+  turkdamasi:{name:'Türk Daması',icon:'🔲',cat:'strategy',bg:'linear-gradient(150deg,#1c2917,#3d5c33 55%,#75b25e)'},
+  okey:{name:'Okey',icon:'🀄',cat:'board',bg:'linear-gradient(150deg,#0c332f,#146b64 55%,#22b3a7)'},
+  okey101:{name:'101 Okey',icon:'🀄',cat:'board',bg:'linear-gradient(150deg,#0e2846,#1c4c85 55%,#3487d1)'},
+  pisti:{name:'Pişti',icon:'🃏',cat:'card',bg:'linear-gradient(150deg,#0a3620,#146b3c 55%,#26b862)'},
+  batak:{name:'Batak',icon:'🃏',cat:'card',bg:'linear-gradient(150deg,#390a16,#7a1530 55%,#c1264d)'},
+  reversi:{name:'Reversi',icon:'⚫',cat:'strategy',bg:'linear-gradient(150deg,#111,#2e2e2e 55%,#565656)'},
+  gomoku:{name:'Gomoku',icon:'⚪',cat:'strategy',bg:'linear-gradient(150deg,#3c2c14,#7a5326 55%,#b28a47)'},
+  connect4:{name:'Connect4',icon:'🔴',cat:'strategy',bg:'linear-gradient(150deg,#0b2560,#1746a8 55%,#e8495a)'},
+  bilardo:{name:'Bilardo',icon:'🎱',cat:'board',bg:'linear-gradient(150deg,#07301d,#0f5c34 55%,#188a4e)'}
 };
 
 const ROOMS = { chess:[], tavla:[], dama:[], turkdamasi:[], okey:[], okey101:[], pisti:[], batak:[], reversi:[], gomoku:[], connect4:[], bilardo:[] };
@@ -1591,7 +1627,7 @@ const RULES={
   dama:`<div class="rules-content"><h3>🎯 İngiliz Daması</h3><p>Çapraz hareket, atlayarak yeme.</p></div>`,
   turkdamasi:`<div class="rules-content"><h3>🎯 Türk Daması</h3><p>Düz hareket eden dama.</p></div>`,
   okey:`<div class="rules-content"><h3>🎯 Amaç</h3><p>14 taşı gruplar halinde diz, ilk bitir.</p><ul><li>106 taş: 4 renk × 13 × 2 + 2 sahte okey</li><li>1 gösterge açık kalır ve kimse alamaz.</li></ul></div>`,
-  okey101:`<div class="rules-content"><h3>🎯 101 Okey</h3><p>İlk açılış min 101 puan olmalı.</p></div>`,
+  okey101:`<div class="rules-content"><h3>🎯 101 Okey</h3><p>Elindeki 14 taş GEÇERLİ perler/serilere ayrılmalı ve toplam değerleri en az 101 puan olmalı (ya da 7 çift ile özel bitiş — puan şartı aranmaz).</p><ul><li>106 taş: 4 renk × 1-13 × 2 + 2 sahte okey.</li><li>Klasik Okey'den farkı: 13'ten 1'e dönüşümlü seri (ör. 12-13-1) 101'de GEÇERSİZDİR.</li><li>Gerçek okey taşını (bitiş dışında) sıradan bir atışla açığa çıkarmak 101 puan cezalıdır — sağdaki oyuncunun eline geçebilir.</li></ul></div>`,
   pisti:`<div class="rules-content"><h3>🎯 Amaç</h3><p>Kart toplayarak en yüksek puanı al.</p></div>`,
   batak:`<div class="rules-content"><h3>🎯 Amaç</h3><p>İhale ettiğin kadar el al.</p></div>`,
   reversi:`<div class="rules-content"><h3>🎯 Reversi</h3><p>8x8 tahta. Rakip taşları çevirerek al.</p></div>`,
@@ -1676,6 +1712,13 @@ function updateAuthState() {
   const fb = document.getElementById('friendsBtn');
   if (fb) fb.style.display = st.isGuest ? 'none' : '';
 
+  // İstatistikler / Sıralama / Rütbeler ziyaretçiye HİÇ gösterilmez (üst
+  // menü + sol/mobil menü) — gerçek değerleri görmesine gerek yok, giriş
+  // yapması gerekiyor. page() içindeki guardNavigation da bunu ayrıca kilitler.
+  document.querySelectorAll('[data-p="stats"],[data-p="lb"],[data-p="ranks"]').forEach(b => {
+    b.style.display = st.isGuest ? 'none' : '';
+  });
+
   if (st.isGuest) {
     container.innerHTML = `
       <button class="btn btn-o" onclick="GV.showModal('loginModal')">Giriş Yap</button>
@@ -1704,7 +1747,6 @@ async function loadGameMeta(){
       const m = {};
       d.games.forEach(g => { m[g.id] = g.visible; });
       window.__gvGameVisibility = m;
-      renderSB();
       renderHome();
       renderAll();
       // Lobide açıkken gizli oyunun listesi de kalksın:
@@ -1718,10 +1760,11 @@ async function loadGameMeta(){
 
 function init(){
   checkAuthState();
-  renderSB();
   renderHome();
   renderAll();
   loadGameMeta();
+  loadPlayCounts();
+  setInterval(loadPlayCounts, 60000); // popüler oyunlar sıralaması canlı kalsın
   renderLBTabs();
   renderTournTabs();
   renderRanks();
@@ -2080,6 +2123,9 @@ function enableBotTakeover(gid, playerPos) {
 
 function page(p){
   if(p === st.curPage) return;
+  // İstatistikler / Sıralama / Rütbeler yalnız üyelere açık — ziyaretçi bu
+  // sayfalara hiç girmez, gerçek değerler (sıralama, rütbe) hiç görünmez.
+  if(st.isGuest && (p==='stats'||p==='lb'||p==='ranks')) return showModal('guestPromptModal');
   guardNavigation(() => {
     document.querySelectorAll('.page').forEach(e=>e.classList.remove('active'));
     const pg=document.getElementById('pg-'+p);
@@ -2136,17 +2182,46 @@ function exitToLobby(){
 
 // Kurucu Paneli görünürlüğü: /api/games-meta'dan gelir (varsayılan: görünür).
 function gvGameVisible(id){try{const m=window.__gvGameVisibility;return !m||m[id]!==false;}catch(_){return true;}}
-function renderSB(){document.getElementById('sbGames').innerHTML=Object.entries(GAMES).filter(([id])=>gvGameVisible(id)).map(([id,g])=>`<div class="sb-item" data-gid="${id}" onclick="GV.openLobby('${id}')"><span>${g.icon}</span>${g.name}<span class="sb-badge">${(g.p/1000).toFixed(1)}K</span></div>`).join('');}
 function toggleSidebar(){document.getElementById('sidebar').classList.toggle('open');}
-// Sol oyunlar menüsü: masaüstünde de açılıp kapanabilir (tercih kalıcıdır).
-function collapseSidebar(v){document.body.classList.toggle('sb-closed',!!v);try{localStorage.setItem('gv-sb-closed',v?'1':'0');}catch(_){}}
-try{if(localStorage.getItem('gv-sb-closed')==='1')document.body.classList.add('sb-closed');}catch(_){}
 function closeSidebar(){document.getElementById('sidebar').classList.remove('open');}
-function searchGames(q){q=q.toLowerCase();document.querySelectorAll('#sbGames .sb-item').forEach(e=>{e.style.display=e.textContent.toLowerCase().includes(q)?'':'none';});}
+// "Tüm Oyunlar" (Oyunlar) sayfasındaki arama kutusu — eskiden soldaki
+// (artık kaldırılan) oyunlar menüsündeydi, kullanıcı isteğiyle üst menünün
+// açtığı Oyunlar sayfasına taşındı.
+function searchGames(q){
+  q=(q||'').toLowerCase();
+  document.querySelectorAll('#allGames .game-card').forEach(e=>{
+    e.style.display = e.textContent.toLowerCase().includes(q) ? '' : 'none';
+  });
+}
 function toggleNotif(){const n=document.getElementById('notifPanel'); if(n) n.classList.toggle('show');}
-function cH(id,g,tag){const tM={hot:'🔥 HOT',new:'🆕 YENİ',pop:'POPÜLER'};return `<div class="game-card" data-g="${id}" onclick="GV.openLobby('${id}')"><div class="game-thumb">${g.icon}</div>${tag?`<span class="game-tag ${tag}">${tM[tag]}</span>`:''}<div class="game-info"><h3>${g.name}</h3><div class="game-players-count">👥 ${g.p.toLocaleString()}</div></div></div>`;}
-function renderHome(){const t={chess:'hot',okey:'hot',okey101:'new',turkdamasi:'new',bilardo:'new',tavla:'pop',batak:'pop'};document.getElementById('homeGames').innerHTML=Object.entries(GAMES).filter(([id])=>gvGameVisible(id)).map(([id,g])=>cH(id,g,t[id])).join('');}
-function renderAll(){document.getElementById('allGames').innerHTML=Object.entries(GAMES).filter(([id])=>gvGameVisible(id)).map(([id,g])=>cH(id,g,null)).join('');}
+// GERÇEK oynanma sayaçları (/api/game-play-counts) — kullanıcı raporu:
+// "hot/popüler/yeni" rozetleri ve uydurma oyuncu sayısı yerine gerçek
+// oynanma sayısına göre sıralama + gerçek sayı gösterimi.
+function gvPlayCount(id){try{return Number((window.__gvPlayCounts||{})[id])||0;}catch(_){return 0;}}
+function cH(id,g){
+  return `<div class="game-card" data-g="${id}" onclick="GV.openLobby('${id}')"><div class="game-thumb" style="background:${g.bg}"><span class="gt-badge">${g.icon}</span></div><div class="game-info"><h3>${g.name}</h3><div class="game-players-count">🎮 ${gvPlayCount(id).toLocaleString('tr-TR')} kez oynandı</div></div></div>`;
+}
+// Ana sayfa "Popüler Oyunlar": GERÇEK oynanma sayısına göre çoktan aza
+// sıralanır (eskiden sabit hot/yeni/popüler etiketleriyle keyfi sıradaydı).
+function renderHome(){
+  const liste = Object.entries(GAMES).filter(([id])=>gvGameVisible(id))
+    .sort((a,b)=>gvPlayCount(b[0])-gvPlayCount(a[0]));
+  document.getElementById('homeGames').innerHTML = liste.map(([id,g])=>cH(id,g)).join('');
+}
+function renderAll(){document.getElementById('allGames').innerHTML=Object.entries(GAMES).filter(([id])=>gvGameVisible(id)).map(([id,g])=>cH(id,g)).join('');}
+// Gerçek oynanma sayaçlarını sunucudan çeker; yanıt gelene kadar 0 ile
+// gösterilir (uydurma bir sayıya asla düşülmez).
+async function loadPlayCounts(){
+  try {
+    const r = await fetch('/api/game-play-counts', { cache: 'no-store' });
+    const d = r.ok ? await r.json() : null;
+    if (d && d.ok && d.counts) {
+      window.__gvPlayCounts = d.counts;
+      renderHome();
+      renderAll();
+    }
+  } catch (_) { /* sunucu uzağında: 0 gösterilmeye devam eder */ }
+}
 
 function genRooms(gid){
   gid = gid || st.curGame || 'okey';
@@ -2316,7 +2391,11 @@ function joinRoom(rid, opts){
 
   const grTitle = document.getElementById('grTitle');
   if(grTitle) grTitle.innerHTML = `${g.icon} ${g.name} #${rid} ${room.isPrivate ? '🔒 (Özel Oda)' : '🌐'}`;
-  
+  // Öğrenme modu düğmesi yalnız 101 Okey'de görünür (madde 7: kullanıcı
+  // isteği üzerine eklenen, ORİJİNAL bir karakterle anlatılan ders).
+  const tutBtn = document.getElementById('gv101TutorBtn');
+  if(tutBtn) tutBtn.style.display = (gid === 'okey101') ? '' : 'none';
+
   const moveHist = document.getElementById('moveHist');
   if(moveHist) moveHist.innerHTML = '';
   
@@ -2752,8 +2831,8 @@ function joinTournament(name,gid){
 }
 
 function sendChat(type){
-  if(st.isGuest) return showModal('guestPromptModal');
   if(type==='global'){
+    if(st.isGuest) return showModal('guestPromptModal');
     const inp = document.getElementById('globalChatInp');
     if(!inp || !inp.value.trim()) return;
     const list = document.getElementById('globalChat');
@@ -2773,9 +2852,10 @@ function sendChat(type){
   }
   const inp=document.getElementById('gcInput');
   if(!inp?.value.trim())return;
-  // Oyun içi sohbet artık GERÇEK sunucu sohbeti: oda kanalına gönderilir,
-  // odadaki herkes (ve izleyiciler) mesajı görür. Yalnız üyeler yazabilir.
-  if(st.isGuest) return showModal('guestPromptModal');
+  // Oyun içi (masa) sohbeti GERÇEK sunucu sohbeti: oda kanalına gönderilir,
+  // odadaki herkes (ve izleyiciler) mesajı görür. ARTIK ZİYARETÇİLER DE
+  // YAZABİLİR — masa sohbeti yalnız o masaya oturanlar arasında akar, bu
+  // yüzden üyelik şartı aranmaz (sunucu da socket.roomId ile sınırlar).
   const sock = window.__gvRoomSocket;
   const u = st.user || {};
   const stable = u.id || u.userId || u.username || u.email || u.name;
@@ -2794,6 +2874,138 @@ function sendChat(type){
 }
 
 function showRules(){document.getElementById('rulesBody').innerHTML=RULES[st.curGame]||'Yükleniyor';showModal('rulesModal');}
+
+/* ============ 101 OKEY ÖĞRENME MODU (madde 7) ============
+   Kullanıcı isteği: "101 okey için ilettiğim resimlerden oyunun
+   kurallarını ve oynayışını tekrar kontrol et... Böyle bir öğrenme modu
+   ekleyebilirsin farklı karakter ile." — ORİJİNAL bir karakterle (Bilge
+   Baykuş 🦉, bu siteye özgü, hiçbir üçüncü taraf uygulamadan alınmadı)
+   adım adım, örnekli bir anlatım. Taşlar sitenin KENDİ basit stiliyle
+   (.gv-tut-tile) çizilir; okey-engine.js'teki DÜZELTİLMİŞ kurallarla
+   (bkz. finish() ve checkPer noWrap) birebir tutarlıdır. */
+function _gvTutTile(n, color, opt) {
+  opt = opt || {};
+  return `<div class="gv-tut-tile ${color}${opt.okey ? ' okey' : ''}${opt.bad ? ' bad' : ''}"><b>${n}</b><span></span></div>`;
+}
+const GV_TUT_STEPS = [
+  {
+    title: 'Hoş geldin!',
+    html: () => `<p>Merhaba, ben <b>Bilge Baykuş</b> 🦉 — sana 101 Okey'i baştan sona anlatacağım.</p>
+      <p style="margin-top:8px">Amaç basit: elindeki <b>14 taşı</b>, kurallara uygun <b>gruplara ve serilere</b> ayırıp bitirmek. Masada toplam <b>106 taş</b> var: 4 renk × 1-13 sayı × 2 takım + 2 sahte okey.</p>`
+  },
+  {
+    title: 'Taşlar, gösterge ve gerçek okey',
+    html: () => `<p>Her taşın bir <b>sayısı</b> (1-13) ve bir <b>rengi</b> vardır:</p>
+      <div class="gv-tut-tiles">${_gvTutTile(7, 't-red')}${_gvTutTile(7, 't-blue')}${_gvTutTile(7, 't-black')}${_gvTutTile(7, 't-yellow')}</div>
+      <p>Elin başında bir <b>gösterge</b> taşı açılır. Göstergeden bir fazlası (13'ten sonra 1'e döner), o elin <b>GERÇEK OKEY'İ</b> olur — istediğin taşın yerine geçebilen joker:</p>
+      <div class="gv-tut-tiles">${_gvTutTile(8, 't-red', { okey: true })}</div>
+      <p style="color:var(--danger);font-weight:700">⚠️ Dikkat: gerçek okeyi sıradan bir atışla açık atarsan <b>-101 puan ceza</b> alırsın — 6. adımda anlatacağım.</p>`
+  },
+  {
+    title: 'Per (grup) nedir?',
+    html: () => `<p><b>Per</b> (grup): AYNI SAYI, FARKLI RENK, en az 3 taş:</p>
+      <div class="gv-tut-tiles">${_gvTutTile(9, 't-red')}${_gvTutTile(9, 't-blue')}${_gvTutTile(9, 't-black')}</div>
+      <p>Bu ✅ GEÇERLİ bir per — 3 farklı renkte aynı sayı (9). 4 renk de olabilir.</p>
+      <div class="gv-tut-tiles">${_gvTutTile(9, 't-red')}${_gvTutTile(9, 't-red')}${_gvTutTile(3, 't-blue')}</div>
+      <p>Bu ❌ GEÇERSİZ — aynı renk tekrar ediyor ve 3 taş bir arada anlam ifade etmiyor.</p>`
+  },
+  {
+    title: 'Seri nedir? (12-13-1 istisnası)',
+    html: () => `<p><b>Seri</b>: AYNI RENK, ARDIŞIK SAYILAR, en az 3 taş:</p>
+      <div class="gv-tut-tiles">${_gvTutTile(5, 't-blue')}${_gvTutTile(6, 't-blue')}${_gvTutTile(7, 't-blue')}</div>
+      <p>Bu ✅ GEÇERLİ bir seri (5-6-7 mavi).</p>
+      <p style="margin-top:10px"><b>ÖNEMLİ FARK:</b> Klasik Okey'de 13'ten sonra 1'e "dönen" seriler (12-13-1 gibi) geçerlidir. Ama <b>101 Okey'de bu GEÇERSİZDİR</b>:</p>
+      <div class="gv-tut-tiles">${_gvTutTile(12, 't-black')}${_gvTutTile(13, 't-black')}${_gvTutTile(1, 't-black', { bad: true })}</div>
+      <p>101 Okey'de sayılar 13'te biter, 1'e sarmaz.</p>`
+  },
+  {
+    title: 'Nasıl bitirilir?',
+    html: () => `<p>Elindeki <b>14 taşın TAMAMI</b> geçerli per/serilere ayrılabilmeli VE bu grupların toplam değeri <b>en az 101 puan</b> olmalı. Puan = taşın üzerindeki sayı.</p>
+      <p style="margin-top:8px">İki yoldan biriyle bitebilirsin:</p>
+      <p>1️⃣ Geçerli per/seriler + toplam ≥ 101 puan<br>2️⃣ Özel bitiş: elinin tamamı <b>7 ÇİFT</b> ise (puan şartı aranmaz)</p>
+      <p style="margin-top:8px;color:var(--text2)">Rastgele 14 taşın SAYISAL TOPLAMI 101'i geçse bile, taşlar geçerli per/seri değilse bitiremezsin — bu artık motorda da böyle çalışıyor.</p>`
+  },
+  {
+    title: 'Ceza: gerçek okeyi açık atma',
+    html: () => `<p>Gerçek okey taşı çok değerlidir — onu sıradan bir atış olarak <b>açığa</b> atarsan (bitiş taşın DIŞINDA), sıradaki (sağındaki) oyuncu onu alabilir. Bu yüzden bu hata <b>-101 puan ceza</b> getirir.</p>
+      <div class="gv-tut-tiles">${_gvTutTile(4, 't-yellow', { okey: true })}</div>
+      <p style="color:var(--warning)">💡 İpucu: gerçek okeyi elinde tut, ancak BİTİŞ taşın olarak (kazanırken) at.</p>`
+  },
+  {
+    title: 'Küçük sınav!',
+    html: () => `<p>Aşağıdaki taş grubu <b>101 Okey'de</b> geçerli bir per/seri mi?</p>
+      <div class="gv-tut-tiles">${_gvTutTile(11, 't-blue')}${_gvTutTile(12, 't-blue')}${_gvTutTile(13, 't-blue')}${_gvTutTile(1, 't-blue')}</div>
+      <button class="btn btn-p btn-sm gv-tut-quiz-opt" onclick="GV.tutorQuiz(false)">✅ Evet, geçerli</button>
+      <button class="btn btn-o btn-sm gv-tut-quiz-opt" onclick="GV.tutorQuiz(true)">❌ Hayır, geçersiz</button>
+      <div class="gv-tut-result" id="gvTutQuizResult"></div>`
+  }
+];
+let _gvTutStep = 0;
+function open101Tutorial() {
+  _gvTutStep = 0;
+  _gvTutRender();
+  showModal('okeyTutorModal');
+}
+function _gvTutRender() {
+  const step = GV_TUT_STEPS[_gvTutStep];
+  document.getElementById('gvTutStep').textContent = `Adım ${_gvTutStep + 1}/${GV_TUT_STEPS.length} — ${step.title}`;
+  document.getElementById('gvTutBody').innerHTML = step.html();
+  const prevBtn = document.getElementById('gvTutPrev');
+  const nextBtn = document.getElementById('gvTutNext');
+  if (prevBtn) prevBtn.style.visibility = _gvTutStep === 0 ? 'hidden' : 'visible';
+  if (nextBtn) nextBtn.innerHTML = (_gvTutStep === GV_TUT_STEPS.length - 1) ? 'Bitti, Anladım! 🎉' : 'İleri ▶';
+}
+function tutorNav(dir) {
+  if (_gvTutStep === GV_TUT_STEPS.length - 1 && dir > 0) { hideModal('okeyTutorModal'); return; }
+  _gvTutStep = Math.max(0, Math.min(GV_TUT_STEPS.length - 1, _gvTutStep + dir));
+  _gvTutRender();
+}
+// Sınav cevabı: doğru cevap "geçersiz" (12-13-1 dönüşümlü seri 101'de geçersiz).
+function tutorQuiz(answeredInvalid) {
+  const el = document.getElementById('gvTutQuizResult');
+  if (!el) return;
+  if (answeredInvalid) {
+    el.style.color = 'var(--success)';
+    el.textContent = '🎉 Doğru! 12-13-1, 101 Okey\'de dönüşümlü seri sayılmaz, GEÇERSİZDİR.';
+  } else {
+    el.style.color = 'var(--danger)';
+    el.textContent = '❌ Hayır — bu klasik Okey\'de geçerli olurdu ama 101 Okey\'de 13\'ten 1\'e sarma YOK.';
+  }
+}
+
+/* TAM EKRAN — okey plus tarzı: kullanıcı isterse oyun odasını tam ekran
+   oynar, isterse standart (normal) düzende. Fullscreen API + vendor
+   önekleri (webkit) ile, tarayıcı desteklemiyorsa sessizce (toast ile)
+   düşer — hata fırlatmaz. Buton simgesi/etiketi fullscreenchange olayında
+   güncellenir; ESC ile çıkıldığında da otomatik senkron kalır. */
+function _gvFsEl(){ return document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement || document.msFullscreenElement || null; }
+function _gvFsSupported(){
+  const el = document.getElementById('pg-room');
+  return !!(el && (el.requestFullscreen || el.webkitRequestFullscreen || el.mozRequestFullScreen || el.msRequestFullscreen));
+}
+function toggleFullscreen(){
+  const el = document.getElementById('pg-room');
+  if(!el) return;
+  if(!_gvFsSupported()){ toast('Tarayıcınız tam ekranı desteklemiyor', 'error'); return; }
+  if(_gvFsEl()){
+    const exit = document.exitFullscreen || document.webkitExitFullscreen || document.mozCancelFullScreen || document.msExitFullscreen;
+    if(exit) exit.call(document);
+  } else {
+    const req = el.requestFullscreen || el.webkitRequestFullscreen || el.mozRequestFullScreen || el.msRequestFullscreen;
+    if(req) req.call(el).catch(() => toast('Tam ekrana geçilemedi', 'error'));
+  }
+}
+function _gvSyncFullscreenBtn(){
+  const btn = document.getElementById('gvFullscreenBtn');
+  if(!btn) return;
+  const dolu = _gvFsEl() === document.getElementById('pg-room');
+  btn.classList.toggle('is-full', dolu);
+  btn.innerHTML = dolu ? '⛶ Standart' : '⛶ Tam Ekran';
+  btn.title = dolu ? 'Tam ekrandan çık' : 'Tam ekran';
+}
+['fullscreenchange','webkitfullscreenchange','mozfullscreenchange','MSFullscreenChange'].forEach(ev => {
+  try { document.addEventListener(ev, _gvSyncFullscreenBtn); } catch(_) {}
+});
 function showModal(id){const m=document.getElementById(id);if(m)m.classList.add('show');}
 function hideModal(id){const m=document.getElementById(id);if(m)m.classList.remove('show');}
 
@@ -4114,7 +4326,6 @@ window.addNotification = addNotification;
 return {
   page,
   toggleSidebar,
-  collapseSidebar,
   closeSidebar,
   searchGames,
   toggleTheme,
@@ -4133,6 +4344,10 @@ return {
   quickMatch,
   cancelMatch,
   showRules,
+  toggleFullscreen,
+  open101Tutorial,
+  tutorNav,
+  tutorQuiz,
   sendChat,
   showModal,
   hideModal,

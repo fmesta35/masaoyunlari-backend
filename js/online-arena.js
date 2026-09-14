@@ -288,6 +288,13 @@
                  gameEnded: onEnded, playerLeft: onPlayerLeft };
     defs.forEach(function (d) {
       (d.reject || []).forEach(function (ev) { handlers[ev] = onReject; });
+      // Bazı adaptörler (ör. bilardo) durum güncellemesi DIŞINDA kendi özel
+      // olaylarını da dinlemek isteyebilir (ör. bir vuruşun kare kare akışı).
+      // Bu, sökme/yeniden bağlama döngüsüne aynı şekilde dahil olur — adaptör
+      // KENDİ soketine asla doğrudan dinleyici eklemez (dosya başındaki hata 2).
+      if (d.events) {
+        Object.keys(d.events).forEach(function (ev) { handlers[ev] = d.events[ev]; });
+      }
     });
     Object.keys(handlers).forEach(function (ev) { s.on(ev, handlers[ev]); });
     bound = s;
