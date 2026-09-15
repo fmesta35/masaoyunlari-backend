@@ -135,16 +135,40 @@ button,input,select{font-family:var(--font)}
 #pg-room.gv-fs .game-side .chat{height:auto;flex:1;min-height:120px}
 /* Tahta içeriği: taşmak yerine KÜÇÜLSÜN */
 #pg-room.gv-fs .game-board-area>*{margin:0;max-width:100%;max-height:100%}
+/* KÖK NEDEN (kullanıcı raporu: "Satranç tam ekran yaptığımda çalışmadı" —
+   tahta boş, yalnız küçük bir nokta gözüküyordu): bu sarmalayıcılar
+   width:auto ile "içeriğine göre küçül" (flex shrink-to-fit) modundaydı.
+   Normal (tam ekran olmayan) düzende tahtalar BLOK kutu oldukları için
+   width:auto = "kapsayıcının TAM genişliğini doldur" anlamına gelir; ama
+   burada .game-board-area/.chess-wrapper gibi kapsayıcılar FLEX olduğu
+   için (align-items:center) aynı width:auto tam TERSİ anlama gelir:
+   "içeriğin gerektirdiği ASGARİ genişlik". Satrançta .chess ayrıca
+   container-type:inline-size taşıdığından (taş boyutu cqw'ye bağlı) bu
+   asgari genişlik TAMAMEN SIFIRLANIYOR (içerik izolasyonu) — tahta 6px'e
+   (yalnız kenarlık payı) çöküyordu. Çözüm: sarmalayıcıya KESİN (auto
+   olmayan) bir genişlik veriyoruz. */
 #pg-room.gv-fs .dama-wrap,#pg-room.gv-fs .tdama-wrap,#pg-room.gv-fs .rv-wrap,
 #pg-room.gv-fs .gm-wrap,#pg-room.gv-fs .c4-wrap,#pg-room.gv-fs .bil-wrap,
 #pg-room.gv-fs .bs-wrap,#pg-room.gv-fs .card-wrap,#pg-room.gv-fs .chess-wrapper,
 #pg-room.gv-fs .tavla-wrap{
-  max-width:none;width:auto;height:100%;max-height:100%;min-height:0;
+  max-width:none;width:100%;height:100%;max-height:100%;min-height:0;
   display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px
 }
-#pg-room.gv-fs .dama-board,#pg-room.gv-fs .tdama-board,#pg-room.gv-fs .rv-board,
-#pg-room.gv-fs .gm-board,#pg-room.gv-fs .c4-board,#pg-room.gv-fs .chess{
-  width:auto;height:auto;max-height:100%;max-width:100%;min-height:0
+/* Satranç/Dama/Türk Daması: KARE tahta — aspect-ratio BİZZAT tahtada
+   tanımlı. Genişliği (width:auto) yine flex-shrink sorununa düşmesin diye
+   YÜKSEKLİKTEN (height:100%, kesin/definite) türetiyoruz; aspect-ratio bu
+   durumda genişliği doğru hesaplar. max-width:100% dar/uzun ekranlarda
+   (mobil dikey) tahtanın yana taşmasını önler — o durumda genişlik esas
+   alınır, yükseklik orana göre küçülür. */
+#pg-room.gv-fs .dama-board,#pg-room.gv-fs .tdama-board,#pg-room.gv-fs .chess{
+  width:auto;height:100%;max-width:100%;min-height:0
+}
+/* Reversi/Gomoku/Connect4: aspect-ratio tahtada değil HÜCRELERDE tanımlı —
+   yükseklik satır sayısı × hücre yüksekliği ile KENDİLİĞİNDEN oluşur.
+   Bu yüzden burada genişliği (width:100%) esas alıp yüksekliğin doğal
+   oluşmasına izin veriyoruz; max-height taşma durumunda son bir güvenlik. */
+#pg-room.gv-fs .rv-board,#pg-room.gv-fs .gm-board,#pg-room.gv-fs .c4-board{
+  width:100%;height:auto;max-height:100%;min-height:0
 }
 /* Bilardo: masa esner, HUD ve kumanda sabit kalır */
 #pg-room.gv-fs .bil-stage{flex:1;min-height:0;width:100%;display:flex;flex-direction:column}
@@ -3247,6 +3271,25 @@ function toggleFullscreen(){
     if(req) req.call(el).catch(() => toast('Tam ekrana geçilemedi', 'error'));
   }
 }
+/* Tam ekranda modallar (Kurallar DAHİL) ARKA PLANDA kalıyordu (kullanıcı
+   raporu: "Tam ekran bastığımda kurallar arka planda kalıyor, tam
+   ekrandan çıktığımda gözüküyor"). Kök neden z-index DEĞİL: Fullscreen
+   API bir elementi (#pg-room) tarayıcının özel "üst katman"ına alır ve
+   o elementin ALT AĞACI DIŞINDA kalan hiçbir şeyi ÇİZMEZ — z-index ne
+   olursa olsun. Modallar (#rulesModal dahil) döküman sonunda #pg-room'un
+   KARDEŞİ olarak durduğu için tam ekranda tamamen görünmez oluyordu.
+   Çözüm: tam ekrana girerken TÜM .modal-bg pencerelerini #pg-room'un
+   İÇİNE taşı; çıkarken eski yerlerine (döküman sonu) geri koy. #pg-room
+   yalnız #boardArea gibi ALT container'ları yeniden çizer, kendi
+   innerHTML'ini hiç ezmediği için buraya eklenen modallar güvenle kalır. */
+function _gvFsMoveModals(icine){
+  const oda = document.getElementById('pg-room');
+  if(!oda) return;
+  document.querySelectorAll('.modal-bg').forEach(m=>{
+    if(icine){ if(m.parentNode!==oda) oda.appendChild(m); }
+    else { if(m.parentNode===oda) document.body.appendChild(m); }
+  });
+}
 function _gvSyncFullscreenBtn(){
   const oda = document.getElementById('pg-room');
   const dolu = _gvFsEl() === oda;
@@ -3255,6 +3298,7 @@ function _gvSyncFullscreenBtn(){
      olamaz (tarayıcı tanımadığı birini görünce kuralın TAMAMINI atar), ayrı
      ayrı yazmak da bütün bloğu ikiye katlar. Tek sınıf her yerde çalışır. */
   if(oda) oda.classList.toggle('gv-fs', dolu);
+  _gvFsMoveModals(dolu);
   const btn = document.getElementById('gvFullscreenBtn');
   if(!btn) return;
   btn.classList.toggle('is-full', dolu);

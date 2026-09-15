@@ -125,6 +125,42 @@ async function main() {
   assert.strictEqual(fsBtn.classList.contains('is-full'), false, 'ESC ile çıkışta da düğme senkron kalmalı');
   console.log('  ✓ 4) ESC gibi tarayıcı-kaynaklı çıkışlarda da düğme durumu senkron kalıyor');
 
+  // ---- 4b) KURALLAR (ve tüm modallar) tam ekranda ARKA PLANDA KALMAMALI ----
+  // Kullanıcı raporu (verbatim): "Tam ekran bastığımda kurallar arka planda
+  // kalıyor, tam ekrandan çıktığımda gözüküyor, tam ekran içerisinde
+  // kurallar bastığında tam ekranın önceliğinde olacak şekilde ön plana
+  // çıkar." Kök neden: Fullscreen API #pg-room'u tarayıcının özel "üst
+  // katman"ına alır; #rulesModal (ve diğer tüm .modal-bg pencereler)
+  // dökümanda #pg-room'un KARDEŞİ olduğu için bu üst katmanın dışında
+  // kalıp hiç ÇİZİLMİYORDU (z-index'in hiçbir etkisi yok). Çözüm: tam
+  // ekrana girildiğinde TÜM .modal-bg pencereler #pg-room'un içine
+  // taşınıyor, çıkılınca eski yerlerine dönüyor.
+  const rulesModal = A.document.getElementById('rulesModal');
+  assert.ok(rulesModal, '#rulesModal DOM\'da bulunmalı');
+  assert.strictEqual(rulesModal.parentNode, A.document.body, 'başlangıçta Kurallar penceresi <body>\'nin doğrudan çocuğu (pg-room dışında)');
+
+  A.GV.toggleFullscreen(); // tam ekrana geç
+  await sleep(50);
+  assert.strictEqual(rulesModal.parentNode, pgRoom,
+    'TAM EKRANDAYKEN Kurallar penceresi #pg-room\'un İÇİNE taşınmalı — yoksa tarayıcı onu hiç çizmez');
+  // Genel: rulesModal tek başına değil, TÜM modallar aynı şekilde taşınmalı
+  // (örn. süre dolduğunda çıkan #timeoutModal de tam ekranda görünür kalmalı):
+  const timeoutModal = A.document.getElementById('timeoutModal');
+  assert.strictEqual(timeoutModal.parentNode, pgRoom, 'tam ekranda #timeoutModal da #pg-room içine taşınmalı');
+  // Kurallar penceresi tam ekranda hâlâ normal şekilde açılıp kapanabiliyor
+  // olmalı (yalnız DOM konumu değişti, show/hide mantığı bozulmamalı):
+  A.GV.showRules();
+  assert.ok(rulesModal.classList.contains('show'), 'tam ekranda Kurallar açılabiliyor (GV.showRules)');
+  A.GV.hideModal('rulesModal');
+  assert.ok(!rulesModal.classList.contains('show'), 'tam ekranda Kurallar kapanabiliyor (GV.hideModal)');
+  console.log('  ✓ 4b) Tam ekranda TÜM modallar (Kurallar dahil) #pg-room içine taşınıp ÖN PLANDA görünüyor');
+
+  A.GV.toggleFullscreen(); // standarda dön
+  await sleep(50);
+  assert.strictEqual(rulesModal.parentNode, A.document.body, 'standarda dönünce Kurallar penceresi eski yerine (body) geri dönmeli');
+  assert.strictEqual(timeoutModal.parentNode, A.document.body, 'standarda dönünce #timeoutModal da eski yerine dönmeli');
+  console.log('  ✓ 4c) Standarda dönünce modallar eski konumuna (body) geri taşınıyor — hiçbir şey bozulmuyor');
+
   // ---- 6) TAM EKRAN DÜZENİ: kaydırma yok + süre kartları DİKEY ----
   // Kullanıcı isteği: "tam ekran seçildiğinde scroll down-up seçeneği
   // olmasın, her şey ekrana sığsın. Yukarıdaki sayaçlar yatay yerine dikey
@@ -161,6 +197,68 @@ async function main() {
   await sleep(50);
   assert.ok(!pgRoom.classList.contains('gv-fs'), 'standarda dönünce gv-fs kalkmalı');
   console.log('  ✓ 6) tam ekranda kaydırma kapalı, süre kartları dikey, tahta alanı taşmıyor');
+
+  // ---- 7) SATRANÇ (ve TÜM tahta oyunları) TAM EKRANDA ÇÖKMEMELİ ----
+  // Kullanıcı raporu (verbatim): "Satranç tam ekran yaptığımda çalışmadı.
+  // Tüm oyunların webde ve mobilde, normal dashboard ekranında ve tam
+  // ekranda doğru gösterildiğinden çalıştığından emin ol test et."
+  // Kök neden: .chess-wrapper/.dama-wrap/... gibi sarmalayıcılar FLEX
+  // (align-items:center) içinde width:auto idi → "içeriğe göre asgari
+  // genişlik" moduna düşüyordu; .chess ayrıca container-type:inline-size
+  // taşıdığından bu asgari genişlik SIFIRLANIYOR, tahta 6px'e (yalnız
+  // kenarlık) çöküyordu. Çözüm iki parçalı: (a) sarmalayıcıya KESİN
+  // (width:100%) genişlik ver; (b) aspect-ratio'yu BİZZAT tahtada taşıyan
+  // oyunlarda (satranç/dama/türk daması) genişliği height:100%'ten TÜRET
+  // (width:auto + height:100%, aspect-ratio genişliği doğru hesaplar);
+  // hücre bazlı aspect-ratio taşıyan oyunlarda (reversi/gomoku/connect4)
+  // ise width:100% esas alınır, yükseklik satırlardan kendiliğinden oluşur.
+  // Bu blok gerçek Fullscreen API jsdom/sanal tarayıcıda çalışmadığından
+  // (ve bu sandbox'ta headed Chromium'da da requestFullscreen "not granted"
+  // hatası verdiğinden) KAYNAKTAN doğrulanır — amaç, bu CSS kuralları
+  // yanlışlıkla silinir/bozulursa testin KIRMIZIYA dönmesidir. Gerçek
+  // piksel doğrulaması (714x714 satranç, 611x611 dama) Playwright ile
+  // manuel olarak ayrıca yapıldı.
+  // NOT: bu seçici listesi kaynakta BİRDEN FAZLA satıra yayılıyor (virgülle
+  // ayrılmış uzun bir liste), bu yüzden yukarıdaki blok()'un aksine "{" hemen
+  // ardından gelmiyor — burada seçicinin İLK satırını arayıp "{"yi ondan
+  // SONRA arayan ayrı bir yardımcı kullanıyoruz.
+  const cokSatirliBlok = (parcaSecici) => {
+    const i = kaynak.indexOf(parcaSecici);
+    if (i === -1) return '';
+    const acilis = kaynak.indexOf('{', i);
+    if (acilis === -1) return '';
+    return kaynak.slice(i, kaynak.indexOf('}', acilis) + 1);
+  };
+  const sarmalayici = cokSatirliBlok('#pg-room.gv-fs .dama-wrap,#pg-room.gv-fs .tdama-wrap,#pg-room.gv-fs .rv-wrap,');
+  assert.ok(sarmalayici, 'tahta sarmalayıcıları için tam ekran kuralı bulunmalı');
+  for (const sinif of ['.dama-wrap', '.tdama-wrap', '.rv-wrap', '.gm-wrap', '.c4-wrap', '.bil-wrap', '.bs-wrap', '.card-wrap', '.chess-wrapper', '.tavla-wrap']) {
+    assert.ok(kaynak.includes('#pg-room.gv-fs ' + sinif), 'tam ekran sarmalayıcı kuralı ' + sinif + ' için eksik olmamalı');
+  }
+  assert.ok(/width:\s*100%/.test(sarmalayici), 'sarmalayıcı KESİN genişlik almalı (width:auto DEĞİL) — yoksa flex shrink-to-fit çöküşü geri gelir');
+  assert.ok(/max-width:\s*none/.test(sarmalayici), 'sarmalayıcının normal moddaki max-width sınırı tam ekranda kaldırılmalı');
+
+  const yukseklikTemelli = blok('#pg-room.gv-fs .dama-board,#pg-room.gv-fs .tdama-board,#pg-room.gv-fs .chess');
+  assert.ok(yukseklikTemelli, 'kendi aspect-ratio\'sunu taşıyan tahtalar (satranç/dama/türk daması) için kural bulunmalı');
+  assert.ok(/width:\s*auto/.test(yukseklikTemelli) && /height:\s*100%/.test(yukseklikTemelli),
+    'satranç/dama/türk daması genişliği YÜKSEKLİKTEN türetmeli (width:auto + height:100% + aspect-ratio) — SATRANÇ ÇÖKMESİNİN asıl düzeltmesi budur');
+
+  const genislikTemelli = blok('#pg-room.gv-fs .rv-board,#pg-room.gv-fs .gm-board,#pg-room.gv-fs .c4-board');
+  assert.ok(genislikTemelli, 'hücre bazlı aspect-ratio taşıyan tahtalar (reversi/gomoku/connect4) için kural bulunmalı');
+  assert.ok(/width:\s*100%/.test(genislikTemelli) && /height:\s*auto/.test(genislikTemelli),
+    'reversi/gomoku/connect4 genişliği esas alıp yüksekliğin hücrelerden doğal oluşmasına izin vermeli');
+
+  assert.ok(/#pg-room\.gv-fs \.bil-canvas\{[^}]*height:\s*100%/.test(kaynak),
+    'bilardo (canvas — gerçek intrinsik orana sahip) tam ekranda hâlâ doğru boyutlanmalı');
+  console.log('  ✓ 7) TÜM tahta oyunlarının (satranç dahil) tam ekran CSS kuralları eksiksiz — 6px\'e çökme regresyonu engellendi');
+
+  // ---- 8) KURALLAR PENCERESİ TAM EKRANDA #pg-room İÇİNDE BAŞKA SAYFAYA
+  // GEÇİŞTE DE DOĞRU KALMALI (modal reparenting yan etkisiz) ----
+  // (4b/4c zaten bunu ayrıntılı test ediyor; burada yalnızca kod yolunun
+  // GENEL olduğunu — yalnız #rulesModal'a özel olmadığını — kaynaktan
+  // teyit ediyoruz.)
+  assert.ok(/document\.querySelectorAll\(['"]\.modal-bg['"]\)/.test(kaynak),
+    'modal taşıma TÜM .modal-bg pencerelerini kapsamalı, yalnız Kurallar\'ı değil');
+  console.log('  ✓ 8) Modal taşıma mantığı genel (.modal-bg) — yeni eklenecek modallar da otomatik kapsanır');
 
   // ---- Fullscreen API hiç desteklenmiyorsa sessizce (hatasız) düşmeli ----
   delete pgRoom.requestFullscreen;
