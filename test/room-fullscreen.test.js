@@ -185,7 +185,7 @@ async function main() {
   assert.ok(/overflow:\s*hidden/.test(oda), 'tam ekranda oda KAYDIRILMAMALI (overflow:hidden)');
   assert.ok(/height:\s*100vh/.test(oda), 'tam ekran odası ekran yüksekliğine sabitlenmeli');
   assert.ok(/display:\s*grid/.test(oda), 'tam ekran düzeni grid olmalı (sayaçlar yan kolona taşınabilsin)');
-  assert.ok(/flex-direction:\s*column/.test(blok('#pg-room.gv-fs .timers')),
+  assert.ok(/flex-direction:\s*column/.test(blok('#pg-room.gv-fs .game-side .timers')),
     'süre kartları tam ekranda DİKEY dizilmeli');
   assert.ok(/overflow:\s*hidden/.test(blok('#pg-room.gv-fs .game-board-area')),
     'tahta alanı taşmamalı (içerik küçülmeli)');
@@ -237,10 +237,22 @@ async function main() {
   assert.ok(/width:\s*100%/.test(sarmalayici), 'sarmalayıcı KESİN genişlik almalı (width:auto DEĞİL) — yoksa flex shrink-to-fit çöküşü geri gelir');
   assert.ok(/max-width:\s*none/.test(sarmalayici), 'sarmalayıcının normal moddaki max-width sınırı tam ekranda kaldırılmalı');
 
+  // NOT: width:auto+height:100%+aspect-ratio yaklaşımı ÇOĞU genişlikte
+  // çalışıyordu ama ORTA genişliklerde (örn. tablet tam ekranı ~900px)
+  // tarayıcı max-width:100% ile genişliği kırptığında yüksekliği buna göre
+  // YENİDEN HESAPLAMIYOR, tahta kare olmaktan çıkıyordu (gerçek tarayıcıda
+  // 582×880 ölçüldü). Kesin çözüm: sarmalayıcı bir BOYUT container'ı
+  // (container-type:size) olur, tahta da min(100cqw,100cqh) ile container'a
+  // sığan EN BÜYÜK KAREYİ doğrudan hesaplar — genişlik/yükseklik HER ZAMAN
+  // birbirine eşit kalır.
+  const containerSarmalayici = blok('#pg-room.gv-fs .dama-wrap,#pg-room.gv-fs .tdama-wrap,#pg-room.gv-fs .chess-wrapper');
+  assert.ok(containerSarmalayici, 'satranç/dama/türk daması sarmalayıcıları boyut container\'ı olmalı');
+  assert.ok(/container-type:\s*size/.test(containerSarmalayici),
+    'sarmalayıcı container-type:size taşımalı — yoksa cqw/cqh tahtaya sığan en büyük kareyi hesaplayamaz');
   const yukseklikTemelli = blok('#pg-room.gv-fs .dama-board,#pg-room.gv-fs .tdama-board,#pg-room.gv-fs .chess');
   assert.ok(yukseklikTemelli, 'kendi aspect-ratio\'sunu taşıyan tahtalar (satranç/dama/türk daması) için kural bulunmalı');
-  assert.ok(/width:\s*auto/.test(yukseklikTemelli) && /height:\s*100%/.test(yukseklikTemelli),
-    'satranç/dama/türk daması genişliği YÜKSEKLİKTEN türetmeli (width:auto + height:100% + aspect-ratio) — SATRANÇ ÇÖKMESİNİN asıl düzeltmesi budur');
+  assert.ok(/width:\s*min\(100cqw,\s*100cqh\)/.test(yukseklikTemelli) && /height:\s*min\(100cqw,\s*100cqh\)/.test(yukseklikTemelli),
+    'satranç/dama/türk daması genişlik VE yükseklik min(100cqw,100cqh) ile AYNI ANDA hesaplanmalı — kare garantisi (dikdörtgene dönüşme regresyonunun düzeltmesi) budur');
 
   const genislikTemelli = blok('#pg-room.gv-fs .rv-board,#pg-room.gv-fs .gm-board,#pg-room.gv-fs .c4-board');
   assert.ok(genislikTemelli, 'hücre bazlı aspect-ratio taşıyan tahtalar (reversi/gomoku/connect4) için kural bulunmalı');
@@ -259,6 +271,40 @@ async function main() {
   assert.ok(/document\.querySelectorAll\(['"]\.modal-bg['"]\)/.test(kaynak),
     'modal taşıma TÜM .modal-bg pencerelerini kapsamalı, yalnız Kurallar\'ı değil');
   console.log('  ✓ 8) Modal taşıma mantığı genel (.modal-bg) — yeni eklenecek modallar da otomatik kapsanır');
+
+  // ---- 9) SÜRE KARTLARI "SEN VS RAKİP" PANOSUNUN ÜZERİNDE (madde 6) ----
+  // Kullanıcı raporu (verbatim): "Toplam genel süreler ve hamle süreleri,
+  // tam ekranda gösterildiği gibi 'sen vs rakip' puan tablosunun üzerinde
+  // gözüksün. Bu tüm oyunlarda geçerli olsun. Hem tam ekranda hem normal
+  // dashboard da, mobilde de webde de." Eskiden #topTimers tahtanın
+  // ÜSTÜNDE ayrı, tam genişlikte bir şerit olarak duruyordu (normal modda)
+  // ve tahtaya ayrılan dikey alanı ~90-100px yiyordu. Artık #topTimers,
+  // HTML'de doğrudan .game-side'ın İLK çocuğu — .score-panel'den ÖNCE —
+  // bu YAPISAL bir çözüm olduğundan hem normal hem tam ekranda (CSS moda
+  // göre yeniden konumlandırmaya gerek kalmadan) otomatik olarak geçerli.
+  const topTimersEl = A.document.getElementById('topTimers');
+  const scorePanelEl = A.document.querySelector('.score-panel');
+  const gameSideEl = A.document.querySelector('.game-side');
+  assert.strictEqual(topTimersEl.parentElement, gameSideEl,
+    '#topTimers artık .game-side\'ın İÇİNDE olmalı (tahtanın üstünde ayrı şerit DEĞİL)');
+  assert.ok(
+    topTimersEl.compareDocumentPosition(scorePanelEl) & A.Node.DOCUMENT_POSITION_FOLLOWING,
+    '#topTimers, .score-panel\'den ÖNCE gelmeli — "üzerinde gözüksün" isteğinin YAPISAL karşılığı');
+  // Normal moddaki .timers artık DİKEY (fullscreen'deki AYNI görünüm) —
+  // dar yan kolona (.game-side) oturur, tahtanın üstünde yer kaplamaz.
+  assert.ok(/\.timers\{display:flex;flex-direction:column/.test(kaynak),
+    'normal moddaki .timers de (fullscreen ile TUTARLI olacak şekilde) DİKEY dizilmeli');
+  // --gv-chrome artık süre şeridini SAYMAMALI (tahta üstten büyüsün diye
+  // küçültüldü) — regresyon: biri yanlışlıkla eski büyük değere dönerse
+  // tahta yine gereksiz yere küçük kalır.
+  assert.ok(/--gv-chrome:190px/.test(kaynak),
+    '--gv-chrome süre şeridi tahtanın üstünden kalktığı için küçültülmüş olmalı (290px DEĞİL)');
+  // Mobil tam ekranda puan panosu (Okey-dışı oyunlarda joinRoom'un INLINE
+  // "display:flex" yazdığı .score-panel) gerçekten gizlenmeli — inline
+  // stil normal bir kuralı yener, bu yüzden !important şart.
+  assert.ok(/#pg-room\.gv-fs \.game-side>\*:not\(\.timers\)\{display:none!important\}/.test(kaynak),
+    'mobil tam ekranda puan panosu/hamleler/sohbet gizlenirken !important olmalı — yoksa joinRoom\'un inline stili kazanır ve panolar tahtanın üstüne taşar');
+  console.log('  ✓ 9) Süre kartları artık .game-side\'ın İLK çocuğu — "Sen vs Rakip" panosunun HER ZAMAN üzerinde (hem normal hem tam ekran, hem web hem mobil)');
 
   // ---- Fullscreen API hiç desteklenmiyorsa sessizce (hatasız) düşmeli ----
   delete pgRoom.requestFullscreen;

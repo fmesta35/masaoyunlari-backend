@@ -106,32 +106,37 @@ button,input,select{font-family:var(--font)}
    yatay yerine dikey alt üst olarak yerleştirilebilir, böylece oyun
    dashboard biraz daha geniş alana sahip olur."
 
-   Çözüm: oda tam ekranda bir GRID olur. Süre kartları üstteki yatay
-   şeritten çıkıp sağ kolona DİKEY olarak taşınır; böylece tahtaya
-   ayrılan yükseklik ~90 px artar ve ekran kaydırmadan sığar.
-   .game-layout `display:contents` ile saydamlaşır — çocukları (tahta ve
-   yan panel) doğrudan dış grid'e yerleşir.
+   Çözüm: oda tam ekranda bir GRID olur. Süre kartları artık HTML'de
+   zaten .game-side'ın (yan panel) İÇİNDE, puan panosunun üstünde
+   duruyor (bkz. #pg-room işaretlemesi) — bu yüzden tam ekranda ayrıca
+   ayrı bir grid satırına taşımaya gerek yok: .game-side tek bir grid
+   hücresi (sağ kolon, TÜM yükseklik) olur, içindeki süre kartları +
+   puan panosu + hamleler + sohbet kendi dikey akışında (flex column)
+   sıralanır — normal (tam ekran olmayan) moddaki AYNI iç düzen, yalnız
+   dışta grid'e oturur. .game-layout `display:contents` ile saydamlaşır
+   — çocukları (tahta ve yan panel) doğrudan dış grid'e yerleşir.
 
      ┌──────────────── başlık ────────────────┐
      │                              │ ⏱ süre 1│
      │            TAHTA             │ ⏱ süre 2│
-     │        (tüm yükseklik)       ├─────────┤
+     │        (tüm yükseklik)       │ Sen vs R │
      │                              │ yan panel│
      └──────────────────────────────┴─────────┘                        */
 #pg-room.gv-fs{
   background:var(--bg,#0f1115);padding:10px 12px;box-sizing:border-box;
   height:100vh;width:100vw;overflow:hidden;              /* KAYDIRMA YOK */
   display:grid;grid-template-columns:minmax(0,1fr) minmax(190px,240px);
-  grid-template-rows:auto auto minmax(0,1fr);column-gap:12px;row-gap:8px
+  grid-template-rows:auto minmax(0,1fr);column-gap:12px;row-gap:8px
 }
 #pg-room.gv-fs .gr-header{grid-column:1/-1;grid-row:1;margin:0}
 #pg-room.gv-fs .game-layout{display:contents}
-#pg-room.gv-fs .game-board-area{grid-column:1;grid-row:2/4;min-width:0;min-height:0;
+#pg-room.gv-fs .game-board-area{grid-column:1;grid-row:2;min-width:0;min-height:0;
   display:flex;align-items:center;justify-content:center;overflow:hidden}
-#pg-room.gv-fs .timers{grid-column:2;grid-row:2;flex-direction:column;gap:6px;margin:0}
-#pg-room.gv-fs .timer{padding:6px 8px}
-#pg-room.gv-fs .timer-time,#pg-room.gv-fs .timer-move{font-size:1.35em}
-#pg-room.gv-fs .game-side{grid-column:2;grid-row:3;width:auto;min-height:0;overflow:auto;gap:8px}
+#pg-room.gv-fs .game-side{grid-column:2;grid-row:2;width:auto;min-height:0;
+  display:flex;flex-direction:column;overflow:auto;gap:8px}
+#pg-room.gv-fs .game-side .timers{flex-direction:column;gap:6px;flex:none}
+#pg-room.gv-fs .game-side .timer{padding:6px 8px}
+#pg-room.gv-fs .game-side .timer-time,#pg-room.gv-fs .game-side .timer-move{font-size:1.35em}
 #pg-room.gv-fs .game-side .chat{height:auto;flex:1;min-height:120px}
 /* Tahta içeriği: taşmak yerine KÜÇÜLSÜN */
 #pg-room.gv-fs .game-board-area>*{margin:0;max-width:100%;max-height:100%}
@@ -154,14 +159,24 @@ button,input,select{font-family:var(--font)}
   max-width:none;width:100%;height:100%;max-height:100%;min-height:0;
   display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px
 }
-/* Satranç/Dama/Türk Daması: KARE tahta — aspect-ratio BİZZAT tahtada
-   tanımlı. Genişliği (width:auto) yine flex-shrink sorununa düşmesin diye
-   YÜKSEKLİKTEN (height:100%, kesin/definite) türetiyoruz; aspect-ratio bu
-   durumda genişliği doğru hesaplar. max-width:100% dar/uzun ekranlarda
-   (mobil dikey) tahtanın yana taşmasını önler — o durumda genişlik esas
-   alınır, yükseklik orana göre küçülür. */
+/* Satranç/Dama/Türk Daması: KARE tahta.
+   ÖNCEKİ YAKLAŞIM (width:auto;height:100%;max-width:100%, aspect-ratio'nun
+   genişliği yükseklikten türetmesine güvenerek) ÇOĞU genişlikte çalışıyordu
+   ama ORTA genişliklerde (örn. ~900px, tablet tam ekranı) tarayıcı
+   max-width:100% ile genişliği kırptığında YÜKSEKLİĞİ buna göre YENİDEN
+   HESAPLAMIYORDU — tahta 582×880 gibi KARE OLMAYAN bir dikdörtgene
+   dönüşüyordu (kullanıcının "tüm oyunları test et" isteği üzerine gerçek
+   tarayıcıda ölçülerek bulundu). Kesin çözüm: sarmalayıcıyı BOYUT
+   container'ı yapıp (container-type:size — zaten kesin width:100%/
+   height:100% taşıdığından döngü riski yok), tahtayı container sorgu
+   birimleriyle (cqw/cqh) ölçmek: min(100cqw,100cqh) sarmalayıcıya sığan
+   EN BÜYÜK KAREYİ doğrudan hesaplar, tarayıcının aspect-ratio+clamp
+   sırasına bağlı kalmadan — genişlik VE yükseklik HER ZAMAN birbirine eşit. */
+#pg-room.gv-fs .dama-wrap,#pg-room.gv-fs .tdama-wrap,#pg-room.gv-fs .chess-wrapper{
+  container-type:size
+}
 #pg-room.gv-fs .dama-board,#pg-room.gv-fs .tdama-board,#pg-room.gv-fs .chess{
-  width:auto;height:100%;max-width:100%;min-height:0
+  width:min(100cqw,100cqh);height:min(100cqw,100cqh);min-height:0
 }
 /* Reversi/Gomoku/Connect4: aspect-ratio tahtada değil HÜCRELERDE tanımlı —
    yükseklik satır sayısı × hücre yüksekliği ile KENDİLİĞİNDEN oluşur.
@@ -179,22 +194,36 @@ button,input,select{font-family:var(--font)}
 #pg-room.gv-fs .okey-table{max-height:100%;min-height:0}
 
 /* MOBİL TAM EKRAN: süre kartları yine DİKEY (dar bir şerit), tahta
-   kalan tüm alanı alır. Yan panel gizlenir — sohbet zaten yüzen
-   baloncuktan açılıyor; amaç telefonda tahtayı büyütmek. */
+   kalan tüm alanı alır. Yan panelin GERİ KALANI (puan panosu, hamleler,
+   sohbet) gizlenir — sohbet zaten yüzen baloncuktan açılıyor; amaç
+   telefonda tahtayı büyütmek. Süre kartları artık .game-side'ın İLK
+   çocuğu olduğundan (bkz. #pg-room işaretlemesi), .game-side'ı TAMAMEN
+   gizlemek yerine yalnız .timers DIŞINDAKİ çocukları gizliyoruz —
+   böylece dar sol şeritte süre hâlâ görünür kalır. */
 @media(max-width:760px){
   #pg-room.gv-fs{grid-template-columns:86px minmax(0,1fr);grid-template-rows:auto minmax(0,1fr);
     padding:6px 8px;column-gap:8px}
   #pg-room.gv-fs .gr-header{grid-column:1/-1;grid-row:1}
-  #pg-room.gv-fs .timers{grid-column:1;grid-row:2;align-self:start}
+  #pg-room.gv-fs .game-side{grid-column:1;grid-row:2;align-self:start;width:auto;
+    background:none;border:none;padding:0;overflow:visible;gap:0}
+  /* KÖK NEDEN: js/joinRoom akışı .score-panel'e (Okey ailesi dışındaki
+     oyunlarda) INLINE "display:flex" yazıyor (bkz. `scPanel.style.display`);
+     inline stil normal bir CSS kuralını (ID içerse bile) HER ZAMAN yener —
+     bu yüzden burada !important şart, yoksa puan panosu mobil tam ekranda
+     gizlenmiyordu. */
+  #pg-room.gv-fs .game-side>*:not(.timers){display:none!important}
   #pg-room.gv-fs .timer{padding:5px 4px}
   #pg-room.gv-fs .timer-name{font-size:.62em}
   #pg-room.gv-fs .timer-time,#pg-room.gv-fs .timer-move{font-size:1em}
   #pg-room.gv-fs .game-board-area{grid-column:2;grid-row:2}
-  #pg-room.gv-fs .game-side{display:none}
   #pg-room.gv-fs .bs-wrap{--bs-cell:min(28px, calc((100vh - 230px) / 10), calc((100vw - 130px) / 21))}
 }
 #gvFullscreenBtn.is-full{background:var(--accent,#00cec9);color:#04201f;border-color:var(--accent,#00cec9)}
-.timers{display:flex;gap:10px;margin-bottom:14px}
+/* Süre kartları artık yan panelin (.game-side) İÇİNDE, puan panosunun
+   üstünde yaşıyor — bu yüzden varsayılan dizilim DİKEY (fullscreen'deki
+   ile aynı görünüm): dar kolona rahatça oturur, tahtanın üstünde ayrı
+   bir şerit olarak yer kaplamaz. */
+.timers{display:flex;flex-direction:column;gap:8px}
 .timer{flex:1;text-align:center;padding:10px;background:var(--card);border:2px solid var(--border);border-radius:var(--r);transition:.3s}
 .timer.active{border-color:var(--accent);background:rgba(0,206,201,.12);box-shadow:0 0 20px rgba(0,206,201,.3);transform:scale(1.02)}
 .timer.active .timer-time{color:var(--accent)}
@@ -869,7 +898,7 @@ button,input,select{font-family:var(--font)}
   .sidebar{display:block;position:fixed;left:0;top:56px;bottom:0;z-index:999;transform:translateX(-100%);width:260px}.sidebar.open{transform:translateX(0)}
   .hamburger{display:block}.nav{display:none}
   .games-grid{grid-template-columns:repeat(auto-fill,minmax(140px,1fr))}
-  .game-layout{flex-direction:column}.game-side{width:100%}.timers{flex-direction:column}
+  .game-layout{flex-direction:column}.game-side{width:100%}
   /* Okey masası ölçüleri artık .okey-table blogundaki oransal kurallarda
      yonetiliyor (sabit px "bottom" degerleri istakayi eziyordu). */
 }
@@ -904,10 +933,10 @@ html{scrollbar-gutter:stable}
 /* 6) Hamle süresi rozetleri: alan HER ZAMAN ayrık (visibility tekniğiyle),
    rozet gelip gitse bile tahta yerinden kımıldamaz */
 .move-clock-badge,.tavla-move-badge{min-height:32px;box-sizing:border-box;font-variant-numeric:tabular-nums}
-/* 7) Mobil (telefon/tablet dikey): saatler ALT ALTA DEĞİL yan yana kompakt —
-   tahta ilk ekranda görünür; yan panel alta iner */
+/* 7) Mobil (telefon/tablet dikey): süre kartları artık yan panelin İÇİNDE
+   (puan panosunun üstünde) olduğundan yalnız boyutları küçültülür; ayrı
+   bir "yatay şerit" moduna gerek kalmadı (bkz. #pg-room işaretlemesi). */
 @media(max-width:800px){
-  #pg-room .timers{flex-direction:row;gap:8px;margin-bottom:8px}
   #pg-room .timer{padding:6px 8px;border-radius:10px}
   #pg-room .timer-name{font-size:.68em}
   #pg-room .timer-time{font-size:1.15em}
@@ -922,9 +951,8 @@ html{scrollbar-gutter:stable}
   .tavla-row{height:min(180px,24vh)}
   .score-panel{padding:8px}
 }
-/* 8) Yatay kısa ekranlar (telefon yan): saat sırası ince şerit, tahta vh'a sığar */
+/* 8) Yatay kısa ekranlar (telefon yan): saat kartları ince, tahta vh'a sığar */
 @media(max-height:560px) and (orientation:landscape){
-  #pg-room .timers{margin-bottom:4px}
   #pg-room .timer{padding:2px 8px}
   #pg-room .timer-time{font-size:.95em}
   .chess-wrapper{max-width:min(92vh,100%)}
@@ -1027,7 +1055,12 @@ html{scrollbar-gutter:stable}
    TAŞMADAN, kırpılmadan ve zıplamadan çalışsın.
 
    Tek ölçü kaynağı iki değişkendir:
-     --gv-chrome : üst bar + oda başlığı + süre şeridi için ayrılan pay
+     --gv-chrome : üst bar + oda başlığı için ayrılan pay (süre şeridi
+                   ARTIK BURAYA DAHİL DEĞİL — kullanıcı isteği üzerine
+                   süre kartları tahtanın üstünden yan panele, "Sen vs
+                   Rakip" panosunun üstüne taşındı; bkz. #pg-room
+                   işaretlemesi ve .game-side .timers. Bu sayede tahta
+                   eskisinden ~90-100px daha yukarıdan başlar.)
      --gv-board  : tahtaya kalan kare kenar (HEM yükseklik HEM genişlikten)
    Bütün tahtalar bu değişkene bağlıdır. Yeni bir oyun eklendiğinde
    sarmalayıcısını aşağıdaki listeye yazmak yeterlidir; kırılma
@@ -1036,7 +1069,7 @@ html{scrollbar-gutter:stable}
 
 /* ---------- 0) ÖLÇÜ DEĞİŞKENLERİ ---------- */
 :root{
-  --gv-chrome:290px;
+  --gv-chrome:190px;
   --gv-board:min(760px,100%,max(280px,calc(100vh - var(--gv-chrome))));
   --gv-side:260px;
   --gv-safe-b:env(safe-area-inset-bottom,0px);
@@ -1188,15 +1221,14 @@ body{padding-bottom:var(--gv-safe-b)}
 
 /* ---------- 5) ORTA BOY EKRAN (tablet dikey) ---------- */
 @media(max-width:1024px){
-  :root{--gv-chrome:290px}
+  :root{--gv-chrome:190px}
   .game-layout{flex-direction:column}
   .game-side{width:100%}
 }
 
 /* ---------- 6) TELEFON / DAR EKRAN ---------- */
 @media(max-width:800px){
-  :root{--gv-chrome:215px;--gv-board:min(100%,max(260px,calc(100vh - var(--gv-chrome))))}
-  #pg-room .timers{flex-direction:row;gap:8px;margin-bottom:8px}
+  :root{--gv-chrome:155px;--gv-board:min(100%,max(260px,calc(100vh - var(--gv-chrome))))}
   #pg-room .timer{padding:6px 8px;border-radius:10px}
   #pg-room .timer-name{font-size:.68em}
   #pg-room .timer-time{font-size:1.15em}
@@ -1230,7 +1262,7 @@ body{padding-bottom:var(--gv-safe-b)}
 
 /* ---------- 7) ÇOK DAR EKRAN (küçük telefon) ---------- */
 @media(max-width:480px){
-  :root{--gv-chrome:200px}
+  :root{--gv-chrome:140px}
   #pg-room .gr-header{gap:6px}
   #pg-room #grTitle{font-size:1.02em}
   #pg-room .gr-actions .btn{padding:5px 7px;font-size:.72em}
@@ -1247,8 +1279,7 @@ body{padding-bottom:var(--gv-safe-b)}
 
 /* ---------- 8) TELEFON YATAY (kısa ama geniş) ---------- */
 @media(max-height:560px) and (orientation:landscape){
-  :root{--gv-chrome:150px;--gv-board:min(76vh,100%)}
-  #pg-room .timers{margin-bottom:4px}
+  :root{--gv-chrome:100px;--gv-board:min(76vh,100%)}
   #pg-room .timer{padding:2px 8px}
   #pg-room .timer-time{font-size:.95em}
   .timer-move{min-height:13px;font-size:.72em}
@@ -1258,7 +1289,7 @@ body{padding-bottom:var(--gv-safe-b)}
 
 /* ---------- 9) GENİŞ MASAÜSTÜ ---------- */
 @media(min-width:1600px){
-  :root{--gv-chrome:230px;--gv-side:300px}
+  :root{--gv-chrome:130px;--gv-side:300px}
   .chess-wrapper,.dama-wrap,.tdama-wrap,.rv-wrap,.gm-wrap,.c4-wrap{max-width:min(820px,calc(100vh - var(--gv-chrome)))}
   .game-side{width:var(--gv-side)}
 }
@@ -1517,13 +1548,21 @@ body.gv-app input,body.gv-app textarea,body.gv-app .chat-msgs,body.gv-app .moves
           <button class="btn btn-d btn-sm" onclick="GV.leaveRoom()">🚪 Ayrıl</button>
         </div>
       </div>
-      <div class="timers" id="topTimers">
-        <div class="timer active"><div class="timer-name">👤 Oyuncu 1</div><div class="timer-time" id="t1">10:00</div></div>
-        <div class="timer"><div class="timer-name">👤 Rakip</div><div class="timer-time" id="t2">10:00</div></div>
-      </div>
       <div class="game-layout">
         <div class="game-board-area" id="boardArea"></div>
         <div class="game-side">
+          <!-- Süre şeridi artık "Sen vs Rakip" panosunun DOĞRUDAN ÜSTÜNDE, yan
+               kolonun içinde (kullanıcı isteği: "tam ekranda gösterildiği gibi
+               sen vs rakip puan tablosunun üzerinde gözüksün... hem normal
+               dashboard hem tam ekranda"). Eskiden tahtanın ÜSTÜNDE, tam
+               genişlikte ayrı bir şerit olarak duruyordu ve tahtaya ayrılan
+               dikey alanı ~90-100px yiyordu; artık burada olduğu için tahta
+               en üstten başlayıp mümkün olan en geniş/yüksek ölçüye ulaşır
+               (bkz. #gv-responsive bloğundaki --gv-chrome küçültmesi). -->
+          <div class="timers" id="topTimers">
+            <div class="timer active"><div class="timer-name">👤 Oyuncu 1</div><div class="timer-time" id="t1">10:00</div></div>
+            <div class="timer"><div class="timer-name">👤 Rakip</div><div class="timer-time" id="t2">10:00</div></div>
+          </div>
           <div class="score-panel">
             <div><div class="sc-val" id="myScoreVal" style="color:var(--accent)">0</div><div class="sc-name">Sen</div></div>
             <div style="color:var(--text3); font-weight:bold; align-self:center;">VS</div>
