@@ -44,8 +44,11 @@ function sign(msg) {
 function makeAttest(id, name, opts = {}) {
   const ts = opts.ts !== undefined ? opts.ts : Date.now();
   const exp = opts.exp !== undefined ? opts.exp : ts + 10 * 60 * 1000;
-  const sig = opts.sig !== undefined ? opts.sig : sign(id + '|' + name + '|' + ts + '|' + exp);
-  return { id, name, ts, exp, sig };
+  // "founder" bayrağı da imzaya dahildir (bkz. server-auth.js verifyAttestation
+  // — Kurucu Paneli uçlarını da PHP'ye ulaşmadan doğrulayabilmek için eklendi).
+  const founder = opts.founder !== undefined ? opts.founder : 0;
+  const sig = opts.sig !== undefined ? opts.sig : sign(id + '|' + name + '|' + founder + '|' + ts + '|' + exp);
+  return { id, name, founder, ts, exp, sig };
 }
 function makeFriendProof(a, b, opts = {}) {
   const ts = opts.ts !== undefined ? opts.ts : Date.now();

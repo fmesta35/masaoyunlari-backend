@@ -56,16 +56,21 @@ function windowOk(ts, exp) {
   if (x - n > ATTEST_TTL_MS + 60 * 1000) return false; // anormal uzun
   return true;
 }
-// auth.php?action=attest çıktısı: { id, name, ts, exp, sig }
-// Geçerliyse uid'yi, değilse null döner.
+// auth.php?action=attest çıktısı: { id, name, founder, ts, exp, sig }
+// Geçerliyse { uid, name, founder }, değilse null döner. "founder" bayrağı
+// PHP'nin gv_is_founder() sonucudur ve İMZAYA dahildir — bu sayede Kurucu
+// Paneli uçları da (requireAdmin) PHP'ye ayrıca ulaşmadan, imzalı belgeyle
+// yerinde doğrulanabilir (Yöncü DDoS koruması Render'ın sunucu-sunucu
+// isteklerini engellese bile).
 function verifyAttestation(att) {
   if (!att || typeof att !== 'object') return null;
   const id = Number(att.id);
   if (!Number.isInteger(id) || id <= 0) return null;
   if (!windowOk(att.ts, att.exp)) return null;
-  const msg = id + '|' + String(att.name == null ? '' : att.name) + '|' + Number(att.ts) + '|' + Number(att.exp);
+  const founder = Number(att.founder) === 1 ? 1 : 0;
+  const msg = id + '|' + String(att.name == null ? '' : att.name) + '|' + founder + '|' + Number(att.ts) + '|' + Number(att.exp);
   if (!sigMatches(msg, att.sig)) return null;
-  return { uid: id, name: String(att.name == null ? '' : att.name) };
+  return { uid: id, name: String(att.name == null ? '' : att.name), founder: founder === 1 };
 }
 // social.php?action=friendProof çıktısı: { a, b, ts, exp, sig }
 // (a,b) çifti için imza geçerliyse true.
@@ -191,7 +196,7 @@ function installAuth(app, deps) {
     return { isOnline: () => false, uidFromUserKey, recordMatch: () => {}, attachSocket: () => {},
       // Puan sistemi: veritabanı yoksa sessizce devre dışı (uydurma veri yok).
       puanYaz: () => {}, puanOzet: () => ({ toplam: 0, oyunlar: [], genel: {} }),
-      puanSiralama: () => [], puanSifirla: () => ({ ok: false, error: 'Veritabanı yok.' }),
+      puanSiralama: () => [], puanSira: () => null, puanSifirla: () => ({ ok: false, error: 'Veritabanı yok.' }),
       puanAyarOku: () => ({ periyot: 'kapali', sonSifirlama: 0 }), puanAyarYaz: () => ({ ok: false }),
       // Yaptırım sistemi: veritabanı yoksa kimse kısıtlı değildir.
       emitToUser,
@@ -584,7 +589,7 @@ function installAuth(app, deps) {
   // Bir üyenin puan özeti — OYUN TÜRÜNE GÖRE AYRI (kullanıcının isteği).
   function puanOzet(uid) {
     const bos = { toplam: 0, oyunlar: [], genel: { mac: 0, galibiyet: 0, beraberlik: 0,
-                  maglubiyet: 0, terk: 0 } };
+                  maglubiyet: 0, terk: 0 }, sira: null };
     if (!db || !(Number(uid) > 0)) return bos;
     try {
       const t0 = puanSifirNoktasi();
@@ -619,7 +624,8 @@ function installAuth(app, deps) {
         genel.terk += g.terk;
       });
       // TABAN: toplam puan eksiye düşmez (tek tek olaylar eksi kalabilir).
-      return { toplam: Math.max(0, toplam), oyunlar, genel, sifirlandi: t0 };
+      const toplamNet = Math.max(0, toplam);
+      return { toplam: toplamNet, oyunlar, genel, sifirlandi: t0, sira: puanSira(uid, t0, toplamNet) };
     } catch (e) { console.warn('puan özeti okunamadı:', e.message); return bos; }
   }
 
@@ -639,6 +645,30 @@ function installAuth(app, deps) {
       ).all(...args);
       return rows.map(r => ({ id: r.id, name: r.name, puan: Math.max(0, Number(r.puan) || 0) }));
     } catch (e) { console.warn('sıralama okunamadı:', e.message); return []; }
+  }
+
+  // Bir üyenin GERÇEK küresel sırası (kullanıcının isteği: "puan veri
+  // istatistikleri gerçeği yansıtsın, rastgele değerler olmasın" — önceden
+  // profildeki sıra numarası puan aralığına göre UYDURULMUŞ bir tabloydan
+  // geliyordu). Kendisinden daha yüksek puanlı kaç üye varsa, sıra ondan
+  // bir fazlasıdır (1 = birinci). t0/toplam verilirse (puanOzet zaten
+  // hesapladıysa) tekrar sorgulanmaz — aksi halde kendisi hesaplar.
+  function puanSira(uid, t0, toplam) {
+    if (!db || !(Number(uid) > 0)) return null;
+    try {
+      if (t0 == null) t0 = puanSifirNoktasi();
+      if (toplam == null) {
+        const r = db.prepare('SELECT SUM(points) puan FROM score_events WHERE user_id = ? AND ts >= ?').get(Number(uid), t0);
+        toplam = Math.max(0, Number(r && r.puan) || 0);
+      }
+      const row = db.prepare(
+        `SELECT COUNT(*) + 1 AS pos FROM (
+           SELECT user_id, SUM(points) puan FROM score_events
+            WHERE ts >= ? GROUP BY user_id HAVING SUM(points) > ?
+         )`
+      ).get(t0, Number(toplam) || 0);
+      return row ? Number(row.pos) || 1 : 1;
+    } catch (e) { console.warn('sıra okunamadı:', e.message); return null; }
   }
 
   // Kurucu: puanları sıfırla. Veri SİLİNMEZ — yeni bir sıfırlama noktası
@@ -857,7 +887,7 @@ function installAuth(app, deps) {
   console.log('👤 Üyelik & sosyal katman aktif (auth + profil + arkadaş + davet).');
   return { isOnline, onlineCount, uidFromUserKey, recordMatch, attachSocket, userById,
     // Puan sistemi (scoring.js kuralları + score_events kalıcılığı)
-    puanYaz, puanOzet, puanSiralama, puanSifirla, puanAyarOku, puanAyarYaz,
+    puanYaz, puanOzet, puanSiralama, puanSira, puanSifirla, puanAyarOku, puanAyarYaz,
     // Yaptırım sistemi (sohbet kısıtlaması) — kalıcılık SQLite'ta.
     emitToUser, yaptirimUygula, yaptirimKaldir, yaptirimAktif, yaptirimListe,
     // Kurucu Paneli yetki kontrolü (server.js requireAdmin): istemcinin
@@ -1116,6 +1146,8 @@ function installRemoteMode(app, deps) {
     puanYaz: (o) => remote.puanYaz(o),
     puanOzet: (uid) => remote.puanOzet(uid),
     puanSiralama: (n, g) => remote.puanSiralama(n, g),
+    // NOT: "sira" (küresel sıra) ayrı bir çağrı gerektirmez — PHP'nin
+    // scoreSummary yanıtı zaten hesaplayıp puanOzet() içinde döndürür.
     puanSifirla: (by, mode) => remote.puanSifirla(by, mode),
     puanAyarOku: () => remote.puanAyarOku(),
     puanAyarYaz: (p) => remote.puanAyarYaz(p),

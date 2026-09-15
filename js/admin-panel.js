@@ -66,6 +66,19 @@
     let tok = null;
     try { tok = localStorage.getItem('gv-auth-token'); } catch (_) {}
     if (tok) { headers.Authorization = 'Bearer ' + tok; headers['X-GV-Token'] = tok; }
+    // Render'a (BACKEND) giden Kurucu Paneli çağrılarına İMZALI kimlik
+    // belgesini de ekle: Yöncü'nün DDoS koruması Render'ın PHP'ye
+    // sunucu-sunucu ulaşmasını (auth.php?action=me) engelleyebiliyor —
+    // requireAdmin() bu belgeyle (founder bayrağı imzalı) PHP'ye hiç
+    // ulaşmadan yetkiyi doğrular. js/auth.js belgeyi 1.5 sn'de bir tazeler.
+    if (path.indexOf(BACKEND) === 0 && window.GVAuth && typeof GVAuth.attestation === 'function') {
+      try {
+        const att = GVAuth.attestation();
+        // encodeURIComponent: HTTP başlık değerleri yalnız Latin-1 kabul
+        // eder — kullanıcı adı Türkçe karakter (ı,ş,ç...) içerebilir.
+        if (att) headers['X-GV-Attest'] = encodeURIComponent(JSON.stringify(att));
+      } catch (_) {}
+    }
     const r = await fetch(path, { method: method || (body ? 'POST' : 'GET'), headers, body: body ? JSON.stringify(body) : undefined });
     let data = null;
     try { data = await r.json(); } catch (_) {}
@@ -126,6 +139,34 @@
       else cfg[g] = { visible: true };
     }
     return cfg;
+  }
+
+  // Yöncü'de kayıtlı ayar bloğu, YENİ eklenen bir oyunu (örn. battleship)
+  // henüz İÇERMEYEBİLİR — eski kayıt üstüne yazılmadan önce kaydedilmişti.
+  // Sunucu (server.js normPresetConfig) bu durumda o oyun için varsayılanı
+  // kullanır; panel de AYNI mantığı uygulamazsa eksik oyun "0 masa" ile
+  // görünür (kullanıcının bildirdiği hata). Bu yüzden alan-alan BİRLEŞTİR:
+  // yalnız gerçekten kayıtlı olan visible/tables değerleri varsayılanın
+  // üstüne yazılır, eksik oyun/alan varsayılanda kalır.
+  function mergeIntoDefault(fetched) {
+    const def = defaultSettings();
+    if (!fetched || typeof fetched !== 'object') return def;
+    const out = {};
+    for (const gid of Object.keys(def)) {
+      const base = def[gid];
+      const src = fetched[gid];
+      if (!src || typeof src !== 'object') { out[gid] = base; continue; }
+      const merged = Object.assign({}, base);
+      if (typeof src.visible === 'boolean') merged.visible = src.visible;
+      if (STANDARD.includes(gid) && Array.isArray(src.tables) && src.tables.length) merged.tables = src.tables;
+      out[gid] = merged;
+    }
+    // Kayıtlı ama artık listede olmayan bir oyun varsa (kaldırılmış oyun)
+    // yine de kaybolmasın:
+    for (const gid of Object.keys(fetched)) {
+      if (!out[gid] && fetched[gid] && typeof fetched[gid] === 'object') out[gid] = fetched[gid];
+    }
+    return out;
   }
 
   // ---------------- panel gövdesi ----------------
@@ -401,7 +442,7 @@
     if (!settingsCache) {
       body.innerHTML = '<div style="text-align:center;padding:26px;color:var(--text2)">⏳ Oyun ayarları yükleniyor...</div>';
       fetchSettings().then(s => {
-        settingsCache = s || defaultSettings();
+        settingsCache = mergeIntoDefault(s);
         renderGamesTab(body);
       }).catch(() => {
         settingsCache = defaultSettings();
@@ -698,4 +739,10 @@
   function boot() { tick(); if (statsTarget()) refreshHeroStats(); }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot, { once: true });
   else boot();
+
+  // Yalnız testler için: Yöncü'de kayıtlı ayar bloğunun YENİ bir oyunu
+  // (örn. battleship) içermediği durumu (kurucu panelinde "0 masa" hatası)
+  // gerçek bir sayfa/hostname açmadan doğrulayabilmek için (bkz.
+  // test/admin-panel-games-merge.test.js). Üretimde etkisi yoktur.
+  window.__adminPanelTest = { mergeIntoDefault, defaultSettings };
 })();

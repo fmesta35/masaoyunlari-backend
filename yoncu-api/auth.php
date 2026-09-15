@@ -175,18 +175,23 @@ if ($action === 'me') {
 // Render'ın sunucu-sunucu isteklerini engellediği için kimlik doğrulaması
 // PHP'ye ULAŞMAYA GEREK KALMAZ. Belge 10 dk geçerlidir, yeniden kullanımı
 // (ts/exp/sig) imza ile sabitlenmiştir.
+// "founder" bayrağı da İMZAYA dahildir (taklit edilemez) — Render bunu
+// requireAdmin() içinde kullanır: Kurucu Paneli uçları da artık
+// Render'ın PHP'ye ULAŞMASINA gerek kalmadan (auth.php?action=me
+// olmadan) doğrulanabilir. Bkz. server.js requireAdmin().
 if ($action === 'attest') {
     $u = gv_user_by_token(gv_bearer());
     if (!$u) gv_json(array('ok' => false, 'error' => 'Oturum geçersiz.'), 401);
     $uid = intval($u['id']);
     $nm  = gv_clean_name($u['name']);
+    $fo  = gv_is_founder($u) ? 1 : 0;
     $ts  = $now;
     $exp = $now + 10 * 60 * 1000; // 10 dk
-    $sig = hash_hmac('sha256', $uid . '|' . $nm . '|' . $ts . '|' . $exp, GV_SERVER_KEY);
+    $sig = hash_hmac('sha256', $uid . '|' . $nm . '|' . $fo . '|' . $ts . '|' . $exp, GV_SERVER_KEY);
     gv_json(array(
         'ok' => true,
         'user' => gv_user_public($u),
-        'attest' => array('id' => $uid, 'name' => $nm, 'ts' => $ts, 'exp' => $exp, 'sig' => $sig)
+        'attest' => array('id' => $uid, 'name' => $nm, 'founder' => $fo, 'ts' => $ts, 'exp' => $exp, 'sig' => $sig)
     ));
 }
 

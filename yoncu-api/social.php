@@ -334,8 +334,22 @@ if ($action === 'scoreSummary') {
         $genel['terk'] += $g['terk'];
     }
     // TABAN: toplam puan eksiye düşmez (tek tek olaylar eksi kalabilir).
+    $toplam = max(0, $toplam);
+    // GERÇEK küresel sıra (kullanıcının isteği: "puan veri istatistikleri
+    // gerçeği yansıtsın, rastgele değerler olmasın" — profildeki sıra
+    // numarası önceden puan aralığına göre UYDURULMUŞ bir tablodandı).
+    // Kendisinden daha yüksek toplam puanlı kaç üye varsa sıra ondan bir
+    // fazlasıdır. Aynı sorgu zaten burada çalıştığı için ayrı bir çağrı
+    // gerekmez (bkz. yerelde aynısı server-auth.js puanSira()).
+    $posSt = $pdo->prepare(
+        "SELECT COUNT(*) + 1 pos FROM (
+           SELECT user_id, SUM(points) puan FROM gv_score_events
+            WHERE ts >= ? GROUP BY user_id HAVING SUM(points) > ?
+         ) t");
+    $posSt->execute(array($t0, $toplam));
+    $sira = intval($posSt->fetchColumn());
     gv_json(array('ok' => true, 'ozet' => array(
-        'toplam' => max(0, $toplam), 'oyunlar' => $oyunlar, 'genel' => $genel, 'sifirlandi' => $t0)));
+        'toplam' => $toplam, 'oyunlar' => $oyunlar, 'genel' => $genel, 'sifirlandi' => $t0, 'sira' => $sira)));
 }
 
 /* Sıralama tablosu. */

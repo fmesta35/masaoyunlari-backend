@@ -18,6 +18,10 @@ const bilardoEngine = require('./bilardo-engine');
 const battleshipEngine = require('./battleship-engine');
 const { db } = require('./db'); // kurucu paneli: üye listesi + masa ayarları (SQLite, yerel mod)
 const playCounts = require('./play-counts'); // gerçek "kaç kez oynandı" sayaçları (mod bağımsız)
+// İmzalı kimlik belgesi doğrulayıcı (modül seviyesinde, mod bağımsız) —
+// requireAdmin() bunu Kurucu Paneli uçlarını Yöncü DDoS korumasından
+// bağımsız kılmak için kullanır (bkz. requireAdmin tanımı aşağıda).
+const { verifyAttestation } = require('./server-auth');
 
 const app = express();
 app.use(cors({ origin: true, credentials: true }));
@@ -3368,6 +3372,27 @@ app.get('/api/game-play-counts', (_req, res) => {
 // Yöncü PHP auth.php?action=me) ve kurucu olma kuralı tek yerdedir:
 // veritabanındaki is_founder bayrağı ya da GV_ADMIN_EMAIL eşleşmesi.
 async function requireAdmin(req, res) {
+  // HIZLI/GÜVENİLİR YOL: imzalı kimlik belgesi (attestation). Yöncü'nün
+  // DDoS koruması Render'ın auth.php?action=me çağrısını engelleyebilir
+  // (bkz. auth-remote.js üstteki not) — bu yüzden Kurucu Paneli uçları
+  // (puan ayarları/sıfırlama, yaptırımlar, oyun ayarları vb.) artık PHP'ye
+  // ayrıca ulaşmadan, tarayıcının X-GV-Attest başlığıyla taşıdığı imzalı
+  // belgeyle YERİNDE doğrulanabilir. Belge auth.php?action=attest'ten
+  // gelir, "founder" bayrağı imzaya dahildir (taklit edilemez).
+  try {
+    const raw = req.headers && req.headers['x-gv-attest'];
+    if (raw) {
+      // İstemci Türkçe karakterli adları (ı,ş,ç...) HTTP başlığına
+      // sığdırmak için encodeURIComponent ile gönderiyor (bkz. admin-panel.js).
+      const att = verifyAttestation(JSON.parse(decodeURIComponent(String(raw))));
+      if (att) {
+        if (att.founder) return { id: att.uid, name: att.name, email: null, isFounder: true };
+        res.status(403).json({ ok: false, error: 'Yönetici yetkisi gerekli.' });
+        return null;
+      }
+    }
+  } catch (_) { /* belge yok/bozuk — yedek yola düş */ }
+
   let u = null;
   try {
     if (authApi && typeof authApi.userFromReqAsync === 'function') {
