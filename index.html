@@ -81,6 +81,13 @@ button,input,select{font-family:var(--font)}
 .game-info h3{font-size:.95em;margin-bottom:3px}
 .game-info p{font-size:.78em;color:var(--text2)}
 .game-players-count{margin-top:6px;font-size:.78em;color:var(--accent);display:flex;align-items:center;gap:4px}
+/* Oyun kartındaki "N kez oynandı" yazısının yerini alan Hızlı Eşleş
+   düğmesi (kullanıcı isteği: kart altyazısı yerine gerçek eşleştirme
+   düğmesi). Tam genişlik, kartın geri kalanına göre kompakt. */
+.gv-qm-btn{margin-top:8px;width:100%;padding:7px 10px;border:none;border-radius:8px;cursor:pointer;font-weight:700;font-size:.8em;
+  display:flex;align-items:center;justify-content:center;gap:5px;background:linear-gradient(135deg,var(--primary),var(--primary2));color:#fff;transition:.2s}
+.gv-qm-btn:hover{filter:brightness(1.08)}
+.gv-qm-btn:disabled{opacity:.6;cursor:default}
 .btn{padding:9px 18px;border:none;border-radius:var(--r);cursor:pointer;font-weight:600;font-size:.88em;display:inline-flex;align-items:center;gap:6px}
 .btn-p{background:var(--gradient);color:#fff}
 .btn-a{background:var(--gradient2);color:#000}
@@ -1863,7 +1870,6 @@ body.gv-app input,body.gv-app textarea,body.gv-app .chat-msgs,body.gv-app .moves
     </div>
   </div>
 </div>
-<div class="modal-bg" id="matchModal"><div class="modal center"><button class="modal-x" onclick="GV.cancelMatch()">✕</button><h2>⚡ Eşleşme</h2><div class="spinner" style="width:50px;height:50px;border-width:4px;margin:16px auto"></div><p id="matchTimer">00:00</p><button class="btn btn-d mt" onclick="GV.cancelMatch()">İptal</button></div></div>
 <div class="modal-bg" id="timeoutModal"><div class="modal center"><h2 id="toTitle">⏰ Diskalifiye!</h2><p id="toDesc" style="margin:16px 0; color:var(--text2);">Süreniz doldu.</p><button class="btn btn-p mt" onclick="GV.exitToLobby()">🏠 Lobiye Dön</button></div></div>
 <div class="modal-bg" id="addFriendModal"><div class="modal center" style="max-width:400px; width:90%;"><h2>👥 Arkadaş Ekle</h2><div class="fg" style="text-align:left; margin-top:15px;"><label>Kullanıcı Adı:</label><input type="text" id="afUsername" placeholder="Örn: Kullanıcı#2"></div><div style="display:flex; gap:10px; margin-top:20px;"><button class="btn btn-s flex:1" onclick="GV.hideModal('addFriendModal')">İptal</button><button class="btn btn-p flex:1" onclick="GV.submitAddFriend()">Ekle</button></div></div></div>
 <div class="modal-bg" id="inviteFriendModal"><div class="modal" style="max-width:400px; width:90%;"><button class="modal-x" onclick="GV.hideModal('inviteFriendModal')">✕</button><h2>📩 Arkadaşını Davet Et</h2><div id="inviteFriendList" style="margin-top:15px; display:flex; flex-direction:column; gap:8px;"></div></div></div>
@@ -2045,6 +2051,10 @@ async function loadGameMeta(){
       const m = {};
       d.games.forEach(g => { m[g.id] = g.visible; });
       window.__gvGameVisibility = m;
+      // Popüler Oyun Sıralaması (Kurucu Paneli): 'auto' (varsayılan, gerçek
+      // oynanma sayısına göre) ya da kurucunun elle belirlediği 'manual' sıra
+      // + kaç oyunun gösterileceği (count, 0 = tümü).
+      if (d.popular && typeof d.popular === 'object') window.__gvPopularConfig = d.popular;
       renderHome();
       renderAll();
       // Lobide açıkken gizli oyunun listesi de kalksın:
@@ -2497,14 +2507,36 @@ function toggleNotif(){const n=document.getElementById('notifPanel'); if(n) n.cl
 // "hot/popüler/yeni" rozetleri ve uydurma oyuncu sayısı yerine gerçek
 // oynanma sayısına göre sıralama + gerçek sayı gösterimi.
 function gvPlayCount(id){try{return Number((window.__gvPlayCounts||{})[id])||0;}catch(_){return 0;}}
+// Popüler Oyun Sıralaması ayarı (Kurucu Paneli): 'auto' (varsayılan, gerçek
+// oynanma sayısına göre) ya da kurucunun elle belirlediği 'manual' sıra +
+// kaç oyunun gösterileceği (count, 0/boş = tümü). bkz. js/admin-panel.js.
+function gvPopularConfig(){try{const p=window.__gvPopularConfig;return (p&&typeof p==='object')?p:{mode:'auto',order:[],count:0};}catch(_){return {mode:'auto',order:[],count:0};}}
+// Kart altyazısı artık uydurma/gerçek oyuncu sayısı DEĞİL — kullanıcı isteği:
+// "oynandı N kez" yazısı yerine gerçek bir "⚡ Hızlı Eşleş" düğmesi (bkz.
+// quickMatchFor()). Gerçek oynanma sayısı, sıralamada kullanılmaya devam
+// eder ve kart üzerinde ipucu (title) olarak kalır.
 function cH(id,g){
-  return `<div class="game-card" data-g="${id}" onclick="GV.openLobby('${id}')"><div class="game-thumb" style="background:${g.bg}"><span class="gt-badge">${g.icon}</span></div><div class="game-info"><h3>${g.name}</h3><div class="game-players-count">🎮 ${gvPlayCount(id).toLocaleString('tr-TR')} kez oynandı</div></div></div>`;
+  const oynandi = gvPlayCount(id).toLocaleString('tr-TR');
+  return `<div class="game-card" data-g="${id}" title="${oynandi} kez oynandı" onclick="GV.openLobby('${id}')"><div class="game-thumb" style="background:${g.bg}"><span class="gt-badge">${g.icon}</span></div><div class="game-info"><h3>${g.name}</h3><button type="button" class="gv-qm-btn" onclick="event.stopPropagation();GV.quickMatchFor('${id}',this)">⚡ Hızlı Eşleş</button></div></div>`;
 }
-// Ana sayfa "Popüler Oyunlar": GERÇEK oynanma sayısına göre çoktan aza
-// sıralanır (eskiden sabit hot/yeni/popüler etiketleriyle keyfi sıradaydı).
+// Ana sayfa "Popüler Oyunlar": varsayılanda ('auto') GERÇEK oynanma sayısına
+// göre çoktan aza sıralanır; kurucu panelinden 'manual' moda geçilmişse
+// kurucunun elle belirlediği sıra (+ gösterilecek oyun sayısı) kullanılır.
 function renderHome(){
-  const liste = Object.entries(GAMES).filter(([id])=>gvGameVisible(id))
-    .sort((a,b)=>gvPlayCount(b[0])-gvPlayCount(a[0]));
+  const pc = gvPopularConfig();
+  let liste = Object.entries(GAMES).filter(([id])=>gvGameVisible(id));
+  if (pc.mode === 'manual' && Array.isArray(pc.order) && pc.order.length) {
+    const rank = new Map(pc.order.map((id,i)=>[id,i]));
+    liste.sort((a,b)=>{
+      const ra = rank.has(a[0]) ? rank.get(a[0]) : Infinity;
+      const rb = rank.has(b[0]) ? rank.get(b[0]) : Infinity;
+      if (ra !== rb) return ra - rb;
+      return gvPlayCount(b[0]) - gvPlayCount(a[0]); // kurucunun sırasına girmemiş oyunlar gerçek sayıya göre
+    });
+  } else {
+    liste.sort((a,b)=>gvPlayCount(b[0])-gvPlayCount(a[0]));
+  }
+  if (pc.count > 0) liste = liste.slice(0, pc.count);
   document.getElementById('homeGames').innerHTML = liste.map(([id,g])=>cH(id,g)).join('');
 }
 function renderAll(){document.getElementById('allGames').innerHTML=Object.entries(GAMES).filter(([id])=>gvGameVisible(id)).map(([id,g])=>cH(id,g)).join('');}
@@ -2653,6 +2685,65 @@ function createRoom(){
 
   toast(`🎲 ${pCount} kişilik ${isPrivate ? 'Özel' : 'Genel'} "${rName}" oluşturuldu!`, 'success');
   joinRoom(rid);
+}
+
+// ⚡ HIZLI EŞLEŞ — GERÇEK eşleştirme (kullanıcı raporu: ana sayfadaki oyun
+// kartlarında "oynandı N kez" yazısı yerine bir Hızlı Eşleş düğmesi olsun,
+// bu düğme "ilk uygun/bekleyen masaya ya da başka bir Hızlı Eşleş arayan
+// oyuncuya" eşleştirsin). Eskiden bu isimde bir fonksiyon vardı ama SAHTEYDİ
+// (3 sn sahte "arıyor" animasyonu + rastgele bir oda numarasına joinRoom —
+// gerçekte açık/dolu olup olmadığına hiç bakmıyordu). Artık:
+//   1) /api/rooms?gameId=X ile GERÇEK masa listesi çekilir (aynı uç, lobi
+//      sayfasının kullandığı — bkz. js/lobby-sync.js);
+//   2) oynanmıyor + boş koltuğu olan + herkese açık (özel değil) masalar
+//      arasından, İÇİNDE ZATEN OYUNCU BEKLEYEN (başka bir Hızlı Eşleş
+//      arayan olabilir) bir masa varsa o TERCİH EDİLİR — gerçek bir rakiple
+//      eşleşme şansı artsın diye; yoksa boş bir hazır masaya (ör. kurucu
+//      panelindeki 10 standart masadan biri) oturulur;
+//   3) hiç uygun masa yoksa (çok yoğun an) yeni bir GENEL masa açılır — bu,
+//      BİR SONRAKİ Hızlı Eşleş arayan için artık "ilk bekleyen masa" olur,
+//      yani ayrı bir eşleşme kuyruğu kurmaya gerek kalmaz.
+async function quickMatchFor(gid, btn){
+  if (!GAMES[gid]) return;
+  if (btn) { btn.disabled = true; btn.dataset.orig = btn.textContent; btn.textContent = '🔎 Aranıyor...'; }
+  try {
+    let secilen = null;
+    try {
+      const r = await fetch('/api/rooms?gameId=' + encodeURIComponent(gid), { cache: 'no-store' });
+      const d = r.ok ? await r.json() : null;
+      const rows = (d && d.ok && Array.isArray(d.rooms)) ? d.rooms : [];
+      const acik = rows.filter(x => x.status !== 'playing' && !x.isPrivate && Number(x.players || 0) < Number(x.maxPlayers || 2));
+      acik.sort((a, b) => Number(b.players || 0) - Number(a.players || 0)); // dolu koltuklu (bekleyen rakip) masa öne
+      secilen = acik[0] || null;
+    } catch (_) { /* /api/rooms başarısız — aşağıda yeni masa açılır */ }
+
+    st.curGame = gid;
+    if (secilen) {
+      toast(`⚡ ${GAMES[gid].icon} ${GAMES[gid].name}: uygun masa bulundu, katılıyorsun!`, 'success');
+      joinRoom(secilen.id);
+      return;
+    }
+
+    // Uygun masa yok → yeni GENEL masa aç. Misafir de bunu kullanabilir:
+    // openCreateRoomModal'daki üyelik zorunluluğu yalnızca ELLE ÖZEL masa
+    // kurma akışı içindir — Hızlı Eşleş her zaman GENEL masa açar/katılır,
+    // tıpkı lobideki mevcut bir masaya "Katıl" demek gibi (misafirler de
+    // genel masalara serbestçe katılabiliyor).
+    const isTwoPlayer = TWO_PLAYER_GAMES.includes(gid);
+    const pCount = isTwoPlayer ? 2 : 4;
+    const rRounds = (gid === 'chess' || gid === 'tavla' || gid === 'okey101') ? 1 : 3;
+    const OKEY_ROUND_DUR = { 3: 10, 5: 15, 7: 20 };
+    const gameDuration = (gid === 'chess' || gid === 'tavla') ? 10 : (gid === 'okey101') ? 20 : (OKEY_ROUND_DUR[rRounds] || 10);
+    const rid = Math.floor(1000 + Math.random() * 9000).toString();
+    const rName = `⚡ Hızlı Eşleş — ${GAMES[gid].name}`;
+    if (!ROOMS[gid]) ROOMS[gid] = [];
+    ROOMS[gid].unshift({ id: rid, name: rName, players: 1, maxPlayers: pCount, rounds: rRounds, duration: gameDuration, isPrivate: false, status: 'waiting' });
+    st.roomConfig = { rounds: rRounds, duration: gameDuration, playerCount: pCount, roomId: rid, isPrivate: false, name: rName };
+    toast(`⚡ ${GAMES[gid].icon} ${GAMES[gid].name}: şu an bekleyen masa yok, yeni bir masa açıldı — rakip gelene kadar bekle!`, 'info');
+    joinRoom(rid);
+  } finally {
+    if (btn) { btn.disabled = false; if (btn.dataset.orig) btn.textContent = btn.dataset.orig; }
+  }
 }
 
 function joinRoom(rid, opts){
@@ -2944,22 +3035,11 @@ function leaveRoom(){
   setTimeout(()=>{ st.boards={}; openLobby(st.curGame); }, 1200);
 }
 
-function quickMatch(){
-  showModal('matchModal');
-  let s=0;
-  st.matchInterval=setInterval(()=>{
-    s++;
-    const timerEl = document.getElementById('matchTimer');
-    if(timerEl) timerEl.textContent=String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0');
-    if(s>=3){
-      clearInterval(st.matchInterval);
-      hideModal('matchModal');
-      joinRoom(1000+Math.floor(Math.random()*9000));
-    }
-  },1000);
-}
-
-function cancelMatch(){clearInterval(st.matchInterval);hideModal('matchModal');}
+// Lobi sayfasındaki "⚡ Hızlı Eşleş" düğmesi — eskiden 3 sn'lik SAHTE bir
+// "arıyor" animasyonundan sonra rastgele bir oda numarasına katılıyordu
+// (gerçekten açık/uygun olup olmadığına bakmadan). Artık ana sayfadaki
+// kartlarla AYNI gerçek eşleştirme mantığını (quickMatchFor) kullanır.
+function quickMatch(){ quickMatchFor(st.curGame || 'okey'); }
 
 function startTimer(){
   if(st.onlineClock) return; // online satranç/tavla odasındayız: saatler sunucudan işlenir
@@ -4683,7 +4763,7 @@ return {
   joinRoom,
   leaveRoom,
   quickMatch,
-  cancelMatch,
+  quickMatchFor,
   showRules,
   toggleFullscreen,
   open101Tutorial,

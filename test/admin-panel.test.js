@@ -142,7 +142,41 @@ async function main() {
   assert.strictEqual((await roomsOf(BASE, 'chess')).length, 8, 'satranç 8 masaya düştü');
   console.log('  ✓ 4) oyun geri açıldı; masa sayısı azaltıldı (dolu olmayan fazla masalar kaldırıldı)');
 
-  // ---------- 4) kalıcılık: aynı DB ile yeniden başlat ----------
+  // ---------- 4b) REGRESYON: pişti/batak tables-apply'da SİLİNMEMELİ ----------
+  // Kök neden: pisti/batak HEM "yönetilen kart oyunu" (managedCardTables,
+  // id/gameId/maxPlayers/rounds taşıyan) HEM DE STANDARD_PRESET_GAMES
+  // (PRESET_GAME_BASES'te taban ID'si olan: pisti 341, batak 361) listesinde
+  // birden yer alıyordu. normPresetConfig'te bu iki dal ART ARDA çalışıp
+  // ikincisi id'Yİ SİLEREK cfg[g].tables'ı EZİYORDU — presetTablesFromConfig
+  // sonra her masa için id="undefined" üretiyor, 18 pişti + 6 batak masası
+  // TEK bir bozuk odaya çöküyordu. Kurucu Paneli'nin GERÇEK "Kaydet ve
+  // Uygula" akışı HER ZAMAN tüm oyunların (pişti/batak DAHİL) güncel
+  // ayarını birlikte gönderdiği için, panelde pişti/batak'a hiç
+  // dokunulmasa bile HERHANGİ bir kayıt bu masaları siliyordu.
+  const pistiBefore = await roomsOf(BASE, 'pisti');
+  const batakBefore = await roomsOf(BASE, 'batak');
+  assert.strictEqual(pistiBefore.length, 18, 'ön koşul: pişti 18 hazır masa (2/3/4 kişilik × 1/3/5 el × 2)');
+  assert.strictEqual(batakBefore.length, 6, 'ön koşul: batak 6 hazır masa (4 kişilik × 3/5/7 el × 2)');
+  // Kurucu Paneli'nin gerçekte yaptığı gibi: pişti/batak'ın KENDİ GÜNCEL
+  // (sunucudan okunmuş) tablosunu DEĞİŞTİRMEDEN, başka bir oyunla (chess)
+  // BİRLİKTE geri gönder — bu, "ayarları kaydet" sırasında yan etki
+  // olmaması gerektiğini doğrular.
+  const applyPistiBatak = await api(BASE, '/api/admin/tables-apply', {
+    games: {
+      chess: { visible: true, tables: dfltChess8 },
+      pisti: { visible: true, tables: pistiBefore.map(r => ({ id: r.id, maxPlayers: r.maxPlayers, rounds: r.rounds, durationMinutes: r.duration, name: r.name })) },
+      batak: { visible: true, tables: batakBefore.map(r => ({ id: r.id, maxPlayers: r.maxPlayers, rounds: r.rounds, durationMinutes: r.duration, name: r.name })) }
+    }
+  }, 'POST', login.token);
+  assert.ok(applyPistiBatak.ok, 'pişti/batak tablosunu geri göndermek başarılı olmalı');
+  const pistiAfter = await roomsOf(BASE, 'pisti');
+  const batakAfter = await roomsOf(BASE, 'batak');
+  assert.strictEqual(pistiAfter.length, 18, 'pişti 18 masa OLARAK KALMALI (silinmemeli)');
+  assert.strictEqual(batakAfter.length, 6, 'batak 6 masa OLARAK KALMALI (silinmemeli)');
+  assert.deepStrictEqual(pistiAfter.map(r => r.id).sort(), pistiBefore.map(r => r.id).sort(), 'pişti masa ID\'leri AYNI kalmalı (id="undefined" çökmesi yok)');
+  console.log('  ✓ 4a) REGRESYON: pişti/batak masaları "Kaydet ve Uygula" ile SİLİNMİYOR (id="undefined" çökme hatası düzeldi)');
+
+  // ---------- 4c) kalıcılık: aynı DB ile yeniden başlat ----------
   serverModule.io.close();
   await new Promise(r => server.close(r));
   const server2 = await serverModule.start(0);

@@ -91,6 +91,13 @@
     return api(BACKEND + '/api/admin/users', null, 'GET');
   }
   // Masa ayarları oku — Yöncü'de PHP'den (yoksa varsayılan), diğerinde Render:
+  //
+  // "Popüler Oyun Sıralaması" ayarı (_popular) Yöncü'de aynı blobun İÇİNDE
+  // saklanır (yeni bir PHP ucu gerekmesin diye — bkz. server.js'teki
+  // popularConfig açıklaması), ama Render'ın /api/admin/tables ucu bunu ayrı
+  // bir `popular` alanında döndürür (presetConfig'e karışmasın diye). İkisini
+  // burada TEK bir şekle (`_popular` alt-anahtarı) normalize ediyoruz ki
+  // mergeIntoDefault() kaynağa bakmaksızın aynı kodu kullanabilsin.
   async function fetchSettings() {
     if (isYoncuPage()) {
       const r = await api('/api/admin.php?action=gamesGet', null, 'GET');
@@ -98,7 +105,10 @@
       return null; // PHP'de kayıt yoksa sunucudaki varsayılanlar geçerli
     }
     const r = await api(BACKEND + '/api/admin/tables', null, 'GET');
-    return (r.ok && r.games) ? r.games : null;
+    if (!r.ok || !r.games) return null;
+    const out = Object.assign({}, r.games);
+    if (r.popular && typeof r.popular === 'object') out._popular = r.popular;
+    return out;
   }
   // Kaydet: 1) kalıcı veri (Yöncü PHP — yalnız Yöncü sayfasında) 2) Render CANLI:
   async function saveSettings(cfg) {
@@ -108,11 +118,14 @@
     }
     const apply = await api(BACKEND + '/api/admin/tables-apply', { games: cfg }, 'POST');
     if (!apply.ok) return { ok: false, error: apply.error || 'Uygulanamadı.' };
-    // Görünürlüğü anında menüye yansıt:
+    // Görünürlüğü + popüler oyun sıralamasını anında menüye/ana sayfaya yansıt:
     try {
       const m = {};
       (apply.games || []).forEach(g => { m[g.id] = g.visible; });
       window.__gvGameVisibility = m;
+      // Sunucunun DOĞRULANMIŞ (clamp'lenmiş) hâli varsa onu kullan; yoksa
+      // az önce gönderdiğimiz ayara geri düş.
+      window.__gvPopularConfig = apply.popular || cfg._popular || defaultPopular();
       // Tüm siteye yansıt: menü + ana sayfa + tüm oyunlar + sıralama/turnuva
       // sekmeleri + oyun skoru ızgarası (gizlenen oyunun tüm buton/görseli kalksın).
       ['renderSB', 'renderHome', 'renderAll', 'renderLBTabs', 'renderTournTabs', 'updateScoreUI']
@@ -138,7 +151,24 @@
       if (STANDARD.includes(g)) cfg[g] = { visible: true, tables: defaultTables(g) };
       else cfg[g] = { visible: true };
     }
+    // Popüler Oyun Sıralaması: varsayılan 'auto' (gerçek oynanma sayısına
+    // göre) — kurucu hiç dokunmazsa site DAVRANIŞI DEĞİŞMEZ.
+    cfg._popular = defaultPopular();
     return cfg;
+  }
+  function defaultPopular() { return { mode: 'auto', order: [], count: 0 }; }
+  function normPopular(raw) {
+    const out = defaultPopular();
+    const games = (window.GAMES && Object.keys(window.GAMES)) || STANDARD;
+    if (!raw || typeof raw !== 'object') return out;
+    if (raw.mode === 'manual') out.mode = 'manual';
+    if (Array.isArray(raw.order)) {
+      const seen = new Set();
+      out.order = raw.order.map(String).filter(id => games.includes(id) && !seen.has(id) && seen.add(id));
+    }
+    const c = Math.floor(Number(raw.count));
+    out.count = (Number.isFinite(c) && c >= 1 && c <= games.length) ? c : 0;
+    return out;
   }
 
   // Yöncü'de kayıtlı ayar bloğu, YENİ eklenen bir oyunu (örn. battleship)
@@ -153,6 +183,7 @@
     if (!fetched || typeof fetched !== 'object') return def;
     const out = {};
     for (const gid of Object.keys(def)) {
+      if (gid === '_popular') continue; // ayrı normalize edilir (aşağıda) — visible/tables alanları yok
       const base = def[gid];
       const src = fetched[gid];
       if (!src || typeof src !== 'object') { out[gid] = base; continue; }
@@ -161,9 +192,11 @@
       if (STANDARD.includes(gid) && Array.isArray(src.tables) && src.tables.length) merged.tables = src.tables;
       out[gid] = merged;
     }
+    out._popular = normPopular(fetched._popular);
     // Kayıtlı ama artık listede olmayan bir oyun varsa (kaldırılmış oyun)
     // yine de kaybolmasın:
     for (const gid of Object.keys(fetched)) {
+      if (gid === '_popular') continue;
       if (!out[gid] && fetched[gid] && typeof fetched[gid] === 'object') out[gid] = fetched[gid];
     }
     return out;
@@ -503,7 +536,9 @@
       return;
     }
     const games = (window.GAMES && Object.keys(window.GAMES)) || STANDARD;
+    if (!settingsCache._popular) settingsCache._popular = defaultPopular();
     body.innerHTML = `
+      ${popularSectionHtml(games)}
       <div style="font-weight:800;font-size:.95em;margin-bottom:4px">OYUNLAR (${games.length})</div>
       <div style="font-size:.78em;color:var(--text3);margin-bottom:12px">Görünürlük, masa sayısı ve masa adları/tipleri buradan yönetilir. Değişiklikler <b>Kaydet ve Uygula</b> ile kalıcı olur ve siteye anında yansır.</div>
       <div style="display:flex;flex-direction:column;gap:10px">
@@ -513,8 +548,70 @@
         <button type="button" id="adminSaveBtn" style="background:linear-gradient(135deg,#6c5ce7,#8f7bff);color:#fff;border:none;padding:11px 22px;border-radius:10px;font-weight:800;cursor:pointer">💾 Kaydet ve Uygula</button>
       </div>`;
     body.querySelectorAll('[data-act]').forEach(btn => btn.addEventListener('click', () => onGameAction(btn.getAttribute('data-act'), btn.getAttribute('data-gid'), btn.getAttribute('data-i'), btn)));
+    if (settingsCache._popular.mode === 'manual') paintPopularOrder();
+    const countInp = document.getElementById('popCountInput');
+    if (countInp) countInp.addEventListener('change', () => {
+      const n = Math.floor(Number(countInp.value));
+      settingsCache._popular.count = (Number.isFinite(n) && n >= 1 && n <= games.length) ? n : 0;
+    });
     const saveBtn = document.getElementById('adminSaveBtn');
     if (saveBtn) saveBtn.addEventListener('click', onSave);
+  }
+
+  // ---------- 🔥 Popüler Oyun Sıralaması (ana sayfa) ----------
+  // Kullanıcının isteği: "popüler oyun sıralaması kurucu tarafından kurucu
+  // panelinde sıralansın". Varsayılan ('auto') davranış DEĞİŞMEZ: ana sayfa
+  // gerçek oynanma sayısına göre sıralanır (bkz. index.html renderHome()).
+  // Kurucu 'manual' moda geçip elle sıra + kaç oyunun gösterileceğini
+  // (count, boş = tümü) belirleyebilir.
+  function popularOrderedList(games) {
+    const pc = settingsCache._popular || defaultPopular();
+    const order = (pc.order || []).filter(id => games.includes(id));
+    games.forEach(id => { if (!order.includes(id)) order.push(id); }); // sırada olmayanlar sona eklenir
+    return order;
+  }
+  function popularSectionHtml(games) {
+    const pc = settingsCache._popular || defaultPopular();
+    const manual = pc.mode === 'manual';
+    const btn = (active) => `border:none;border-radius:8px;padding:7px 14px;cursor:pointer;font-weight:700;font-size:.82em;${active ? 'background:var(--accent);color:#fff' : 'background:var(--bg3);color:var(--text2)'}`;
+    return `
+      <div style="border:1px solid var(--border);border-radius:12px;padding:12px 14px;background:var(--bg2);margin-bottom:16px">
+        <div style="font-weight:800;font-size:.9em;margin-bottom:6px">🔥 Popüler Oyun Sıralaması</div>
+        <div style="font-size:.76em;color:var(--text3);margin-bottom:10px">Ana sayfadaki "Popüler Oyunlar" bölümünün sırasını ve kaç oyunun gösterileceğini belirler. <b>Otomatik</b> modda gerçek oynanma sayısına göre (çoktan aza) sıralanır; <b>Manuel</b> modda sırayı sen belirlersin.</div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:${manual ? '10px' : '0'}">
+          <button type="button" data-act="popMode" data-mode="auto" style="${btn(!manual)}">📊 Otomatik</button>
+          <button type="button" data-act="popMode" data-mode="manual" style="${btn(manual)}">✋ Manuel</button>
+          <label style="display:flex;align-items:center;gap:6px;font-size:.82em;color:var(--text2);margin-left:auto">
+            Gösterilecek oyun sayısı:
+            <input type="number" id="popCountInput" min="1" max="${games.length}" placeholder="Tümü (${games.length})" value="${pc.count || ''}" style="width:70px;padding:6px 8px;border-radius:8px;border:1px solid var(--border);background:var(--bg3);color:var(--text)">
+          </label>
+        </div>
+        ${manual ? `<div id="popOrderList" style="display:flex;flex-direction:column;gap:6px"></div>` : ''}
+      </div>`;
+  }
+  function paintPopularOrder() {
+    const wrap = document.getElementById('popOrderList');
+    if (!wrap) return;
+    const games = (window.GAMES && Object.keys(window.GAMES)) || STANDARD;
+    const order = popularOrderedList(games);
+    const pc = settingsCache._popular;
+    const shown = pc.count > 0 ? pc.count : order.length;
+    wrap.innerHTML = order.map((gid, i) => {
+      const g = (window.GAMES && window.GAMES[gid]) || { name: gid, icon: '🎮' };
+      const cfg = settingsCache[gid] || { visible: true };
+      const hidden = cfg.visible === false;
+      const inHome = i < shown;
+      return `
+        <div style="display:flex;align-items:center;gap:8px;padding:6px 10px;border:1px solid var(--border);border-radius:8px;background:${inHome ? 'var(--bg3)' : 'var(--bg2)'};opacity:${inHome ? '1' : '.55'}">
+          <span style="font-size:.75em;color:var(--text3);width:20px;text-align:center">${i + 1}</span>
+          <span style="font-size:1.1em">${g.icon}</span>
+          <span style="flex:1;font-size:.88em;font-weight:600">${esc(g.name)}${hidden ? ' <span style="font-size:.72em;color:var(--danger,#ff7675)">(gizli)</span>' : ''}</span>
+          ${!inHome ? '<span style="font-size:.72em;color:var(--text3)">gösterilmez</span>' : ''}
+          <button type="button" data-act="popUp" data-gid="${gid}" ${i === 0 ? 'disabled style="opacity:.3"' : ''} style="border:none;background:var(--bg2);color:var(--text);border-radius:6px;padding:4px 8px;cursor:pointer" title="Yukarı taşı">▲</button>
+          <button type="button" data-act="popDown" data-gid="${gid}" ${i === order.length - 1 ? 'disabled style="opacity:.3"' : ''} style="border:none;background:var(--bg2);color:var(--text);border-radius:6px;padding:4px 8px;cursor:pointer" title="Aşağı taşı">▼</button>
+        </div>`;
+    }).join('');
+    wrap.querySelectorAll('[data-act]').forEach(btn => btn.addEventListener('click', () => onGameAction(btn.getAttribute('data-act'), btn.getAttribute('data-gid'), null, btn)));
   }
 
   function gameRow(gid) {
@@ -585,6 +682,33 @@
   }
 
   function onGameAction(act, gid, iAttr, target) {
+    // Popüler Oyun Sıralaması eylemleri — bir oyunun tablo ayarına değil
+    // settingsCache._popular'a yazar, o yüzden aşağıdaki genel `cfg` denetiminden
+    // ÖNCE ele alınmalı (act==='popMode' için gid bile yok).
+    if (act === 'popMode') {
+      const mode = target && target.getAttribute('data-mode') === 'manual' ? 'manual' : 'auto';
+      if (!settingsCache._popular) settingsCache._popular = defaultPopular();
+      settingsCache._popular.mode = mode;
+      // Manuel moda İLK geçişte sıra boşsa, o anki (mevcut GAMES anahtar
+      // sırası) sırayı başlangıç noktası olarak DONDUR — aksi halde liste
+      // boş görünür ve kurucu sıfırdan sürüklemek zorunda kalır.
+      if (mode === 'manual' && !(settingsCache._popular.order || []).length) {
+        settingsCache._popular.order = (window.GAMES && Object.keys(window.GAMES)) || STANDARD.slice();
+      }
+      renderPanel();
+      return;
+    }
+    if (act === 'popUp' || act === 'popDown') {
+      const games = (window.GAMES && Object.keys(window.GAMES)) || STANDARD;
+      const order = popularOrderedList(games);
+      const idx = order.indexOf(gid);
+      const swapWith = act === 'popUp' ? idx - 1 : idx + 1;
+      if (idx < 0 || swapWith < 0 || swapWith >= order.length) return;
+      [order[idx], order[swapWith]] = [order[swapWith], order[idx]];
+      settingsCache._popular.order = order;
+      paintPopularOrder();
+      return;
+    }
     const i = iAttr === null || iAttr === undefined ? -1 : Number(iAttr);
     const cfg = settingsCache[gid];
     if (!cfg) return;

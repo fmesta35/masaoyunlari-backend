@@ -25,8 +25,10 @@
  *   3) ana sayfadaki oyun kartlarında HOT/YENİ/POPÜLER rozeti YOK;
  *   4) ana sayfa "Popüler Oyunlar" GERÇEK sunucu sayaçlarına (bkz.
  *      play-counts.js + /api/game-play-counts) göre çoktan aza sıralı;
- *   5) her kartta gerçek "N kez oynandı" yazıyor (uydurma oyuncu sayısı
- *      değil).
+ *   5) her kartın altyazısı artık gerçek "N kez oynandı" yazısı DEĞİL —
+ *      kullanıcının SONRAKİ isteği üzerine bunun yerine gerçek bir "⚡
+ *      Hızlı Eşleş" düğmesi var (oynanma sayısı kart üzerinde `title`
+ *      ipucu olarak kalıyor, sıralamada kullanılmaya devam ediyor).
  */
 
 const fs = require('fs');
@@ -135,15 +137,21 @@ async function main() {
   assert.strictEqual(homeIds[2], 'tavla', 'üçüncü en çok oynanan (1) üçüncü sırada olmalı: ' + homeIds.join(','));
   console.log('  ✓ 4) Popüler Oyunlar GERÇEK oynanma sayısına göre çoktan aza sıralı (okey>chess>tavla>...)');
 
-  // ---------- 5) gerçek "N kez oynandı" metni ----------
+  // ---------- 5) "N kez oynandı" altyazısının yerini GERÇEK Hızlı Eşleş
+  //              düğmesi aldı (oynanma sayısı title ipucunda kalıyor) ----------
   const okeyCard = w.document.querySelector('#homeGames .game-card[data-g="okey"]');
   const chessCard = w.document.querySelector('#homeGames .game-card[data-g="chess"]');
   const damaCard = w.document.querySelector('#homeGames .game-card[data-g="dama"]');
-  assert.ok(/5\s*kez oynandı/.test(okeyCard.textContent), 'okey kartı "5 kez oynandı" göstermeli: ' + okeyCard.textContent);
-  assert.ok(/3\s*kez oynandı/.test(chessCard.textContent), 'chess kartı "3 kez oynandı" göstermeli: ' + chessCard.textContent);
-  assert.ok(/0\s*kez oynandı/.test(damaCard.textContent), 'hiç oynanmamış oyun "0 kez oynandı" göstermeli: ' + damaCard.textContent);
+  assert.ok(!/kez oynandı/.test(okeyCard.textContent), 'kart METNİNDE artık "N kez oynandı" yazmamalı (düğmeye taşındı): ' + okeyCard.textContent);
   assert.ok(!/👥/.test(okeyCard.textContent), 'eski uydurma "👥 oyuncu sayısı" göstergesi kalmamalı');
-  console.log('  ✓ 5) kartlarda uydurma oyuncu sayısı yerine GERÇEK "N kez oynandı" yazıyor');
+  const qmBtn = okeyCard.querySelector('.gv-qm-btn');
+  assert.ok(qmBtn, 'her kartta bir "⚡ Hızlı Eşleş" düğmesi olmalı');
+  assert.ok(/Hızlı Eşleş/.test(qmBtn.textContent), 'düğme metni "Hızlı Eşleş" olmalı: ' + qmBtn.textContent);
+  assert.ok(/quickMatchFor\(.okey./.test(qmBtn.getAttribute('onclick') || ''), 'okey kartının düğmesi quickMatchFor(\'okey\',...) çağırmalı');
+  assert.strictEqual(okeyCard.getAttribute('title'), '5 kez oynandı', 'gerçek oynanma sayısı artık title ipucunda kalmalı: ' + okeyCard.getAttribute('title'));
+  assert.strictEqual(chessCard.getAttribute('title'), '3 kez oynandı', 'chess kartının title ipucu doğru olmalı');
+  assert.strictEqual(damaCard.getAttribute('title'), '0 kez oynandı', 'hiç oynanmamış oyunun title ipucu "0 kez oynandı" olmalı');
+  console.log('  ✓ 5) kart altyazısı artık gerçek "⚡ Hızlı Eşleş" düğmesi; oynanma sayısı title ipucunda korunuyor');
 
   try { w.close(); } catch (_) {}
   serverModule.io.close();

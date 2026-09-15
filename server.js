@@ -372,12 +372,25 @@ function normPresetConfig(raw) {
     if (!src || typeof src !== 'object') continue;
     if (typeof src.visible === 'boolean') cfg[g].visible = src.visible;
     if (typeof src.online === 'boolean') cfg[g].online = src.online;
-    if (['okey','okey101','pisti','batak'].includes(g) && Array.isArray(src.tables)) {
+    const isManagedCardGame = ['okey','okey101','pisti','batak'].includes(g);
+    if (isManagedCardGame && Array.isArray(src.tables)) {
       const defs = managedCardTables(g);
       const t = src.tables.slice(0, 40).map((x,i) => { const d=defs[i]||defs[defs.length-1]||{}; x=x&&typeof x==='object'?x:{}; return {id:String(x.id||d.id||''),name:String(x.name||d.name||('Masa #'+(i+1))).slice(0,60),type:(x.type==='fast'||x.type==='thinker')?x.type:'normal',durationMinutes:clampDuration(x.durationMinutes,d.durationMinutes||10),maxPlayers:Math.max(2,Math.min(Number(x.maxPlayers||d.maxPlayers||2),g==='batak'?4:4)),rounds:Number(x.rounds||d.rounds)||undefined}; });
       if (t.length) cfg[g].tables=t;
     }
-    if (STANDARD_PRESET_GAMES.includes(g) && Array.isArray(src.tables)) {
+    // ⚠ HATA DÜZELTMESİ: pisti/batak HEM yukarıdaki "yönetilen kart oyunu"
+    // listesinde HEM DE STANDARD_PRESET_GAMES'te (PRESET_GAME_BASES'te taban
+    // ID'leri var: pisti 341, batak 361) yer alıyordu. Bu yüzden bu ikinci
+    // blok pisti/batak için de çalışıyor ve yukarıda doğru şekilde
+    // yeniden şekillendirilmiş {id,gameId,maxPlayers,rounds,...} nesnelerini
+    // id'SİZ {name,type,durationMinutes} nesneleriyle EZİYORDU. Sonuç:
+    // presetTablesFromConfig() tüm masalar için id="undefined" üretiyor,
+    // bunların hepsi TEK bir odaya çöküyor ve Kurucu Paneli'nde herhangi bir
+    // "Kaydet ve Uygula" (pişti/batak'a hiç dokunulmasa bile — settingsCache
+    // her zaman TÜM oyunları gönderir) 18 pişti + 6 batak hazır masasını
+    // SİLİYORDU. Düzeltme: bu blok artık yalnız GERÇEKTEN "taban ID + indeks"
+    // şemasını kullanan standart oyunlarda (satranç, tavla, dama, ...) çalışır.
+    if (STANDARD_PRESET_GAMES.includes(g) && !isManagedCardGame && Array.isArray(src.tables)) {
       const base = PRESET_GAME_BASES[g];
       const dflt = defaultTablesFor(g);
       const t = src.tables.slice(0, 30).map((x, i) => {
@@ -397,6 +410,53 @@ function normPresetConfig(raw) {
 
 // ---- Geçerli hazır-masa yapılandırması (bellek) ----
 let presetConfig = defaultPresetConfig();
+
+// ============================================================================
+// POPÜLER OYUN SIRALAMASI (Kurucu Paneli) — kullanıcının isteği: "popüler oyun
+// sıralaması kurucu tarafından kurucu panelinde sıralansın". Varsayılan
+// ('auto') davranış DEĞİŞMEDİ: ana sayfa gerçek oynanma sayısına göre sıralar
+// (bkz. play-counts.js). Kurucu 'manual' moda geçip elle bir sıra + kaç
+// oyunun gösterileceğini (count) belirleyebilir.
+//
+// Kalıcılık, masa ayarlarıyla (presetConfig) AYNI kanaldan (Kurucu Paneli
+// "Kaydet ve Uygula") yürür ama YENİ bir Yöncü PHP ucu GEREKTİRMEZ: panel
+// bu ayarı `games` nesnesinin içine `_popular` anahtarıyla gizlice ekler —
+// admin.php?action=gamesSave/gamesGet zaten HANGİ alanlar olduğuna
+// bakmaksızın tüm `games` bloğunu ham JSON olarak saklayıp geri veriyor
+// (bkz. yoncu-api/admin.php), o yüzden PHP tarafında değişiklik gerekmedi.
+function defaultPopularConfig() { return { mode: 'auto', order: [], count: 0 }; } // count 0 = tümünü göster
+function normPopularConfig(raw) {
+  const out = defaultPopularConfig();
+  if (!raw || typeof raw !== 'object') return out;
+  if (raw.mode === 'manual') out.mode = 'manual';
+  if (Array.isArray(raw.order)) {
+    const seen = new Set();
+    out.order = raw.order.map(x => String(x)).filter(id => ALL_GAMES.includes(id) && !seen.has(id) && seen.add(id));
+  }
+  const c = Math.floor(Number(raw.count));
+  out.count = (Number.isFinite(c) && c >= 1 && c <= ALL_GAMES.length) ? c : 0;
+  return out;
+}
+let popularConfig = defaultPopularConfig();
+
+function loadPopularConfigLocal() {
+  if (!db) return;
+  try {
+    const row = db.prepare("SELECT value FROM settings WHERE skey = 'popular_games_config'").get();
+    if (row && row.value) {
+      const d = JSON.parse(row.value);
+      if (d && typeof d === 'object') popularConfig = normPopularConfig(d);
+    }
+  } catch (e) { console.warn('⚠️  Popüler oyun sıralaması okunamadı (varsayılan kullanılıyor):', e.message); }
+}
+function savePopularConfigLocal() {
+  if (!db) return;
+  try {
+    db.prepare("INSERT INTO settings(skey, value, updated_at) VALUES('popular_games_config', ?, ?) " +
+      "ON CONFLICT(skey) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at")
+      .run(JSON.stringify(popularConfig), Date.now());
+  } catch (e) { console.warn('⚠️  Popüler oyun sıralaması kaydedilemedi:', e.message); }
+}
 
 function gameVisible(id) {
   const c = presetConfig[id];
@@ -506,6 +566,9 @@ function seedPresetTables() {
 // Dolu (oyunculu) masalara dokunulmaz; değişiklik boşalınca oturur.
 function applyPresetConfig(raw) {
   presetConfig = normPresetConfig(raw);
+  // bkz. yukarıdaki "POPÜLER OYUN SIRALAMASI" açıklaması: `_popular` alanı
+  // aynı `raw` nesnesinin içinde (normPresetConfig bunu görmezden gelir).
+  popularConfig = normPopularConfig(raw && raw._popular);
   const desired = presetTablesFromConfig(presetConfig);
   const desiredIds = new Set(desired.map(t => t.id));
   const touchedGames = new Set();
@@ -590,6 +653,7 @@ async function loadPresetConfigRemote() {
     const d = await r.json();
     if (d && d.ok && d.settings) {
       presetConfig = normPresetConfig(d.settings);
+      popularConfig = normPopularConfig(d.settings._popular);
       console.log('🎛️  Masa ayarları Yöncü\'den yüklendi.');
     }
   } catch (_) {
@@ -3351,9 +3415,12 @@ app.get('/api/rooms', (req, res) => {
 
 // Oyun görünürlük meta'sı (KAMU): istemci oyun menüsünü + lobiyi
 // gizli oyunlardan süzer. (Yöneticinin kurucu panelinden yaptığı
-// görünürlük değişimi anında yansır.)
+// görünürlük değişimi anında yansır.) `popular`: ana sayfanın "Popüler
+// Oyunlar" sıralamasını GERÇEK oynanma sayısına mı (auto) yoksa kurucunun
+// elle belirlediği sıraya mı (manual) göre çizeceğini + kaç oyun
+// gösterileceğini (count, 0 = tümü) taşır — bkz. yukarıdaki popularConfig.
 app.get('/api/games-meta', (_req, res) => {
-  res.json({ ok: true, games: ALL_GAMES.map(id => ({ id, visible: gameVisible(id) })) });
+  res.json({ ok: true, games: ALL_GAMES.map(id => ({ id, visible: gameVisible(id) })), popular: popularConfig });
 });
 
 // GERÇEK oynanma sayaçları: ana sayfa "Popüler Oyunlar" sıralaması ve oyun
@@ -3443,8 +3510,8 @@ app.post('/api/admin/tables-apply', async (req, res) => {
   const body = (req.body && req.body.games) || (req.body && typeof req.body === 'object' ? req.body : {});
   try {
     applyPresetConfig(body);
-    if (!process.env.GV_AUTH_API) savePresetConfigLocal();
-    res.json({ ok: true, games: ALL_GAMES.map(id => ({ id, visible: gameVisible(id) })) });
+    if (!process.env.GV_AUTH_API) { savePresetConfigLocal(); savePopularConfigLocal(); }
+    res.json({ ok: true, games: ALL_GAMES.map(id => ({ id, visible: gameVisible(id) })), popular: popularConfig });
   } catch (e) {
     console.error('tables-apply hatası:', e);
     res.status(500).json({ ok: false, error: e.message });
@@ -3455,7 +3522,7 @@ app.post('/api/admin/tables-apply', async (req, res) => {
 // istemci Yöncü PHP'sine gider):
 app.get('/api/admin/tables', async (req, res) => {
   if (!await requireAdmin(req, res)) return;
-  res.json({ ok: true, games: presetConfig });
+  res.json({ ok: true, games: presetConfig, popular: popularConfig });
 });
 
 // Kurucu Paneli / Ana sayfa — canlı istatistikler (yalnız yönetici).
@@ -4069,7 +4136,7 @@ app.use((err, _req, res, _next) => {
 // gelmesi (en fazla 4 sn) beklenir; erişilemezse varsayılanlarla kurulur.
 async function start(port) {
   if (process.env.GV_AUTH_API) await loadPresetConfigRemote();
-  else loadPresetConfigLocal();
+  else { loadPresetConfigLocal(); loadPopularConfigLocal(); }
   // Kalıcı hazır masalar sunucu ayağa kalkarken oluşturulur.
   seedPresetTables();
   const listenPort = port !== undefined ? port : (process.env.PORT || 3000);
@@ -4095,7 +4162,10 @@ module.exports = { app, server, io, rooms, start, listPublicRooms, publicRoom, s
   // Yönetici (kurucu) paneli + hazır masa yönetimi (testler için de export):
   ALL_GAMES, STANDARD_PRESET_GAMES, PRESET_GAME_BASES, defaultPresetConfig, normPresetConfig,
   presetTablesFromConfig, applyPresetConfig, loadPresetConfigLocal, savePresetConfigLocal, gameVisible,
+  // Popüler oyun sıralaması (Kurucu Paneli — testler için de export):
+  defaultPopularConfig, normPopularConfig, loadPopularConfigLocal, savePopularConfigLocal,
   // Puan sistemi test kancaları (yalnız testler kullanır; üretimde etkisi yok).
   __test: { puanYaz, puanDonusYaz, scoring, presenceSayim } };
 // Eski test uyumluluğu: PRESET_TABLES artık yapılandırmadan üretilir.
 Object.defineProperty(module.exports, 'PRESET_TABLES', { get: () => presetTablesFromConfig(presetConfig) });
+Object.defineProperty(module.exports, 'popularConfig', { get: () => popularConfig });
