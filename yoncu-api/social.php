@@ -410,9 +410,14 @@ if ($action === 'scoreSettings') {
 /* ==========================================================================
  * ÜYE YAPTIRIMLARI (kalıcılık)
  * --------------------------------------------------------------------------
- * Kurucu doğrulaması Render tarafındadır (requireAdmin); burada YALNIZ
- * kayıt tutulur. Tüm uçlar sunucu anahtarıyla korunur — tarayıcı doğrudan
- * yaptırım uygulayamaz ya da kaldıramaz.
+ * Kalıcı kayıt burada tutulur. Yetki: Render'ın sunucu anahtarı (X-GV-Key)
+ * VEYA tarayıcının kurucu oturumu (Bearer) — gv_require_server_key_or_admin().
+ * İkinci yol, kurucu panelinin bu uçları PHP'ye Render ÜZERİNDEN GEÇMEDEN
+ * doğrudan çağırabilmesi içindir: Yöncü'nün DDoS koruması Render'ın
+ * sunucu-sunucu X-GV-Key'li çağrısını engelleyebiliyor ("boş cevap" hatası),
+ * tarayıcı isteği ise sorunsuz geçer. Render, kalıcı yazma tarayıcıdan PHP'ye
+ * doğrudan gittikten SONRA yalnız anlık önbellek/bildirim için ayrıca
+ * çağrılır (bkz. server.js /api/admin/sanctions/sync).
  *
  *  * expires_at NULL → SÜRESİZ,  lifted_at NULL → hâlâ yürürlükte
  *  * Kayıt SİLİNMEZ; kaldırma lifted_at ile işaretlenir (denetim izi).
@@ -439,7 +444,7 @@ function gv_sanction_active($pdo, $uid, $tur, $now) {
 }
 
 if ($action === 'sanctionApply') {
-    gv_require_server_key();
+    gv_require_server_key_or_admin();
     $uid = intval($in['uid'] ?? 0);
     if ($uid <= 0) gv_json(array('ok' => false, 'error' => 'Kullanıcı bulunamadı.'));
     $tur = strval($in['tur'] ?? 'chat');
@@ -458,7 +463,7 @@ if ($action === 'sanctionApply') {
 }
 
 if ($action === 'sanctionLift') {
-    gv_require_server_key();
+    gv_require_server_key_or_admin();
     $uid = intval($in['uid'] ?? 0);
     if ($uid <= 0) gv_json(array('ok' => false, 'error' => 'Kullanıcı bulunamadı.'));
     $tur = strval($in['tur'] ?? 'chat');
@@ -470,7 +475,7 @@ if ($action === 'sanctionLift') {
 }
 
 if ($action === 'sanctionActive') {
-    gv_require_server_key();
+    gv_require_server_key_or_admin();
     $uid = intval($_GET['uid'] ?? 0);
     $tur = strval($_GET['tur'] ?? 'chat');
     if ($uid <= 0) gv_json(array('ok' => true, 'yaptirim' => null));
@@ -478,7 +483,7 @@ if ($action === 'sanctionActive') {
 }
 
 if ($action === 'sanctionList') {
-    gv_require_server_key();
+    gv_require_server_key_or_admin();
     $pdo = gv_pdo();
     $s = $pdo->prepare("SELECT s.*, u.name AS uname, u.email AS uemail
                           FROM gv_sanctions s LEFT JOIN gv_users u ON u.id = s.user_id

@@ -3461,6 +3461,19 @@ app.get('/api/admin/tables', async (req, res) => {
 // Kurucu Paneli / Ana sayfa — canlı istatistikler (yalnız yönetici).
 // Metrikler: online üye, aktif/bugünkü oyun, toplam/devam eden/tamamlanan
 // maç, günlük-haftalık-aylık yeni üye, 7 günde aktif üye.
+//
+// KULLANICI RAPORU: "Toplam üye sayısı da sıfır gösteriyor." Kök neden:
+// UZAK modda (GV_AUTH_API) kalıcı üyelik Yöncü MySQL'dedir — buradaki
+// yerel `db` HER ZAMAN null'dur (bkz. db.js). js/admin-panel.js
+// refreshHeroStats() Yöncü sayfasında PHP'nin (admin.php?action=stats —
+// GERÇEK sayılar) ve Render'ın (bu uç — CANLI durum) sonuçlarını
+// `Object.assign({}, phpStats, renderStats)` ile birleştirir; "canlı"
+// olan İKİNCİ kaynak öncelikliydi. Bu uç eskiden totalUsers/newUsersX/
+// totalMatches/activeUsers alanlarını `db` yokken de 0 değerleriyle
+// DÖNDÜRÜYORDU — Object.assign bu SIFIRLARI PHP'nin gerçek sayılarının
+// ÜZERİNE yazıyordu. Çözüm: bu alanlar yalnızca yerel `db` varsa (yerel/
+// geliştirme modu) yanıta EKLENİR; UZAK modda hiç yer almazlar, böylece
+// istemcideki birleştirme PHP'nin gerçek değerlerini KORUR.
 app.get('/api/admin/stats', async (req, res) => {
   if (!await requireAdmin(req, res)) return;
   const now = Date.now();
@@ -3474,44 +3487,30 @@ app.get('/api/admin/stats', async (req, res) => {
     }
     activeGames = playingGames.size;
   } catch (_) {}
-  let totalMatches = 0, completedMatches = 0, gamesToday = 0, activeUsers = 0, totalUsers = 0;
-  let newUsersToday = 0, newUsersWeek = 0, newUsersMonth = 0;
+  const stats = { onlineUsers, totalGames, activeGames, ongoingMatches, now };
   if (db) {
     try {
-      totalUsers = db.prepare('SELECT COUNT(*) c FROM users').get().c;
+      const totalUsers = db.prepare('SELECT COUNT(*) c FROM users').get().c;
       const c = db.prepare('SELECT COUNT(*) c FROM matches').get().c;
-      totalMatches = c; completedMatches = c;
-      gamesToday = db.prepare('SELECT COUNT(*) c FROM matches WHERE ts >= ?').get(now - DAY).c;
-      newUsersToday = db.prepare('SELECT COUNT(*) c FROM users WHERE created_at >= ?').get(now - DAY).c;
-      newUsersWeek = db.prepare('SELECT COUNT(*) c FROM users WHERE created_at >= ?').get(now - WEEK).c;
-      newUsersMonth = db.prepare('SELECT COUNT(*) c FROM users WHERE created_at >= ?').get(now - MONTH).c;
+      const totalMatches = c, completedMatches = c;
+      const gamesToday = db.prepare('SELECT COUNT(*) c FROM matches WHERE ts >= ?').get(now - DAY).c;
+      const newUsersToday = db.prepare('SELECT COUNT(*) c FROM users WHERE created_at >= ?').get(now - DAY).c;
+      const newUsersWeek = db.prepare('SELECT COUNT(*) c FROM users WHERE created_at >= ?').get(now - WEEK).c;
+      const newUsersMonth = db.prepare('SELECT COUNT(*) c FROM users WHERE created_at >= ?').get(now - MONTH).c;
       // 7 günde en az 1 maçı olan AYRIK üye adedi (son 500 maç taramasıyla):
       const recent = db.prepare('SELECT players FROM matches WHERE ts >= ? ORDER BY ts DESC LIMIT 500').all(now - WEEK);
       const seen = new Set();
       for (const m of recent) {
         try { (JSON.parse(m.players) || []).forEach(p => { if (p && p.id != null) seen.add(p.id); }); } catch (_) {}
       }
-      activeUsers = seen.size;
+      const activeUsers = seen.size;
+      Object.assign(stats, {
+        totalUsers, activeUsers, gamesToday, totalMatches, completedMatches,
+        newUsersToday, newUsersWeek, newUsersMonth
+      });
     } catch (e) { console.warn('stats hatası:', e.message); }
   }
-  res.json({
-    ok: true,
-    stats: {
-      onlineUsers,
-      totalGames,
-      activeGames,
-      activeUsers,
-      totalUsers,
-      gamesToday,
-      totalMatches,
-      ongoingMatches,
-      completedMatches,
-      newUsersToday,
-      newUsersWeek,
-      newUsersMonth,
-      now
-    }
-  });
+  res.json({ ok: true, stats });
 });
 
 // ============================================================================
@@ -3571,8 +3570,23 @@ function presenceNabiz(uid, cihaz) {
 function presenceSoketBagla(socket, uid, cihaz) {
   const key = presenceKey(uid, cihaz);
   if (!key) return;
-  // Ziyaretçiyken giriş yaparsa eski (g:) kaydından soketi sök.
-  if (socket.__gvPKey && socket.__gvPKey !== key) presenceSoketKopar(socket);
+  // Ziyaretçiyken giriş yaparsa eski (g:) kaydından soketi sök. AYRICA eski
+  // kaydın HTTP nabzını (sonHttp) sıfırlarız: sıfırlamazsak eski ziyaretçi
+  // kaydı, giriş öncesi son nabzı yüzünden TTL (45 sn) boyunca "hâlâ
+  // sitede" sayılmaya devam eder — GERÇEKTE TEK KİŞİ olan ziyaretçi, giriş
+  // yaptığı anda hem eski (g:cihaz) hem yeni (u:uid) kaydıyla ÇİFT
+  // sayılırdı (kullanıcı raporu: "çevrimiçi oyuncu sayısı 1'den 3'e
+  // yükseliyor, gerçek değeri yansıtmıyor" — birkaç giriş/çıkış denemesi
+  // her seferinde bir hayalet kayıt daha ekliyordu). Aynı ziyaretçinin
+  // BAŞKA bir sekmesi hâlâ o eski kimlikle geziniyorsa, o sekmenin kendi
+  // HTTP nabzı en geç 20 sn içinde sonHttp'yi zaten yeniden tazeler —
+  // burada sıfırlamak o durumda kalıcı bir kayıp yaratmaz.
+  if (socket.__gvPKey && socket.__gvPKey !== key) {
+    const eskiKey = socket.__gvPKey;
+    const eski = presence.get(eskiKey);
+    if (eski) eski.sonHttp = 0;
+    presenceSoketKopar(socket);
+  }
   socket.__gvPKey = key;
   presenceGet(key).soketler.add(socket.id);
 }
@@ -3753,7 +3767,9 @@ const YAPTIRIM_OZEL_MAX_DK = 525600;   // 1 yıl — üstü "sınırsız" ile ya
 app.get('/api/admin/sanctions/options', async (req, res) => {
   if (!await requireAdmin(req, res)) return;
   res.json({ ok: true,
-    sureler: Object.keys(YAPTIRIM_SURELERI).map(k => ({ id: k, etiket: YAPTIRIM_SURELERI[k].etiket })),
+    // ms: istemcinin (Yöncü sayfasında) PHP'ye DOĞRUDAN yazarken sureMs'i
+    // kendisi hesaplayabilmesi için (bkz. js/admin-panel.js applySanction).
+    sureler: Object.keys(YAPTIRIM_SURELERI).map(k => ({ id: k, etiket: YAPTIRIM_SURELERI[k].etiket, ms: YAPTIRIM_SURELERI[k].ms })),
     turler: Object.keys(YAPTIRIM_TURLERI).map(k => ({ id: k, ...YAPTIRIM_TURLERI[k] })),
     ozelMaxDakika: YAPTIRIM_OZEL_MAX_DK });
 });
@@ -3840,6 +3856,47 @@ app.post('/api/admin/sanctions/lift', async (req, res) => {
   } catch (_) {}
   console.log('[YAPTIRIM] #' + uid + ' ' + tur + ' kısıtlaması kaldırıldı — kurucu #' + u.id);
   res.json({ ok: true, kaldirilan: r.kaldirilan || 0 });
+});
+
+// SENKRONİZASYON: kalıcı yazma tarayıcıdan PHP'ye DOĞRUDAN gittiğinde
+// (bkz. js/admin-panel.js — Yöncü sayfasında admin.php/social.php'ye
+// doğrudan bearer ile gider, Render'ın X-GV-Key'li çağrısı DDoS korumasıyla
+// engellenebildiği için) Render'ın haberi olması gerekir: yaptırım önbelleği
+// (soket katmanında ANINDA reddetme) ve kullanıcıya anlık bildirim.
+// Bu uç PHP'ye HİÇ yazmaz — yalnız Render'ın kendi belleğini günceller,
+// tıpkı /api/admin/tables-apply'ın uzak modda ayarı YENİDEN kaydetmemesi gibi.
+app.post('/api/admin/sanctions/sync', async (req, res) => {
+  const u = await requireAdmin(req, res);
+  if (!u) return;
+  const b = req.body || {};
+  const uid = Number(b.userId || b.uid);
+  if (!(uid > 0)) return res.status(400).json({ ok: false, error: 'Kullanıcı seçilmedi.' });
+  const tur = String(b.tur || 'chat');
+  const eylem = String(b.action || 'apply');
+  try {
+    if (eylem === 'lift') {
+      if (tur === 'chat') sanctionCacheSet(uid, null);
+      if (authApi && typeof authApi.emitToUser === 'function') {
+        authApi.emitToUser(uid, 'chatSanctionLifted', {
+          tur, baslik: '✅ Sohbet kısıtlaması kaldırıldı',
+          aciklama: 'Sohbet kısıtlamanız kaldırıldı — oyun içi ve genel sohbete yeniden yazabilirsiniz.'
+        });
+      }
+    } else {
+      const bitis = b.bitis == null ? null : Number(b.bitis);
+      const sebep = String(b.sebep || '');
+      if (tur === 'chat') sanctionCacheSet(uid, { bitis, sebep });
+      if (authApi && typeof authApi.emitToUser === 'function') {
+        authApi.emitToUser(uid, 'chatSanction', {
+          tur, bitis, sebep,
+          baslik: '🔇 Sohbet kısıtlaması uygulandı',
+          aciklama: yaptirimAciklama({ bitis, sebep }),
+          sureMetni: yaptirimBitisMetni(bitis)
+        });
+      }
+    }
+  } catch (_) {}
+  res.json({ ok: true });
 });
 
 // ÜYENİN KENDİ yaptırım durumu: giriş yaptığında/sayfayı yenilediğinde

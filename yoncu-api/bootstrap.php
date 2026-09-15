@@ -309,3 +309,20 @@ function gv_require_server_key() {
         gv_json(array('ok' => false, 'error' => 'Yetkisiz (sunucu anahtarı).'), 403);
     }
 }
+
+// Sunucu anahtarı (Render, X-GV-Key) VEYA kurucu oturumu (tarayıcı, Bearer).
+// "Yöncü DDoS koruması Render'ın sunucu-sunucu isteklerini engelliyor" sorunu
+// (bkz. auth.php üstteki not) yalnız kimlik doğrulamasını değil, Render'ın
+// PHP'ye yaptığı TÜM yazma çağrılarını etkiliyor — örneğin kurucu panelinden
+// yaptırım uygulama X-GV-Key'li Render çağrısı "boş cevap" ile başarısız
+// oluyordu. Bu yüzden bazı uçlar (yaptırımlar gibi) hem Render'ın X-GV-Key'i
+// hem de tarayıcının doğrudan kurucu oturumunu (Bearer) kabul eder —
+// tarayıcı DDoS korumasını sorunsuz geçtiği için bu ikinci yol GÜVENİLİRDİR.
+function gv_require_server_key_or_admin() {
+    $k = $_SERVER['HTTP_X_GV_KEY'] ?? '';
+    if (hash_equals(strval(GV_SERVER_KEY), strval($k))) return;
+    $u = gv_user_by_token(gv_bearer());
+    if (!gv_is_founder($u)) {
+        gv_json(array('ok' => false, 'error' => 'Yetkisiz (sunucu anahtarı veya kurucu oturumu gerekli).'), 403);
+    }
+}

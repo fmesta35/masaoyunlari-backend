@@ -170,6 +170,17 @@
   }
 
   // ---------------- panel gövdesi ----------------
+  // Panel KAYDETMEDEN kapatılırsa: settingsCache atılır — bir sonraki
+  // açılışta oyun ayarları sunucudan (son KAYDEDİLMİŞ hâliyle) yeniden
+  // okunur. "Kaydet ve Uygula"ya basmadan çıkarsam bir önceki mevcut
+  // ayarlarından devam etsin" isteği böyle karşılanır: yarım kalan
+  // (kaydedilmemiş) masa eklemeleri/silmeleri sonraki açılışa taşınmaz.
+  function closeAdminPanel() {
+    settingsCache = null;
+    if (window.GV && GV.hideModal) GV.hideModal('adminPanelModal');
+  }
+  window.__gvAdminPanelClose = closeAdminPanel;
+
   function panelModal() {
     let m = document.getElementById('adminPanelModal');
     if (m) return m;
@@ -180,7 +191,7 @@
       <div class="modal" style="max-width:780px;width:96%;max-height:88vh;display:flex;flex-direction:column;padding:0;overflow:hidden">
         <div style="background:linear-gradient(135deg,#6c5ce7,#8f7bff);padding:16px 20px;display:flex;justify-content:space-between;align-items:center;flex:none">
           <h2 style="margin:0;font-size:1.25em;color:#fff">👑 Kurucu Paneli</h2>
-          <button type="button" style="background:rgba(255,255,255,.25);border:none;color:#fff;width:30px;height:30px;border-radius:50%;font-size:1em;cursor:pointer" onclick="GV.hideModal('adminPanelModal')">✕</button>
+          <button type="button" style="background:rgba(255,255,255,.25);border:none;color:#fff;width:30px;height:30px;border-radius:50%;font-size:1em;cursor:pointer" onclick="window.__gvAdminPanelClose && window.__gvAdminPanelClose()">✕</button>
         </div>
         <div style="display:flex;gap:6px;padding:10px 16px 0;flex:none;border-bottom:1px solid var(--border)">
           <button type="button" class="admin-tab" data-tab="users" style="padding:9px 14px;border:none;border-radius:9px 9px 0 0;font-weight:700;cursor:pointer;background:var(--bg3);color:var(--text)">👥 Kullanıcı &amp; Roller</button>
@@ -189,7 +200,7 @@
         <div id="adminPanelBody" style="flex:1;overflow-y:auto;padding:16px"></div>
       </div>`;
     document.body.appendChild(m);
-    m.addEventListener('click', e => { if (e.target === m) GV.hideModal('adminPanelModal'); });
+    m.addEventListener('click', e => { if (e.target === m) closeAdminPanel(); });
     m.querySelectorAll('.admin-tab').forEach(b => b.addEventListener('click', () => {
       panelTab = b.getAttribute('data-tab');
       renderPanel();
@@ -226,20 +237,29 @@
   let sanctionOpts = null;     // sunucudan gelen süre/tür seçenekleri
   let sanctionUser = null;     // penceresi açık olan üye
 
+  // Yaptırım listesi — Yöncü sayfasında PHP'ye DOĞRUDAN (kalıcı kayıt,
+  // güvenilir), diğerinde Render'a: aynı "gamesGet gibi davran" mantığı
+  // (bkz. fetchSettings) — Render'ın X-GV-Key'li PHP çağrısı Yöncü'nün
+  // DDoS koruması tarafından engellenebiliyor ("boş cevap" hatası).
   async function fetchSanctions() {
-    const r = await api(BACKEND + '/api/admin/sanctions', null, 'GET');
+    const r = isYoncuPage()
+      ? await api('/api/social.php?action=sanctionList', null, 'GET')
+      : await api(BACKEND + '/api/admin/sanctions', null, 'GET');
     const m = {};
     if (r && r.ok) (r.liste || []).forEach(y => { m[Number(y.userId)] = y; });
     return m;
   }
   async function fetchSanctionOpts() {
     if (sanctionOpts) return sanctionOpts;
+    // Bu uç statiktir (PHP'ye gitmez, Render'ın kendi sabit tanımıdır) —
+    // her ortamda Render'dan okunur, artık requireAdmin() imzalı belgeyle
+    // (attestation) PHP'ye ulaşmadan da doğru çalışıyor.
     const r = await api(BACKEND + '/api/admin/sanctions/options', null, 'GET');
     // Sunucuya ulaşılamazsa panel yine de çalışsın (aynı kimlikler).
     sanctionOpts = (r && r.ok) ? r : {
-      sureler: [{ id: '1g', etiket: '1 Gün' }, { id: '1h', etiket: '1 Hafta' },
-                { id: '1a', etiket: '1 Ay' }, { id: '1y', etiket: '1 Yıl' },
-                { id: 'sinirsiz', etiket: 'Sınırsız' }, { id: 'ozel', etiket: 'Belirli süre (dakika)' }],
+      sureler: [{ id: '1g', etiket: '1 Gün', ms: 86400000 }, { id: '1h', etiket: '1 Hafta', ms: 7 * 86400000 },
+                { id: '1a', etiket: '1 Ay', ms: 30 * 86400000 }, { id: '1y', etiket: '1 Yıl', ms: 365 * 86400000 },
+                { id: 'sinirsiz', etiket: 'Sınırsız', ms: null }, { id: 'ozel', etiket: 'Belirli süre (dakika)', ms: 0 }],
       turler: [{ id: 'chat', etiket: 'Sohbet ve mesaj kısıtlaması',
                  aciklama: 'Oyun içi (masa) ve genel sohbete mesaj gönderemez.' }],
       ozelMaxDakika: 525600
@@ -406,6 +426,13 @@
     else m.classList.add('show');
   }
 
+  // Kalıcı yazma: Yöncü sayfasında PHP'ye DOĞRUDAN (güvenilir — tarayıcı
+  // DDoS korumasını sorunsuz geçer), diğerinde Render'a (yerel/dev mod,
+  // değişmedi). PHP-direkt yoldan sonra Render'a AYRICA "sync" çağrısı
+  // yapılır: bu, PHP'ye TEKRAR yazmaz, yalnız Render'ın anlık önbelleğini
+  // ve kullanıcıya giden bildirimi tetikler (bkz. server.js
+  // /api/admin/sanctions/sync) — tıpkı ayarların tables-apply ile canlıya
+  // yansıtılması gibi.
   async function applySanction(listBody) {
     const m = document.getElementById('adminSanctionModal');
     if (!m || !sanctionUser) return;
@@ -420,8 +447,23 @@
     err.style.display = 'none';
     if (sure === 'ozel' && !(dakika > 0)) return goster('Süreyi dakika olarak girin.');
     btn.disabled = true; btn.textContent = '⏳ Uygulanıyor...';
-    const r = await api(BACKEND + '/api/admin/sanctions',
-      { userId: sanctionUser.id, tur, sure, dakika, sebep }, 'POST');
+    let r;
+    if (isYoncuPage()) {
+      const opts = await fetchSanctionOpts();
+      const secim = (opts.sureler || []).find(s => s.id === sure) || {};
+      const sureMs = sure === 'ozel' ? dakika * 60000 : (secim.ms == null ? 0 : Number(secim.ms));
+      const php = await api('/api/social.php?action=sanctionApply',
+        { uid: sanctionUser.id, tur, sureMs, sebep, byUid: (st8().user || {}).id }, 'POST');
+      if (php.ok) {
+        const y = php.yaptirim || {};
+        await api(BACKEND + '/api/admin/sanctions/sync',
+          { userId: sanctionUser.id, tur, action: 'apply', bitis: y.bitis, sebep: y.sebep || sebep }, 'POST');
+      }
+      r = php;
+    } else {
+      r = await api(BACKEND + '/api/admin/sanctions',
+        { userId: sanctionUser.id, tur, sure, dakika, sebep }, 'POST');
+    }
     btn.disabled = false; btn.textContent = '⚖️ Yaptırımı Uygula';
     if (!r.ok) return goster(r.error || 'Yaptırım uygulanamadı.');
     toast('🔇 ' + sanctionUser.name + ' için sohbet kısıtlaması uygulandı — kullanıcıya bildirim gönderildi.', 'success');
@@ -431,7 +473,17 @@
 
   async function liftSanction(user, listBody) {
     if (!window.confirm(user.name + ' üyesinin sohbet kısıtlaması kaldırılsın mı?')) return;
-    const r = await api(BACKEND + '/api/admin/sanctions/lift', { userId: user.id, tur: 'chat' }, 'POST');
+    let r;
+    if (isYoncuPage()) {
+      const php = await api('/api/social.php?action=sanctionLift',
+        { uid: user.id, tur: 'chat', byUid: (st8().user || {}).id }, 'POST');
+      if (php.ok) {
+        await api(BACKEND + '/api/admin/sanctions/sync', { userId: user.id, tur: 'chat', action: 'lift' }, 'POST');
+      }
+      r = php;
+    } else {
+      r = await api(BACKEND + '/api/admin/sanctions/lift', { userId: user.id, tur: 'chat' }, 'POST');
+    }
     if (!r.ok) { toast('⚠️ ' + (r.error || 'Kaldırılamadı.'), 'error'); return; }
     toast('✅ ' + user.name + ' üyesinin sohbet kısıtlaması kaldırıldı.', 'success');
     if (listBody) renderUsersTab(listBody);
@@ -477,7 +529,7 @@
         <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
           <span style="font-size:1.4em">${g.icon}</span>
           <b style="font-size:1em;flex:1;min-width:120px">${esc(g.name)}${isFixed ? ' <span style="font-size:.7em;color:var(--text3)">(18 hazır masa — yapı sabit)</span>' : (isStd ? '' : ' <span style="font-size:.7em;color:var(--text3)">(hazır masa yok)</span>')}</b>
-          <span style="font-size:.78em;color:var(--text3)">${isStd ? rows.length + ' masa' : ''}</span>
+          <span data-count="${gid}" style="font-size:.78em;color:var(--text3)">${isStd ? rows.length + ' masa' : ''}</span>
           ${isStd ? `
           <button type="button" data-act="addTable" data-gid="${gid}" style="border:1px solid var(--border);background:var(--bg3);color:var(--text);border-radius:8px;padding:5px 10px;cursor:pointer;font-size:.8em" title="Masa ekle">➕ Masa</button>
           <button type="button" data-act="delTable" data-gid="${gid}" style="border:1px solid var(--border);background:var(--bg3);color:var(--text2);border-radius:8px;padding:5px 10px;cursor:pointer;font-size:.8em" title="Son masayı kaldır">➖ Masa</button>` : ''}
@@ -489,6 +541,17 @@
         </div>
         ${isStd ? `<div data-tbl="${gid}" style="display:none;margin-top:10px;flex-direction:column;gap:6px"></div>` : ''}
       </div>`;
+  }
+
+  // "N masa" özet rozetini anında günceller — paintTableRows yalnız
+  // AÇIK düzenleme listesini yeniler, oyun başlığının yanındaki özet
+  // sayaç değişmiyordu (kullanıcı raporu: "+ masa / - masa tıklandığında
+  // değerler senkron değişmiyor, tabloda değerlerin değiştiğini görebileyim").
+  function updateTableCount(gid) {
+    const el = document.querySelector(`[data-count="${gid}"]`);
+    if (!el) return;
+    const cfg = settingsCache[gid] || { tables: [] };
+    el.textContent = (cfg.tables || []).length + ' masa';
   }
 
   function paintTableRows(gid) {
@@ -536,17 +599,20 @@
       const d = defaultTables(gid)[n] || { name: `Masa #${BASE[gid] + n}`, type: 'normal', durationMinutes: 15 };
       cfg.tables.push({ name: d.name, type: d.type, durationMinutes: d.duration });
       paintTableRows(gid);
+      updateTableCount(gid);
       return;
     }
     if (act === 'online') { cfg.online = !!target?.checked; return; }
       if (act === 'delTable') {
       if (Array.isArray(cfg.tables) && cfg.tables.length) cfg.tables.pop();
       paintTableRows(gid);
+      updateTableCount(gid);
       return;
     }
     if (act === 'delRow') {
       if (Array.isArray(cfg.tables)) cfg.tables.splice(i, 1);
       paintTableRows(gid);
+      updateTableCount(gid);
       return;
     }
     if (act === 'editTables') {
