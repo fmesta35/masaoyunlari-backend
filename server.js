@@ -3545,7 +3545,20 @@ app.get('/api/admin/stats', async (req, res) => {
   if (!await requireAdmin(req, res)) return;
   const now = Date.now();
   const DAY = 86400000, WEEK = 7 * DAY, MONTH = 30 * DAY;
-  const onlineUsers = (authApi && typeof authApi.onlineCount === 'function') ? authApi.onlineCount() : 0;
+  // ⚠ HATA DÜZELTMESİ (kullanıcı raporu: Kurucu Paneli'ndeki "Online
+  // Kullanıcı" kutusu hep 0 gösteriyor, ana sayfadaki "Çevrimiçi Oyuncu"
+  // ise doğru sayıyı gösteriyordu — aynı anda iki farklı sayı). Kök neden:
+  // bu değer authApi.onlineCount()'tan geliyordu; bu sayaç yalnızca soket
+  // authHello'su TAMAMLANMIŞ (yani kimliği PHP/imzalı belgeyle doğrulanmış)
+  // üyeleri sayar. UZAK modda authHello'nun klasik yolu Render→PHP çağrısı
+  // gerektirir; Yöncü'nün DDoS koruması bunu yavaşlatıp süresiz olarak hiç
+  // tamamlanmayabiliyor — o zaman soket asla "doğrulanmış" sayılmıyor ve
+  // sayaç kalıcı olarak 0'da kalıyordu. Aynı sayfadaki /api/live-stats ise
+  // GÜVENİLİR varlık sistemini (presenceSayim — istemcinin kendi bildirdiği
+  // kimlik, PHP'ye hiç gerek duymaz) kullanıyor. Artık "Online Kullanıcı"
+  // da AYNI güvenilir kaynaktan (yalnız üye girişi yapmış olanlar) okunur —
+  // böylece panel her zaman gerçek, tutarlı bir sayı gösterir.
+  const onlineUsers = presenceSayim().uye;
   let activeGames = 0, ongoingMatches = 0, totalGames = ALL_GAMES.length;
   try {
     const playingGames = new Set();
@@ -3625,11 +3638,29 @@ function presenceCanli(e) {
 }
 
 // HTTP nabzı (ana sayfada duran, soket açmamış ziyaretçiler için).
+//
+// ⚠ HATA DÜZELTMESİ (kullanıcı raporu: "çevrimiçi oyuncu sayısı gerçeği
+// yansıtmıyor, kurucu + 1 ziyaretçi vardı, toplam 2 olmalıydı ama 3
+// gösterdi"): istemci HER nabızda hem uid hem cihaz anahtarını birlikte
+// gönderir (bkz. js/live-stats.js). Bir ziyaretçi giriş yaptığında kimliği
+// g:cihaz → u:uid'e geçer, ama bu fonksiyon eskiden yalnızca YENİ anahtarı
+// güncelliyordu — eski g:cihaz kaydı kendi TTL'i (45 sn) dolana kadar
+// "hâlâ sitede" sayılmaya devam ediyordu, yani GERÇEKTE TEK kişi olan
+// ziyaretçi giriş yaptığı andan sonraki 45 saniye boyunca ÇİFT sayılıyordu.
+// Soket bazlı geçişte (presenceSoketBagla) bu temizlik zaten yapılıyordu;
+// aynı mantık burada HTTP nabzı için de uygulanır.
 function presenceNabiz(uid, cihaz) {
   const key = presenceKey(uid, cihaz);
   if (!key) return null;
   const e = presenceGet(key);
   e.sonHttp = now();
+  if (key.charAt(0) === 'u' && cihaz) {
+    const eskiKey = presenceKey(null, cihaz);
+    if (eskiKey && eskiKey !== key) {
+      const eski = presence.get(eskiKey);
+      if (eski) { eski.sonHttp = 0; if (!eski.soketler.size) presence.delete(eskiKey); }
+    }
+  }
   return e;
 }
 

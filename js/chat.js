@@ -353,12 +353,43 @@
      boş görünüyordu. Sohbet artık soketi gerektiğinde KENDİ kurar ve
      kimliğini bildirir. */
   let kurulumBasladi = false;
+  // ⚠ HATA DÜZELTMESİ (kullanıcı raporu: "yaptırım uyguladım ama kullanıcıya
+  // bildirim gitmemiş, kısıtlama da uygulanmamış — her yerden rahatça
+  // yazabiliyor"). Kök neden: bu fonksiyon kendi zayıf authHello'sunu
+  // gönderiyordu — yalnızca {token}, HİÇ imzalı belge (attestation)
+  // eklemiyordu. Sunucu tarafında {token}-yalnız authHello, Render'ın
+  // Yöncü PHP'sine GİDEN (remote.me) yavaş/DDoS korumasına takılabilen
+  // "klasik yol"u zorluyor — soğuk başlangıçta veya DDoS koruması
+  // devredeyken socket.userId HİÇ çözülmeyebiliyordu. O olmadan hem
+  // yaptırım denetimi (uid0 = socket.userId) hem de bildirim hedefi
+  // (authApi.emitToUser → online Map'te uid araması) sessizce boş kalır.
+  // js/auth.js'in GVAuth.authHello'su ise İMZALI BELGEYİ de ekler; bu
+  // Render'da YERİNDE (PHP'ye hiç gitmeden) doğrulanır, yani DDoS
+  // korumasından bağımsızdır — odaya katılma gibi diğer tüm akışlar zaten
+  // bunu kullanıyordu, sohbet soketi kullanmıyordu. Artık aynı güvenilir
+  // yolu paylaşıyor.
   function selamla(sock) {
     if (!sock) return;
     let tok = null;
     try { tok = localStorage.getItem('gv-auth-token'); } catch (_) {}
+    if (tok) {
+      // Üye: SADECE GVAuth'un güvenilir (imzalı belge önceliği) authHello'sunu
+      // kullan — kendi zayıf {token}-yalnız yolumuzu ASLA göndermeyelim (bu,
+      // DDoS korumasına takılabilen yavaş yolu zorlardı). GVAuth sayfa
+      // açılışında henüz yüklenmemiş olabilir (çok kısa bir pencere); bu
+      // durumda bu turu sessizce atlarız — chat.js'in kendi tick() döngüsü
+      // saniyede bir tekrar dener, GVAuth hazır olur olmaz doğru yoldan
+      // selamlar (bkz. js/auth.js: authHelloAll da aynı soketi ayrıca 1.5
+      // sn'de bir tarar).
+      if (window.GVAuth && typeof window.GVAuth.authHello === 'function') {
+        window.GVAuth.authHello(sock);
+      }
+      return;
+    }
+    // Misafir: yalnız görünen ad/anahtar bildirilir — üyelik yetkisi
+    // vermez, sadece isim gösterimi içindir.
     const hello = () => {
-      try { sock.emit('authHello', tok ? { token: tok } : { userKey: memberKey(), name: myName() }); } catch (_) {}
+      try { sock.emit('authHello', { userKey: memberKey(), name: myName() }); } catch (_) {}
     };
     if (sock.connected) hello();
     if (!sock.__gvChatHello) { sock.__gvChatHello = true; sock.on('connect', hello); }
@@ -497,6 +528,7 @@
         const nextRoom = roomIdNow();
         if (mode !== 'room' || String(nextRoom) !== String(curRoomId)) {
           mode = 'room'; curRoomId = nextRoom; lastHistKey = '';
+          paintGameChat([]);   // oda değişince gömülü kutu anında boşalsın
         }
         const sock = ensureSocket();
         if (sock && sock !== attachedSock) { attach(sock); attachedSock = sock; }
@@ -520,6 +552,16 @@
       if (t) t.textContent = mode === 'room' ? (gameTitle() + ' Masa Sohbeti #' + curRoomId) : '🌐 Genel Sohbet';
       lastHistKey = '';
       renderList([]);
+      // ⚠ HATA DÜZELTMESİ (kullanıcı raporu: "başka oyundan başka oyuna
+      // geçerken ilgili oyun içi sohbetlerin taşınmaması gerekirdi").
+      // #gameChat (masa içindeki GÖMÜLÜ sohbet kutusu) eskiden yalnızca
+      // sohbet ÇEKMECESİ açıkken reloadHistory ile yenileniyordu (aşağıdaki
+      // "if (open) reloadHistory(false)"). Çekmece kapalıyken oda değişse
+      // bile kutu bir önceki masadan kalma mesajlarla dolu kalıyordu —
+      // yeni masaya girince eski masanın mesajları görünüyordu. Oda/mod
+      // değişir değişmez önce kutuyu anında boşalt, sonra gerçek geçmişi
+      // (varsa) getir.
+      if (mode === 'room') paintGameChat([]);
     }
     const inp = document.getElementById('gvChatText');
     const btn = document.getElementById('gvChatSend');
@@ -534,7 +576,11 @@
     if (btn) btn.disabled = !member || susturuldu || kisitli;
     const sock = pickSocket();
     if (sock && sock !== attachedSock) { attach(sock); attachedSock = sock; }
-    if (open) reloadHistory(false);
+    // Masa modunda gömülü #gameChat'in GERÇEK geçmişi çekmece kapalıyken
+    // de yüklenmeli — yalnızca "open" (çekmece açık) koşuluna bağlı kalırsa
+    // masaya yeni giren üye kutunun boş kalmasına (ya da geç dolmasına)
+    // neden olur.
+    if (open || mode === 'room') reloadHistory(false);
     pruneOld();
   }
 

@@ -86,10 +86,24 @@ async function main() {
   console.log('  ✓ 2) kurucu@kurucu.com otomatik hesapla giriş; üye listesi YALNIZ kurucuya açık');
 
   // ---------- 2b) ana sayfa istatistikleri (canlı, yalnız kurucu) ----------
+  // ⚠ REGRESYON (bu turdaki kullanıcı raporu): Kurucu Paneli'ndeki "Online
+  // Kullanıcı" kutusu ana sayfadaki "Çevrimiçi Oyuncu" sayısıyla AYNI ANDA
+  // TUTARSIZ görünüyordu (biri 3, diğeri 0). Kök neden: onlineUsers eskiden
+  // authApi.onlineCount()'tan geliyordu — bu yalnız SOKET authHello'su
+  // TAMAMLANMIŞ üyeleri sayar; UZAK modda bu Render→PHP round-trip'ine
+  // bağımlıdır ve DDoS koruması yüzünden hiç tamamlanmayabilir, sayaç
+  // kalıcı olarak 0'da kalabilir. Artık /api/live-stats'in kullandığı GÜVEN
+  // İLİR presence sistemi (presenceSayim) kullanılıyor — PHP'ye hiç
+  // ihtiyaç duymaz, istemcinin kendi bildirdiği kimlikle ANINDA doğru
+  // sayar. Burada GERÇEK bir nabız (HTTP heartbeat, soket YOK — tıpkı ana
+  // sayfada duran kurucu gibi) atıp onlineUsers'ın bunu doğru yansıttığını
+  // doğruluyoruz.
+  await api(BASE, '/api/live-stats', { uid: login.user.id, cihaz: 'zt-admin-founder' }, 'POST');
   const stats = await api(BASE, '/api/admin/stats', null, 'GET', login.token);
   assert.ok(stats.ok && stats.stats, 'istatistik döner');
   assert.strictEqual(stats.stats.totalGames, 13, '13 oyun türü');
-  assert.ok(stats.stats.onlineUsers >= 0, 'online kullanıcı sayısı');
+  assert.strictEqual(stats.stats.onlineUsers, 1,
+    '"Online Kullanıcı" GERÇEK, güvenilir presence sayımını yansıtmalı (soket/PHP\'ye bağımlı olmamalı): ' + JSON.stringify(stats.stats));
   assert.ok(stats.stats.totalUsers >= 2, 'toplam üye (kurucu + basit)');
   assert.ok('newUsersToday' in stats.stats && 'newUsersWeek' in stats.stats && 'newUsersMonth' in stats.stats, 'günlük/haftalık/aylık yeni üye');
   assert.ok('totalMatches' in stats.stats && 'ongoingMatches' in stats.stats && 'completedMatches' in stats.stats, 'maç metrikleri');

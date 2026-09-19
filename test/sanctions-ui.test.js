@@ -154,10 +154,31 @@ async function main() {
   assert.ok(!uw.document.getElementById('gcInput').disabled, 'kısıtlamadan önce sohbet kutusu açık olmalı');
   // Anlık bildirim ancak soket KURULUP kimliği doğrulandıktan sonra düşebilir;
   // sosyal katmanın (js/social.js) da dinleyicilerini bağlaması gerekir.
-  await bekle(() => {
+  const uSock = await bekle(() => {
     const s = uw.__gvLobbySocket || uw.__gvRoomSocket;
     return (s && s.connected && s.__gvSocial && s.__gvChat) ? s : null;
   }, 15000, 'kullanıcı soketi + sohbet/sosyal dinleyicileri');
+
+  // ---- 3b) REGRESYON: sohbet soketi GÜVENİLİR (imzalı) kimlik yoluyla da açılmalı ----
+  // Kullanıcı raporu (bu turda): "yaptırım uyguladım ama bildirim gitmemiş,
+  // kısıtlama da uygulanmamış — her yerden rahatça yazabiliyor." Kök neden:
+  // js/chat.js'in kendi selamla() fonksiyonu authHello'yu {token}-yalnız
+  // gönderiyordu (imzalı belge YOK) — bu, sunucuda Render→PHP round-trip'i
+  // gerektiren "klasik yol"u zorluyordu; Yöncü DDoS koruması bu yolu
+  // yavaşlatıp süresiz olarak hiç tamamlanmayabiliyordu. socket.userId
+  // çözülmeden hem yaptırım denetimi (uid0=socket.userId) hem bildirim
+  // hedefi (online Map'te uid araması) sessizce boş kalıyordu. Artık
+  // chat.js, window.GVAuth hazır olduğu her seferde KENDİ zayıf
+  // authHello'su yerine js/auth.js'in GVAuth.authHello'sunu (imzalı belge
+  // önceliği, PHP'ye hiç gitmeden YERİNDE doğrulanır) kullanıyor —
+  // __gvAuthHello bayrağı bunun bu soket için gerçekten çalıştığını
+  // kanıtlar (sayfa açılışındaki çok kısa bir pencerede GVAuth henüz
+  // yüklenmemişse ilk turda eski yola bir kez düşülebilir, bu zararsızdır
+  // — auth.js'in 1.5 sn'lik periyodik taraması aynı soketi hemen ardından
+  // imzalı yolla yeniden selamlar).
+  assert.strictEqual(uSock.__gvAuthHello, true,
+    'sohbet soketi GVAuth.authHello (imzalı/güvenilir yol) ile de selamlanmış olmalı');
+  console.log('  ✓ 3b) sohbet soketi GÜVENİLİR (imzalı belge önceliği) authHello yoluyla kimlikleniyor — DDoS\'a bağımlı değil');
 
   // ---- 4) kurucu uygular ----
   sel.value = '1h';

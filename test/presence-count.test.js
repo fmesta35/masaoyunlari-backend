@@ -98,11 +98,43 @@ async function main() {
   assert.strictEqual(live.guests, 1);
   console.log('  ✓ 4) Gerçekten farklı 2 kişi varken sayaç doğru şekilde 2 gösteriyor (yanlışlıkla düşürülmüyor)');
 
+  // ---------- 4b) HTTP-NABIZ-YALNIZ geçiş: soket hiç açılmadan giriş ----------
+  // Kullanıcı raporu (bu turda): "kurucu vardı + 1 tane gizli sekmeden ben
+  // bağlandım ziyaretçi olarak toplamda 2 idi ... sayı 3 gösterdi." Ana
+  // sayfada duran, hiçbir oyun/sohbet soketi açmamış bir ziyaretçi SADECE
+  // js/live-stats.js'in POST /api/live-stats nabzıyla sayılır (yukarıdaki
+  // 1-4 numaralı kontroller hep bir SOKET de açıyordu — presenceSoketBagla
+  // zaten düzeltilmişti, ama presenceNabiz'in KENDİSİ eski g:cihaz kaydını
+  // temizlemiyordu). Burada YALNIZCA HTTP nabzıyla misafirken giriş yapan
+  // bir ziyaretçiyi simüle ediyoruz — hiç soket açılmıyor.
+  const cihazC = 'zpresenceC333';
+  await nabiz(BASE, null, cihazC);           // misafir olarak nabız at
+  await sleep(60);
+  live = await nabiz(BASE, uid, cihazA);      // (diğer kişi: giriş yapmış uid)
+  assert.strictEqual(live.online, 3, 'ön koşul: kurucu(uid) + misafir(cihazC) + misafir(cihazB) = 3: ' + JSON.stringify(live));
+  // Şimdi cihazC de AYNI kişi olarak giriş yapar (uid2) — SOKET AÇMADAN,
+  // yalnızca bir sonraki HTTP nabzında uid+cihaz birlikte gelir:
+  const login2 = await api(BASE, '/api/auth/register', { name: 'PresenceUye2', email: 'presence2@presence.test', password: 'gucluSifre123' }, 'POST');
+  assert.ok(login2.ok, 'ikinci üye kaydı: ' + JSON.stringify(login2));
+  const { db } = require('../db');
+  const vt2 = db.prepare('SELECT verify_token FROM users WHERE id = ?').get(login2.userId).verify_token;
+  await api(BASE, '/api/auth/verify', { token: vt2 }, 'POST');
+  const uid2 = login2.userId;
+  await nabiz(BASE, uid2, cihazC);            // GİRİŞ SONRASI nabız — SOKET YOK
+  await sleep(60);
+  live = await nabiz(BASE, uid, cihazA);
+  assert.strictEqual(live.online, 3,
+    'HTTP-nabız-yalnız girişte de eski misafir kaydı ANINDA silinmeli (soket açılmadı diye 45 sn boyunca hayalet kalmamalı): ' + JSON.stringify(live));
+  assert.strictEqual(live.members, 2, 'artık 2 üye (kurucu + PresenceUye2) olmalı');
+  assert.strictEqual(live.guests, 1, 'yalnız cihazB hâlâ misafir olmalı');
+  console.log('  ✓ 4b) SOKET AÇMADAN, yalnızca HTTP nabzıyla giriş yapan ziyaretçi de ANINDA tek kişi sayılıyor (hayalet kalmıyor)');
+
   // ---------- 5) sekmeler kapanınca (presence-bye + soket kopması) sayaç düşer ----------
   sA.disconnect(); sA2.disconnect();
   await api(BASE, '/api/presence-bye', { uid, cihaz: cihazA });
   sB.disconnect();
   await api(BASE, '/api/presence-bye', { uid: null, cihaz: cihazB });
+  await api(BASE, '/api/presence-bye', { uid: uid2, cihaz: cihazC });
   await sleep(150);
   live = await api(BASE, '/api/live-stats', null, 'GET');
   assert.strictEqual(live.online, 0, 'herkes ayrılınca sayaç 0 olmalı: ' + JSON.stringify(live));

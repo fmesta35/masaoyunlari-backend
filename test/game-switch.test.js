@@ -24,6 +24,12 @@ process.env.GV_POST_GAME_HOLD_MS = '400';
 process.env.GV_OKEY_TURN_MS = '30000';
 process.env.GV_PISTI_TURN_MS = '30000';
 
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
+const TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'gv-game-switch-'));
+process.env.GV_DATA_DIR = TMP;
+
 const assert = require('assert');
 const { JSDOM, VirtualConsole } = require('jsdom');
 const serverModule = require('../server.js');
@@ -31,7 +37,14 @@ const serverModule = require('../server.js');
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 let BASE = '';
 
-async function makeClient(label) {
+async function api(base, p, body, method, token) {
+  const headers = { 'Content-Type': 'application/json' };
+  if (token) { headers.Authorization = 'Bearer ' + token; headers['X-GV-Token'] = token; }
+  const r = await fetch(base + p, { method: method || (body ? 'POST' : 'GET'), headers, body: body ? JSON.stringify(body) : undefined });
+  return { status: r.status, ...(await r.json().catch(() => ({}))) };
+}
+
+async function makeClient(label, token) {
   const vc = new VirtualConsole();
   vc.on('jsdomError', () => {});
   vc.on('error', () => {});
@@ -42,6 +55,7 @@ async function makeClient(label) {
       w.GV_BACKEND_URL = BASE;
       w.fetch = (...a) => fetch(...a);
       w.confirm = () => true;
+      if (token) { try { w.localStorage.setItem('gv-auth-token', token); } catch (_) {} }
     }
   });
   return { dom, win: dom.window, label };
@@ -80,14 +94,30 @@ async function main() {
   srv.applyPresetConfig({ ...cfg, pisti: { visible: true, online: true } });
   srv.seedPresetTables();
 
+  // ÜYE olarak giriş yapan bir istemci lazım: gerçek raporu veren kullanıcı
+  // (kurucu) ÜYE olarak oynuyor ve js/chat.js'in tick()'inde MİSAFİR dalından
+  // farklı, ayrı bir "ÜYE" dalı çalışıyor. Yalnızca misafir istemcilerle test
+  // etmek, üye dalındaki regresyonu YAKALAMAZ (bu segmentte tam olarak bu
+  // yüzden bir kez yanlışlıkla "geçti" sanılmıştı). A penceresi ÜYE olsun.
+  const reg = await api(BASE, '/api/auth/register', { name: 'SwitchUye', email: 'switch-uye@switch.test', password: 'gucluSifre123' }, 'POST');
+  assert.ok(reg.ok, 'üye kaydı: ' + JSON.stringify(reg));
+  const { db } = require('../db');
+  const vt = db.prepare('SELECT verify_token FROM users WHERE id = ?').get(reg.userId).verify_token;
+  await api(BASE, '/api/auth/verify', { token: vt }, 'POST');
+  const girisA = await api(BASE, '/api/auth/login', { email: 'switch-uye@switch.test', password: 'gucluSifre123' }, 'POST');
+  assert.ok(girisA.ok && girisA.token, 'üye girişi: ' + JSON.stringify(girisA));
+
   const clients = [];
-  for (let i = 0; i < 4; i++) clients.push(await makeClient('P' + (i + 1)));
+  clients.push(await makeClient('P1', girisA.token));
+  for (let i = 1; i < 4; i++) clients.push(await makeClient('P' + (i + 1)));
   for (const c of clients) {
     await waitFor(() => c.win.GV && c.win.st, 20000, c.label + ' GV/st');
     await waitFor(() => typeof c.win.__gvStartRealRoomWaiting === 'function', 20000, c.label + ' roomfix');
     await waitFor(() => c.win.GVArena, 20000, c.label + ' arena yüklendi');
   }
-  console.log('  ✓ 0) 4 pencere yüklendi, ortak yaşam döngüsü (GVArena) hazır');
+  await waitFor(() => clients[0].win.st.user && !clients[0].win.st.isGuest && clients[0].win.st.user.id === reg.userId,
+    20000, 'P1 ÜYE olarak tanınmalı (st.user)');
+  console.log('  ✓ 0) 4 pencere yüklendi, ortak yaşam döngüsü (GVArena) hazır (P1 = ÜYE)');
 
   // --- 1) PİŞTİ masası: dört pencere oturur (ad hoc masa 4 koltukludur) ---
   const [A, B, C, D] = clients;
@@ -95,6 +125,15 @@ async function main() {
   await waitFor(() => hasPisti(A.win), 20000, 'pişti masası çizilmeli');
   assert.strictEqual(A.win.GVArena.activeId(), 'card', 'kart adaptörü tahtanın sahibi olmalı');
   console.log('  ✓ 1) Pişti masası çizildi (adaptör: ' + A.win.GVArena.activeId() + ')');
+
+  // --- 1b) Pişti masasında GERÇEK oda sohbeti: mesaj gönder + görünür ---
+  const pistiMsg = 'PISTI-ODA-MESAJI-' + Date.now();
+  await waitFor(() => A.win.document.getElementById('gcInput'), 8000, 'pişti masasında sohbet kutusu');
+  A.win.document.getElementById('gcInput').value = pistiMsg;
+  A.win.GV.sendChat('game');
+  await waitFor(() => ((A.win.document.getElementById('gameChat') || {}).innerHTML || '').includes(pistiMsg),
+    8000, 'pişti oda mesajı #gameChat\'te görünmeli');
+  console.log('  ✓ 1b) Pişti masasında oda sohbeti çalışıyor (#gameChat\'te göründü)');
 
   // --- 2) Odadan ayrıl → tahta temizlenir, adaptör susar ---
   clients.forEach(c => c.win.__gvRealChessLeave());
@@ -111,6 +150,22 @@ async function main() {
   await joinAndReady([A, B, C, D], 'okey', 'sw-okey');
   await waitFor(() => hasOkey(A.win), 25000, 'okey masası çizilmeli');
   console.log('  ✓ 3) aynı pencere Okey masasına girdi, okey masası çizildi');
+
+  // --- 3b) REGRESYON: pişti masasının sohbeti okey masasına TAŞINMAMALI ----
+  // Kullanıcı raporu (bu turda): "başka oyundan başka oyuna geçerken
+  // ilgili oyun içi sohbetlerin taşınmaması gerekirdi. Yeniden bir önceki
+  // oyunda mesajlaşılan bilgileri yeni oyun içi mesajında da görüyoruz."
+  // Kök neden: #gameChat (gömülü oda sohbeti) yalnızca sohbet ÇEKMECESİ
+  // açıkken reloadHistory ile yenileniyordu; çekmece kapalıyken oda
+  // değişse bile kutu eski masadan kalma mesajlarla dolu kalıyordu.
+  // ÖNEMLİ: A penceresi ÜYE'dir (bkz. yukarı) — chat.js'in tick()'inde
+  // ÜYE dalı MİSAFİR dalından ayrı kod yolu kullanıyor; hata da düzeltme de
+  // gerçekte ÜYE dalındaydı, bu yüzden testin ÜYE olarak oturması şart.
+  await waitFor(() => {
+    const html = (A.win.document.getElementById('gameChat') || {}).innerHTML || '';
+    return !html.includes(pistiMsg) ? true : null;
+  }, 8000, 'okey masasına geçince eski pişti mesajı #gameChat\'ten TEMİZLENMELİ');
+  console.log('  ✓ 3b) REGRESYON: oda değişince gömülü sohbet kutusu eski masanın mesajlarını göstermiyor');
 
   // --- 4) 3 saniye boyunca Pişti geri gelmiyor ---
   for (let i = 0; i < 6; i++) {
