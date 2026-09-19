@@ -563,10 +563,15 @@
       desc = isSpectator ? `${esc(winnerName)} kazandı (rakip 3 kez süre aştı).`
         : iWon ? '🏆 Rakip 3 kez SIRA süresini doldurdu — KAZANDINIZ!' : '💔 3 kez SIRA süresini doldurdunuz — DİSKALİFİYE oldunuz.';
     }
+    // Kullanıcı isteği: "Lobiye Dön" yanında "Rövanş Talep Et"; 3-4 kişilik
+    // masada bu bir OYLAMAYA dönüşür (ortak mantık js/rematch.js'te).
+    const rovansBtn = (!isSpectator && window.GVRematch) ? window.GVRematch.butonHtml() : '';
+    const rovansSayac = window.GVRematch ? window.GVRematch.geriSayimHtml() : '';
     const html = `<div class="chess-end-overlay"><div class="chess-end-modal"><div class="end-icon">🀄</div>` +
       `<h2>${title}</h2><p>${desc}</p>` +
       `<p style="color:#f9ca24;font-weight:700">Skorlar — ${sLine}</p>` +
-      `<button class="btn btn-p" style="margin-top:8px;padding:10px 20px;cursor:pointer;" onclick="window.__gvRealChessLeave()">🚪 Odadan Ayrıl ve Lobiye Dön</button></div></div>`;
+      `<div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;justify-content:center">` +
+      `<button class="btn btn-p" style="padding:10px 20px;cursor:pointer;" onclick="window.__gvRealChessLeave()">🚪 Lobiye Dön</button>${rovansBtn}</div>${rovansSayac}</div></div>`;
     document.body.insertAdjacentHTML('beforeend', html);
   }
 

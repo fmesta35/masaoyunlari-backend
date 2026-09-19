@@ -242,8 +242,13 @@
         '<div class="gv-end-ico">' + m.ikon + '</div>' +
         '<div class="gv-end-title">' + m.baslik + '</div>' +
         '<div class="gv-end-text">' + m.metin + '</div>' +
-        '<button class="btn btn-p gv-end-btn" type="button">🏠 Lobiye dön</button>' +
-        '<div class="gv-end-hint"><span class="gv-end-sec">8</span> sn içinde lobiye döneceksiniz</div>' +
+        // Kullanıcı isteği: "lobiye dön butonu yanında rövanş talep et
+        // butonu da olsun" — rövanş mantığı ortak modülde (js/rematch.js).
+        '<div class="gv-end-row">' +
+          '<button class="btn btn-p gv-end-btn" type="button">🏠 Lobiye dön</button>' +
+          (window.GVRematch && !p.isSpectator ? window.GVRematch.butonHtml() : '') +
+        '</div>' +
+        '<div class="gv-end-hint"><span class="gv-end-sec">30</span> sn içinde lobiye döneceksiniz</div>' +
       '</div>';
     a.appendChild(kutu);
 
@@ -251,8 +256,15 @@
     function git() { if (gitti) return; gitti = true; clearInterval(sayac); kapatBitis(); lobiyeDon(); }
     var btn = kutu.querySelector('.gv-end-btn');
     if (btn) btn.addEventListener('click', git);
-    var kalan = 8;
+    // Kullanıcı isteği: 30 sn içinde tıklama olmazsa otomatik lobiye.
+    var kalan = 30;
     var sayac = setInterval(function () {
+      // Rövanş oylaması sürerken geri sayım duraklar (oyuncu karar veriyor).
+      if (window.GVRematch && window.GVRematch.beklemede()) {
+        var b = kutu.querySelector('.gv-end-hint');
+        if (b) b.innerHTML = '🔄 Rövanş bekleniyor…';
+        return;
+      }
       kalan--;
       var el = kutu.querySelector('.gv-end-sec');
       if (el) el.textContent = String(Math.max(0, kalan));

@@ -660,7 +660,13 @@
         title = '🤝 BERABERE';
         desc = 'Oyun berabere bitti.';
       }
-      html += `<div class="chess-end-overlay"><div class="chess-end-modal"><div class="end-icon">🏁</div><h2>${title}</h2><p>${desc}</p><button class="btn btn-p" style="margin-top:15px;padding:10px 20px;cursor:pointer;" onclick="window.__gvRealChessLeave()">🚪 Odadan Ayrıl ve Lobiye Dön</button></div></div>`;
+      // Kullanıcı isteği: "Lobiye Dön" yanında "Rövanş Talep Et" + 30 sn
+      // otomatik lobi geri sayımı (ortak mantık js/rematch.js'te).
+      const rovansBtn = (!isSpectator && window.GVRematch) ? window.GVRematch.butonHtml() : '';
+      const rovansSayac = window.GVRematch ? window.GVRematch.geriSayimHtml() : '';
+      html += `<div class="chess-end-overlay"><div class="chess-end-modal"><div class="end-icon">🏁</div><h2>${title}</h2><p>${desc}</p>` +
+        `<div style="margin-top:15px;display:flex;gap:8px;flex-wrap:wrap;justify-content:center">` +
+        `<button class="btn btn-p" style="padding:10px 20px;cursor:pointer;" onclick="window.__gvRealChessLeave()">🚪 Lobiye Dön</button>${rovansBtn}</div>${rovansSayac}</div></div>`;
     }
 
     html += '</div>';

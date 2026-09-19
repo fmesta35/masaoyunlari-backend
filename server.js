@@ -743,6 +743,7 @@ function resetRoomToWaiting(room) {
   room.tavlaNoticeSeq = 0;
   if (room.okey && room.okey.between) { clearTimeout(room.okey.between); }
   room.okey = null; // okey el/maç durumu tamamen temizlenir
+  room.rematch = null; // bekleyen rövanş oylaması varsa düşer
   room.result = null;
   room.lastMove = null;
   room.turnStartedAt = null;
@@ -1939,6 +1940,132 @@ function cancelRoomReset(room) {
   }
 }
 
+/* ---------- PES ET: maçı bitir, oyuncu masada KALSIN ----------
+   Ayrılmaktan (removePlayerFromRoom) tek farkı budur: koltuk boşalmaz,
+   oda dağılmaz, böylece bitiş ekranından rövanş istenebilir. Kazanan(lar)
+   ve bildirim biçimi, "rakip ayrıldı" akışıyla birebir aynıdır ki
+   istemcilerin bitiş ekranı hiçbir değişiklik olmadan çalışsın. */
+function resignMatch(room, player) {
+  if (!room || !player || room.status !== 'playing') return;
+  const loserSeat = player.seat;
+  const digerler = room.players.filter(p => p.seat !== loserSeat);
+  if (!digerler.length) return;
+
+  // OKEY ailesi kendi maç bitirme akışına sahiptir (el/skor hesabı orada).
+  if (room.okey && typeof endOkeyMatch === 'function') {
+    endOkeyMatch(room, 'resign', loserSeat);
+    return;
+  }
+
+  room.status = 'finished';
+
+  if (room.chess || room.tavla) {
+    const kazanan = digerler[0];
+    room.result = { reason: 'resign', winner: kazanan ? kazanan.color : null, loserSeat };
+    const state = buildBoardState(room);
+    room.players.forEach(p => {
+      io.to(p.id).emit('gameEnded', {
+        roomId: room.id, reason: 'resign',
+        winner: room.result.winner, winnerColor: room.result.winner,
+        playerColor: p.color, loserSeat,
+        youWon: p.seat !== loserSeat,
+        resignedName: player.name || null,
+        gameState: state
+      });
+    });
+    (room.spectators || []).forEach(s => {
+      io.to(s.id).emit('gameEnded', {
+        roomId: room.id, reason: 'resign',
+        winner: room.result.winner, winnerColor: room.result.winner,
+        playerColor: null, loserSeat, youWon: false, isSpectator: true,
+        resignedName: player.name || null,
+        gameState: { ...state, legalMoves: [] }
+      });
+    });
+    emitGameState(room);
+  } else {
+    // Diğer tüm online oyunlar (dama, türk daması, reversi, gomoku,
+    // connect4, bilardo, amiral battı, pişti, batak): kalan oyuncular
+    // arasında en yüksek skorlu kazanır (4 kişilik kart masası için).
+    const sc = (room.cardGame && Array.isArray(room.cardGame.scores)) ? room.cardGame.scores : [];
+    const winnerSeat = digerler.reduce(
+      (best, x) => (Number(sc[x.seat] || 0) > Number(sc[best.seat] || 0) ? x : best), digerler[0]).seat;
+    room.result = { reason: 'resign', winnerSeat, loserSeat };
+    const stateFor = seat =>
+      room.dama ? damaState(room, seat) :
+      room.reversi ? reversiState(room, seat) :
+      room.gomoku ? gomokuState(room, seat) :
+      room.connect4 ? connect4State(room, seat) :
+      room.bilardo ? bilardoState(room, seat) :
+      room.battleship ? battleshipState(room, seat) :
+      room.cardGame ? cardGameState(room, seat) : buildBoardState(room);
+    room.players.forEach(p => emitToPlayer(p, 'gameEnded', {
+      roomId: room.id, reason: 'resign', winnerSeat, loserSeat,
+      youWon: p.seat === winnerSeat,
+      resignedName: player.name || null,
+      gameState: stateFor(p.seat)
+    }));
+    (room.spectators || []).forEach(sp => emitToPlayer(sp, 'gameEnded', {
+      roomId: room.id, reason: 'resign', winnerSeat, loserSeat,
+      youWon: false, isSpectator: true,
+      resignedName: player.name || null,
+      gameState: stateFor(null)
+    }));
+  }
+
+  io.to(room.id).emit('playerResigned', {
+    roomId: room.id, seat: loserSeat, name: player.name || null
+  });
+  emitRoom(room);
+  scheduleRoomReset(room);
+}
+
+/* ---------- RÖVANŞ OYLAMASI ----------
+   2 kişilik masada "karşı taraf kabul etti mi", 3-4 kişilikte "herkes
+   kabul etti mi" aynı mantıkla işler: masadaki TÜM oyuncular evet
+   demeden yeni el başlamaz. */
+function yayinlaRematch(room) {
+  if (!room || !room.rematch) return;
+  const koltuklar = room.players.map(p => p.seat);
+  const evetler = koltuklar.filter(s => room.rematch.votes[s] === true);
+  const ortak = {
+    roomId: room.id,
+    bySeat: room.rematch.bySeat,
+    byName: room.rematch.byName,
+    acceptedSeats: evetler,
+    seats: koltuklar,
+    need: koltuklar.length,
+    rounds: room.okeyMaxRounds || room.cardRounds || room.rounds || null
+  };
+  // Her oyuncuya KENDİ durumu da gönderilir (istemcinin koltuk numarasını
+  // bilmesi gerekmesin: bazı oyun istemcileri koltuk yerine renk tutuyor).
+  room.players.forEach(p => emitToPlayer(p, 'rematchOffer', Object.assign({}, ortak, {
+    youRequested: p.seat === room.rematch.bySeat,
+    youAccepted: room.rematch.votes[p.seat] === true
+  })));
+  (room.spectators || []).forEach(sp => emitToPlayer(sp, 'rematchOffer', Object.assign({}, ortak, {
+    youRequested: false, youAccepted: false, isSpectator: true
+  })));
+  if (koltuklar.length >= 2 && evetler.length === koltuklar.length) {
+    baslatRematch(room);
+  }
+}
+
+function baslatRematch(room) {
+  if (!room) return;
+  room.rematch = null;
+  cancelRoomReset(room);
+  // Odayı temiz bir başlangıca çek (motorlar sıfırlanır, koltuklar korunur),
+  // sonra herkesi HAZIR sayıp yeni maçı AYNI odada başlat. El sayısı
+  // (okeyMaxRounds / cardRounds) oda ayarında durduğundan masa tipine
+  // uygun el döngüsü kendiliğinden korunur.
+  resetRoomToWaiting(room);
+  room.players.forEach(p => { p.isReady = true; });
+  startRoomGame(room);
+  io.to(room.id).emit('rematchStarted', { roomId: room.id });
+  emitRoom(room);
+}
+
 function scheduleRoomReset(room) {
   if (!room) return;
   cancelRoomReset(room);
@@ -2045,6 +2172,15 @@ function destroyRoom(room) {
 function removePlayerFromRoom(room, player, message) {
   if (!room || !player) return;
   cancelDisconnectTimer(room.id, player);
+  // Bekleyen rövanş oylaması varsa düşer: masadan biri ayrıldıysa aynı
+  // kadroyla yeni el kurulamaz. Kalan oyuncuya durum bildirilir ki bitiş
+  // ekranı "rakip ayrıldı" akışına geçip lobiye yönlendirebilsin.
+  if (room.rematch) {
+    room.rematch = null;
+    io.to(room.id).emit('rematchDeclined', {
+      roomId: room.id, bySeat: player.seat, byName: player.name || 'Oyuncu', reason: 'player_left'
+    });
+  }
   // Maç geçmişi bütünlüğü: oyun SIRASINDA ayrılan üye de kayda dahil edilsin.
   if (room.status === 'playing') {
     (room.__leftPlayers = room.__leftPlayers || []).push({ name: player.name, userId: player.userId || null });
@@ -3135,6 +3271,68 @@ io.on('connection', socket => {
     socket.role = null;
     if (player) removePlayerFromRoom(room, player, 'Rakip oyundan ayrıldı.');
     else if (spectator) removeSpectator(room, spectator);
+  });
+
+  /* ================== PES ET (oyun sürerken teslim ol) ==================
+     Kullanıcı isteği: "Oyun içinde pes et butonu da olsun, oyun esnasında
+     da basabilir ayrıl butonuna basar gibi."
+     AYRILMAKTAN FARKI: oyuncu odadan ÇIKMAZ — maçı kaybeder ama masada
+     kalır, böylece bitiş ekranından RÖVANŞ isteyebilir. (Ayrılmak odadan
+     da çıkarır ve rövanş imkânını yok eder.) */
+  socket.on('gvResign', () => {
+    const room = rooms.get(socket.roomId);
+    if (!room) return;
+    const player = findExistingPlayer(room, socket, socket.userKey);
+    if (!player) return;                       // izleyici pes edemez
+    if (room.status !== 'playing') return;     // yalnız oyun sürerken
+    resignMatch(room, player);
+  });
+
+  /* ================== RÖVANŞ / YENİDEN OYNA ==================
+     Kullanıcı isteği: "oyun bittiğinde lobiye dön butonu yanında rövanş
+     talep et butonu da olsun... Eğer rövanş talep ederse oyunculardan biri,
+     diğerine ekranda uyarı çıkar, kabul ederse aynı odada yeni bir ele
+     geçebilirler... Bu normal 2 kişiliklerde geçerli. 3-4 kişilik oyunlarda
+     ise oylamaya sunulur. Herkes kabul ederse ona göre aynı odada yeni el
+     döngüsüne başlanır (3 el, 1 el, 5 el, 7 el) oyun masa tipine bağlı."
+     El sayısı odanın masa tipinden gelir (okeyMaxRounds/cardRounds), yeni
+     maç startRoomGame ile aynı odada kurulduğu için kendiliğinden korunur. */
+  socket.on('rematchRequest', () => {
+    const room = rooms.get(socket.roomId);
+    if (!room) return;
+    const player = findExistingPlayer(room, socket, socket.userKey);
+    if (!player) return;
+    if (room.status === 'playing') return;      // maç sürüyorsa anlamsız
+    if (room.players.length < 2) {
+      emitToPlayer(player, 'rematchDeclined', { roomId: room.id, reason: 'no_opponent' });
+      return;
+    }
+    cancelRoomReset(room);                      // oda sıfırlanmasın, rövanş bekleniyor
+    room.rematch = {
+      bySeat: player.seat,
+      byName: player.name || 'Oyuncu',
+      votes: { [player.seat]: true },
+      startedAt: Date.now()
+    };
+    yayinlaRematch(room);
+  });
+
+  socket.on('rematchVote', data => {
+    const room = rooms.get(socket.roomId);
+    if (!room || !room.rematch) return;
+    const player = findExistingPlayer(room, socket, socket.userKey);
+    if (!player) return;
+    const kabul = !!(data && data.accept);
+    room.rematch.votes[player.seat] = kabul;
+    if (!kabul) {
+      io.to(room.id).emit('rematchDeclined', {
+        roomId: room.id, bySeat: player.seat, byName: player.name || 'Oyuncu', reason: 'declined'
+      });
+      room.rematch = null;
+      scheduleRoomReset(room);                  // normal akışa dön
+      return;
+    }
+    yayinlaRematch(room);
   });
 
   // Kurucunun özel masadan oyuncu ATMA yetkisi. Atılan oyuncu, kurucu ona

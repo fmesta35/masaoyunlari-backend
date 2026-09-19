@@ -1,24 +1,47 @@
-/* GameVerse — Sohbet (masa içi + genel)
+/* GameVerse — Sohbet (masa içi + genel): İKİ AYRI KANAL
+ *
+ *  ⚠ KULLANICI İSTEĞİ (verbatim): "Masa / oyun içi sohbeti ile genel
+ *  sohbetler tamamen ayrı şeyler. birbirinden bağımsız ilerlet. Sohbetler
+ *  aynı gösteriyor."
+ *
+ *  ESKİ (HATALI) DAVRANIŞ: tek bir `mode` değişkeni vardı; oyuncu masaya
+ *  oturunca çekmece de 'room' moduna geçiyor, böylece masa mesajları HEM
+ *  masadaki gömülü kutuda HEM de mesaj balonundaki çekmecede görünüyordu —
+ *  yani iki arayüz aynı sohbeti gösteriyordu, genel sohbete masadayken
+ *  hiç erişilemiyordu.
+ *
+ *  YENİ (DOĞRU) DAVRANIŞ — iki kanal artık TAMAMEN bağımsız:
+ *    • Mesaj balonu / çekmece (#gvChatPanel)  → HER ZAMAN GENEL SOHBET.
+ *      Oyuncu masada otururken bile balona tıklayıp genel sohbete
+ *      yazabilir/okuyabilir.
+ *    • Masadaki gömülü kutu (#gameChat)       → HER ZAMAN MASA SOHBETİ
+ *      (yalnız o odanın kanalı; #gcInput ile scope:'room' gönderilir).
+ *    • Masa sohbeti aç/kapa anahtarı YALNIZ gömülü kutuyu susturur; genel
+ *      sohbet bundan hiç etkilenmez.
  *
  *  Kurallar (sunucu da doğrular):
- *   - Mesaj GÖNDERME üyelere özeldir; misafirler akışı okuyabilir.
- *   - Oda sayfasındayken "Masa Sohbeti" (oda kanalına), diğer sayfalarda
- *     "Genel Sohbet" (herkese açık) aktiftir.
+ *   - Genel sohbete yazmak üyelere özeldir; misafirler akışı okuyabilir.
+ *   - Masa sohbetine masadaki herkes (ziyaretçiler dahil) yazabilir.
  *   - Son 50 mesaj sunucuda tutulur; panele geçmiş yüklenir.
  *
- *  Bu modül kendi başına çalışır: soketi (varsa oda soketi, yoksa lobi
- *  soketi) 1 sn'lik taramayla bulur, dinleyicileri bir kez bağlar.
+ *  Bu modül kendi başına çalışır: soketleri (oda ve/veya lobi) 1 sn'lik
+ *  taramayla bulur, dinleyicileri her sokete bir kez bağlar.
  */
 (function () {
   'use strict';
 
   let built = false;
   let open = false;
-  let mode = 'global';       // 'room' | 'global'
+  // ÇEKMECE HER ZAMAN GENEL SOHBETTİR — bu değişken artık asla 'room'
+  // olmaz. (Sunucuya gönderilen scope ve geçmiş isteği bunu kullanır.)
+  const mode = 'global';
+  // Masadaki gömülü kutunun (#gameChat) bağlı olduğu oda; masada
+  // değilken null. Çekmeceyi ETKİLEMEZ.
   let curRoomId = null;
   let attachedSock = null;
-  let lastHistKey = '';
-  let unread = 0;
+  let lastHistKey = '';       // genel sohbet geçmişi anahtarı (çekmece)
+  let lastRoomHistKey = '';   // masa sohbeti geçmişi anahtarı (gömülü kutu)
+  let unread = 0;             // yalnız GENEL sohbetin okunmamışları
   const seenIds = new Set(); // çift soketten GELEN aynı mesajın yankısını önler
 
   /* ---------- SOHBET AÇ/KAPA (kişisel tercih, bu tarayıcıya özel) ----------
@@ -32,7 +55,6 @@
   let sohbetKapali = (function () {
     try { return localStorage.getItem(MUTE_KEY) === '1'; } catch (_) { return false; }
   })();
-  function odaSusturuldu() { return sohbetKapali && mode === 'room'; }
 
   function anahtarUygula() {
     const btn = document.getElementById('gvChatToggle');
@@ -49,10 +71,8 @@
     if (liste) { liste.hidden = sohbetKapali; if (sohbetKapali) liste.innerHTML = ''; }
     if (kapaliNot) kapaliNot.hidden = !sohbetKapali;
     if (girdiSatiri) girdiSatiri.hidden = sohbetKapali;
-    if (sohbetKapali) {
-      const yan = document.getElementById('gvChatList');
-      if (yan && mode === 'room') yan.innerHTML = '';
-    }
+    // NOT: çekmece (#gvChatList) artık GENEL sohbettir; masa anahtarı onu
+    // hiçbir koşulda temizlemez/kapatmaz.
   }
   function anahtarBagla() {
     const btn = document.getElementById('gvChatToggle');
@@ -270,9 +290,8 @@
   function renderList(messages) {
     const list = document.getElementById('gvChatList');
     if (!list) return;
-    // Masa sohbeti kapatıldıysa yan çekmecede de gösterilmez (yalnız bu
-    // masaya özeldir — genel sohbet bundan etkilenmez, bkz. odaSusturuldu()).
-    if (odaSusturuldu()) { list.innerHTML = '<div class="gc-empty">🔕 Masa sohbeti kapalı.</div>'; return; }
+    // NOT: burası YALNIZ genel sohbeti çizer. Masa sohbeti anahtarı bu
+    // listeyi etkilemez (iki kanal tamamen ayrıdır).
     // Süresi dolmuş genel sohbet mesajları istemcide de gösterilmez.
     if (mode === 'global' && messages) messages = messages.filter(m => Date.now() - Number(m.ts || 0) < 60000);
     if (!messages || !messages.length) {
@@ -291,7 +310,6 @@
   }
 
   function appendMsg(m) {
-    if (odaSusturuldu()) return;                         // kapalıyken hiç çizilmez
     const list = document.getElementById('gvChatList');
     if (!list) return;
     const empty = list.querySelector('.gc-empty');
@@ -348,8 +366,17 @@
 
   // ---------- Soket ----------
   function pickSocket() {
-    if (mode === 'room' && window.__gvRoomSocket) return window.__gvRoomSocket;
     return window.__gvLobbySocket || window.__gvRoomSocket || window.__gvChessSocket || null;
+  }
+
+  /* İki kanal iki FARKLI soketten gelebilir: masa mesajları oda soketine,
+     genel mesajlar lobi soketine düşer. Bu yüzden eldeki TÜM soketlere
+     dinleyici bağlanır (attach kendi içinde yinelemeye karşı korumalı).
+     Eskiden yalnız "seçilen" tek sokete bağlanıyordu; masadayken lobi
+     soketi dinlenmediği için genel sohbet masada sessiz kalıyordu. */
+  function attachAll() {
+    [window.__gvRoomSocket, window.__gvLobbySocket, window.__gvChessSocket]
+      .forEach(s => { if (s) { attach(s); selamla(s); } });
   }
 
   /* GENEL SOHBET HAZIR BİR SOKET BEKLİYORDU — ve çoğu zaman yoktu.
@@ -427,14 +454,16 @@
       if (!msg) return;
       if (msg.id && seenIds.has(msg.id)) return; // iki soket de açıksa yankı düşmesin
       if (msg.id) { seenIds.add(msg.id); if (seenIds.size > 300) { const it = seenIds.values(); for (let i = 0; i < 150; i++) seenIds.delete(it.next().value); } }
-      // Sohbeti kapatan kullanıcı masa mesajlarını görmez; okunmamış
-      // rozeti de artmaz (yoksa kapalı sohbet sürekli "yeni mesaj" derdi).
-      if (sohbetKapali && msg.scope === 'room') return;
-      mirrorToGameChat(msg);
-      const mine = msg.scope === 'room'
-        ? (mode === 'room' && String(msg.roomId) === String(curRoomId))
-        : (mode === 'global');
-      if (open && mine) appendMsg(msg);
+      // ---- İKİ KANAL, İKİ AYRI HEDEF (kullanıcı isteği) ----
+      // MASA mesajı yalnız masadaki gömülü kutuya gider; çekmeceye ASLA
+      // düşmez ve genel sohbetin okunmamış rozetini artırmaz.
+      if (msg.scope === 'room') {
+        if (sohbetKapali) return;            // masa sohbeti susturulduysa çizilmez
+        mirrorToGameChat(msg);
+        return;
+      }
+      // GENEL mesaj yalnız çekmeceye gider; masadaki kutuya karışmaz.
+      if (open) appendMsg(msg);
       else { unread++; paintBadge(); }
     });
     sock.on('chatRejected', p => {
@@ -460,16 +489,40 @@
     sock.on('connect', () => reloadHistory(true));
   }
 
+  /* İKİ KANAL, İKİ AYRI GEÇMİŞ:
+       • genel sohbet geçmişi  → çekmece (#gvChatList)
+       • masa sohbeti geçmişi  → masadaki gömülü kutu (#gameChat)
+     Eskiden tek bir geçmiş çekilip HER İKİ arayüze de basılıyordu; masaya
+     oturan oyuncu çekmecede de masa mesajlarını görüyordu. */
   function reloadHistory(force) {
     const sock = pickSocket();
     if (!sock || !sock.connected) return;
-    const key = mode + ':' + (mode === 'room' ? curRoomId : '*');
-    if (!force && key === lastHistKey) return;
-    lastHistKey = key;
-    sock.emit('chatHistory', { scope: mode, roomId: curRoomId }, res => {
+    if (force || 'global:*' !== lastHistKey) {
+      lastHistKey = 'global:*';
+      sock.emit('chatHistory', { scope: 'global' }, res => {
+        if (!res || !res.ok) return;
+        renderList(res.messages || []);
+      });
+    }
+    reloadRoomHistory(force);
+  }
+
+  function reloadRoomHistory(force) {
+    if (!curRoomId) return;
+    // Masa geçmişi ODA soketinden istenir (sunucu socket.roomId ile
+    // yetkilendirir); yoksa eldeki sokete düşülür.
+    const sock = window.__gvRoomSocket || pickSocket();
+    if (!sock || !sock.connected) return;
+    const key = 'room:' + curRoomId;
+    if (!force && key === lastRoomHistKey) return;
+    lastRoomHistKey = key;
+    const istenen = curRoomId;
+    sock.emit('chatHistory', { scope: 'room', roomId: istenen }, res => {
       if (!res || !res.ok) return;
-      renderList(res.messages || []);
-      if (mode === 'room') paintGameChat(res.messages || []);
+      // Yanıt gecikirken oda değişmiş olabilir — eski masanın mesajlarını
+      // yeni masaya basma (oyun değiştirince sohbet taşınması hatası).
+      if (String(istenen) !== String(curRoomId)) return;
+      paintGameChat(res.messages || []);
     });
   }
 
@@ -488,7 +541,9 @@
       toast('💬 Sunucuya bağlanılıyor — birkaç saniye sonra tekrar deneyin.', 'warning');
       return;
     }
-    sock.emit('chatMessage', { scope: mode, roomId: curRoomId, text, name: myName(), memberKey: memberKey() });
+    // Çekmeceden gönderilen mesaj HER ZAMAN genel sohbete gider (masada
+    // otururken bile) — masa sohbeti için masadaki kendi kutusu kullanılır.
+    sock.emit('chatMessage', { scope: 'global', roomId: null, text, name: myName(), memberKey: memberKey() });
     inp.value = '';
     inp.focus();
     // Genel sohbette 5 sn bekleme kuralı: butonu geri sayımla kilitle (sunucu da reddeder).
@@ -525,22 +580,29 @@
     // gizli kalır.
     const fabEl = document.getElementById('gvChatFab');
     const panelEl = document.getElementById('gvChatPanel');
+    // MASA KANALI (gömülü #gameChat) — üye/misafir farkı gözetmez, iki
+    // dalda da aynı şekilde işler. Oda değişince kutu ANINDA boşalır ki
+    // önceki masanın mesajları yeni masaya taşınmasın.
+    const odaSayfasi = isRoomPage() && !!roomIdNow();
+    const yeniOda = odaSayfasi ? roomIdNow() : null;
+    if (String(yeniOda) !== String(curRoomId)) {
+      curRoomId = yeniOda;
+      lastRoomHistKey = '';
+      paintGameChat([]);
+    }
+
     if (!member) {
       if (fabEl) fabEl.style.display = 'none';
       if (panelEl) { panelEl.classList.remove('open'); panelEl.style.display = 'none'; }
       open = false;
-      const wantRoom = isRoomPage() && !!roomIdNow();
-      if (wantRoom) {
-        const nextRoom = roomIdNow();
-        if (mode !== 'room' || String(nextRoom) !== String(curRoomId)) {
-          mode = 'room'; curRoomId = nextRoom; lastHistKey = '';
-          paintGameChat([]);   // oda değişince gömülü kutu anında boşalsın
-        }
+      // Misafir de masa sohbetini okuyabilmeli (ve yazabilmeli): soketi kur,
+      // dinleyiciyi bağla, masa geçmişini getir. Çekmece (genel sohbet)
+      // misafire kapalı olduğu için yalnız MASA kanalı işler.
+      if (odaSayfasi) {
         const sock = ensureSocket();
         if (sock && sock !== attachedSock) { attach(sock); attachedSock = sock; }
-        reloadHistory(false);
-      } else if (mode !== 'global') {
-        mode = 'global'; curRoomId = null; lastHistKey = '';
+        attachAll();
+        reloadRoomHistory(false);
       }
       return;
     }
@@ -548,45 +610,29 @@
     ensureSocket();          // üye girişi varsa sohbet her sayfada canlıdır
     document.getElementById('gvChatFab').style.display = '';
     if (panelEl) panelEl.style.display = '';
-    const wantRoom = isRoomPage() && !!roomIdNow();
-    const nextMode = wantRoom ? 'room' : 'global';
-    const nextRoom = wantRoom ? roomIdNow() : null;
-    if (nextMode !== mode || String(nextRoom) !== String(curRoomId)) {
-      mode = nextMode;
-      curRoomId = nextRoom;
-      const t = document.getElementById('gvChatTitle');
-      if (t) t.textContent = mode === 'room' ? (gameTitle() + ' Masa Sohbeti #' + curRoomId) : '🌐 Genel Sohbet';
-      lastHistKey = '';
-      renderList([]);
-      // ⚠ HATA DÜZELTMESİ (kullanıcı raporu: "başka oyundan başka oyuna
-      // geçerken ilgili oyun içi sohbetlerin taşınmaması gerekirdi").
-      // #gameChat (masa içindeki GÖMÜLÜ sohbet kutusu) eskiden yalnızca
-      // sohbet ÇEKMECESİ açıkken reloadHistory ile yenileniyordu (aşağıdaki
-      // "if (open) reloadHistory(false)"). Çekmece kapalıyken oda değişse
-      // bile kutu bir önceki masadan kalma mesajlarla dolu kalıyordu —
-      // yeni masaya girince eski masanın mesajları görünüyordu. Oda/mod
-      // değişir değişmez önce kutuyu anında boşalt, sonra gerçek geçmişi
-      // (varsa) getir.
-      if (mode === 'room') paintGameChat([]);
-    }
+    // Çekmece HER ZAMAN genel sohbet: başlık sabittir, masaya oturmak
+    // çekmeceyi değiştirmez.
+    const t = document.getElementById('gvChatTitle');
+    if (t && t.textContent !== '🌐 Genel Sohbet') t.textContent = '🌐 Genel Sohbet';
+
     const inp = document.getElementById('gvChatText');
     const btn = document.getElementById('gvChatSend');
-    const susturuldu = odaSusturuldu();
+    // Çekmece genel sohbet olduğundan masa sohbeti anahtarı burada
+    // KULLANILMAZ; yalnız kurucu yaptırımı yazmayı engelleyebilir.
     const kisitli = susturulduMu();   // KURUCU yaptırımı (kullanıcı kaldıramaz)
     if (inp) {
-      inp.disabled = !member || susturuldu || kisitli;
+      inp.disabled = !member || kisitli;
       inp.placeholder = kisitli ? '🔇 Sohbet yetkiniz kısıtlandı'
-        : susturuldu ? 'Masa sohbeti kapalı — açmak için anahtarı kullanın'
         : (member ? 'Mesajınızı yazın...' : 'Mesaj yazmak için giriş yapın (okumaya devam edebilirsiniz)');
     }
-    if (btn) btn.disabled = !member || susturuldu || kisitli;
+    if (btn) btn.disabled = !member || kisitli;
     const sock = pickSocket();
     if (sock && sock !== attachedSock) { attach(sock); attachedSock = sock; }
-    // Masa modunda gömülü #gameChat'in GERÇEK geçmişi çekmece kapalıyken
-    // de yüklenmeli — yalnızca "open" (çekmece açık) koşuluna bağlı kalırsa
-    // masaya yeni giren üye kutunun boş kalmasına (ya da geç dolmasına)
-    // neden olur.
-    if (open || mode === 'room') reloadHistory(false);
+    attachAll();
+    // Genel sohbet geçmişi yalnız çekmece açıkken tazelenir; masa geçmişi
+    // ise masadayken HER ZAMAN (çekmece kapalı olsa da kutu dolu olmalı).
+    if (open) reloadHistory(false);
+    if (curRoomId) reloadRoomHistory(false);
     pruneOld();
   }
 

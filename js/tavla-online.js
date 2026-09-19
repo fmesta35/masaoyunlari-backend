@@ -192,21 +192,41 @@
   // ---------- Kendi kendine yeten tahta çizici (st/dTavla YOKSA) ----------
   // index.html'in .tavla-* sınıflarını kullanır (eski nesil sayfada bile bu
   // CSS bulunur); bulunamazsa da minik bir iç stil enjekte edilir.
+  /* ---------- FİZİKSEL PUL YIĞINI (rakam rozeti YOK) ----------
+     Kullanıcı isteği: "Taş birikmeleri rakam olarak gözükmesin, fiziksel
+     olarak taş yerleşsin iki tarafında." Yerleşik çiziciyle (index.html
+     tvStack) BİREBİR aynı hesap: pulların tamamı çizilir, sığmayan kısım
+     pul çapına oranla üst üste biner. index.html yüklüyse oradaki ortak
+     yardımcı kullanılır; yoksa (bu modül kendi başına çalışırken) aynı
+     formül burada uygulanır. */
+  const TV_KAPASITE = 5.6;
+  function tvStack(count, color) {
+    if (typeof window.tvStack === 'function') return window.tvStack(count, color, TV_KAPASITE);
+    const n = Math.max(0, Number(count) || 0);
+    if (!n) return { style: '', html: '' };
+    const f = n > 1 ? Math.min(0, (TV_KAPASITE - 1) / (n - 1) - 1) : 0;
+    let html = '';
+    for (let j = 0; j < n; j++) html += `<div class="tavla-checker ${color}${(j > 0 && f < 0) ? ' stacked' : ''}"></div>`;
+    return { style: f < 0 ? `--tv-overlap:${f.toFixed(3)};` : '', html };
+  }
+  function tvZone(cls, label, count, color, onclick, extraStyle) {
+    const s = tvStack(count, color);
+    const oc = onclick ? ` onclick="${onclick}"` : '';
+    return `<div class="${cls}" style="${extraStyle || ''}${s.style}"${oc}>` +
+           `<span class="tavla-zone-label">${label}</span>` +
+           `<div class="tavla-zone-stack">${s.html}</div></div>`;
+  }
+  const TV_BAR_LABEL = 'Kırık Taş Alanı';   // eski "BAR"
+  const TV_OFF_LABEL = 'Taş Toplama Alanı'; // eski "OFF"
+
   function selfPt(i) {
     const p = gameState.points[i] || { color: null, count: 0 };
     const l = i % 2 === 0;
     let c = 'tavla-point ' + (l ? 'light' : 'dark');
     if (sel === i) c += ' selected';
     if (selTargets().includes(i)) c += ' can-move';
-    let h = `<div class="${c}" onclick="window.__gvTavlaSelfClick(${i})">`;
-    if (p.count > 0) {
-      const mv = Math.min(p.count, 5);
-      for (let j = 0; j < mv; j++) {
-        if (j === 4 && p.count > 5) h += `<div class="tavla-checker ${p.color} count">${p.count}</div>`;
-        else h += `<div class="tavla-checker ${p.color}"></div>`;
-      }
-    }
-    return h + '</div>';
+    const stk = tvStack(p.count, p.color);
+    return `<div class="${c}" style="${stk.style}" onclick="window.__gvTavlaSelfClick(${i})">${stk.html}</div>`;
   }
 
   function selfDie(v, used) {
@@ -265,14 +285,14 @@
     h += '<div style="width:60px;flex-shrink:0"></div></div>';
     h += '<div class="tavla-row"><div class="tavla-half">';
     for (let i = 12; i <= 17; i++) h += selfPt(i);
-    h += `</div><div class="tavla-bar">BAR<div class="tavla-bar-count">⚫${gs.bar?.b || 0}</div></div><div class="tavla-half">`;
+    h += `</div>${tvZone('tavla-bar', TV_BAR_LABEL, gs.bar?.b || 0, 'b')}<div class="tavla-half">`;
     for (let i = 18; i <= 23; i++) h += selfPt(i);
-    h += `</div><div class="tavla-off" onclick="window.__gvTavlaSelfBear('w')"><div>⚪</div><div class="tavla-off-count">${gs.off?.w || 0}</div><div>OFF</div></div></div>`;
+    h += `</div>${tvZone('tavla-off', TV_OFF_LABEL, gs.off?.w || 0, 'w', "window.__gvTavlaSelfBear('w')")}</div>`;
     h += '<div class="tavla-row"><div class="tavla-half">';
     for (let i = 11; i >= 6; i--) h += selfPt(i);
-    h += `</div><div class="tavla-bar">BAR<div class="tavla-bar-count">⚪${gs.bar?.w || 0}</div></div><div class="tavla-half">`;
+    h += `</div>${tvZone('tavla-bar', TV_BAR_LABEL, gs.bar?.w || 0, 'w')}<div class="tavla-half">`;
     for (let i = 5; i >= 0; i--) h += selfPt(i);
-    h += `</div><div class="tavla-off" style="background:linear-gradient(135deg,#333,#000)" onclick="window.__gvTavlaSelfBear('b')"><div>⚫</div><div class="tavla-off-count">${gs.off?.b || 0}</div><div>OFF</div></div></div>`;
+    h += `</div>${tvZone('tavla-off dark', TV_OFF_LABEL, gs.off?.b || 0, 'b', "window.__gvTavlaSelfBear('b')", 'background:linear-gradient(135deg,#333,#000);')}</div>`;
     h += '<div class="tavla-num-row">';
     for (let i = 12; i >= 7; i--) h += `<div class="tavla-num-cell">${i}</div>`;
     h += '<div style="width:42px;flex-shrink:0"></div>';
@@ -337,8 +357,14 @@
         ? (winnerName(winner) + ' kazandı. Oyun terk edildi.')
         : (iWon ? '🏆 Oyunu KAZANDINIZ! Rakibiniz oyunu terk etti.' : '💔 Oyunu terk ettiğiniz için KAYBETTİNİZ.');
     }
+    // Kullanıcı isteği: bitiş ekranında "Lobiye Dön" YANINDA "Rövanş Talep
+    // Et" düğmesi; 30 sn tıklanmazsa otomatik lobiye (ortak js/rematch.js).
+    const rovans = (!isSpectator && window.GVRematch) ? window.GVRematch.butonHtml() : '';
+    const sayac = window.GVRematch ? window.GVRematch.geriSayimHtml() : '';
     area.insertAdjacentHTML('beforeend',
-      `<div class="chess-end-overlay"><div class="chess-end-modal"><div class="end-icon">🎲</div><h2>${title}</h2><p>${desc}</p><button class="btn btn-p" style="margin-top:15px;padding:10px 20px;cursor:pointer;" onclick="window.__gvRealChessLeave()">🚪 Odadan Ayrıl ve Lobiye Dön</button></div></div>`);
+      `<div class="chess-end-overlay"><div class="chess-end-modal"><div class="end-icon">🎲</div><h2>${title}</h2><p>${desc}</p>` +
+      `<div style="margin-top:15px;display:flex;gap:8px;flex-wrap:wrap;justify-content:center">` +
+      `<button class="btn btn-p" style="padding:10px 20px;cursor:pointer;" onclick="window.__gvRealChessLeave()">🚪 Lobiye Dön</button>${rovans}</div>${sayac}</div></div>`);
   }
 
   // ---------- Durum uygulama ----------

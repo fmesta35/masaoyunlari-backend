@@ -53,7 +53,12 @@
     duplicate_ship: '🚢 Bir gemi birden fazla kez yerleştirilemez.',
     out_of_bounds: '🗺️ Bu yerleşim harita sınırlarının dışına taşıyor.',
     overlap: '🚢 Gemiler birbiriyle çakışamaz — başka bir yer seçin.',
-    already_fired: '🎯 Bu kareye zaten ateş ettiniz — başka bir kare seçin.'
+    already_fired: '🎯 Bu kareye zaten ateş ettiniz — başka bir kare seçin.',
+
+    // ---- Pes etme / rövanş (yeniden oyna) ----
+    resign:       '🏳️ Maç pes edilerek sonlandı.',
+    declined:     '↩️ Rövanş teklifi reddedildi.',
+    no_opponent:  '👥 Masada rövanş yapacak rakip kalmadı.'
   };
 
   // ---- Oyun bitiş sebepleri ----
@@ -63,13 +68,23 @@
     var r = String(o.reason || '');
     var kim = o.leftName ? ('"' + String(o.leftName).slice(0, 24) + '"') : 'Rakibiniz';
 
+    // Pes etme: ayrılmaktan farkı, oyuncunun masada KALMASIDIR — bu yüzden
+    // metin "terk etti" demez ve rövanş imkânını hatırlatır.
+    var pesEden = o.resignedName ? ('"' + String(o.resignedName).slice(0, 24) + '"') : 'Rakibiniz';
+
     if (o.isSpectator) {
+      if (r === 'resign') return { ikon: '🏳️', baslik: 'Pes edildi', metin: 'Oyunculardan biri pes etti; maç sona erdi.' };
       if (r === 'player_left') return { ikon: '🚪', baslik: 'Oyuncu ayrıldı', metin: 'Masadaki oyunculardan biri oyunu terk etti; maç sona erdi.' };
       if (r === 'move_timeout') return { ikon: '⏱️', baslik: 'Süre doldu', metin: 'Sırası gelen oyuncu süresinde hamle yapmadı.' };
       if (r === 'timeout' || r === 'time_expired') return { ikon: '⏱️', baslik: 'Süre bitti', metin: 'Oyunculardan birinin süresi tükendi.' };
       return { ikon: '🏁', baslik: 'Maç bitti', metin: 'Bu masadaki maç sona erdi.' };
     }
 
+    if (r === 'resign') {
+      return o.youWon
+        ? { ikon: '🏆', baslik: 'Kazandınız', metin: pesEden + ' pes etti — maçı siz kazandınız. Dilerseniz rövanş isteyebilirsiniz.' }
+        : { ikon: '🏳️', baslik: 'Pes ettiniz', metin: 'Bu maçı pes ederek bıraktınız. Masadasınız — rövanş isteyebilirsiniz.' };
+    }
     if (r === 'player_left') {
       return o.youWon
         ? { ikon: '🏆', baslik: 'Kazandınız', metin: kim + ' masadan ayrıldı, bu yüzden maçı siz kazandınız.' }

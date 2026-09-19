@@ -199,6 +199,37 @@ button,input,select{font-family:var(--font)}
 #pg-room.gv-fs .dama-board,#pg-room.gv-fs .tdama-board,#pg-room.gv-fs .chess{
   width:min(100cqw,100cqh);height:min(100cqw,100cqh);min-height:0
 }
+/* TAVLA TAM EKRAN (kullanıcı raporu: "Tavla da tam ekrana çekince ekran
+   optimizasyonu bozuldu").
+   ÖLÇÜLEN HATA (gerçek Chromium, 1600×900): tam ekranda tahta 1288px'lik
+   alanda yalnız 368px kalıyordu (%29) — standart modda 860px (%69) iken.
+   Telefonda ise TERSİ olup 250px'lik alana 331px'lik tahta TAŞIYORDU (%132).
+   KÖK NEDEN: .tavla-wrap tam ekranda flex + align-items:center olduğu için
+   .tavla-board "içeriğe göre küçül" (shrink-to-fit) moduna düşüyor; ayrıca
+   .tavla-row yüksekliği sabit 180px olduğundan tahta dikeyde de büyüyemiyor.
+   ÇÖZÜM: sarmalayıcıyı BOYUT container'ı yap, tahtanın genişliğini hem
+   alan genişliğine hem de (en-boy oranından türetilen) alan yüksekliğine
+   göre sınırla; satır yüksekliğini ve pul çapını bu genişlikten türet.
+   Böylece tahta alanı doldurur ama asla taşmaz. */
+#pg-room.gv-fs .tavla-wrap{container-type:size}
+#pg-room.gv-fs .tavla-board{
+  /* Dikeyde tahtaya kalan pay: sarmalayıcıdaki hamle rozeti (32px, gizli
+     olsa da yer kaplar) + zar şeridi (80px) + boşluk/kenar payları ≈ 136px;
+     güvenlik payıyla 150px ayrılır.
+     Tahta yüksekliği genişliğinden türer: gerçek tarayıcıda ölçülen
+     (845→443, 968→502, 1288→655, 1608→802) noktalara göre
+     H ≈ 0.4705×W + 46px  →  W ≤ 2.12×(kalan yükseklik − 46). */
+  --tv-avail-h:calc(100cqh - 150px);
+  --tv-w:min(100cqw, calc((var(--tv-avail-h) - 46px) * 2.12));
+  width:var(--tv-w);max-width:100%;
+  --tv-checker:calc(var(--tv-w) / 36)
+}
+#pg-room.gv-fs .tavla-row{height:auto;aspect-ratio:820/180}
+#pg-room.gv-fs .tavla-num-cell{font-size:clamp(8px,calc(var(--tv-w)/80),18px)}
+#pg-room.gv-fs .tavla-zone-label{font-size:clamp(7px,calc(var(--tv-w)/95),15px)}
+/* Çok dar tam ekranda (telefon) etiket okunamayacak kadar küçülür —
+   metni gizle, pullar görünür kalsın. */
+@media(max-width:760px){ #pg-room.gv-fs .tavla-zone-label{display:none} }
 /* Reversi/Gomoku/Connect4: aspect-ratio tahtada değil HÜCRELERDE tanımlı —
    yükseklik satır sayısı × hücre yüksekliği ile KENDİLİĞİNDEN oluşur.
    Bu yüzden burada genişliği (width:100%) esas alıp yüksekliğin doğal
@@ -420,14 +451,21 @@ button,input,select{font-family:var(--font)}
 
 /* TAVLA STİLLERİ */
 .tavla-wrap{max-width:820px;margin:0 auto}
-.tavla-board{background:linear-gradient(135deg,#4a2c1a,#6b4423);border:8px solid #3a2010;border-radius:12px;padding:12px;box-shadow:inset 0 0 40px rgba(0,0,0,.6)}
+/* --tv-checker: pul çapı TEK kaynaktan gelir; taş üst üste binme payı
+   (fiziksel yığın) bu değerden calc ile türetilir. Duyarlı kırılımlar
+   yalnız bu değişkeni değiştirir. */
+.tavla-board{--tv-checker:24px;background:linear-gradient(135deg,#4a2c1a,#6b4423);border:8px solid #3a2010;border-radius:12px;padding:12px;box-shadow:inset 0 0 40px rgba(0,0,0,.6)}
 .tavla-num-row{display:flex;gap:2px;padding:0}
 .tavla-num-cell{flex:1;text-align:center;color:#f9ca24;font-size:.75em;font-weight:800;padding:4px 0;text-shadow:0 1px 2px rgba(0,0,0,.8);background:rgba(0,0,0,.3);border-radius:3px}
 .tavla-row{display:flex;height:180px;gap:2px}
-.tavla-bar{width:42px;background:linear-gradient(180deg,#5a3a1a,#3a2010);border-radius:4px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;color:#f9ca24;font-size:.7em;font-weight:800;flex-shrink:0;padding:8px 0}
-.tavla-bar-count{background:rgba(0,0,0,.5);padding:2px 6px;border-radius:8px;font-size:.9em}
+/* KIRIK TAŞ ALANI (eski adı "BAR"): kırılan pullar burada FİZİKSEL olarak
+   birikir. Etiket dikey yazılır — dar şeride sığsın ve tahtanın içine
+   taşmasın diye (kullanıcı isteği). */
+.tavla-bar{width:42px;background:linear-gradient(180deg,#5a3a1a,#3a2010);border-radius:4px;display:flex;flex-direction:row;align-items:center;justify-content:center;gap:2px;color:#f9ca24;font-size:.7em;font-weight:800;flex-shrink:0;padding:6px 1px;overflow:hidden}
+.tavla-zone-label{writing-mode:vertical-rl;transform:rotate(180deg);font-size:10px;line-height:1;letter-spacing:.3px;white-space:nowrap;color:#f9ca24;text-shadow:0 1px 2px rgba(0,0,0,.85);opacity:.95;flex-shrink:0;max-height:100%;overflow:hidden}
+.tavla-zone-stack{display:flex;flex-direction:column;align-items:center;justify-content:center;flex:1;min-width:0;min-height:0}
 .tavla-half{flex:1;display:flex;gap:2px}
-.tavla-point{flex:1;height:100%;position:relative;cursor:pointer;display:flex;flex-direction:column;align-items:center;padding:6px 0 0 0;justify-content:flex-start}
+.tavla-point{flex:1;height:100%;position:relative;cursor:pointer;display:flex;flex-direction:column;align-items:center;padding:6px 0 0 0;justify-content:flex-start;overflow:hidden}
 .tavla-row:nth-child(3) .tavla-point{flex-direction:column-reverse;padding:0 0 6px 0}
 .tavla-point::before{content:'';position:absolute;top:0;left:0;right:0;bottom:0;clip-path:polygon(0 0,100% 0,50% 100%);opacity:.85}
 .tavla-row:nth-child(3) .tavla-point::before{clip-path:polygon(50% 0,0 100%,100% 100%)}
@@ -435,12 +473,22 @@ button,input,select{font-family:var(--font)}
 .tavla-point.dark::before{background:linear-gradient(180deg,#3d2817,#1a0f08)}
 .tavla-point.can-move::before{background:linear-gradient(180deg,#55efc4,#00b894)!important}
 .tavla-point.selected::before{background:linear-gradient(180deg,#feca57,#f39c12)!important}
-.tavla-checker{width:24px;height:24px;border-radius:50%;position:relative;z-index:3;box-shadow:0 2px 4px rgba(0,0,0,.5),inset 0 -2px 3px rgba(0,0,0,.3),inset 0 2px 3px rgba(255,255,255,.4);margin-top:1px;flex-shrink:0;border:1px solid rgba(0,0,0,.3)}
+.tavla-checker{width:var(--tv-checker);height:var(--tv-checker);border-radius:50%;position:relative;z-index:3;box-shadow:0 2px 4px rgba(0,0,0,.5),inset 0 -2px 3px rgba(0,0,0,.3),inset 0 2px 3px rgba(255,255,255,.4);margin-top:1px;flex-shrink:0;border:1px solid rgba(0,0,0,.3)}
 .tavla-row:nth-child(3) .tavla-checker{margin-top:0;margin-bottom:1px}
 .tavla-checker.w{background:radial-gradient(circle at 35% 30%,#fff,#c0c0c0)}
 .tavla-checker.b{background:radial-gradient(circle at 35% 30%,#4a4a4a,#0a0a0a)}
-.tavla-checker.count{display:flex;align-items:center;justify-content:center;font-size:.7em;font-weight:900;color:#fff}
-.tavla-checker.w.count{color:#000}
+/* FİZİKSEL YIĞIN (kullanıcı isteği: "Taş birikmeleri rakam olarak
+   gözükmesin, fiziksel olarak taş yerleşsin iki tarafında"):
+   5'ten fazla pul olduğunda rakam rozeti YOK; pullar --tv-overlap kadar
+   üst üste biner, böylece 15 pul bile haneye sığar ve gerçek tavlada
+   olduğu gibi üst üste yığılmış görünür. Çizici her hane/alan için
+   --tv-overlap'i pul sayısına göre satır içi yazar. */
+/* Sıkı yığınlarda pulların kenarı seçilebilsin diye ince bir ayraç gölgesi
+   (yoksa 15'li yığın tek bir boruya dönüşüp okunmaz oluyordu). */
+.tavla-checker.stacked{margin-top:calc(var(--tv-checker) * var(--tv-overlap,0));z-index:auto;
+  box-shadow:0 -1px 0 rgba(255,255,255,.28),0 2px 5px rgba(0,0,0,.55),inset 0 -2px 3px rgba(0,0,0,.3),inset 0 2px 3px rgba(255,255,255,.4)}
+.tavla-row:nth-child(3) .tavla-checker.stacked{margin-top:0;margin-bottom:calc(var(--tv-checker) * var(--tv-overlap,0))}
+.tavla-zone-stack .tavla-checker.stacked{margin-top:calc(var(--tv-checker) * var(--tv-overlap,0));margin-bottom:0}
 .tavla-dice-area{display:flex;gap:20px;justify-content:center;align-items:center;padding:15px;background:linear-gradient(135deg,#5a3a1a,#3a2010);margin:8px 0;border-radius:8px;border:2px solid #8B6914}
 .tavla-dice{display:flex;gap:10px}
 .tavla-die{width:56px;height:56px;background:linear-gradient(135deg,#fff,#e0e0e0);border-radius:10px;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 4px 12px rgba(0,0,0,.6),inset 0 2px 4px rgba(255,255,255,.9);padding:6px}
@@ -463,8 +511,12 @@ button,input,select{font-family:var(--font)}
 .tavla-btn{background:linear-gradient(135deg,#6c5ce7,#4834d4);color:#fff;border:2px solid #2d1b6b;padding:8px 20px;border-radius:8px;font-weight:700;cursor:pointer}
 .tavla-btn.undo{background:linear-gradient(135deg,#e17055,#c0392b);border-color:#8b1a1a}
 .tavla-btn.end{background:linear-gradient(135deg,#00b894,#006266);border-color:#003f3f}
-.tavla-off{width:60px;height:60px;background:linear-gradient(135deg,#f9ca24,#f39c12);border-radius:8px;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;flex-shrink:0;flex-direction:column;font-size:.7em;cursor:pointer}
-.tavla-off-count{font-size:1.5em;line-height:1}
+/* TAŞ TOPLAMA ALANI (eski adı "OFF"): toplanan pullar burada FİZİKSEL
+   olarak birikir; rakam gösterilmez. Etiket dikey yazılır ki 60px'lik
+   dar sütuna sığsın ve tahtanın içine taşmasın. */
+.tavla-off{width:60px;height:100%;background:linear-gradient(135deg,#f9ca24,#f39c12);border-radius:8px;display:flex;align-items:center;justify-content:center;gap:2px;color:#fff;font-weight:800;flex-shrink:0;flex-direction:row;font-size:.7em;cursor:pointer;padding:6px 2px;overflow:hidden}
+.tavla-off .tavla-zone-label{color:#3a2010;text-shadow:0 1px 1px rgba(255,255,255,.35)}
+.tavla-off.dark .tavla-zone-label{color:#f1c40f;text-shadow:0 1px 2px rgba(0,0,0,.8)}
 
 .dama-wrap,.tdama-wrap{max-width:520px;margin:0 auto}
 .dama-board,.tdama-board{display:grid;grid-template-columns:repeat(8,1fr);border:4px solid #8B4513;border-radius:8px;overflow:hidden;aspect-ratio:1}
@@ -946,9 +998,10 @@ html{scrollbar-gutter:stable}
 .chess-c{font-size:8.4cqw}
 /* 5) TAVLA: sarma + pullar ekrana oranla küçülür (taşma yok) */
 .tavla-wrap{width:100%;max-width:min(820px,960px)}
-.tavla-checker{width:min(24px,4.4vw);height:min(24px,4.4vw)}
+/* Pul çapı tek değişkenden: yığın binme payı (calc) buna göre ölçeklenir. */
+.tavla-board{--tv-checker:min(24px,4.4vw)}
 .tavla-bar{width:min(42px,9vw)}
-.tavla-off{width:min(60px,14vw);height:min(60px,26vh)}
+.tavla-off{width:min(60px,14vw)}
 .tavla-dice-area{flex-wrap:wrap;gap:10px;padding:10px}
 .tavla-row{height:min(200px,27vh)}
 /* 6) Hamle süresi rozetleri: alan HER ZAMAN ayrık (visibility tekniğiyle),
@@ -1566,6 +1619,11 @@ body.gv-app input,body.gv-app textarea,body.gv-app .chat-msgs,body.gv-app .moves
           <button class="btn btn-o btn-sm" id="gvFullscreenBtn" onclick="GV.toggleFullscreen()" title="Tam ekran">⛶ Tam Ekran</button>
           <button class="btn btn-o btn-sm" id="gv101TutorBtn" onclick="GV.open101Tutorial()" title="101 Okey öğrenme modu" style="display:none">🦉 101 Okey Dersi</button>
           <button class="btn btn-o btn-sm" onclick="GV.showRules()">📖 Kurallar</button>
+          <!-- PES ET (kullanıcı isteği): oyun sürerken, "Ayrıl" gibi tek
+               tıkla teslim olma. Ayrılmaktan farkı: oyuncu MASADA KALIR,
+               böylece bitiş ekranından rövanş isteyebilir. Yalnız oyun
+               devam ederken görünür (js/rematch.js yönetir). -->
+          <button class="btn btn-d btn-sm gv-resign-btn" id="gvResignBtn" style="display:none" title="Maçı teslim et (masada kalırsın)">🏳️ Pes Et</button>
           <button class="btn btn-d btn-sm" onclick="GV.leaveRoom()">🚪 Ayrıl</button>
         </div>
       </div>
@@ -3543,8 +3601,41 @@ function _chessGoLobby(){openLobby(st.curGame);}
 
 // ================= 2. TAVLA MOTORU =================
 function rTavla(el){const pts=Array(24).fill(null).map(()=>({color:null,count:0}));pts[23]={color:'w',count:2};pts[12]={color:'w',count:5};pts[7]={color:'w',count:3};pts[5]={color:'w',count:5};pts[0]={color:'b',count:2};pts[11]={color:'b',count:5};pts[16]={color:'b',count:3};pts[18]={color:'b',count:5};st.boards.tavla={points:pts,bar:{w:0,b:0},off:{w:0,b:0},dice:[0,0],availableMoves:[],turn:'w',selected:null,validTargets:[],diceRolled:false,gameEnded:false,moveHistory:[]};dTavla(el);}
-function dTavla(el){const s=st.boards.tavla;let h='<div class="tavla-wrap"><div id="tvMoveBadge" class="tavla-move-badge" style="visibility:hidden"></div>';h+=`<div class="tavla-dice-area"><div class="tavla-info">👤 ${s.turn==='w'?'BEYAZ':'SİYAH'} sırası</div><div class="tavla-dice">`;[0,1].forEach(i=>{const v=s.dice[i],u=v>0&&!s.availableMoves.includes(v);let inner='';if(v>0){let dots='';for(let d=0;d<v;d++)dots+='<div class="dot"></div>';inner=`<div class="tavla-die-face f${v}">${dots}</div>`;}else inner='<div class="tavla-die-empty">🎲</div>';h+=`<div class="tavla-die ${u?'used':''}" id="tvDie${i}">${inner}</div>`;});h+='</div>';if(!s.diceRolled&&!s.gameEnded){h+='<button class="tavla-btn" onclick="GV._tvRoll()">🎲 Zar At</button>';}else if(s.diceRolled&&!s.gameEnded){if(s.moveHistory?.length>0&&s.availableMoves.length>0)h+='<button class="tavla-btn undo" onclick="GV._tvUndoMove()">↩️ Geri Al</button>';if(!s.availableMoves.length)h+='<button class="tavla-btn end" onclick="GV._tvEndTurn()">✅ Bitir</button>';}h+=`<div class="tavla-info">📦 ⚪${s.off.w}/⚫${s.off.b}</div></div>`;h+='<div class="tavla-board">';h+='<div class="tavla-num-row">';for(let i=13;i<=18;i++)h+=`<div class="tavla-num-cell">${i}</div>`;h+='<div style="width:42px;flex-shrink:0"></div>';for(let i=19;i<=24;i++)h+=`<div class="tavla-num-cell">${i}</div>`;h+='<div style="width:60px;flex-shrink:0"></div></div>';h+='<div class="tavla-row"><div class="tavla-half">';for(let i=12;i<=17;i++)h+=tvPt(i,s);h+=`</div><div class="tavla-bar">BAR<div class="tavla-bar-count">⚫${s.bar.b}</div></div><div class="tavla-half">`;for(let i=18;i<=23;i++)h+=tvPt(i,s);h+=`</div><div class="tavla-off" onclick="GV._tvBearOff('w')"><div>⚪</div><div class="tavla-off-count">${s.off.w}</div><div>OFF</div></div></div>`;h+='<div class="tavla-row"><div class="tavla-half">';for(let i=11;i>=6;i--)h+=tvPt(i,s);h+=`</div><div class="tavla-bar">BAR<div class="tavla-bar-count">⚪${s.bar.w}</div></div><div class="tavla-half">`;for(let i=5;i>=0;i--)h+=tvPt(i,s);h+=`</div><div class="tavla-off" style="background:linear-gradient(135deg,#333,#000)" onclick="GV._tvBearOff('b')"><div>⚫</div><div class="tavla-off-count">${s.off.b}</div><div>OFF</div></div></div>`;h+='<div class="tavla-num-row">';for(let i=12;i>=7;i--)h+=`<div class="tavla-num-cell">${i}</div>`;h+='<div style="width:42px;flex-shrink:0"></div>';for(let i=6;i>=1;i--)h+=`<div class="tavla-num-cell">${i}</div>`;h+='<div style="width:60px;flex-shrink:0"></div></div>';h+='</div></div>';el.innerHTML=h;}
-function tvPt(i,s){const p=s.points[i],l=i%2===0,sel=s.selected===i,v=s.validTargets.includes(i);let c='tavla-point '+(l?'light':'dark');if(sel)c+=' selected';if(v)c+=' can-move';let h=`<div class="${c}" onclick="GV._tvClick(${i})">`;if(p.count>0){const mv=Math.min(p.count,5);for(let j=0;j<mv;j++){if(j===4&&p.count>5)h+=`<div class="tavla-checker ${p.color} count">${p.count}</div>`;else h+=`<div class="tavla-checker ${p.color}"></div>`;}}h+='</div>';return h;}
+function dTavla(el){const s=st.boards.tavla;let h='<div class="tavla-wrap"><div id="tvMoveBadge" class="tavla-move-badge" style="visibility:hidden"></div>';h+=`<div class="tavla-dice-area"><div class="tavla-info">👤 ${s.turn==='w'?'BEYAZ':'SİYAH'} sırası</div><div class="tavla-dice">`;[0,1].forEach(i=>{const v=s.dice[i],u=v>0&&!s.availableMoves.includes(v);let inner='';if(v>0){let dots='';for(let d=0;d<v;d++)dots+='<div class="dot"></div>';inner=`<div class="tavla-die-face f${v}">${dots}</div>`;}else inner='<div class="tavla-die-empty">🎲</div>';h+=`<div class="tavla-die ${u?'used':''}" id="tvDie${i}">${inner}</div>`;});h+='</div>';if(!s.diceRolled&&!s.gameEnded){h+='<button class="tavla-btn" onclick="GV._tvRoll()">🎲 Zar At</button>';}else if(s.diceRolled&&!s.gameEnded){if(s.moveHistory?.length>0&&s.availableMoves.length>0)h+='<button class="tavla-btn undo" onclick="GV._tvUndoMove()">↩️ Geri Al</button>';if(!s.availableMoves.length)h+='<button class="tavla-btn end" onclick="GV._tvEndTurn()">✅ Bitir</button>';}h+=`<div class="tavla-info">📦 ⚪${s.off.w}/⚫${s.off.b}</div></div>`;h+='<div class="tavla-board">';h+='<div class="tavla-num-row">';for(let i=13;i<=18;i++)h+=`<div class="tavla-num-cell">${i}</div>`;h+='<div style="width:42px;flex-shrink:0"></div>';for(let i=19;i<=24;i++)h+=`<div class="tavla-num-cell">${i}</div>`;h+='<div style="width:60px;flex-shrink:0"></div></div>';h+='<div class="tavla-row"><div class="tavla-half">';for(let i=12;i<=17;i++)h+=tvPt(i,s);h+=`</div>${tvZone('tavla-bar',TV_BAR_LABEL,s.bar.b,'b')}<div class="tavla-half">`;for(let i=18;i<=23;i++)h+=tvPt(i,s);h+=`</div>${tvZone('tavla-off',TV_OFF_LABEL,s.off.w,'w',"GV._tvBearOff('w')")}</div>`;h+='<div class="tavla-row"><div class="tavla-half">';for(let i=11;i>=6;i--)h+=tvPt(i,s);h+=`</div>${tvZone('tavla-bar',TV_BAR_LABEL,s.bar.w,'w')}<div class="tavla-half">`;for(let i=5;i>=0;i--)h+=tvPt(i,s);h+=`</div>${tvZone('tavla-off dark',TV_OFF_LABEL,s.off.b,'b',"GV._tvBearOff('b')",'background:linear-gradient(135deg,#333,#000);')}</div>`;h+='<div class="tavla-num-row">';for(let i=12;i>=7;i--)h+=`<div class="tavla-num-cell">${i}</div>`;h+='<div style="width:42px;flex-shrink:0"></div>';for(let i=6;i>=1;i--)h+=`<div class="tavla-num-cell">${i}</div>`;h+='<div style="width:60px;flex-shrink:0"></div></div>';h+='</div></div>';el.innerHTML=h;}
+/* ---------- TAVLA: FİZİKSEL PUL YIĞINI (rakam rozeti YOK) ----------
+   Kullanıcı isteği (verbatim): "Taş birikmeleri rakam olarak gözükmesin,
+   fiziksel olarak taş yerleşsin iki tarafında."
+   Eskiden bir haneye 5'ten fazla pul gelince yalnız 5 pul çizilip
+   sonuncusunun üstüne "7" gibi bir RAKAM basılıyordu. Artık pulların
+   TAMAMI çizilir; sığmadıkları kadarı üst üste biner (gerçek tavlada
+   olduğu gibi). Binme payı pul çapına oranla hesaplanır, bu yüzden
+   her ekran boyutunda doğru çalışır.
+     TV_KAPASITE = üst üste binmeden sığan pul sayısı.
+   Dönen `style` kapsayıcıya (hane / kırık taş / toplama alanı) yazılır. */
+const TV_KAPASITE = 5.6;
+function tvStack(count, color, kapasite){
+  const n = Math.max(0, Number(count) || 0);
+  if(!n) return { style:'', html:'' };
+  const C = kapasite || TV_KAPASITE;
+  // Toplam yükseklik = pul + (n-1)*pul*(1+f) ≤ C*pul  →  f ≤ (C-1)/(n-1) - 1
+  const f = n > 1 ? Math.min(0, (C - 1) / (n - 1) - 1) : 0;
+  let html = '';
+  for(let j = 0; j < n; j++)
+    html += `<div class="tavla-checker ${color}${(j > 0 && f < 0) ? ' stacked' : ''}"></div>`;
+  return { style: f < 0 ? `--tv-overlap:${f.toFixed(3)};` : '', html };
+}
+/* Kırık taş / taş toplama alanı — etiket dikey, pullar fiziksel yığın. */
+function tvZone(cls, label, count, color, onclick, extraStyle){
+  const s = tvStack(count, color);
+  const oc = onclick ? ` onclick="${onclick}"` : '';
+  return `<div class="${cls}" style="${extraStyle || ''}${s.style}"${oc}>` +
+         `<span class="tavla-zone-label">${label}</span>` +
+         `<div class="tavla-zone-stack">${s.html}</div></div>`;
+}
+const TV_BAR_LABEL = 'Kırık Taş Alanı';
+const TV_OFF_LABEL = 'Taş Toplama Alanı';
+
+function tvPt(i,s){const p=s.points[i],l=i%2===0,sel=s.selected===i,v=s.validTargets.includes(i);let c='tavla-point '+(l?'light':'dark');if(sel)c+=' selected';if(v)c+=' can-move';const stk=tvStack(p.count,p.color);return `<div class="${c}" style="${stk.style}" onclick="GV._tvClick(${i})">${stk.html}</div>`;}
 function _tvRoll(){const s=st.boards.tavla;if(!s||s.gameEnded||s.diceRolled)return;[0,1].forEach(i=>{const d=document.getElementById('tvDie'+i);if(d)d.classList.add('rolling');});setTimeout(()=>{if(!s||s.gameEnded)return;s.dice[0]=Math.floor(Math.random()*6)+1;s.dice[1]=Math.floor(Math.random()*6)+1;s.availableMoves=s.dice[0]===s.dice[1]?[s.dice[0],s.dice[0],s.dice[0],s.dice[0]]:[s.dice[0],s.dice[1]];s.diceRolled=true;addMove(`🎲 ${s.dice[0]}-${s.dice[1]}`);toast(`🎲 ${s.dice[0]}-${s.dice[1]}`,'info');dTavla(document.getElementById('boardArea'));if(!tvHasMove())setTimeout(()=>{toast('Hamle yok! Sıra geçiyor.','warning');_tvEndTurn();},1500);},500);}
 function tvCanLand(i,c){if(i<0||i>23)return false;const p=st.boards.tavla.points[i];return!p.count||p.color===c||p.count===1;}
 function tvHasMove(){const s=st.boards.tavla;if(s.bar[s.turn]>0){for(const d of s.availableMoves){const e=s.turn==='w'?24-d:d-1;if(tvCanLand(e,s.turn))return true;}return false;}for(let i=0;i<24;i++){if(s.points[i].color===s.turn&&s.points[i].count>0){for(const d of s.availableMoves){const t=s.turn==='w'?i-d:i+d;if(t>=0&&t<24&&tvCanLand(t,s.turn))return true;}}}return false;}
@@ -3849,8 +3940,12 @@ function rOkey(el){
 
   const names = {0:'Sen', 1:'Sol', 2:'Karşı', 3:'Sağ'};
   toast(`🎮 El ${st.boards.okey.currentRound}/${maxRounds} - ${names[starter]} başladı!`, 'info');
-  
-  if(ok.bots[starter]) setTimeout(() => _okAITurn(), 1200);
+
+  // ⚠ HATA DÜZELTMESİ: burada tanımsız `ok` değişkeni kullanılıyordu —
+  // rOkey her çağrıldığında sonunda ReferenceError fırlatıyor, fonksiyonun
+  // geri kalanı (ve çağıranın devamı) sessizce kesiliyordu. Doğrusu
+  // masanın kendi durum nesnesidir.
+  if(st.boards.okey.bots[starter]) setTimeout(() => _okAITurn(), 1200);
 }
 
 function _okEndRound(winner, winType = 'standard'){
@@ -3993,11 +4088,28 @@ function _okAITurn() {
   }, 800);
 }
 
+/* Atığından taş ÇEKEBİLECEĞİM oyuncunun EKRAN konumu.
+   Okey kuralı: oyuncu, tur sırasında kendinden BİR ÖNCEKİ (solundaki)
+   oyuncunun açık attığı taşı alabilir.
+   `activePositions` her zaman TUR SIRASINA göre benden başlar
+   ([ben, +1, +2, ...]), dolayısıyla SON eleman = bir önceki oyuncu.
+   ⚠ HATA DÜZELTMESİ (kullanıcı raporu: "Okey oyununda rakiplerin masaya
+   atılan taşları karşı oyuncular tarafından alınamıyor"): burası eskiden
+   sabit "1" (Sol) idi. Bu yalnız 4 kişilik masada doğruydu; 2 kişilikte
+   önceki oyuncu pos 2 (Karşı), 3 kişilikte de pos 2'dir — o masalarda
+   atılan taş HİÇ alınamıyordu. Artık konum masadaki kişi sayısından
+   türetiliyor, 2/3/4 kişilik masaların hepsinde doğru çalışır. */
+function _okPrevPos(ok){
+  const ap = (ok && ok.activePositions) || [0, 3, 2, 1];
+  return ap.length ? ap[ap.length - 1] : 1;
+}
+
 function dOkey(el){
   const ok = st.boards.okey;
   if(!ok) return;
   const iC = OKEY_CSS[ok.indicator.c];
   const active = ok.activePositions;
+  const prevPos = _okPrevPos(ok);
 
   let h = '<div class="okey-table">';
 
@@ -4051,16 +4163,19 @@ function dOkey(el){
 
   h += '<div class="ok-throw-zone" id="okThrowZone" onclick="GV._okZoneClick(\'throw\')"><span class="ok-throw-label">📤 TAŞ AT</span><span class="ok-throw-empty">Sürükle</span></div>';
 
-  const labels = ['Sen', '← Sol', 'Karşı', 'Sağ'];
+  const labels = ['Sen', 'Sol', 'Karşı', 'Sağ'];
   [0, 1, 2, 3].forEach(pos => {
     if (!active.includes(pos)) return;
     const pile = ok.discardPiles[pos] || [];
     const topTile = pile.length ? pile[pile.length - 1] : null;
+    // Alınabilir atık = bir ÖNCEKİ oyuncunun atığı (bkz. _okPrevPos).
+    const canTake = pos === prevPos && pos !== 0 && topTile && ok.myTurn && ok.phase === 'draw';
     let attrs = '';
-    if (pos === 1 && topTile && ok.myTurn && ok.phase === 'draw') {
+    if (canTake) {
       attrs = ` onmousedown="GV._okPointerDown(event, 'left')" ontouchstart="GV._okPointerDown(event, 'left')" style="cursor:grab"`;
     }
-    h += `<div class="ok-disc-zone${(pos===1 && topTile && ok.myTurn && ok.phase==='draw') ? ' active-take' : ''}" data-pos="${pos}"${attrs}><span class="ok-disc-label">${labels[pos]}</span>`;
+    const lbl = (pos === prevPos && pos !== 0 ? '← ' : '') + labels[pos];
+    h += `<div class="ok-disc-zone${canTake ? ' active-take' : ''}" data-pos="${pos}"${attrs}><span class="ok-disc-label">${lbl}</span>`;
     if (topTile) {
       const cc = topTile.isFJ ? (topTile.dc || 't-red') : topTile.c;
       h += `<div class="ok-disc-tile ${cc}"><div class="dt-num">${topTile.n}</div><div class="dt-dot"></div></div>`;
@@ -4178,7 +4293,10 @@ function _okPointerDown(e, type, sh, sl) {
   if(type !== 'tile'){
     if(!ok.myTurn) return;
     if((type==='deck' || type==='left') && ok.phase !== 'draw') return;
-    if(type === 'left' && !ok.discardPiles[1]?.length) return;
+    // 'left' = bir ÖNCEKİ oyuncunun atığı. Konum masadaki kişi sayısına
+    // göre değişir (2/3 kişilikte 'Karşı', 4 kişilikte 'Sol') — sabit 1
+    // yazmak 2 ve 3 kişilik masalarda taş almayı TAMAMEN engelliyordu.
+    if(type === 'left' && !(ok.discardPiles[_okPrevPos(ok)] || []).length) return;
   }
 
   if(e.cancelable) e.preventDefault();
@@ -4741,12 +4859,21 @@ window.st = st;
 // room-waiting-fix.js) isim/ikon listelemesi için gerekir.
 window.GAMES = GAMES;
 window.ONLINE_GAMES = ONLINE_GAMES;
+// Fiziksel pul yığını hesabı: online tavla istemcisi (js/tavla-online.js)
+// masayı yerleşik çiziciyle BİREBİR aynı göstersin diye dışa açılır.
+window.tvStack = tvStack;
+// Yerel tahta çizici sevk noktası: tam ekran/duyarlı düzen regresyon
+// testleri 13 oyunun tahtasını tek çağrıyla kurabilsin diye dışa açılır.
+window.renderBoard = renderBoard;
 window.rTavla = rTavla;
 window.dTavla = dTavla;
 // Online okey istemcisi (js/okey-online.js) masayı yerleşik çiziciyle birebir
 // aynı görünümde boyar: bu iki fonksiyonu da dışa açıyoruz (dTavla kalıbı).
 window.rOkey = rOkey;
 window.dOkey = dOkey;
+// Alınabilir atığın (bir önceki oyuncunun) ekran konumu — online istemci ve
+// regresyon testi de aynı hesabı kullansın diye dışa açıldı.
+window._okPrevPos = _okPrevPos;
 // Sayaç sahipliği/test kancaları: online modüller ve regresyon testleri
 // yerel zamanlayıcıyı buradan da doğrulayabilir/durdurabilir.
 window.startTimer = startTimer;
@@ -5011,5 +5138,7 @@ GV.init();
 }
 </script>
 <script src="js/no-bots.js?v=20260823b" defer></script>
-<script src="js/board-fit.js?v=20260904a" defer></script></body>
+<script src="js/board-fit.js?v=20260904a" defer></script>
+<!-- Pes et + rövanş/yeniden oyna: dört bitiş ekranının ortak mantığı -->
+<script src="js/rematch.js?v=20260920a" defer></script></body>
 </html>
