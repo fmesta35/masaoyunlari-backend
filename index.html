@@ -73,6 +73,7 @@ button,input,select{font-family:var(--font)}
 .game-card{background:var(--card);border:1px solid var(--border);border-radius:var(--r2);overflow:hidden;cursor:pointer;transition:.3s;position:relative}
 .game-card:hover{border-color:var(--primary);transform:translateY(-4px);box-shadow:0 12px 40px rgba(108,92,231,.25)}
 .game-thumb{height:120px;display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden;
+  background-size:cover;background-position:center;background-repeat:no-repeat;
   background-image:repeating-linear-gradient(135deg,rgba(255,255,255,.07) 0 2px,transparent 2px 13px),radial-gradient(ellipse at 30% 20%,rgba(255,255,255,.20),transparent 60%)}
 .game-thumb .gt-badge{position:relative;z-index:1;width:60px;height:60px;border-radius:50%;display:flex;align-items:center;justify-content:center;
   font-size:1.9em;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.35);box-shadow:0 6px 18px rgba(0,0,0,.35),inset 0 1px 0 rgba(255,255,255,.25);
@@ -1578,17 +1579,17 @@ body.gv-app input,body.gv-app textarea,body.gv-app .chat-msgs,body.gv-app .moves
           <div class="card" style="padding:10px"><h4 style="margin-bottom:6px;font-size:.88em">📝 Hamleler</h4><div class="moves" id="moveHist"></div></div>
           <div class="chat" style="height:280px">
             <div class="chat-h">
-              <span>💬 Sohbet</span>
-              <button type="button" id="gvChatToggle" class="chat-switch on" role="switch" aria-checked="true" title="Sohbeti aç/kapat">
-                <span class="chat-switch-txt">Sohbet Açık</span>
+              <span>💬 Masa Sohbeti</span>
+              <button type="button" id="gvChatToggle" class="chat-switch on" role="switch" aria-checked="true" title="Bu masanın sohbetini aç/kapat (genel sohbeti etkilemez)">
+                <span class="chat-switch-txt">Masa Sohbeti Açık</span>
                 <span class="chat-switch-track"><span class="chat-switch-knob"></span></span>
               </button>
             </div>
             <div class="chat-msgs" id="gameChat"></div>
             <div class="chat-off" id="gvChatOff" hidden>
               <div class="chat-off-ico">🔕</div>
-              <div class="chat-off-t">Sohbet Kapalı</div>
-              <div class="chat-off-s">Mesajlar gösterilmiyor. Açmak için yukarıdaki anahtarı kullanın.</div>
+              <div class="chat-off-t">Masa Sohbeti Kapalı</div>
+              <div class="chat-off-s">Bu masadaki mesajlar gösterilmiyor (genel sohbet etkilenmez). Açmak için yukarıdaki anahtarı kullanın.</div>
             </div>
             <div class="chat-input" id="gvChatInputRow">
               <input placeholder="Mesaj..." id="gcInput" onkeydown="if(event.key==='Enter')GV.sendChat('game')"><button onclick="GV.sendChat('game')">➤</button>
@@ -1897,18 +1898,18 @@ const BOT_FALLBACK_GAMES = ['pisti', 'batak'];
    uydurma "oyuncu sayısı" kaldırılıp yerine GERÇEK oynanma sayısı ve
    daha gösterişli kapak görselleri konsun. */
 const GAMES={
-  chess:{name:'Satranç',icon:'♟️',cat:'strategy',bg:'linear-gradient(150deg,#241b45,#4a3a86 55%,#6c5ce7)'},
-  tavla:{name:'Tavla',icon:'🎲',cat:'board',bg:'linear-gradient(150deg,#4a2f18,#8a5a2b 55%,#d19a3d)'},
-  dama:{name:'İngiliz Daması',icon:'⬛',cat:'strategy',bg:'linear-gradient(150deg,#181818,#3a3a3a 55%,#666)'},
-  turkdamasi:{name:'Türk Daması',icon:'🔲',cat:'strategy',bg:'linear-gradient(150deg,#1c2917,#3d5c33 55%,#75b25e)'},
-  okey:{name:'Okey',icon:'🀄',cat:'board',bg:'linear-gradient(150deg,#0c332f,#146b64 55%,#22b3a7)'},
-  okey101:{name:'101 Okey',icon:'🀄',cat:'board',bg:'linear-gradient(150deg,#0e2846,#1c4c85 55%,#3487d1)'},
-  pisti:{name:'Pişti',icon:'🃏',cat:'card',bg:'linear-gradient(150deg,#0a3620,#146b3c 55%,#26b862)'},
-  batak:{name:'Batak',icon:'🃏',cat:'card',bg:'linear-gradient(150deg,#390a16,#7a1530 55%,#c1264d)'},
-  reversi:{name:'Reversi',icon:'⚫',cat:'strategy',bg:'linear-gradient(150deg,#111,#2e2e2e 55%,#565656)'},
-  gomoku:{name:'Gomoku',icon:'⚪',cat:'strategy',bg:'linear-gradient(150deg,#3c2c14,#7a5326 55%,#b28a47)'},
-  connect4:{name:'Connect4',icon:'🔴',cat:'strategy',bg:'linear-gradient(150deg,#0b2560,#1746a8 55%,#e8495a)'},
-  bilardo:{name:'Bilardo',icon:'🎱',cat:'board',bg:'linear-gradient(150deg,#07301d,#0f5c34 55%,#188a4e)'},
+  chess:{name:'Satranç',icon:'♟️',cat:'strategy',bg:'linear-gradient(150deg,#241b45,#4a3a86 55%,#6c5ce7)',cover:'assets/covers/chess.jpg'},
+  tavla:{name:'Tavla',icon:'🎲',cat:'board',bg:'linear-gradient(150deg,#4a2f18,#8a5a2b 55%,#d19a3d)',cover:'assets/covers/tavla.jpg'},
+  dama:{name:'İngiliz Daması',icon:'⬛',cat:'strategy',bg:'linear-gradient(150deg,#181818,#3a3a3a 55%,#666)',cover:'assets/covers/dama.jpg'},
+  turkdamasi:{name:'Türk Daması',icon:'🔲',cat:'strategy',bg:'linear-gradient(150deg,#1c2917,#3d5c33 55%,#75b25e)',cover:'assets/covers/turkdamasi.jpg'},
+  okey:{name:'Okey',icon:'🀄',cat:'board',bg:'linear-gradient(150deg,#0c332f,#146b64 55%,#22b3a7)',cover:'assets/covers/okey.jpg'},
+  okey101:{name:'101 Okey',icon:'🀄',cat:'board',bg:'linear-gradient(150deg,#0e2846,#1c4c85 55%,#3487d1)',cover:'assets/covers/okey101.jpg'},
+  pisti:{name:'Pişti',icon:'🃏',cat:'card',bg:'linear-gradient(150deg,#0a3620,#146b3c 55%,#26b862)',cover:'assets/covers/pisti.jpg'},
+  batak:{name:'Batak',icon:'🃏',cat:'card',bg:'linear-gradient(150deg,#390a16,#7a1530 55%,#c1264d)',cover:'assets/covers/batak.jpg'},
+  reversi:{name:'Reversi',icon:'⚫',cat:'strategy',bg:'linear-gradient(150deg,#111,#2e2e2e 55%,#565656)',cover:'assets/covers/reversi.jpg'},
+  gomoku:{name:'Gomoku',icon:'⚪',cat:'strategy',bg:'linear-gradient(150deg,#3c2c14,#7a5326 55%,#b28a47)',cover:'assets/covers/gomoku.jpg'},
+  connect4:{name:'Connect4',icon:'🔴',cat:'strategy',bg:'linear-gradient(150deg,#0b2560,#1746a8 55%,#e8495a)',cover:'assets/covers/connect4.jpg'},
+  bilardo:{name:'Bilardo',icon:'🎱',cat:'board',bg:'linear-gradient(150deg,#07301d,#0f5c34 55%,#188a4e)',cover:'assets/covers/bilardo.jpg'},
   battleship:{name:'Amiral Battı',icon:'🚢',cat:'strategy',bg:'linear-gradient(150deg,#041a2e,#0b3a54 55%,#1f7fa8)'}
 };
 
@@ -2517,7 +2518,13 @@ function gvPopularConfig(){try{const p=window.__gvPopularConfig;return (p&&typeo
 // eder ve kart üzerinde ipucu (title) olarak kalır.
 function cH(id,g){
   const oynandi = gvPlayCount(id).toLocaleString('tr-TR');
-  return `<div class="game-card" data-g="${id}" title="${oynandi} kez oynandı" onclick="GV.openLobby('${id}')"><div class="game-thumb" style="background:${g.bg}"><span class="gt-badge">${g.icon}</span></div><div class="game-info"><h3>${g.name}</h3><button type="button" class="gv-qm-btn" onclick="event.stopPropagation();GV.quickMatchFor('${id}',this)">⚡ Hızlı Eşleş</button></div></div>`;
+  // Kapak fotoğrafı varsa gerçek görsel kullanılır (kullanıcının ilettiği
+  // referans görsellere göre düzenlendi); yoksa eski düz renk geçişine
+  // (bg) düşülür. Fotoğraflıyken üstteki rozet ikonu kaldırıldı — referans
+  // görsellerde temiz, ikonsuz bir kapak fotoğrafı isteniyordu.
+  const thumbInner = g.cover ? '' : `<span class="gt-badge">${g.icon}</span>`;
+  const thumbStyle = g.cover ? `background-image:url('${g.cover}')` : `background:${g.bg}`;
+  return `<div class="game-card" data-g="${id}" title="${oynandi} kez oynandı" onclick="GV.openLobby('${id}')"><div class="game-thumb" style="${thumbStyle}">${thumbInner}</div><div class="game-info"><h3>${g.name}</h3><button type="button" class="gv-qm-btn" onclick="event.stopPropagation();GV.quickMatchFor('${id}',this)">⚡ Hızlı Eşleş</button></div></div>`;
 }
 // Ana sayfa "Popüler Oyunlar": varsayılanda ('auto') GERÇEK oynanma sayısına
 // göre çoktan aza sıralanır; kurucu panelinden 'manual' moda geçilmişse

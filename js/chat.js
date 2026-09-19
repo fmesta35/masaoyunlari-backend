@@ -41,7 +41,7 @@
       btn.classList.toggle('off', sohbetKapali);
       btn.setAttribute('aria-checked', sohbetKapali ? 'false' : 'true');
       const txt = btn.querySelector('.chat-switch-txt');
-      if (txt) txt.textContent = sohbetKapali ? 'Sohbet Kapalı' : 'Sohbet Açık';
+      if (txt) txt.textContent = sohbetKapali ? 'Masa Sohbeti Kapalı' : 'Masa Sohbeti Açık';
     }
     const liste = document.getElementById('gameChat');
     const kapaliNot = document.getElementById('gvChatOff');
@@ -63,7 +63,12 @@
       try { localStorage.setItem(MUTE_KEY, sohbetKapali ? '1' : '0'); } catch (_) {}
       anahtarUygula();
       if (!sohbetKapali) { lastHistKey = ''; reloadHistory(true); }
-      toast(sohbetKapali ? '🔕 Sohbet kapatıldı — mesajlar gösterilmeyecek.' : '🔔 Sohbet açıldı.',
+      // ⚠ NOT (kullanıcı isteği): bu anahtar YALNIZ bu masanın oyun içi
+      // sohbetini susturur — genel sohbet bundan ETKİLENMEZ, kullanıcı
+      // istediği an mesaj balonuna tıklayıp genel sohbete erişebilir.
+      // Mesaj metni bunu açıkça belirtir ki "genel sohbet de kapandı"
+      // yanlış izlenimine yol açmasın.
+      toast(sohbetKapali ? '🔕 Masa sohbeti kapatıldı — bu masadaki mesajlar gösterilmeyecek (genel sohbet etkilenmez).' : '🔔 Masa sohbeti açıldı.',
             sohbetKapali ? 'warning' : 'success');
     });
   }
@@ -265,8 +270,9 @@
   function renderList(messages) {
     const list = document.getElementById('gvChatList');
     if (!list) return;
-    // Masa sohbeti kapatıldıysa yan çekmecede de gösterilmez.
-    if (odaSusturuldu()) { list.innerHTML = '<div class="gc-empty">🔕 Sohbet kapalı.</div>'; return; }
+    // Masa sohbeti kapatıldıysa yan çekmecede de gösterilmez (yalnız bu
+    // masaya özeldir — genel sohbet bundan etkilenmez, bkz. odaSusturuldu()).
+    if (odaSusturuldu()) { list.innerHTML = '<div class="gc-empty">🔕 Masa sohbeti kapalı.</div>'; return; }
     // Süresi dolmuş genel sohbet mesajları istemcide de gösterilmez.
     if (mode === 'global' && messages) messages = messages.filter(m => Date.now() - Number(m.ts || 0) < 60000);
     if (!messages || !messages.length) {
@@ -570,7 +576,7 @@
     if (inp) {
       inp.disabled = !member || susturuldu || kisitli;
       inp.placeholder = kisitli ? '🔇 Sohbet yetkiniz kısıtlandı'
-        : susturuldu ? 'Sohbet kapalı — açmak için anahtarı kullanın'
+        : susturuldu ? 'Masa sohbeti kapalı — açmak için anahtarı kullanın'
         : (member ? 'Mesajınızı yazın...' : 'Mesaj yazmak için giriş yapın (okumaya devam edebilirsiniz)');
     }
     if (btn) btn.disabled = !member || susturuldu || kisitli;
