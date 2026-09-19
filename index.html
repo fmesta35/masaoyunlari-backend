@@ -72,8 +72,21 @@ button,input,select{font-family:var(--font)}
 .games-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:14px}
 .game-card{background:var(--card);border:1px solid var(--border);border-radius:var(--r2);overflow:hidden;cursor:pointer;transition:.3s;position:relative}
 .game-card:hover{border-color:var(--primary);transform:translateY(-4px);box-shadow:0 12px 40px rgba(108,92,231,.25)}
-.game-thumb{height:120px;display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden;
-  background-size:cover;background-position:center;background-repeat:no-repeat;
+/* ⚠ ÖNEMLİ: css/style.css'te AYNI .game-thumb seçicisi var (eski/atıl bir
+   tasarımdan kalma, height:140px + salt gradyan arkaplan, medya
+   sorgularında 100px/80px'e düşüyor) ve o dosya bu <style> bloğundan SONRA
+   <link> ile yükleniyor. Eşit özgüllükte SONRA gelen kazanır — bu yüzden
+   düz ".game-thumb" burada tanımlansa bile kapak fotoğrafı boyut/konumu
+   (background-size/position) sessizce "auto"/"0% 0%"e sıfırlanıyordu
+   (kısayol "background:" özelliği tüm alt özellikleri sıfırlar) ve kutu
+   yüksekliği de 140px'e (mobilde 80px'e) geri dönüyordu — canlıda kapak
+   fotoğraflarının yalnızca sol-üst köşesinin göründüğü hataya yol açtı.
+   Kalıcı çözüm: seçici özgüllüğünü artır (.games-grid .game-thumb) ki
+   dosya sırasından bağımsız her zaman kazansın; ayrıca arkaplan alt
+   özelliklerine !important eklendi ki gelecekte başka bir "background:"
+   kısayolu bunu sessizce ezemesin. */
+.games-grid .game-thumb{height:120px;display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden;
+  background-size:cover!important;background-position:center!important;background-repeat:no-repeat!important;
   background-image:repeating-linear-gradient(135deg,rgba(255,255,255,.07) 0 2px,transparent 2px 13px),radial-gradient(ellipse at 30% 20%,rgba(255,255,255,.20),transparent 60%)}
 .game-thumb .gt-badge{position:relative;z-index:1;width:60px;height:60px;border-radius:50%;display:flex;align-items:center;justify-content:center;
   font-size:1.9em;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.35);box-shadow:0 6px 18px rgba(0,0,0,.35),inset 0 1px 0 rgba(255,255,255,.25);
@@ -1910,7 +1923,7 @@ const GAMES={
   gomoku:{name:'Gomoku',icon:'⚪',cat:'strategy',bg:'linear-gradient(150deg,#3c2c14,#7a5326 55%,#b28a47)',cover:'assets/covers/gomoku.jpg'},
   connect4:{name:'Connect4',icon:'🔴',cat:'strategy',bg:'linear-gradient(150deg,#0b2560,#1746a8 55%,#e8495a)',cover:'assets/covers/connect4.jpg'},
   bilardo:{name:'Bilardo',icon:'🎱',cat:'board',bg:'linear-gradient(150deg,#07301d,#0f5c34 55%,#188a4e)',cover:'assets/covers/bilardo.jpg'},
-  battleship:{name:'Amiral Battı',icon:'🚢',cat:'strategy',bg:'linear-gradient(150deg,#041a2e,#0b3a54 55%,#1f7fa8)'}
+  battleship:{name:'Amiral Battı',icon:'🚢',cat:'strategy',bg:'linear-gradient(150deg,#041a2e,#0b3a54 55%,#1f7fa8)',cover:'assets/covers/battleship.jpg'}
 };
 
 const ROOMS = { chess:[], tavla:[], dama:[], turkdamasi:[], okey:[], okey101:[], pisti:[], batak:[], reversi:[], gomoku:[], connect4:[], bilardo:[], battleship:[] };
