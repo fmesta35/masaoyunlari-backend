@@ -473,6 +473,185 @@ def tavla():
 OYUNLAR.update({'dama': dama, 'turkdamasi': turkdamasi, 'tavla': tavla})
 
 
+# ============================================================== SATRANÇ
+"""
+Satranç kapağı: kurulmuş tahtada OTUZ İKİ TAŞIN TAMAMI görünür.
+Taşlar yandan silueti çizilerek üretilir (piyon, kale, at, fil, vezir, şah);
+her taşa dikey ışık geçişi, ince kenar ışığı ve kendi gölgesi verilir.
+Işık soldan gelir — iletilen örnek kareler gibi sıcak, koyu bir salon.
+"""
+TAS_YUK = {'piyon': 1.02, 'kale': 1.22, 'at': 1.42, 'fil': 1.52,
+           'vezir': 1.70, 'sah': 1.86}          # hücre enine oranla yükseklik
+DIZILIM = ['kale', 'at', 'fil', 'vezir', 'sah', 'fil', 'at', 'kale']
+
+
+def _tas_maskesi(tur, g, y):
+    """Taşın siluetini bir maskeye çizer. u: yatay (-0.5..0.5), v: dikey (0 taban)."""
+    m = Image.new('L', (int(g), int(y)), 0)
+    d = ImageDraw.Draw(m)
+    X = lambda u: g * (0.5 + u)
+    Y = lambda v: y * (1 - v)
+    def kutu(u0, v0, u1, v1, **k): d.rectangle([X(u0), Y(v1), X(u1), Y(v0)], fill=255, **k)
+    def oval(u0, v0, u1, v1): d.ellipse([X(u0), Y(v1), X(u1), Y(v0)], fill=255)
+    def cokgen(pts): d.polygon([(X(a), Y(b)) for a, b in pts], fill=255)
+
+    # --- her taşta ortak: geniş taban ve etek ---
+    oval(-0.46, 0.00, 0.46, 0.09)
+    cokgen([(-0.44, 0.06), (0.44, 0.06), (0.26, 0.20), (-0.26, 0.20)])
+
+    if tur == 'piyon':
+        cokgen([(-0.15, 0.18), (0.15, 0.18), (0.11, 0.50), (-0.11, 0.50)])
+        oval(-0.20, 0.48, 0.20, 0.57)
+        oval(-0.18, 0.57, 0.18, 0.93)
+    elif tur == 'kale':
+        cokgen([(-0.26, 0.18), (0.26, 0.18), (0.23, 0.60), (-0.23, 0.60)])
+        oval(-0.32, 0.56, 0.32, 0.66)
+        kutu(-0.34, 0.64, 0.34, 0.86)
+        # mazgallar: üstten üç boşluk oyulur
+        for u0, u1 in [(-0.20, -0.07), (0.07, 0.20)]:
+            d.rectangle([X(u0), Y(0.88), X(u1), Y(0.76)], fill=0)
+    elif tur == 'fil':
+        cokgen([(-0.19, 0.18), (0.19, 0.18), (0.14, 0.52), (-0.14, 0.52)])
+        oval(-0.24, 0.49, 0.24, 0.58)
+        oval(-0.21, 0.56, 0.21, 0.80)
+        cokgen([(-0.13, 0.76), (0.13, 0.76), (0.0, 0.95)])
+        oval(-0.06, 0.93, 0.06, 1.00)
+        d.line([X(0.02), Y(0.88), X(0.14), Y(0.70)], fill=0, width=max(2, int(g * .05)))
+    elif tur == 'vezir':
+        cokgen([(-0.21, 0.18), (0.21, 0.18), (0.16, 0.50), (-0.16, 0.50)])
+        oval(-0.26, 0.47, 0.26, 0.57)
+        oval(-0.25, 0.55, 0.25, 0.78)
+        cokgen([(-0.28, 0.74), (0.28, 0.74), (0.24, 0.84), (-0.24, 0.84)])
+        for u in (-0.20, -0.10, 0.0, 0.10, 0.20):        # taç dişleri
+            cokgen([(u - 0.045, 0.82), (u + 0.045, 0.82), (u, 0.95)])
+            oval(u - 0.035, 0.93, u + 0.035, 1.00)
+    elif tur == 'sah':
+        cokgen([(-0.21, 0.18), (0.21, 0.18), (0.16, 0.50), (-0.16, 0.50)])
+        oval(-0.26, 0.47, 0.26, 0.57)
+        oval(-0.25, 0.55, 0.25, 0.76)
+        cokgen([(-0.27, 0.72), (0.27, 0.72), (0.22, 0.84), (-0.22, 0.84)])
+        kutu(-0.055, 0.82, 0.055, 1.00)                  # haçın dikeyi
+        kutu(-0.17, 0.90, 0.17, 0.955)                   # haçın yatayı
+    else:  # at — sağa bakan at başı
+        cokgen([(-0.25, 0.18), (0.23, 0.18), (0.21, 0.42), (-0.23, 0.42)])
+        cokgen([
+            (-0.23, 0.38), (0.21, 0.38),                 # boyun tabanı
+            (0.14, 0.50), (0.27, 0.59), (0.41, 0.65),    # çene ve burun
+            (0.43, 0.72), (0.31, 0.78),                  # burun ucu
+            (0.19, 0.83), (0.13, 0.80), (0.07, 0.97),    # alın ve kulak
+            (-0.01, 0.83), (-0.13, 0.84),                # yele başlangıcı
+            (-0.23, 0.74), (-0.29, 0.57)
+        ])
+        for (a, b) in [(-0.02, 0.86), (-0.10, 0.80), (-0.18, 0.72)]:   # yele dişleri
+            cokgen([(a, b), (a + 0.09, b - 0.03), (a + 0.02, b + 0.07)])
+        d.ellipse([X(0.16), Y(0.77), X(0.23), Y(0.70)], fill=0)        # göz
+    return m
+
+
+def _tas(tur, g, beyaz):
+    """Maskeyi ışıklandırıp RGBA taş üretir: dikey geçiş + sol kenar ışığı."""
+    y = int(g * TAS_YUK[tur])
+    g = int(g)
+    m = _tas_maskesi(tur, g, y)
+    ust, alt = ((253, 246, 230), (198, 179, 146)) if beyaz else ((92, 80, 68), (18, 15, 12))
+    yy, xx = np.mgrid[0:y, 0:g].astype(np.float32)
+    dv = yy / max(1.0, y - 1.0)                       # 0 tepe -> 1 taban
+    isik = np.clip(1.24 - (xx / g) * 0.62, 0.56, 1.24)  # ışık soldan
+    arr = np.stack([ust[i] + (alt[i] - ust[i]) * dv for i in range(3)], axis=2) * isik[:, :, None]
+    im = Image.fromarray(np.clip(arr, 0, 255).astype(np.uint8)).convert('RGBA')
+    im.putalpha(m.filter(ImageFilter.GaussianBlur(0.6)))
+    # sol kenar ışığı: maskeyi hafif sağa kaydırıp farkını aydınlatır
+    kenar = Image.new('RGBA', im.size, (255, 236, 198, 0))
+    fark = Image.fromarray(np.clip(
+        np.asarray(m).astype(int) - np.asarray(m.transform(
+            m.size, Image.AFFINE, (1, 0, 3, 0, 1, 0))).astype(int), 0, 255).astype(np.uint8))
+    # Siyah taşlar koyu tahtaya karışmasın diye kenar ışığı onlarda DAHA güçlü.
+    kenar.putalpha(Image.eval(fark.filter(ImageFilter.GaussianBlur(1.0)),
+                              lambda v: int(v * (0.80 if beyaz else 1.0))))
+    return Image.alpha_composite(im, kenar)
+
+
+def satranc():
+    """
+    Alçak kamera: tahtaya oyuncunun göz hizasından bakılır. Böylece taşlar
+    büyük ve okunaklı olur, otuz ikisi birden kadraja girer. Işık soldaki
+    pencereden gelir; havada toz zerreleri uçuşur.
+    """
+    # --- koyu salon + soldaki pencereden düşen sıcak ışık ---
+    yy, xx = np.mgrid[0:H, 0:W].astype(np.float32)
+    r = np.sqrt(((xx - W * .13) / (W * .62))**2 + ((yy - H * .18) / (H * .78))**2)
+    l = np.clip(1.30 - r * 1.12, 0.03, 1.0)
+    zemin = np.stack([18 + 232 * l**1.25, 13 + 190 * l**1.45, 8 + 128 * l**1.70], axis=2)
+    kapak = Image.fromarray(np.clip(zemin, 0, 255).astype(np.uint8)) \
+                 .filter(ImageFilter.GaussianBlur(11)).convert('RGBA')
+
+    # --- tahta: yakın sıra geniş, uzak sıra dar (güçlü perspektif) ---
+    cx = W * .50
+    ON, ARKA = W * .105, W * .053            # yakın / uzak hücre eni
+    TG, UST = ON * 8, ARKA * 8
+    Y0, Y1 = H * .535, H * .952              # tahtanın üst ve alt kenarı
+
+    def nokta(u, v):                          # u 0..1 soldan sağa, v 0..1 arkadan öne
+        # NOT: kenarlık için v hafif negatif olabiliyor; negatif tabanın
+        # kesirli üssü Python'da karmaşık sayı verir, o yüzden mutlak değer.
+        e = math.copysign(abs(v) ** 1.42, v)  # uzak sıralar sıkışsın
+        g = UST + (TG - UST) * e
+        return cx + (u - .5) * g, Y0 + (Y1 - Y0) * e
+
+    d = ImageDraw.Draw(kapak, 'RGBA')
+    d.polygon([nokta(-.04, -.03), nokta(1.04, -.03), nokta(1.05, 1.04), nokta(-.05, 1.04)],
+              fill=(46, 28, 14, 255))          # tahta kenarlığı
+    hucre = []
+    for rr in range(8):
+        for c in range(8):
+            p = [nokta(c / 8, rr / 8), nokta((c + 1) / 8, rr / 8),
+                 nokta((c + 1) / 8, (rr + 1) / 8), nokta(c / 8, (rr + 1) / 8)]
+            acik = (rr + c) % 2 == 0
+            # uzak kareler ışıktan uzaklaştığı için hafifçe koyulaşır
+            k = 0.62 + 0.38 * (rr / 7)
+            renk = (int(232 * k), int(212 * k), int(176 * k), 255) if acik \
+                   else (int(104 * k), int(64 * k), int(36 * k), 255)
+            d.polygon(p, fill=renk)
+            mx = sum(q[0] for q in p) / 4
+            my = (p[2][1] + p[3][1]) / 2       # taş karenin ÖN kenarına basar
+            hucre.append((mx, my, abs(p[1][0] - p[0][0])))
+
+    # --- 32 taş: arkadan öne, öndekiler arkadakilerin üstüne binsin ---
+    def sira(rr, liste, beyaz):
+        for c in range(8):
+            mx, my, g = hucre[rr * 8 + c]
+            t = _tas(liste[c], g * 1.02, beyaz)
+            px, py = int(mx - t.width / 2), int(my - t.height)
+            gl = Image.new('RGBA', kapak.size, (0, 0, 0, 0))
+            gs = Image.new('RGBA', t.size, (0, 0, 0, 135)); gs.putalpha(t.split()[3])
+            gs = gs.resize((t.width, max(4, int(t.height * .20))))
+            gl.paste(gs, (px + int(g * .22), int(my - g * .10)), gs)
+            kapak.alpha_composite(gl.filter(ImageFilter.GaussianBlur(int(g * .10) + 2)))
+            kapak.paste(t, (px, py), t)
+
+    sira(0, DIZILIM, False)                    # siyah taş sırası (en uzak)
+    sira(1, ['piyon'] * 8, False)
+    sira(6, ['piyon'] * 8, True)
+    sira(7, DIZILIM, True)                     # beyaz taş sırası (en yakın)
+
+    # --- havada uçuşan toz: ışığı görünür kılar ---
+    toz = Image.new('RGBA', kapak.size, (0, 0, 0, 0))
+    td = ImageDraw.Draw(toz)
+    rng = np.random.default_rng(31)
+    for _ in range(140):
+        x, y = rng.random() * W, rng.random() * H * .72
+        rr2 = 1.2 + rng.random() * 3.4
+        a = int(30 + 150 * (1 - x / W) * rng.random())
+        td.ellipse([x - rr2, y - rr2, x + rr2, y + rr2], fill=(255, 226, 176, a))
+    kapak = Image.alpha_composite(kapak, toz.filter(ImageFilter.GaussianBlur(1.1)))
+
+    return ko.bitir(kapak, os.path.join(CIKTI, 'chess.jpg'), vinyet=.70, netlik=86)
+
+
+OYUNLAR['satranc'] = satranc
+OYUNLAR['chess'] = satranc
+
+
 if __name__ == '__main__':
     istenen = sys.argv[1:] or list(OYUNLAR)
     for ad in istenen:
