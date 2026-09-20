@@ -500,6 +500,91 @@ if ($action === 'sanctionList') {
     gv_json(array('ok' => true, 'liste' => $liste));
 }
 
+/* Uyarı GEÇMİŞİ: kaldırılmış ve süresi dolmuş kayıtlar DAHİL.
+   Kurucu panelindeki "Uyarılar → Notlar" penceresi bunu kullanır; amaç
+   kaçıncı uyarı olduğunu ve ne kadar süre verildiğini görüp KATLAMALI
+   ceza uygulayabilmektir. uid verilmezse tüm üyelerin geçmişi döner. */
+if ($action === 'sanctionHistory') {
+    gv_require_server_key_or_admin();
+    $pdo = gv_pdo();
+    $uid = intval($_GET['uid'] ?? 0);
+    $limit = intval($_GET['limit'] ?? 2000);
+    if ($limit < 1) $limit = 1; if ($limit > 5000) $limit = 5000;
+    $sql = "SELECT s.*, u.name AS uname, u.email AS uemail
+              FROM gv_sanctions s LEFT JOIN gv_users u ON u.id = s.user_id";
+    if ($uid > 0) $sql .= " WHERE s.user_id = ?";
+    $sql .= " ORDER BY s.user_id ASC, s.created_at ASC LIMIT " . $limit;
+    $s = $pdo->prepare($sql);
+    $s->execute($uid > 0 ? array($uid) : array());
+    $liste = array();
+    foreach ($s->fetchAll() as $r) {
+        $row = gv_sanction_row($r);
+        $row['ad'] = strval($r['uname'] === null ? '' : $r['uname']);
+        $row['eposta'] = strval($r['uemail'] === null ? '' : $r['uemail']);
+        $liste[] = $row;
+    }
+    gv_json(array('ok' => true, 'liste' => $liste));
+}
+
+/* ŞİKAYET KAYDI — Render (X-GV-Key) yazar; sohbet dökümü JSON olarak
+   dondurulmuş hâlde gelir. */
+if ($action === 'reportAdd') {
+    gv_require_server_key();
+    $scope = (($in['scope'] ?? 'room') === 'global') ? 'global' : 'room';
+    $reason = substr(strval($in['reason'] ?? ''), 0, 40);
+    if ($reason === '') gv_json(array('ok' => false, 'error' => 'Gerekçe gerekli.'), 400);
+    $dokum = isset($in['transcript']) && is_array($in['transcript']) ? array_slice($in['transcript'], -200) : array();
+    $pdo = gv_pdo();
+    $st = $pdo->prepare("INSERT INTO gv_reports(scope,reporter_uid,reporter_name,reported_uid,reported_name,
+                                                reason,note,room_id,game_id,transcript,created_at,status)
+                         VALUES(?,?,?,?,?,?,?,?,?,?,?,'open')");
+    $st->execute(array(
+        $scope,
+        intval($in['reporterUid'] ?? 0) ?: null, substr(strval($in['reporterName'] ?? ''), 0, 60),
+        intval($in['reportedUid'] ?? 0) ?: null, substr(strval($in['reportedName'] ?? ''), 0, 60),
+        $reason, substr(strval($in['note'] ?? ''), 0, 500),
+        isset($in['roomId']) ? substr(strval($in['roomId']), 0, 40) : null,
+        isset($in['gameId']) ? substr(strval($in['gameId']), 0, 30) : null,
+        json_encode($dokum, JSON_UNESCAPED_UNICODE),
+        $now
+    ));
+    gv_json(array('ok' => true, 'id' => intval($pdo->lastInsertId())));
+}
+
+if ($action === 'reportList') {
+    gv_require_server_key_or_admin();
+    $pdo = gv_pdo();
+    $scope = ($_GET['scope'] ?? '');
+    $limit = intval($_GET['limit'] ?? 200);
+    if ($limit < 1) $limit = 1; if ($limit > 500) $limit = 500;
+    $sql = "SELECT * FROM gv_reports";
+    $params = array();
+    if ($scope === 'room' || $scope === 'global') { $sql .= " WHERE scope = ?"; $params[] = $scope; }
+    $sql .= " ORDER BY created_at DESC LIMIT " . $limit;
+    $s = $pdo->prepare($sql);
+    $s->execute($params);
+    $liste = array();
+    foreach ($s->fetchAll() as $r) {
+        $dokum = json_decode(strval($r['transcript'] === null ? '[]' : $r['transcript']), true);
+        $liste[] = array(
+            'id' => intval($r['id']),
+            'scope' => strval($r['scope']),
+            'sikayetEdenUid' => $r['reporter_uid'] === null ? null : intval($r['reporter_uid']),
+            'sikayetEden' => strval($r['reporter_name'] === null ? '' : $r['reporter_name']),
+            'sikayetEdilenUid' => $r['reported_uid'] === null ? null : intval($r['reported_uid']),
+            'sikayetEdilen' => strval($r['reported_name'] === null ? '' : $r['reported_name']),
+            'gerekce' => strval($r['reason']),
+            'not' => strval($r['note'] === null ? '' : $r['note']),
+            'odaId' => $r['room_id'] === null ? null : strval($r['room_id']),
+            'oyunId' => $r['game_id'] === null ? null : strval($r['game_id']),
+            'dokum' => is_array($dokum) ? $dokum : array(),
+            'tarih' => intval($r['created_at']),
+            'durum' => strval($r['status'])
+        );
+    }
+    gv_json(array('ok' => true, 'liste' => $liste));
+}
+
 if ($action === 'chatLog') {
     gv_require_server_key();
     $scope = ($in['scope'] ?? 'room') === 'global' ? 'global' : 'room';

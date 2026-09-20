@@ -48,6 +48,12 @@
     if (isNaN(d.getTime())) return '—';
     return d.toLocaleDateString('tr-TR', { day: '2-digit', month: 'short', year: 'numeric' });
   }
+  // Uyarı geçmişi ve şikayetlerde saat de gerekir (aynı gün birden çok kayıt).
+  function trDateTime(ts) {
+    const d = new Date(Number(ts || 0));
+    if (isNaN(d.getTime())) return '—';
+    return d.toLocaleString('tr-TR', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  }
   function isYoncuPage() {
     const h = window.location.hostname;
     if (!/masaoyunlari\.com\.tr$/i.test(h)) return false;
@@ -229,6 +235,7 @@
         <div style="display:flex;gap:6px;padding:10px 16px 0;flex:none;border-bottom:1px solid var(--border)">
           <button type="button" class="admin-tab" data-tab="users" style="padding:9px 14px;border:none;border-radius:9px 9px 0 0;font-weight:700;cursor:pointer;background:var(--bg3);color:var(--text)">👥 Kullanıcı &amp; Roller</button>
           <button type="button" class="admin-tab" data-tab="games" style="padding:9px 14px;border:none;border-radius:9px 9px 0 0;font-weight:700;cursor:pointer;background:var(--bg3);color:var(--text)">🎮 Oyunlar</button>
+          <button type="button" class="admin-tab" data-tab="reports" style="padding:9px 14px;border:none;border-radius:9px 9px 0 0;font-weight:700;cursor:pointer;background:var(--bg3);color:var(--text)">🚩 Şikayetler</button>
         </div>
         <div id="adminPanelBody" style="flex:1;overflow-y:auto;padding:16px"></div>
       </div>`;
@@ -251,6 +258,7 @@
       b.style.color = on ? '#fff' : 'var(--text)';
     });
     if (panelTab === 'users') renderUsersTab(body);
+    else if (panelTab === 'reports') renderReportsTab(body);
     else renderGamesTab(body);
   }
 
@@ -267,6 +275,7 @@
      katmanına yazar — yerelde SQLite, üretimde Yöncü MySQL. Kurucu
      doğrulaması sunucuda (requireAdmin); buradaki arayüz yalnız görünüm. */
   let sanctionMap = {};        // userId -> aktif yaptırım
+  let historyMap = {};         // userId -> TÜM uyarı geçmişi (eskiden yeniye)
   let sanctionOpts = null;     // sunucudan gelen süre/tür seçenekleri
   let sanctionUser = null;     // penceresi açık olan üye
 
@@ -282,6 +291,246 @@
     if (r && r.ok) (r.liste || []).forEach(y => { m[Number(y.userId)] = y; });
     return m;
   }
+  /* UYARI GEÇMİŞİ (kullanıcı isteği: "Uyarılar" sütunu + "Notlar").
+     Yürürlükteki listeden farkı: KALDIRILMIŞ ve SÜRESİ DOLMUŞ kayıtlar da
+     gelir. Tek çağrıda tüm üyelerin geçmişi alınır; panel hem "kaç uyarı"
+     rozetini hem de ayrıntı penceresini bundan üretir (katlamalı ceza). */
+  async function fetchSanctionHistory() {
+    const r = isYoncuPage()
+      ? await api('/api/social.php?action=sanctionHistory', null, 'GET')
+      : await api(BACKEND + '/api/admin/sanctions/history', null, 'GET');
+    const m = {};
+    if (r && r.ok) {
+      (r.liste || []).forEach(y => {
+        const uid = Number(y.userId);
+        if (!(uid > 0)) return;
+        (m[uid] = m[uid] || []).push(y);
+      });
+      // Eskiden yeniye: "kaçıncı uyarı" sırası buradan çıkar.
+      Object.keys(m).forEach(k => m[k].sort((a, b) => (a.baslangic || 0) - (b.baslangic || 0)));
+    }
+    return m;
+  }
+
+  /* Bir yaptırımın SÜRESİNİ insan diliyle yaz: veritabanında süre alanı
+     yoktur, bitiş − başlangıç farkından türetilir (süresiz = null). */
+  function sureMetni(y) {
+    if (!y || y.bitis == null) return 'süresiz';
+    const ms = Number(y.bitis) - Number(y.baslangic || 0);
+    if (!(ms > 0)) return 'süresiz';
+    const dk = Math.round(ms / 60000);
+    if (dk < 60) return dk + ' dakika';
+    const saat = Math.round(dk / 60);
+    if (saat < 24) return saat + ' saat';
+    const gun = Math.round(saat / 24);
+    if (gun < 7) return gun + ' gün';
+    const hafta = Math.round(gun / 7);
+    if (gun < 30) return hafta + ' hafta';
+    const ay = Math.round(gun / 30);
+    if (ay < 12) return ay + ' ay';
+    return Math.round(ay / 12) + ' yıl';
+  }
+
+  /* "Uyarılar" hücresi: hiç uyarı yoksa YEŞİL "Temiz"; varsa BEYAZ yazılı
+     "Notlar" düğmesi (kaç uyarı olduğu rozette). */
+  function uyariHucresi(u) {
+    const list = historyMap[Number(u.id)] || [];
+    if (!list.length) {
+      return '<span style="color:#00b894;font-weight:800;font-size:.78em">✓ Temiz</span>';
+    }
+    return `<button type="button" data-notes-uid="${u.id}" data-notes-name="${esc(u.name)}"
+      style="border:1px solid var(--border);background:var(--bg3);color:#fff;border-radius:8px;padding:5px 10px;cursor:pointer;font-size:.8em;font-weight:700">
+      📝 Notlar <span style="opacity:.75">(${list.length})</span></button>`;
+  }
+
+  /* "Notlar" penceresi: hangi tarihte, KAÇINCI uyarı, ne kadar süreyle ve
+     gerekçesi — kurucu katlamalı cezayı buna bakarak verir. */
+  function openNotesModal(user) {
+    let m = document.getElementById('adminNotesModal');
+    if (!m) {
+      m = document.createElement('div');
+      m.className = 'modal-bg';
+      m.id = 'adminNotesModal';
+      m.innerHTML = '<div class="modal" style="max-width:560px"><div id="adminNotesBody"></div></div>';
+      document.body.appendChild(m);
+      m.addEventListener('click', e => { if (e.target === m) GV.hideModal('adminNotesModal'); });
+    }
+    const list = (historyMap[Number(user.id)] || []).slice();
+    const now = Date.now();
+    const satir = (y, i) => {
+      const aktif = !y.kaldirildi && (y.bitis == null || Number(y.bitis) > now);
+      const durum = aktif
+        ? '<span style="color:#ff7675;font-weight:800">● Yürürlükte</span>'
+        : (y.kaldirildi
+            ? '<span style="color:var(--text3)">Kurucu kaldırdı</span>'
+            : '<span style="color:var(--text3)">Süresi doldu</span>');
+      return `<div style="border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:8px;background:var(--bg2)">
+        <div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:4px">
+          <b style="font-size:.9em">${i + 1}. uyarı</b>
+          <span style="font-size:.8em;color:var(--text2)">${trDateTime(y.baslangic)}</span>
+        </div>
+        <div style="font-size:.84em;color:var(--text2)">Süre: <b style="color:var(--text)">${esc(sureMetni(y))}</b> · ${durum}</div>
+        ${y.sebep ? `<div style="font-size:.82em;color:var(--text3);margin-top:4px">Gerekçe: ${esc(y.sebep)}</div>` : ''}
+      </div>`;
+    };
+    document.getElementById('adminNotesBody').innerHTML = `
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+        <b style="font-size:1.02em">📝 ${esc(user.name || 'Üye')} — Uyarı Geçmişi</b>
+        <span style="cursor:pointer;color:var(--text3)" onclick="GV.hideModal('adminNotesModal')">✕</span>
+      </div>
+      <div style="font-size:.78em;color:var(--text3);margin-bottom:12px">
+        Toplam <b style="color:var(--text)">${list.length}</b> uyarı. Katlamalı ceza için bir sonraki
+        yaptırımı bu geçmişe bakarak belirleyebilirsiniz.
+      </div>
+      <div style="max-height:52vh;overflow:auto">${list.map(satir).join('') || '<div style="color:var(--text3);font-size:.85em">Kayıt yok.</div>'}</div>`;
+    GV.showModal('adminNotesModal');
+  }
+
+  /* ==================== ŞİKAYETLER ====================
+     Kullanıcı isteği: "Kurucu panelinde Şikayetler alanı olacak, şikayet
+     eden, şikayet edilen, tarih, oyun odası ve bilgisi ve oyun masası
+     içerisinde gerçekleştirilen tüm sohbet kurucu panelinde 'Sohbet'
+     tıkladığında pop-up'ta detaylı olarak gözüksün (sohbet uzunsa scroll
+     down olsun). Şikayetler butonu içerisinde 2 ayrı sekme olsun:
+     1. oyun içi sohbetler, 2. genel sohbet." */
+  let reportTab = 'room';      // 'room' (oyun içi) | 'global' (genel sohbet)
+  let reportCache = [];        // son çekilen liste (Sohbet penceresi buradan okur)
+
+  const GEREKCE_ADI = {
+    kufur: 'Küfür / hakaret', cinsel: 'Cinsel içerik / taciz',
+    nefret: 'Nefret söylemi / zorbalık', din_siyaset: 'Dini veya siyasi kışkırtma',
+    dolandirici: 'Dolandırıcılık / para talebi', reklam: 'Reklam / spam',
+    hile: 'Hile / oyun bozma', kisisel_veri: 'Kişisel bilgi paylaşımı',
+    tehdit: 'Tehdit / şiddet', diger: 'Diğer'
+  };
+
+  async function fetchReports(scope) {
+    const r = isYoncuPage()
+      ? await api('/api/social.php?action=reportList&scope=' + scope, null, 'GET')
+      : await api(BACKEND + '/api/admin/reports?scope=' + scope, null, 'GET');
+    return (r && r.ok) ? (r.liste || []) : [];
+  }
+
+  function renderReportsTab(body) {
+    const sekme = (id, ad) => `<button type="button" data-rtab="${id}"
+      style="padding:8px 14px;border:none;border-radius:9px;font-weight:700;cursor:pointer;font-size:.85em;${
+        reportTab === id ? 'background:var(--primary);color:#fff' : 'background:var(--bg3);color:var(--text2)'}">${ad}</button>`;
+    body.innerHTML = `
+      <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
+        ${sekme('room', '🎲 Oyun İçi Sohbetler')}
+        ${sekme('global', '🌐 Genel Sohbet')}
+      </div>
+      <div style="font-size:.76em;color:var(--text3);margin-bottom:10px">
+        Şikayet anında o sohbetin kaydı dondurulur (oyun içi: masanın son mesajları,
+        genel sohbet: son 1 dakika). <b>Sohbet</b> düğmesiyle dökümü okuyabilirsiniz.
+      </div>
+      <div id="adminReportList"><div style="text-align:center;padding:24px;color:var(--text2)">⏳ Şikayetler yükleniyor...</div></div>`;
+    body.querySelectorAll('[data-rtab]').forEach(b => b.addEventListener('click', () => {
+      reportTab = b.getAttribute('data-rtab');
+      renderReportsTab(body);
+    }));
+    paintReports();
+  }
+
+  function paintReports() {
+    const wrap = document.getElementById('adminReportList');
+    if (!wrap) return;
+    fetchReports(reportTab).then(liste => {
+      reportCache = liste || [];
+      if (!reportCache.length) {
+        wrap.innerHTML = `<div style="text-align:center;padding:28px;color:var(--text3);font-size:.9em">
+          ✅ Bu bölümde şikayet yok.</div>`;
+        return;
+      }
+      wrap.innerHTML = `
+        <div style="border:1px solid var(--border);border-radius:12px;overflow-x:auto">
+          <table style="width:100%;border-collapse:collapse;font-size:.86em;min-width:680px">
+            <thead><tr style="background:var(--bg3);text-align:left">
+              <th style="padding:10px 12px">ŞİKAYET EDEN</th>
+              <th style="padding:10px 12px">ŞİKAYET EDİLEN</th>
+              <th style="padding:10px 12px">GEREKÇE</th>
+              <th style="padding:10px 12px">TARİH</th>
+              ${reportTab === 'room' ? '<th style="padding:10px 12px">OYUN / MASA</th>' : ''}
+              <th style="padding:10px 12px;text-align:right">SOHBET</th>
+            </tr></thead>
+            <tbody>${reportCache.map(satirHtml).join('')}</tbody>
+          </table>
+        </div>`;
+      wrap.querySelectorAll('[data-rep-id]').forEach(b => b.addEventListener('click', () => {
+        const rec = reportCache.find(x => Number(x.id) === Number(b.getAttribute('data-rep-id')));
+        if (rec) openTranscriptModal(rec);
+      }));
+    }).catch(e => {
+      wrap.innerHTML = `<div style="text-align:center;padding:26px;color:#ff7675">⚠️ ${esc(e.message || 'Yüklenemedi')}</div>`;
+    });
+  }
+
+  function satirHtml(r) {
+    const oyun = (window.GAMES && window.GAMES[r.oyunId] && window.GAMES[r.oyunId].name) || r.oyunId || '—';
+    return `<tr style="border-top:1px solid var(--border)">
+      <td style="padding:10px 12px;color:var(--text2)">${esc(r.sikayetEden || '—')}</td>
+      <td style="padding:10px 12px;font-weight:700;color:var(--accent)">${esc(r.sikayetEdilen || '—')}</td>
+      <td style="padding:10px 12px">
+        <span style="background:rgba(255,118,117,.15);color:#ff7675;font-weight:700;font-size:.82em;padding:3px 8px;border-radius:8px;white-space:nowrap">${esc(GEREKCE_ADI[r.gerekce] || r.gerekce)}</span>
+      </td>
+      <td style="padding:10px 12px;color:var(--text2);white-space:nowrap">${trDateTime(r.tarih)}</td>
+      ${reportTab === 'room'
+        ? `<td style="padding:10px 12px;color:var(--text2);white-space:nowrap">${esc(oyun)}${r.odaId ? ' · #' + esc(r.odaId) : ''}</td>`
+        : ''}
+      <td style="padding:10px 12px;text-align:right;white-space:nowrap">
+        <button type="button" data-rep-id="${r.id}" style="border:1px solid var(--border);background:var(--bg3);color:#fff;border-radius:8px;padding:5px 11px;cursor:pointer;font-size:.8em;font-weight:700">💬 Sohbet <span style="opacity:.7">(${(r.dokum || []).length})</span></button>
+      </td>
+    </tr>`;
+  }
+
+  /* Sohbet dökümü penceresi — uzun sohbetlerde KAYDIRMALI (scroll). */
+  function openTranscriptModal(r) {
+    let m = document.getElementById('adminChatModal');
+    if (!m) {
+      m = document.createElement('div');
+      m.className = 'modal-bg';
+      m.id = 'adminChatModal';
+      m.innerHTML = '<div class="modal" style="max-width:620px"><div id="adminChatBody"></div></div>';
+      document.body.appendChild(m);
+      m.addEventListener('click', e => { if (e.target === m) GV.hideModal('adminChatModal'); });
+    }
+    const oyun = (window.GAMES && window.GAMES[r.oyunId] && window.GAMES[r.oyunId].name) || r.oyunId || '—';
+    const saat = ts => {
+      const d = new Date(Number(ts) || 0);
+      return isNaN(d.getTime()) ? '' : ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2) + ':' + ('0' + d.getSeconds()).slice(-2);
+    };
+    const suclu = String(r.sikayetEdilen || '').toLowerCase();
+    const satir = mm => {
+      const vurgulu = String(mm.name || '').toLowerCase() === suclu;
+      return `<div style="padding:7px 9px;border-radius:9px;margin-bottom:5px;background:${vurgulu ? 'rgba(255,118,117,.12)' : 'rgba(255,255,255,.04)'};border:1px solid ${vurgulu ? 'rgba(255,118,117,.35)' : 'var(--border)'}">
+        <div style="display:flex;justify-content:space-between;gap:8px;font-size:.76em;margin-bottom:2px">
+          <b style="color:${vurgulu ? '#ff7675' : 'var(--accent)'}">${esc(mm.name || 'Oyuncu')}</b>
+          <span style="color:var(--text3)">${saat(mm.ts)}</span>
+        </div>
+        <div style="font-size:.86em;color:var(--text);word-break:break-word">${esc(mm.text || '')}</div>
+      </div>`;
+    };
+    document.getElementById('adminChatBody').innerHTML = `
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+        <b style="font-size:1.02em">💬 Şikayet Sohbet Dökümü</b>
+        <span style="cursor:pointer;color:var(--text3)" onclick="GV.hideModal('adminChatModal')">✕</span>
+      </div>
+      <div style="font-size:.8em;color:var(--text2);line-height:1.6;margin-bottom:10px;border:1px solid var(--border);border-radius:10px;padding:9px 11px;background:var(--bg2)">
+        <div><b>Şikayet eden:</b> ${esc(r.sikayetEden || '—')}</div>
+        <div><b>Şikayet edilen:</b> <span style="color:#ff7675;font-weight:700">${esc(r.sikayetEdilen || '—')}</span></div>
+        <div><b>Gerekçe:</b> ${esc(GEREKCE_ADI[r.gerekce] || r.gerekce)}</div>
+        <div><b>Tarih:</b> ${trDateTime(r.tarih)}</div>
+        ${r.scope === 'room' ? `<div><b>Oyun / Masa:</b> ${esc(oyun)}${r.odaId ? ' · #' + esc(r.odaId) : ''}</div>`
+                             : '<div><b>Kaynak:</b> Genel sohbet (son 1 dakika)</div>'}
+        ${r.not ? `<div style="margin-top:4px"><b>Not:</b> ${esc(r.not)}</div>` : ''}
+      </div>
+      <div style="max-height:46vh;overflow:auto;padding-right:4px">
+        ${(r.dokum || []).length ? (r.dokum || []).map(satir).join('')
+          : '<div style="color:var(--text3);font-size:.85em;text-align:center;padding:16px">Bu şikayet için kayıtlı mesaj yok.</div>'}
+      </div>`;
+    GV.showModal('adminChatModal');
+  }
+
   async function fetchSanctionOpts() {
     if (sanctionOpts) return sanctionOpts;
     // Bu uç statiktir (PHP'ye gitmez, Render'ın kendi sabit tanımıdır) —
@@ -315,10 +564,11 @@
 
   function renderUsersTab(body) {
     body.innerHTML = '<div style="text-align:center;padding:26px;color:var(--text2)">⏳ Üyeler yükleniyor...</div>';
-    Promise.all([fetchUsers(), fetchSanctions()]).then(([r, sm]) => {
+    Promise.all([fetchUsers(), fetchSanctions(), fetchSanctionHistory()]).then(([r, sm, hist]) => {
       if (!r.ok) { body.innerHTML = `<div style="text-align:center;padding:26px;color:#ff7675">⚠️ ${esc(r.error || 'Yüklenemedi')}</div>`; return; }
       usersLoaded = true;
       sanctionMap = sm || {};
+      historyMap = hist || {};
       const users = r.users || [];
       const kisitli = Object.keys(sanctionMap).length;
       body.innerHTML = `
@@ -328,11 +578,12 @@
         </div>
         <div style="font-size:.76em;color:var(--text3);margin-bottom:10px">Yaptırım uygulanan üyeye <b>anında bildirim</b> gider; oyun içi ve genel sohbete mesaj gönderemez.</div>
         <div style="border:1px solid var(--border);border-radius:12px;overflow-x:auto">
-          <table style="width:100%;border-collapse:collapse;font-size:.88em;min-width:520px">
+          <table style="width:100%;border-collapse:collapse;font-size:.88em;min-width:640px">
             <thead><tr style="background:var(--bg3);text-align:left">
               <th style="padding:10px 14px">KULLANICI</th>
               <th style="padding:10px 14px">KATILIM</th>
               <th style="padding:10px 14px">DURUM</th>
+              <th style="padding:10px 14px">UYARILAR</th>
               <th style="padding:10px 14px;text-align:right">ROL / İŞLEM</th>
             </tr></thead>
             <tbody>
@@ -346,6 +597,13 @@
          basınca yaptırım penceresiyle BİRLİKTE üye profili de açılıyordu.
          Düğmeler artık `data-sanc-uid` kullanır; `data-uid` yalnız üye
          ADINDA durur, böylece "isme tıkla → bilgileri gör" çalışır. */
+      // "Notlar" → o üyenin uyarı geçmişi (tarih, kaçıncı uyarı, süre).
+      body.querySelectorAll('[data-notes-uid]').forEach(b => b.addEventListener('click', e => {
+        e.stopPropagation();
+        const uid = Number(b.getAttribute('data-notes-uid'));
+        const user = users.find(x => Number(x.id) === uid);
+        openNotesModal(user || { id: uid, name: b.getAttribute('data-notes-name') || 'Üye' });
+      }));
       body.querySelectorAll('[data-sanc]').forEach(b => b.addEventListener('click', e => {
         e.stopPropagation();
         const uid = Number(b.getAttribute('data-sanc-uid'));
@@ -375,6 +633,7 @@
             ? `<span title="${esc(y.sebep || 'Gerekçe belirtilmedi')}" style="background:rgba(255,118,117,.15);color:#ff7675;font-weight:800;font-size:.76em;padding:4px 9px;border-radius:8px;white-space:nowrap">🔇 Sohbet kısıtlı · ${esc(kalanSure(y.bitis))}</span>`
             : '<span style="color:#00b894;font-weight:700;font-size:.78em">✓ Kısıtlama yok</span>'}
         </td>
+        <td style="padding:11px 14px;white-space:nowrap">${uyariHucresi(u)}</td>
         <td style="padding:11px 14px;text-align:right;white-space:nowrap">
           ${kurucu
             ? '<span style="background:rgba(253,203,110,.18);color:#fdcb6e;font-weight:800;font-size:.8em;padding:4px 10px;border-radius:8px">KURUCU (SİZ)</span>'
@@ -577,9 +836,12 @@
     return `
       <div style="border:1px solid var(--border);border-radius:12px;padding:12px 14px;background:var(--bg2);margin-bottom:16px">
         <div style="font-weight:800;font-size:.9em;margin-bottom:6px">🔥 Popüler Oyun Sıralaması</div>
-        <div style="font-size:.76em;color:var(--text3);margin-bottom:10px">Ana sayfadaki "Popüler Oyunlar" bölümünün sırasını ve kaç oyunun gösterileceğini belirler. <b>Otomatik</b> modda gerçek oynanma sayısına göre (çoktan aza) sıralanır; <b>Manuel</b> modda sırayı sen belirlersin.</div>
+        <div style="font-size:.76em;color:var(--text3);margin-bottom:10px">Ana sayfadaki "Popüler Oyunlar" bölümünün sırasını ve kaç oyunun gösterileceğini belirler. <b>Masa Düzeni</b> modunda gerçek oynanma sayısına göre (çoktan aza) sıralanır; <b>Manuel</b> modda sırayı sen belirlersin.</div>
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:${manual ? '10px' : '0'}">
-          <button type="button" data-act="popMode" data-mode="auto" style="${btn(!manual)}">📊 Otomatik</button>
+          <!-- Kullanıcı isteği: "Otomatik" düğmesinin adı "Masa Düzeni" oldu.
+               İşlev aynıdır (gerçek oynanma sayısına göre sıralama); yalnız
+               mod anahtarının (auto) görünen adı değişti. -->
+          <button type="button" data-act="popMode" data-mode="auto" style="${btn(!manual)}">📊 Masa Düzeni</button>
           <button type="button" data-act="popMode" data-mode="manual" style="${btn(manual)}">✋ Manuel</button>
           <label style="display:flex;align-items:center;gap:6px;font-size:.82em;color:var(--text2);margin-left:auto">
             Gösterilecek oyun sayısı:

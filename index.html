@@ -318,7 +318,9 @@ button,input,select{font-family:var(--font)}
 .chat-ban .chat-off-s{max-width:230px}
 @media(prefers-reduced-motion:reduce){.chat-switch,.chat-switch-track,.chat-switch-knob{transition:none}}
 .chat-msgs{flex:1;overflow-y:auto;padding:8px;display:flex;flex-direction:column;gap:6px}
-.chat-msg{display:flex;gap:6px;font-size:.82em}
+/* position:relative → masa sohbeti mesajının kenarındaki "⋮" (bildir /
+   sustur menüsü, js/report.js) doğru yere otursun. */
+.chat-msg{display:flex;gap:6px;font-size:.82em;position:relative;padding-right:16px}
 .m-body{background:var(--bg3);padding:5px 9px;border-radius:10px;max-width:85%}
 .m-name{font-weight:600;color:var(--primary2);font-size:.78em;display:flex;align-items:center;gap:4px}
 .chat-input{display:flex;padding:6px;gap:5px;border-top:1px solid var(--border)}
@@ -2617,7 +2619,19 @@ function renderHome(){
   if (pc.count > 0) liste = liste.slice(0, pc.count);
   document.getElementById('homeGames').innerHTML = liste.map(([id,g])=>cH(id,g)).join('');
 }
-function renderAll(){document.getElementById('allGames').innerHTML=Object.entries(GAMES).filter(([id])=>gvGameVisible(id)).map(([id,g])=>cH(id,g)).join('');}
+/* "Tüm Oyunlar" sayfası (kullanıcı isteği): oyunlar GERÇEK oynanma
+   sayısına göre ÇOKTAN AZA, yukarıdan aşağıya sıralanır. Eskiden GAMES
+   nesnesindeki sabit (elle yazılmış) sırayla listeleniyordu; en çok
+   oynanan oyun listenin ortasında kalabiliyordu.
+   NOT: burada kurucunun MANUEL sırası UYGULANMAZ — o sıra yalnız ana
+   sayfadaki "Popüler Oyunlar" vitrini içindir; bu sayfa her zaman
+   gerçek popülerliği gösterir. */
+function renderAll(){
+  const liste = Object.entries(GAMES)
+    .filter(([id]) => gvGameVisible(id))
+    .sort((a, b) => gvPlayCount(b[0]) - gvPlayCount(a[0]));
+  document.getElementById('allGames').innerHTML = liste.map(([id,g])=>cH(id,g)).join('');
+}
 // Gerçek oynanma sayaçlarını sunucudan çeker; yanıt gelene kadar 0 ile
 // gösterilir (uydurma bir sayıya asla düşülmez).
 async function loadPlayCounts(){
@@ -5140,5 +5154,7 @@ GV.init();
 <script src="js/no-bots.js?v=20260823b" defer></script>
 <script src="js/board-fit.js?v=20260904a" defer></script>
 <!-- Pes et + rövanş/yeniden oyna: dört bitiş ekranının ortak mantığı -->
-<script src="js/rematch.js?v=20260920a" defer></script></body>
+<script src="js/rematch.js?v=20260920a" defer></script>
+<!-- Kullanıcıyı bildir (şikayet) + kişisel susturma -->
+<script src="js/report.js?v=20260920a" defer></script></body>
 </html>

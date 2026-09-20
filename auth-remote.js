@@ -294,7 +294,27 @@ function yaptirimListe() {
   return callJson(REMOTE + '/social.php?action=sanctionList', { key: KEY })
     .then(r => (r.data && r.data.ok) ? (r.data.liste || []) : []).catch(() => []);
 }
+/* Uyarı GEÇMİŞİ (kaldırılmış/süresi dolmuş dahil) — kurucu panelindeki
+   "Notlar" penceresi ve katlamalı ceza kararı için. */
+function yaptirimGecmis(uid, limit) {
+  const q = (Number(uid) > 0 ? '&uid=' + encodeURIComponent(uid) : '') +
+            (Number(limit) > 0 ? '&limit=' + encodeURIComponent(limit) : '');
+  return callJson(REMOTE + '/social.php?action=sanctionHistory' + q, { key: KEY })
+    .then(r => (r.data && r.data.ok) ? (r.data.liste || []) : []).catch(() => []);
+}
+/* ŞİKAYETLER — sohbet dökümü şikayet anında dondurulup MySQL'e yazılır. */
+function raporEkle(p) {
+  return callJson(REMOTE + '/social.php?action=reportAdd', { key: KEY, method: 'POST', body: p || {} })
+    .then(r => r.data || { ok: false }).catch(() => ({ ok: false, error: 'Yöncü\'ye ulaşılamadı.' }));
+}
+function raporListe(p) {
+  const q = (p && (p.scope === 'room' || p.scope === 'global') ? '&scope=' + p.scope : '') +
+            (Number(p && p.limit) > 0 ? '&limit=' + encodeURIComponent(p.limit) : '');
+  return callJson(REMOTE + '/social.php?action=reportList' + q, { key: KEY })
+    .then(r => (r.data && r.data.ok) ? (r.data.liste || []) : []).catch(() => []);
+}
 
 module.exports = { enabled, installProxy, me, meFull, userPublic, isFriendPair, hasRequest, hasRequestOrNull, isFriendPairOrNull, recordMatch, logChat,
   puanYaz, puanOzet, puanSiralama, puanSifirla, puanAyarOku, puanAyarYaz,
-  yaptirimUygula, yaptirimKaldir, yaptirimAktif, yaptirimListe, REMOTE };
+  yaptirimUygula, yaptirimKaldir, yaptirimAktif, yaptirimListe,
+  yaptirimGecmis, raporEkle, raporListe, REMOTE };

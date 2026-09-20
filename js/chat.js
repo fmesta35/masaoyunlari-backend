@@ -287,6 +287,25 @@
     if (list) list.scrollTop = list.scrollHeight;
   }
 
+  /* ŞİKAYET / KİŞİSEL SUSTURMA (js/report.js ile ortak)
+     Kullanıcı, bir oyuncuyu bildirdiğinde o kişi KENDİSİ için susturulur:
+     mesajları bir daha çizilmez. Susturma yalnız bu tarayıcıdadır ve
+     kullanıcı istediğinde geri alabilir — kurucunun yaptırımıyla
+     karıştırılmamalıdır. */
+  function susturulmusMu(m) {
+    return !!(window.GVReport && window.GVReport.susturulmus &&
+              window.GVReport.susturulmus(m && m.uid, m && m.name));
+  }
+  function suz(messages) {
+    return (messages || []).filter(m => !susturulmusMu(m));
+  }
+  // Genel sohbet mesajının kenarındaki üç nokta (bildir / sustur menüsü).
+  function noktaHtml(m, scope) {
+    if (!window.GVReport || !window.GVReport.noktaHtml) return '';
+    if ((m.name || '') === myName()) return '';        // kendi mesajım
+    return window.GVReport.noktaHtml(m.uid, m.name, scope || 'global');
+  }
+
   function renderList(messages) {
     const list = document.getElementById('gvChatList');
     if (!list) return;
@@ -294,6 +313,7 @@
     // listeyi etkilemez (iki kanal tamamen ayrıdır).
     // Süresi dolmuş genel sohbet mesajları istemcide de gösterilmez.
     if (mode === 'global' && messages) messages = messages.filter(m => Date.now() - Number(m.ts || 0) < 60000);
+    messages = suz(messages);
     if (!messages || !messages.length) {
       list.innerHTML = '<div class="gc-empty">Henüz mesaj yok — ilk mesajı siz yazın! 👋</div>';
       return;
@@ -304,12 +324,13 @@
       const mine = (m.name || '') === myName();
       const uid = Number(m.uid) > 0 ? ` data-uid="${Number(m.uid)}"` : '';
       const ts = Number(m.ts) || Date.now();
-      return `<div class="gc-msg${mine ? ' mine' : ''}" data-ts="${ts}"><span class="gc-nm"${uid}>${esc(m.name)}</span>${esc(m.text)}<span class="gc-tm">${hm}</span></div>`;
+      return `<div class="gc-msg${mine ? ' mine' : ''}" data-ts="${ts}">${noktaHtml(m, 'global')}<span class="gc-nm"${uid}>${esc(m.name)}</span>${esc(m.text)}<span class="gc-tm">${hm}</span></div>`;
     }).join('');
     scrollEnd();
   }
 
   function appendMsg(m) {
+    if (susturulmusMu(m)) return;                      // susturulmuş kişi çizilmez
     const list = document.getElementById('gvChatList');
     if (!list) return;
     const empty = list.querySelector('.gc-empty');
@@ -321,7 +342,7 @@
     const div = document.createElement('div');
     div.className = 'gc-msg' + (mine ? ' mine' : '');
     div.dataset.ts = Number(m.ts) || Date.now();
-    div.innerHTML = `<span class="gc-nm"${uid}>${esc(m.name)}</span>${esc(m.text)}<span class="gc-tm">${hm}</span>`;
+    div.innerHTML = `${noktaHtml(m, 'global')}<span class="gc-nm"${uid}>${esc(m.name)}</span>${esc(m.text)}<span class="gc-tm">${hm}</span>`;
     list.appendChild(div);
     scrollEnd();
   }
@@ -344,14 +365,15 @@
     const list = document.getElementById('gameChat');
     if (!list) return;
     if (sohbetKapali) { list.innerHTML = ''; return; }   // kapalıyken hiç çizilmez
-    list.innerHTML = (messages || []).map(m => {
+    list.innerHTML = suz(messages).map(m => {
       const uid = Number(m.uid) > 0 ? ` data-uid="${Number(m.uid)}"` : '';
-      return `<div class="chat-msg"><div class="avatar sm">${esc((m.name || 'O').substring(0, 1))}</div><div class="m-body"><div class="m-name" style="color:var(--accent)"${uid}>${esc(m.name)}</div><div>${esc(m.text)}</div></div></div>`;
+      return `<div class="chat-msg">${noktaHtml(m, 'room')}<div class="avatar sm">${esc((m.name || 'O').substring(0, 1))}</div><div class="m-body"><div class="m-name" style="color:var(--accent)"${uid}>${esc(m.name)}</div><div>${esc(m.text)}</div></div></div>`;
     }).join('');
     list.scrollTop = list.scrollHeight;
   }
   function mirrorToGameChat(m) {
     if (sohbetKapali) return;                            // kapalıyken hiç çizilmez
+    if (susturulmusMu(m)) return;                        // susturulmuş kişi çizilmez
     const list = document.getElementById('gameChat');
     if (!list || m.scope !== 'room') return;
     if (curRoomId && String(m.roomId) !== String(curRoomId)) return;
@@ -359,7 +381,7 @@
     const uid = Number(m.uid) > 0 ? ` data-uid="${Number(m.uid)}"` : '';
     const div = document.createElement('div');
     div.className = 'chat-msg';
-    div.innerHTML = `<div class="avatar sm">${esc(nm.substring(0, 1))}</div><div class="m-body"><div class="m-name" style="color:var(--accent)"${uid}>${esc(nm)}</div><div>${esc(m.text)}</div></div>`;
+    div.innerHTML = `${noktaHtml(m, 'room')}<div class="avatar sm">${esc(nm.substring(0, 1))}</div><div class="m-body"><div class="m-name" style="color:var(--accent)"${uid}>${esc(nm)}</div><div>${esc(m.text)}</div></div>`;
     list.appendChild(div);
     list.scrollTop = list.scrollHeight;
   }
@@ -639,4 +661,15 @@
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => setInterval(tick, 1000), { once: true });
   else setInterval(tick, 1000);
   setTimeout(tick, 300);
+
+  /* Dışa açık küçük API: bir kullanıcı susturulduğunda (js/report.js)
+     açık sohbetlerin ANINDA tazelenmesi için. Geçmiş sunucudan yeniden
+     çekilir; susturulan kişinin mesajları süzgeçten geçemez. */
+  window.GVChat = {
+    tazele: function () {
+      lastHistKey = ''; lastRoomHistKey = '';
+      reloadHistory(true);
+      reloadRoomHistory(true);
+    }
+  };
 })();

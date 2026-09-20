@@ -117,6 +117,29 @@ try {
       lifted_by INTEGER
     );
     CREATE INDEX IF NOT EXISTS idx_sanction_user ON sanctions(user_id, kind);
+    -- ŞİKAYETLER (kullanıcı bildirimleri) ---------------------------------
+    -- Oyuncu, oyun içi masa sohbetinden ya da genel sohbetten bir üyeyi
+    -- bildirdiğinde bu tabloya düşer. Sohbet geçmişi sunucuda YALNIZ
+    -- geçicidir (oda kapanınca silinir, genel sohbet 60 sn sonra düşer);
+    -- bu yüzden şikayet ANINDA o anki sohbet dökümü transcript alanına
+    -- JSON olarak dondurulur — kurucu panelinde sonradan okunabilsin.
+    CREATE TABLE IF NOT EXISTS reports(
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      scope TEXT NOT NULL,          -- 'room' (oyun içi) | 'global' (genel sohbet)
+      reporter_uid INTEGER,         -- şikayet eden (misafirde NULL)
+      reporter_name TEXT,
+      reported_uid INTEGER,         -- şikayet edilen (misafirde NULL)
+      reported_name TEXT,
+      reason TEXT NOT NULL,         -- kod: kufur, cinsel, dolandiricilik, ...
+      note TEXT,                    -- şikayet edenin kısa açıklaması
+      room_id TEXT,                 -- oyun içi şikayette masa no
+      game_id TEXT,                 -- oyun türü (tavla, okey, ...)
+      transcript TEXT,              -- JSON: [{ts,name,uid,text}, ...]
+      created_at INTEGER NOT NULL,
+      status TEXT NOT NULL DEFAULT 'open'   -- open | reviewed
+    );
+    CREATE INDEX IF NOT EXISTS idx_report_scope ON reports(scope, created_at);
+    CREATE INDEX IF NOT EXISTS idx_report_reported ON reports(reported_uid);
   `);
   // Eski veritabanları: kurucu bayrağı sütunu sonradan eklendi (idempotent).
   try {

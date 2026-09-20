@@ -2467,6 +2467,84 @@ io.on('connection', socket => {
     ack({ ok: true, scope, messages: list.slice(-CHAT_HISTORY) });
   });
 
+  /* ================== KULLANICIYI BİLDİR (ŞİKAYET) ==================
+     Kullanıcı isteği: oyun içi ve genel sohbette rahatsız edici davranış
+     bildirilebilsin; kurucu panelinde şikayet eden/edilen, tarih, oda
+     bilgisi ve O ANKİ SOHBET DÖKÜMÜ görünsün.
+
+     Sohbet dökümü BURADA dondurulur, çünkü sunucudaki sohbet belleği
+     geçicidir: oda geçmişi oda kapanınca silinir, genel sohbet 60 sn
+     sonra düşer. Şikayet anında kopyalanmazsa kurucu paneli boş bir
+     döküm gösterirdi.
+       • oyun içi  → o masanın son 50 mesajı
+       • genel     → SON 1 DAKİKANIN mesajları (kullanıcı isteği) */
+  socket.on('reportUser', (payload, ack) => {
+    const cevap = (o) => { if (typeof ack === 'function') ack(o); };
+    const p = payload || {};
+    const scope = p.scope === 'global' ? 'global' : 'room';
+    const gerekce = String(p.reason || '').slice(0, 40);
+    if (!gerekce) return cevap({ ok: false, error: 'Gerekçe seçilmedi.' });
+
+    const rid = String(p.roomId || socket.roomId || '');
+    const room = rid ? rooms.get(rid) : null;
+
+    /* Kimlikler SUNUCUDAN çözülür (istemciden gelen ada güvenilmez —
+       aksi halde başkasının adına şikayet açılabilirdi).
+       Öncelik ÜYELİK KAYDIDIR: masadaki koltuk adı çoğu zaman genel bir
+       yer tutucudur ("Oyuncu"), oysa panelde gerçek üye adı görünmeli. */
+    function uyeAdi(uid) {
+      if (!(Number(uid) > 0) || typeof authApi.userById !== 'function') return '';
+      try { const u = authApi.userById(Number(uid)); return (u && u.name) ? String(u.name) : ''; }
+      catch (_) { return ''; }
+    }
+    let koltukAd = '', edenUid = socket.userId || null;
+    if (room) {
+      const pl = (room.players || []).find(x => x.id === socket.id) ||
+                 (room.spectators || []).find(x => x.id === socket.id);
+      if (pl) { koltukAd = pl.name || ''; edenUid = pl.userId || edenUid; }
+    }
+    const edenAd = uyeAdi(edenUid) || koltukAd ||
+                   (p.reporterName ? (chatSanitize(String(p.reporterName)) || '') : '') || 'Oyuncu';
+
+    const edilenUid = Number(p.reportedUid) > 0 ? Number(p.reportedUid) : null;
+    const edilenAd = uyeAdi(edilenUid) || chatSanitize(String(p.reportedName || '')) || '';
+    if (!edilenAd && !edilenUid) return cevap({ ok: false, error: 'Bildirilecek oyuncu belirtilmedi.' });
+
+    // ---- Sohbet dökümünü dondur ----
+    let kaynak = [];
+    if (scope === 'global') {
+      chatGlobalPrune();
+      const sinir = Date.now() - 60 * 1000;         // son 1 dakika
+      kaynak = chatGlobal.filter(m => Number(m.ts) >= sinir);
+    } else {
+      kaynak = (chatRoomHist.get(rid) || []).slice(-CHAT_HISTORY);
+    }
+    const dokum = kaynak.map(m => ({
+      ts: Number(m.ts) || 0,
+      name: String(m.name || ''),
+      uid: m.uid != null ? Number(m.uid) : null,
+      text: String(m.text || '').slice(0, 300)
+    }));
+
+    Promise.resolve(authApi.raporEkle({
+      scope,
+      reporterUid: edenUid, reporterName: edenAd,
+      reportedUid: edilenUid, reportedName: edilenAd,
+      reason: gerekce,
+      note: String(p.note || '').slice(0, 500),
+      roomId: scope === 'room' ? (rid || null) : null,
+      gameId: room ? room.gameId : (p.gameId ? String(p.gameId) : null),
+      transcript: dokum
+    })).then(r => {
+      if (r && r.ok) {
+        console.log(`🚩 Şikayet: ${edenAd} → ${edilenAd || ('#' + edilenUid)} (${gerekce}, ${scope}${rid ? ' #' + rid : ''})`);
+        cevap({ ok: true, id: r.id || null, kayitliMesaj: dokum.length });
+      } else {
+        cevap({ ok: false, error: (r && r.error) || 'Şikayet kaydedilemedi.' });
+      }
+    }).catch(e => cevap({ ok: false, error: e.message }));
+  });
+
   socket.on('unsubscribeLobby', () => {
     for (const roomName of socket.rooms) {
       if (String(roomName).startsWith('lobby:')) socket.leave(roomName);
@@ -4079,6 +4157,32 @@ app.get('/api/admin/sanctions', async (req, res) => {
   res.json({ ok: true, liste });
 });
 
+/* UYARI GEÇMİŞİ (kullanıcı isteği: panelde "Uyarılar" sütunu + "Notlar").
+   Yürürlükteki listenin aksine KALDIRILMIŞ ve SÜRESİ DOLMUŞ kayıtları da
+   döndürür; panel bundan hem "kaç uyarı" sayısını hem de "kaçıncı uyarı,
+   hangi tarihte, ne kadar süreyle" ayrıntısını üretir (katlamalı ceza).
+   uid verilmezse TÜM üyelerin geçmişi tek çağrıda gelir. */
+app.get('/api/admin/sanctions/history', async (req, res) => {
+  if (!await requireAdmin(req, res)) return;
+  const uid = Number(req.query.uid) || 0;
+  let liste = [];
+  try { liste = (await authApi.yaptirimGecmis(uid || null, Number(req.query.limit) || 2000)) || []; }
+  catch (_) { liste = []; }
+  res.set('Cache-Control', 'no-store');
+  res.json({ ok: true, liste });
+});
+
+/* ŞİKAYETLER — kurucu paneli listesi. scope=room (oyun içi) | global. */
+app.get('/api/admin/reports', async (req, res) => {
+  if (!await requireAdmin(req, res)) return;
+  const scope = (req.query.scope === 'room' || req.query.scope === 'global') ? req.query.scope : null;
+  let liste = [];
+  try { liste = (await authApi.raporListe({ scope, limit: Number(req.query.limit) || 200 })) || []; }
+  catch (_) { liste = []; }
+  res.set('Cache-Control', 'no-store');
+  res.json({ ok: true, liste });
+});
+
 // Yaptırım UYGULA. Kalıcı kayıt üyelik katmanına yazılır (yerelde SQLite,
 // üretimde Yöncü MySQL), ardından Render ANINDA uygular: önbellek tazelenir
 // ve kullanıcının açık tüm sekmelerine AÇIKLAYICI bildirim düşer.
@@ -4394,7 +4498,10 @@ module.exports = { app, server, io, rooms, start, listPublicRooms, publicRoom, s
   // Popüler oyun sıralaması (Kurucu Paneli — testler için de export):
   defaultPopularConfig, normPopularConfig, loadPopularConfigLocal, savePopularConfigLocal,
   // Puan sistemi test kancaları (yalnız testler kullanır; üretimde etkisi yok).
-  __test: { puanYaz, puanDonusYaz, scoring, presenceSayim } };
+  // chatGlobal: şikayet dökümünün "son 1 dakika" süzgecini sınamak için —
+  // test bir mesajın zaman damgasını geriye alıp süzgecin onu ELEDİĞİNİ
+  // doğrular (gerçekte 1 dakika beklemek gerekirdi).
+  __test: { puanYaz, puanDonusYaz, scoring, presenceSayim, chatGlobal: () => chatGlobal } };
 // Eski test uyumluluğu: PRESET_TABLES artık yapılandırmadan üretilir.
 Object.defineProperty(module.exports, 'PRESET_TABLES', { get: () => presetTablesFromConfig(presetConfig) });
 Object.defineProperty(module.exports, 'popularConfig', { get: () => popularConfig });

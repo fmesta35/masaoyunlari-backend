@@ -204,6 +204,9 @@ function installAuth(app, deps) {
       yaptirimKaldir: () => ({ ok: false, error: 'Veritabanı yok.' }),
       yaptirimAktif: () => null,
       yaptirimListe: () => [],
+      yaptirimGecmis: () => [],
+      raporEkle: () => ({ ok: false, error: 'Veritabanı yok.' }),
+      raporListe: () => [],
       userFromReq: () => null,
       userFromReqAsync: async () => null,
       verifyToken: async () => null, verifyTokenFull: async () => ({ uid: null, status: 'invalid' }),
@@ -781,6 +784,92 @@ function installAuth(app, deps) {
     } catch (e) { console.warn('yaptırım listesi okunamadı:', e.message); return []; }
   }
 
+  /* Kurucu paneli "Uyarılar" sütunu (kullanıcı isteği): bir üyenin
+     GEÇMİŞTEKİ TÜM yaptırımları — kaldırılmış ve süresi dolmuş olanlar
+     DAHİL. Böylece panelde "kaçıncı uyarı" ve "ne kadar süreyle" görülüp
+     KATLAMALI ceza verilebilir.
+     Not: tablo zaten hiçbir kaydı silmiyordu; eksik olan tek şey, aktif
+     olmayanları da döndüren bu okuma yoluydu. uid verilmezse tüm üyelerin
+     geçmişi döner (panel tek çağrıda hem sayıları hem ayrıntıyı kurar). */
+  function yaptirimGecmis(uid, limit) {
+    if (!db) return [];
+    const lim = Math.min(Math.max(Number(limit) || 2000, 1), 5000);
+    try {
+      const tek = Number(uid) > 0;
+      const sql =
+        `SELECT s.*, u.name AS uname, u.email AS uemail
+           FROM sanctions s LEFT JOIN users u ON u.id = s.user_id
+          ${tek ? 'WHERE s.user_id = ?' : ''}
+          ORDER BY s.user_id ASC, s.created_at ASC
+          LIMIT ${lim}`;
+      const rows = tek ? db.prepare(sql).all(Number(uid)) : db.prepare(sql).all();
+      return rows.map(r => Object.assign(yaptirimSatirTemiz(r), {
+        ad: r.uname || '', eposta: r.uemail || ''
+      }));
+    } catch (e) { console.warn('yaptırım geçmişi okunamadı:', e.message); return []; }
+  }
+
+  /* ---------------- ŞİKAYETLER (kullanıcı bildirimleri) ----------------
+     Sohbet dökümü şikayet ANINDA dondurulur: oda sohbeti oda kapanınca,
+     genel sohbet 60 sn sonra sunucudan silindiği için sonradan
+     toplanamaz. */
+  function raporEkle(p) {
+    if (!db) return { ok: false, error: 'Veritabanı yok.' };
+    const scope = (p && p.scope === 'global') ? 'global' : 'room';
+    const reason = String((p && p.reason) || '').slice(0, 40);
+    if (!reason) return { ok: false, error: 'Gerekçe gerekli.' };
+    try {
+      const r = db.prepare(
+        `INSERT INTO reports(scope,reporter_uid,reporter_name,reported_uid,reported_name,
+                             reason,note,room_id,game_id,transcript,created_at,status)
+         VALUES(?,?,?,?,?,?,?,?,?,?,?,'open')`
+      ).run(
+        scope,
+        Number(p.reporterUid) || null, String(p.reporterName || '').slice(0, 60),
+        Number(p.reportedUid) || null, String(p.reportedName || '').slice(0, 60),
+        reason, String(p.note || '').slice(0, 500),
+        p.roomId != null ? String(p.roomId).slice(0, 40) : null,
+        p.gameId != null ? String(p.gameId).slice(0, 30) : null,
+        JSON.stringify(Array.isArray(p.transcript) ? p.transcript.slice(-200) : []),
+        now()
+      );
+      return { ok: true, id: Number(r.lastInsertRowid) };
+    } catch (e) { return { ok: false, error: e.message }; }
+  }
+
+  function raporListe(p) {
+    if (!db) return [];
+    const scope = (p && (p.scope === 'global' || p.scope === 'room')) ? p.scope : null;
+    const lim = Math.min(Math.max(Number(p && p.limit) || 200, 1), 500);
+    try {
+      const rows = scope
+        ? db.prepare(`SELECT * FROM reports WHERE scope = ? ORDER BY created_at DESC LIMIT ${lim}`).all(scope)
+        : db.prepare(`SELECT * FROM reports ORDER BY created_at DESC LIMIT ${lim}`).all();
+      return rows.map(raporSatirTemiz);
+    } catch (e) { console.warn('şikayet listesi okunamadı:', e.message); return []; }
+  }
+
+  function raporSatirTemiz(r) {
+    if (!r) return null;
+    let dokum = [];
+    try { dokum = JSON.parse(r.transcript || '[]'); } catch (_) { dokum = []; }
+    return {
+      id: Number(r.id),
+      scope: String(r.scope || 'room'),
+      sikayetEdenUid: r.reporter_uid != null ? Number(r.reporter_uid) : null,
+      sikayetEden: String(r.reporter_name || ''),
+      sikayetEdilenUid: r.reported_uid != null ? Number(r.reported_uid) : null,
+      sikayetEdilen: String(r.reported_name || ''),
+      gerekce: String(r.reason || ''),
+      not: String(r.note || ''),
+      odaId: r.room_id != null ? String(r.room_id) : null,
+      oyunId: r.game_id != null ? String(r.game_id) : null,
+      dokum: Array.isArray(dokum) ? dokum : [],
+      tarih: Number(r.created_at) || 0,
+      durum: String(r.status || 'open')
+    };
+  }
+
   // ---------------- soket katmanı ----------------
   function attachSocket(socket) {
     socket.on('authHello', payload => {
@@ -890,6 +979,8 @@ function installAuth(app, deps) {
     puanYaz, puanOzet, puanSiralama, puanSira, puanSifirla, puanAyarOku, puanAyarYaz,
     // Yaptırım sistemi (sohbet kısıtlaması) — kalıcılık SQLite'ta.
     emitToUser, yaptirimUygula, yaptirimKaldir, yaptirimAktif, yaptirimListe,
+    // Uyarı geçmişi (panelde "Notlar") + şikayet kayıtları.
+    yaptirimGecmis, raporEkle, raporListe,
     // Kurucu Paneli yetki kontrolü (server.js requireAdmin): istemcinin
     // oturum sahibini (e-posta dahil) döndürür.
     userFromReq: (req) => authFromReq(req),
@@ -1158,6 +1249,10 @@ function installRemoteMode(app, deps) {
     yaptirimKaldir: (uid, by, tur) => remote.yaptirimKaldir(uid, by, tur),
     yaptirimAktif: (uid, tur) => remote.yaptirimAktif(uid, tur),
     yaptirimListe: () => remote.yaptirimListe(),
+    // Uyarı geçmişi + şikayetler — UZAK MOD: kalıcılık Yöncü MySQL'de.
+    yaptirimGecmis: (uid, limit) => remote.yaptirimGecmis(uid, limit),
+    raporEkle: (p) => remote.raporEkle(p),
+    raporListe: (p) => remote.raporListe(p),
     // Kurucu Paneli yetkisi — UZAK MOD. Eskiden bu API userFromReq'i HİÇ
     // döndürmüyordu; server.js'teki requireAdmin bu yüzden üretimde kurucuya
     // bile 403 veriyordu (/api/admin/stats hiç çalışmadı). Kimlik artık

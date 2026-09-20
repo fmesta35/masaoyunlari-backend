@@ -225,6 +225,26 @@ function gv_schema($pdo) {
         value TEXT NOT NULL,
         updated_at BIGINT NOT NULL
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci");
+    // ---- ŞİKAYETLER (kullanıcı bildirimleri) ----
+    // Oyuncu, oyun içi masa sohbetinden ya da genel sohbetten bir üyeyi
+    // bildirdiğinde buraya düşer. Sohbet dökümü şikayet ANINDA dondurulur
+    // (oda sohbeti oda kapanınca, genel sohbet 60 sn sonra silinir).
+    $pdo->exec("CREATE TABLE IF NOT EXISTS gv_reports(
+        id BIGINT AUTO_INCREMENT PRIMARY KEY,
+        scope VARCHAR(8) NOT NULL,
+        reporter_uid INT NULL,
+        reporter_name VARCHAR(64) NULL,
+        reported_uid INT NULL,
+        reported_name VARCHAR(64) NULL,
+        reason VARCHAR(40) NOT NULL,
+        note VARCHAR(500) NULL,
+        room_id VARCHAR(40) NULL,
+        game_id VARCHAR(30) NULL,
+        transcript MEDIUMTEXT NULL,
+        created_at BIGINT NOT NULL,
+        status VARCHAR(16) NOT NULL DEFAULT 'open',
+        INDEX (scope, created_at), INDEX (reported_uid)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci");
 }
 
 // ---------------- Üye yardımcıları ----------------
