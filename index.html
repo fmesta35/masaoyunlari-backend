@@ -695,6 +695,29 @@ button,input,select{font-family:var(--font)}
 @media(max-width:420px){.bs-wrap{--bs-cell:24px}}
 @media(prefers-reduced-motion:reduce){.bs-cell.bs-latest{animation:none}}
 
+/* ---- SİNEMATİK KATMANI (js/deniz-sinematik.js) ----
+   Tüm ekranı kaplar ama tıklamaları GEÇİRİR (pointer-events:none), yoksa
+   sahne oynarken tahtaya basılamaz. Tahtanın kendisi yeniden çizildiğinde
+   katman kaybolmasın diye <body>'nin çocuğudur, oyun alanının değil. */
+.gv-deniz-cam{position:fixed;inset:0;z-index:940;pointer-events:none;
+  width:100vw;height:100vh;contain:strict}
+/* Sarsıntı tahtanın kendisine uygulanır; katman sabit kalır ki
+   patlama ile tahta ayrı ayrı hareket etsin (derinlik hissi). */
+@keyframes gvSars{0%,100%{transform:translate(0,0)}
+  20%{transform:translate(-2px,1px)}40%{transform:translate(2px,-1px)}
+  60%{transform:translate(-1px,-2px)}80%{transform:translate(1px,2px)}}
+@keyframes gvSarsSert{0%,100%{transform:translate(0,0)}
+  15%{transform:translate(-5px,2px)}30%{transform:translate(5px,-3px)}
+  45%{transform:translate(-4px,-4px)}60%{transform:translate(4px,3px)}
+  75%{transform:translate(-2px,2px)}90%{transform:translate(2px,-1px)}}
+.gv-sarsinti{animation:gvSars .34s ease-out 1}
+.gv-sarsinti-sert{animation:gvSarsSert .55s ease-out 1}
+@media(prefers-reduced-motion:reduce){
+  .gv-sarsinti,.gv-sarsinti-sert{animation:none}
+}
+/* Ses düğmesi: kapalıyken sönük görünür, durumu tek bakışta anlaşılsın. */
+#gvSoundBtn[aria-pressed="false"]{opacity:.55}
+
 .card-wrap{max-width:700px;margin:0 auto}
 .card-table{background:radial-gradient(ellipse at center,#0d5c2d,#0a3d1e);border:12px solid #1a472a;border-radius:24px;padding:30px;min-height:380px;position:relative}
 .card-score{display:flex;gap:12px;justify-content:center;margin-bottom:12px;flex-wrap:wrap}
@@ -1620,6 +1643,9 @@ body.gv-app input,body.gv-app textarea,body.gv-app .chat-msgs,body.gv-app .moves
         <div class="gr-actions">
           <button class="btn btn-o btn-sm" id="gvFullscreenBtn" onclick="GV.toggleFullscreen()" title="Tam ekran">⛶ Tam Ekran</button>
           <button class="btn btn-o btn-sm" id="gv101TutorBtn" onclick="GV.open101Tutorial()" title="101 Okey öğrenme modu" style="display:none">🦉 101 Okey Dersi</button>
+          <!-- Oyun içi ses: isteyen dinler, isteyen kapatır. Tercih
+               tarayıcıda saklanır (gv-ses), her odada geçerlidir. -->
+          <button class="btn btn-o btn-sm" id="gvSoundBtn" type="button" aria-pressed="true" title="Oyun seslerini aç/kapat">🔊 Ses</button>
           <button class="btn btn-o btn-sm" onclick="GV.showRules()">📖 Kurallar</button>
           <!-- PES ET (kullanıcı isteği): oyun sürerken, "Ayrıl" gibi tek
                tıkla teslim olma. Ayrılmaktan farkı: oyuncu MASADA KALIR,
@@ -5129,7 +5155,8 @@ GV.init();
 <script src="js/gomoku-online.js?v=20260904b" defer></script>
 <script src="js/connect4-online.js?v=20260904b" defer></script>
 <script src="js/bilardo-online.js?v=20260914b" defer></script>
-<script src="js/battleship-online.js?v=20260915a" defer></script>
+<script src="js/deniz-sinematik.js?v=20260920a" defer></script>
+<script src="js/battleship-online.js?v=20260920b" defer></script>
 <script src="js/chat.js?v=20260821c" defer></script>
 <script src="js/leave-guard.js?v=20260908b" defer></script>
 <script src="js/auth.js?v=20260912a" defer></script>

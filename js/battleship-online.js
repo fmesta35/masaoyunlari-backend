@@ -246,6 +246,41 @@
       window.speechSynthesis.cancel(); window.speechSynthesis.speak(u);
     } catch (_) {}
   }
+  /* ------------------------------------------------------------------
+     SİNEMATİK KÖPRÜSÜ
+     Atışın hangi tahtada göründüğünü bulur (atan rakip sularına, savunan
+     kendi filosuna bakar), hedef karenin ekran üzerindeki yerini ölçer ve
+     js/deniz-sinematik.js'e devreder. Motor yoksa oyun eskisi gibi çalışır.
+     ------------------------------------------------------------------ */
+  function hucreKutusu(gridSec, r, c) {
+    var el = document.querySelector(gridSec + ' .bs-cell[data-r="' + r + '"][data-c="' + c + '"]');
+    if (!el || !el.getBoundingClientRect) return null;
+    var k = el.getBoundingClientRect();
+    return (k.width > 0 && k.height > 0) ? k : null;
+  }
+  function sinematikOynat(p, isMe) {
+    if (!window.GVDeniz || typeof GVDeniz.oynat !== 'function') return;
+    // Atan oyuncu atışı RAKİP sularında görür; hedefteki oyuncu KENDİ filosunda.
+    var grid = isMe ? '.bs-enemy-grid' : '.bs-mine-grid';
+    var hedef = hucreKutusu(grid, p.r, p.c);
+    if (!hedef) return;
+    var gemiKareleri = [];
+    if (p.result === 'sunk' && p.sunkShip && p.sunkShip.cells) {
+      p.sunkShip.cells.forEach(function (cc) {
+        var k = hucreKutusu(grid, cc[0], cc[1]);
+        if (k) gemiKareleri.push(k);
+      });
+    }
+    try {
+      GVDeniz.oynat({
+        tur: p.result, hedef: hedef, gemiKareleri: gemiKareleri,
+        tohum: Number(p.tohum) || ((p.r + 1) * 31 + (p.c + 1) * 7),
+        isBenim: isMe,
+        bitince: function () { if (window.GVArena) GVArena.repaint(); }
+      });
+    } catch (_) {}
+  }
+
   function findShot(shots, r, c) {
     if (!shots) return null;
     for (var i = 0; i < shots.length; i++) if (shots[i].r === r && shots[i].c === c) return shots[i];
@@ -363,6 +398,9 @@
         if (String(GVArena.roomId()) !== rid) return;
         var mySeat = GVArena.seat();
         var isMe = mySeat !== null && mySeat !== undefined && p.seat === mySeat;
+        // Sinematik, tahta yeniden çizilmeden ÖNCE ölçülmeli: repaint sonrası
+        // eski hücre düğümleri kaybolur. Ölçüler ekran koordinatındadır.
+        sinematikOynat(p, isMe);
         logShot(rid, p, isMe);
         speak(p, isMe);
         if (window.GV && GV.toast) {
@@ -548,6 +586,11 @@
       root.querySelectorAll('.bs-enemy-grid .bs-cell.live').forEach(function (cell) {
         cell.addEventListener('click', function () {
           if (m.isSpectator) return;
+          // Sahne oynarken atış alınmaz: hem görüntü bölünmesin hem de
+          // yanlışlıkla çift atış gitmesin.
+          if (window.GVDeniz && GVDeniz.oynuyor && GVDeniz.oynuyor()) return;
+          if (window.GVDeniz && GVDeniz.ses) GVDeniz.ses.uyandir();
+          if (window.GVDeniz && GVDeniz.ses && GVDeniz.ses.acik()) GVDeniz.ses.cal('ates');
           m.emit('battleshipFire', { r: Number(cell.dataset.r), c: Number(cell.dataset.c) });
         });
       });

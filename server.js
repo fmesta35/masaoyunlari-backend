@@ -3225,7 +3225,13 @@ io.on('connection', socket => {
     // Herkese (her iki oyuncuya + izleyicilere) tek seferlik atış SONUCU
     // yayını — istemci bunu "kendi hamlem" / "rakibin hamlesi" olarak ayırt
     // edip belirgin isabet/ıska/batırma efekti + Türkçe seslendirme tetikler.
-    io.to(room.id).emit('battleshipShotResult', { roomId: room.id, seat: p.seat, r: Number(data.r), c: Number(data.c), result: r.result, shipId: r.shipId, sunkShip: r.sunkShip });
+    /* Sinematik TOHUMU sunucuda üretilir ve herkese aynı gider: iki oyuncunun
+       ve izleyicilerin ekranında kıvılcım dağılımı, duman savruluşu ve
+       sarsıntı kare kare aynı olur. kilitMs, sahnenin ne kadar süreceğini
+       söyler; istemci o süre boyunca atış düğmelerini kapatır. */
+    const cineTohum = ((Date.now() ^ (Number(data.r) * 73856093) ^ (Number(data.c) * 19349663) ^ (p.seat * 83492791)) >>> 0);
+    const cineKilit = r.result === 'sunk' ? 4600 : (r.result === 'hit' ? 2600 : 2200);
+    io.to(room.id).emit('battleshipShotResult', { roomId: room.id, seat: p.seat, r: Number(data.r), c: Number(data.c), result: r.result, shipId: r.shipId, sunkShip: r.sunkShip, tohum: cineTohum, kilitMs: cineKilit });
     if (room.battleship.phase === 'finished') { room.status = 'finished'; room.result = room.battleship.result; }
     emitBattleshipState(room);
     emitRoom(room);
