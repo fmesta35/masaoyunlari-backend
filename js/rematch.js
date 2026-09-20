@@ -269,7 +269,20 @@
     '.gv-rematch-sub{color:#8a90a8!important;font-size:.82em!important}' +
     '.gv-rematch-row{display:flex;gap:10px;justify-content:center;margin-top:14px}' +
     '.gv-rematch-count{display:block;margin-top:8px;font-size:.82em;color:#8a90a8}' +
-    '.gv-rematch-btn{margin-left:8px}';
+    /* İKİ DÜĞME AYRI DURSUN: eşit genişlik, aralarında parmak payı ve
+       FARKLI renk. Eskiden ikisi de mor ve bitişikti; yanlış düğmeye
+       basmak çok kolaydı. Lobiye dön nötr/gri, Rövanş vurgulu yeşil. */
+    '.gv-end-row{display:flex!important;flex-direction:column;gap:12px;align-items:stretch;margin-top:16px}' +
+    '@media(min-width:460px){.gv-end-row{flex-direction:row;justify-content:center;gap:16px}}' +
+    '.gv-end-row .btn{flex:1 1 0;min-width:170px;min-height:44px;margin:0!important;' +
+      'font-weight:700;letter-spacing:.01em;white-space:nowrap}' +
+    '.gv-end-row .gv-end-btn{background:#2b3145!important;border:1px solid #454c68!important;color:#dfe4f2!important;box-shadow:none!important}' +
+    '.gv-end-row .gv-end-btn:hover{background:#353c55!important;border-color:#5a6386!important}' +
+    '.gv-end-row .gv-rematch-btn{background:linear-gradient(180deg,#22c98a,#129a67)!important;' +
+      'border:1px solid #3ee0a2!important;color:#06231a!important;box-shadow:0 6px 18px rgba(18,154,103,.32)!important}' +
+    '.gv-end-row .gv-rematch-btn:hover{filter:brightness(1.06)}' +
+    '.gv-end-row .gv-rematch-btn:disabled{filter:grayscale(.5);opacity:.75}' +
+    '.gv-rematch-btn{margin-left:0}';
   (document.head || document.documentElement).appendChild(css);
 
   window.GVRematch = {

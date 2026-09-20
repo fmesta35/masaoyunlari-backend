@@ -23,6 +23,37 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'OPTIONS') { http_response_code(204);
  *
  * Aşağıdaki iki kontrol, sorun yine de olursa "bağlanılamadı" gibi
  * yanıltıcı bir mesaj yerine ne yapılacağını doğrudan söyler. */
+/* ==========================================================================
+   HATA YAKALAYICI — "boş cevap" yerine gerçek sebep
+   --------------------------------------------------------------------------
+   PHP tarafında yakalanmamış bir istisna (örneğin henüz oluşturulmamış bir
+   tablo) ölümcül hataya düşüyor ve gövdesi BOŞ bir 500 dönüyordu. Render
+   bunu "Üyelik sunucusundan boş cevap." diye gösterdiği için sorunun ne
+   olduğu anlaşılmıyordu. Artık her hata JSON olarak döner.
+   ========================================================================== */
+if (!defined('GV_HATA_YAKALAYICI')) {
+    define('GV_HATA_YAKALAYICI', 1);
+    set_exception_handler(function ($e) {
+        if (!headers_sent()) {
+            header('Content-Type: application/json; charset=utf-8');
+            http_response_code(500);
+        }
+        echo json_encode(array('ok' => false, 'error' => 'Sunucu hatası: ' . $e->getMessage()),
+                         JSON_UNESCAPED_UNICODE);
+        exit;
+    });
+    register_shutdown_function(function () {
+        $h = error_get_last();
+        if (!$h || !in_array($h['type'], array(E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR), true)) return;
+        if (!headers_sent()) {
+            header('Content-Type: application/json; charset=utf-8');
+            http_response_code(500);
+        }
+        echo json_encode(array('ok' => false, 'error' => 'Sunucu hatası: ' . $h['message']),
+                         JSON_UNESCAPED_UNICODE);
+    });
+}
+
 function gv_kurulum_hatasi($mesaj) {
     http_response_code(200);   // oPanel hata sayfası JSON'u yutmasın
     echo json_encode(array('ok' => false, 'status' => 503, 'error' => $mesaj), JSON_UNESCAPED_UNICODE);

@@ -739,6 +739,12 @@ function resetRoomToWaiting(room) {
   room.gomoku = null;
   room.connect4 = null;
   room.bilardo = null;
+  /* AMİRAL BATTI: bu satır eksikti. Rövanş kabul edilince oda "waiting"e
+     çekiliyor ama room.battleship eski maçtan (phase:'finished') kalıyordu;
+     startBattleship yeni bir motor kurup 'placing' fazına geçirse de istemci
+     eski duruma bakıp "Filon hazır — rakibi bekliyorsun" ekranında takılı
+     kalıyordu. Durum tamamen temizlenir ki yeni elde filo baştan dizilsin. */
+  room.battleship = null;
   room.tavlaNotice = null;
   room.tavlaNoticeSeq = 0;
   if (room.okey && room.okey.between) { clearTimeout(room.okey.between); }

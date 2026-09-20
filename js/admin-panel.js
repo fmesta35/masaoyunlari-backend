@@ -796,13 +796,20 @@
     }
     const games = (window.GAMES && Object.keys(window.GAMES)) || STANDARD;
     if (!settingsCache._popular) settingsCache._popular = defaultPopular();
+    /* MANUEL MODDA "OYUNLAR" LİSTESİ GİZLENİR.
+       Manuel modda ekranda zaten sıralama listesi var; altına bir de aynı
+       oyunların masa/görünürlük listesini koymak sayfayı iki kez uzatıyor ve
+       hangi listenin ne işe yaradığı karışıyordu. Masa/görünürlük yönetimi
+       "Masa Düzeni" modunda duruyor. */
+    const manuelMod = (settingsCache._popular || {}).mode === 'manual';
     body.innerHTML = `
       ${popularSectionHtml(games)}
+      ${manuelMod ? '' : `
       <div style="font-weight:800;font-size:.95em;margin-bottom:4px">OYUNLAR (${games.length})</div>
       <div style="font-size:.78em;color:var(--text3);margin-bottom:12px">Görünürlük, masa sayısı ve masa adları/tipleri buradan yönetilir. Değişiklikler <b>Kaydet ve Uygula</b> ile kalıcı olur ve siteye anında yansır.</div>
       <div style="display:flex;flex-direction:column;gap:10px">
         ${games.map(gid => gameRow(gid)).join('')}
-      </div>
+      </div>`}
       <div style="display:flex;justify-content:flex-end;margin-top:14px">
         <button type="button" id="adminSaveBtn" style="background:linear-gradient(135deg,#6c5ce7,#8f7bff);color:#fff;border:none;padding:11px 22px;border-radius:10px;font-weight:800;cursor:pointer">💾 Kaydet ve Uygula</button>
       </div>`;

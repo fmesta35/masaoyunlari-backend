@@ -89,7 +89,7 @@
   function ensurePlaceState(m) {
     var rid = String(m.roomId == null ? '' : m.roomId);
     if (!placeState || placeState.roomId !== rid) {
-      placeState = { roomId: rid, ships: {}, dir: 'h', submitted: false };
+      placeState = { roomId: rid, ships: {}, dir: 'h', submitted: false, bitis: 0 };
     }
     return placeState;
   }
@@ -164,7 +164,16 @@
     var size = s.size || SIZE;
     var mineReady = !!(s.ready && s.ready.mine) || ps.submitted;
     var oppReady = !!(s.ready && s.ready.opponent);
-    var sec = Math.max(0, Math.ceil((Number(s.placeRemainingMs) || 0) / 1000));
+    /* YERLEŞTİRME SÜRESİ — MUTLAK BİTİŞ ANINA bağlanır.
+       Eskiden her çizimde s.placeRemainingMs'ten yeniden başlıyordu; "Sıfırla"
+       düğmesi tahtayı yeniden çizdiği için süre de baştan alıyor ve oyuncu
+       sıfırlaya bastıkça süre hiç bitmiyordu. Bitiş anı fazın başında BİR KEZ
+       hesaplanır, sonraki çizimler aynı andan sayar. */
+    if (!ps.bitis && Number(s.placeRemainingMs) > 0) {
+      ps.bitis = Date.now() + Number(s.placeRemainingMs);
+    }
+    var sec = ps.bitis ? Math.max(0, Math.ceil((ps.bitis - Date.now()) / 1000))
+                       : Math.max(0, Math.ceil((Number(s.placeRemainingMs) || 0) / 1000));
 
     var h = '<div class="bs-wrap"><div class="bs-place">';
     h += '<div class="bs-place-head"><h3>🚢 Filonu Yerleştir</h3><p>' +
@@ -190,7 +199,7 @@
       h += '<div class="bs-place-tools">' +
         '<button type="button" class="btn btn-o bs-dir">↻ Yön: ' + (ps.dir === 'h' ? 'Yatay' : 'Dikey') + '</button>' +
         '<button type="button" class="btn btn-o bs-shuffle">🎲 Rastgele Yerleştir</button>' +
-        '<button type="button" class="btn btn-o bs-clear">🗑️ Sıfırla</button></div>';
+        '<button type="button" class="btn btn-o bs-clear" title="Yalnız yerleşimi boşaltır — süre devam eder">🗑️ Yerleşimi Temizle</button></div>';
     }
 
     // Izgara + yerleşmiş gemiler
@@ -434,13 +443,18 @@
            saniyede bir yeniden çizim sürükleme işlemini koparırdı. */
         var clockEl = root.querySelector('#bsClock');
         if (clockEl && !mineReady) {
-          var kalan = Math.max(0, Math.ceil((Number(s.placeRemainingMs) || 0) / 1000));
+          // Kalan süre her saniye MUTLAK bitiş anından hesaplanır; yeniden
+          // çizim (sürükleme, sıfırlama, dönüş) süreyi etkilemez.
+          var okuKalan = function () {
+            return ps.bitis ? Math.max(0, Math.ceil((ps.bitis - Date.now()) / 1000))
+                            : Math.max(0, Math.ceil((Number(s.placeRemainingMs) || 0) / 1000));
+          };
           clockTimer = setInterval(function () {
-            kalan = Math.max(0, kalan - 1);
             if (clockEl.isConnected === false) { clearInterval(clockTimer); clockTimer = null; return; }
+            var kalan = okuKalan();
             clockEl.textContent = String(kalan);
             clockEl.parentNode.classList.toggle('urgent', kalan <= 15);
-          }, 1000);
+          }, 250);
         }
         if (mineReady || !cells) return;
 
@@ -547,6 +561,7 @@
         var sh = root.querySelector('.bs-shuffle');
         if (sh) sh.addEventListener('click', function () { ps.ships = randomPlacement(fleet); yenile(); });
         var cl = root.querySelector('.bs-clear');
+        // Yalnız gemileri kaldırır: ps.bitis'e DOKUNMAZ, yani süre devam eder.
         if (cl) cl.addEventListener('click', function () { ps.ships = {}; yenile(); });
         // ---- boş hücreye tıklayarak da yerleştir (erişilebilir yedek yol) ----
         cells.addEventListener('click', function (e) {

@@ -2065,11 +2065,13 @@ const GAME_THRESHOLDS={
   battleship:{legend:2100,champion:1900,elite:1700,grandmaster:1500,master:1200,uzman:900,tecrubeli:600,cirak:300,caylak:1}
 };
 
-const LB_DATA={
-  chess:[{n:'GrandMaster_TR',s:3120,c:'legend'},{n:'MagnusJr',s:2854,c:'champion'},{n:'DeepChess',s:2521,c:'elite'}],
-  tavla:[{n:'ZarUstasi',s:2650,c:'legend'},{n:'MarsciBey',s:2380,c:'champion'}],
-  okey:[{n:'OkeyEfendisi',s:3120,c:'legend'},{n:'CifteKral',s:2890,c:'champion'}]
-};
+/* SIRALAMA VERİSİ ARTIK GÖMÜLÜ DEĞİL.
+   Burada eskiden örnek adlar (GrandMaster_TR, OkeyEfendisi, ZarUstasi…)
+   duruyordu ve tablo gerçek oyunculardan bağımsız olarak hep onları
+   gösteriyordu. Liste artık sunucudan gelir: js/scores.js →
+   /api/scores/board (puan olaylarından üretilir). Henüz puan kazanan
+   kimse yoksa tablo "boş" durumunu gösterir, uydurma isim göstermez. */
+const LB_DATA={};
 
 const TOURNAMENTS={
   okey:[{name:'Okey Ustalar',type:'daily',players:'96/128',time:'4s',prize:'800 Puan',mode:'4 Kişi',hot:true}],
@@ -2484,6 +2486,21 @@ function toggleTheme(){
   toast(`Tema: ${st.theme === 'dark' ? 'Karanlık 🌙' : 'Aydınlık ☀️'}`, 'info');
 }
 
+/* Puandan rütbe çözer (sıralama tablosu için): oyun verilirse o oyunun
+   eşikleri, verilmezse satrancınkiler (genel tablo) kullanılır. */
+function getRankByScore(score,gid){
+  const th=GAME_THRESHOLDS[gid||'chess']||GAME_THRESHOLDS.chess;
+  score=Number(score)||0;
+  if(score>=th.legend)return RANKS[0];
+  if(score>=th.champion)return RANKS[1];
+  if(score>=th.elite)return RANKS[2];
+  if(score>=th.grandmaster)return RANKS[3];
+  if(score>=th.master)return RANKS[4];
+  if(score>=th.uzman)return RANKS[5];
+  if(score>=th.tecrubeli)return RANKS[6];
+  if(score>=th.cirak)return RANKS[7];
+  return RANKS[RANKS.length-1];
+}
 function getUserRankInfo(gid){gid=gid||st.curGame||'chess';const score=st.scores[gid]||0;const th=GAME_THRESHOLDS[gid]||GAME_THRESHOLDS.chess;if(score>=th.legend)return{pos:1,rank:RANKS[0]};if(score>=th.champion)return{pos:2,rank:RANKS[1]};if(score>=th.elite)return{pos:3,rank:RANKS[2]};if(score>=th.grandmaster)return{pos:4,rank:RANKS[3]};if(score>=th.master)return{pos:11,rank:RANKS[4]};if(score>=th.uzman)return{pos:101,rank:RANKS[5]};if(score>=th.tecrubeli)return{pos:1001,rank:RANKS[6]};if(score>=th.cirak)return{pos:5001,rank:RANKS[7]};return{pos:99999,rank:RANKS[9]};}
 function getOverallRankInfo(){const t=st.totalScore;if(t>=20000)return{pos:1,rank:RANKS[0]};if(t>=15000)return{pos:11,rank:RANKS[4]};if(t>=10000)return{pos:101,rank:RANKS[5]};if(t>=5000)return{pos:1001,rank:RANKS[6]};return{pos:5001,rank:RANKS[7]};}
 
@@ -3280,32 +3297,62 @@ function selectLBTab(tab,btn){
   renderLB();
 }
 
+/* Sunucudan gelen sıralama burada tutulur: { sekme: [ {id,name,puan} ] } */
+const LB_CANLI={};
+let lbIstek=0;
+function lbYukle(){
+  // js/scores.js ertelenmiş (defer) yüklendiği için sıralama sayfası ondan
+  // ÖNCE açılabiliyor. Sessizce vazgeçilirse tablo "yükleniyor"da kalıyordu;
+  // modül gelene kadar kısa aralıklarla tekrar denenir.
+  if(!window.GVScores||!GVScores.siralama){ setTimeout(lbYukle,400); return; }
+  const sekme=st.currentLBTab, oyun=(sekme==='overall'?null:sekme), no=++lbIstek;
+  GVScores.siralama(oyun).then(liste=>{
+    if(no!==lbIstek)return;                     // sekme değiştiyse eski cevabı at
+    LB_CANLI[sekme]=Array.isArray(liste)?liste:[];
+    renderLB();
+  });
+}
 function renderLB(){
   const el=document.getElementById('lbList');if(!el)return;
-  let players=[],title='';
-  if(st.currentLBTab==='overall'){
-    const c={};
-    Object.entries(LB_DATA).forEach(([gid,arr])=>arr.forEach(p=>{
-      if(!c[p.n])c[p.n]={n:p.n,total:0,games:0};
-      c[p.n].total+=p.s;c[p.n].games++;
-    }));
-    players=Object.values(c);
-    players.push({n:`${st.user.name} (Sen)`,total:st.totalScore,games:12,me:true});
-    players.sort((a,b)=>b.total-a.total);
-    title='🌟 Genel Sıralama';
-  }else{
-    players=[...(LB_DATA[st.currentLBTab]||[])];
-    players.push({n:`${st.user.name} (Sen)`,s:st.scores[st.currentLBTab]||0,c:getUserRankInfo(st.currentLBTab).rank.id,me:true});
-    players.sort((a,b)=>b.s-a.s);
-    title=`${GAMES[st.currentLBTab].icon} ${GAMES[st.currentLBTab].name}`;
+  const sekme=st.currentLBTab;
+  const canli=LB_CANLI[sekme];
+  const title=sekme==='overall'?'🌟 Genel Sıralama'
+             :`${GAMES[sekme].icon} ${GAMES[sekme].name}`;
+
+  if(!canli){                                   // veri henüz gelmedi
+    el.innerHTML=`<div class="lb-header"><b>${title}</b></div>`+
+      '<div style="padding:22px;text-align:center;color:var(--text3);font-size:.9em">Sıralama yükleniyor…</div>';
+    lbYukle();return;
+  }
+  // Sunucu biçimi: [{id,name,puan}] → ekran biçimi
+  let players=canli.map(r=>({
+    n:String(r.name||r.ad||'Oyuncu'),
+    s:Number(r.puan||r.points||0),
+    c:(sekme==='overall'?getRankByScore(Number(r.puan||0)).id:getRankByScore(Number(r.puan||0),sekme).id),
+    uid:r.id
+  }));
+  // Giriş yapmış kullanıcı listede yoksa kendi satırını ekle (0 puanla bile).
+  if(st.user&&!st.isGuest){
+    const benimPuan=sekme==='overall'?(st.totalScore||0):(st.scores[sekme]||0);
+    const varMi=players.some(p=>p.n===st.user.name);
+    if(!varMi)players.push({n:`${st.user.name} (Sen)`,s:benimPuan,c:getUserRankInfo(sekme==='overall'?null:sekme).rank.id,me:true});
+    else players.forEach(p=>{if(p.n===st.user.name){p.me=true;p.n=`${p.n} (Sen)`;}});
+  }
+  players.sort((a,b)=>b.s-a.s);
+
+  if(!players.length||players.every(p=>!p.s)){
+    el.innerHTML=`<div class="lb-header"><b>${title}</b></div>`+
+      '<div style="padding:26px 18px;text-align:center;color:var(--text3);font-size:.9em">'+
+      'Bu sıralamada henüz puan yok. İlk maçlar oynandıkça liste burada oluşur.</div>';
+    return;
   }
   let h=`<div class="lb-header"><b>${title}</b></div>`;
   h+=players.slice(0,15).map((p,i)=>{
     const medal=i===0?'🥇':i===1?'🥈':i===2?'🥉':'#'+(i+1);
     const mc=i===0?'g':i===1?'s':i===2?'b':'';
-    const sv=st.currentLBTab==='overall'?p.total:p.s;
+    const sv=p.s;
     const rObj=RANKS.find(r=>r.id===p.c)||RANKS[5];
-    return `<div class="lb-row ${p.me?'me':''}"><div class="lb-medal ${mc}">${medal}</div><div class="lb-avatar-lg">${p.n.substring(0,2).toUpperCase()}</div><div class="lb-info"><div class="lb-name-r">${p.n}${p.me?' ⭐':''}</div><div class="lb-info-sub">${st.currentLBTab==='overall'?`${p.games} oyun`:`<span class="rank-badge ${rObj.cls}" style="font-size:.68em;padding:2px 8px">${rObj.name}</span>`}</div></div><div class="lb-score"><div class="lb-score-val">${sv.toLocaleString()}</div><div class="lb-score-label">puan</div></div></div>`;
+    return `<div class="lb-row ${p.me?'me':''}"><div class="lb-medal ${mc}">${medal}</div><div class="lb-avatar-lg">${p.n.substring(0,2).toUpperCase()}</div><div class="lb-info"><div class="lb-name-r">${p.n}${p.me?' ⭐':''}</div><div class="lb-info-sub"><span class="rank-badge ${rObj.cls}" style="font-size:.68em;padding:2px 8px">${rObj.name}</span></div></div><div class="lb-score"><div class="lb-score-val">${sv.toLocaleString()}</div><div class="lb-score-label">puan</div></div></div>`;
   }).join('');
   el.innerHTML=h;
 }

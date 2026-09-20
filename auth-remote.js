@@ -50,7 +50,15 @@ async function callJson(url, opts, timeoutMs) {
     });
     let data = null;
     try { data = await r.json(); } catch (_) {}
-    return { status: r.status, data: data || { ok: false, error: 'Üyelik sunucusundan boş cevap.' } };
+    // Boş gövde artık HTTP durumunu da taşır: "boş cevap" mesajı tek başına
+    // hiçbir şey anlatmıyordu, hangi ucun ne döndürdüğü görünsün.
+    return {
+      status: r.status,
+      data: data || {
+        ok: false,
+        error: 'Üyelik sunucusundan boş cevap (HTTP ' + r.status + ').'
+      }
+    };
   } catch (e) {
     return { status: 0, data: { ok: false, error: 'Üyelik sunucusuna ulaşılamadı: ' + (e.name === 'AbortError' ? 'zaman aşımı' : e.message) } };
   } finally {

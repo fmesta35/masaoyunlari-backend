@@ -76,8 +76,33 @@
     window.addEventListener('gv:matchEnded', function () { setTimeout(getir, 1200); });
   }
 
+  /* ---------------------------------------------------------------
+     SIRALAMA (liderlik tablosu) — GERÇEK veriden.
+     Sayfa eskiden gömülü örnek adları (GrandMaster_TR, OkeyEfendisi…)
+     gösteriyordu; artık sunucudaki puan olaylarından gelen gerçek üyeler
+     listelenir. Oyun başına ayrı çekilir ve 60 sn önbelleklenir.
+     --------------------------------------------------------------- */
+  var sirCache = {};                 // { anahtar: {t, liste} }
+  function siralamaGetir(gameId) {
+    var anahtar = gameId || 'genel';
+    var c = sirCache[anahtar];
+    if (c && (Date.now() - c.t) < 60000) return Promise.resolve(c.liste);
+    var url = BACKEND + '/api/scores/board?limit=15' +
+              (gameId ? '&game=' + encodeURIComponent(gameId) : '');
+    return fetch(url, { cache: 'no-store' })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (d) {
+        var liste = (d && d.ok && Array.isArray(d.siralama)) ? d.siralama : [];
+        sirCache[anahtar] = { t: Date.now(), liste: liste };
+        return liste;
+      })
+      .catch(function () { return (sirCache[anahtar] || {}).liste || []; });
+  }
+
   window.GVScores = {
     refresh: getir,
+    siralama: siralamaGetir,
+    siralamaTemizle: function () { sirCache = {}; },
     veri: function () { return veri; },
     kural: function () { return kural; },
     ayrinti: oyunAyrinti
