@@ -311,9 +311,27 @@
     var sunkIds = {};
     (s.enemyFleet || []).forEach(function (f) { if (f.sunk) sunkIds[f.id] = true; });
 
-    var h = '<div class="bs-wrap">';
-    h += '<div class="bs-status' + (myTurn ? ' mine' : '') + '">' +
-      (m.isSpectator ? '👁️ İzleyici' : (myTurn ? '🎯 Sıra sende — ateş et!' : '⏳ Rakip nişan alıyor…')) +
+    /* ---------------- KOMUTA KÖPRÜSÜ KABUĞU ----------------
+       Üstte panoramik cam (düşman filosu ufukta, aldığı isabete göre yanar),
+       ortada taktik ızgaralar, altta konsol (radar + hedef okuması + ateş).
+       Izgaraların işaretlemesi ve sınıfları DEĞİŞMEDİ — yalnız çevresi. */
+    var kalanGemi = (s.enemyFleet || []).filter(function (f) { return !f.sunk; }).length;
+    var h = '<div class="bs-wrap bs-bridge">';
+    h += '<div class="bs-view">' +
+           '<canvas class="bs-sea" id="bsSea" aria-hidden="true"></canvas>' +
+           '<div class="bs-view-hud">' +
+             '<span>KERTERİZ ' + String(20 + ((s.myShots || []).length * 7) % 340).padStart(3, '0') + '°' +
+               ' · DÜŞMAN FİLO ' + kalanGemi + '/' + ((s.enemyFleet || []).length || 5) + '</span>' +
+             '<span>DENİZ 3 · GÖRÜŞ 8 NM</span>' +
+           '</div>' +
+           '<div class="bs-view-state' + (myTurn ? ' mine' : '') + '">' +
+             (m.isSpectator ? '👁️ İZLEYİCİ' : (myTurn ? '🎯 SIRA SENDE' : '⏳ RAKİP NİŞAN ALIYOR')) +
+           '</div>' +
+         '</div>';
+    /* Sıra durumu camdaki rozette yazıyor; burada tekrar etmiyoruz.
+       Bu şerit yalnız sesli anlatım anahtarını taşır. */
+    h += '<div class="bs-status bs-status-thin">' +
+      '<span class="bs-voice-label">Sesli anlatım</span>' +
       '<button type="button" class="bs-voice-toggle" title="Seslendirme aç/kapat">' + (voiceOn() ? '🔊' : '🔇') + '</button></div>';
 
     h += '<div class="bs-battlefield">';
@@ -353,6 +371,21 @@
     }
     h += '<div class="bs-board-col"><h4>🌊 Rakip Suları</h4>' + boardHTML(size, enemyInner, 'bs-enemy-grid') + '</div>';
     h += '</div>';
+
+    /* Konsol: radar, seçili hedef ve ATEŞ düğmesi. Hedef önce SEÇİLİR,
+       sonra ateşlenir — dokunmatikte yanlış kareye basmayı önler. */
+    if (!m.isSpectator) {
+      h += '<div class="bs-console">' +
+             '<canvas class="bs-radar" id="bsRadar" aria-hidden="true"></canvas>' +
+             '<div class="bs-console-mid">' +
+               '<div class="bs-console-label">HEDEF</div>' +
+               '<div class="bs-console-target" id="bsTarget">—</div>' +
+               '<div class="bs-console-hint" id="bsHint">' +
+                 (myTurn ? 'Rakip sularından bir kare seç' : 'Sıranı bekle') + '</div>' +
+             '</div>' +
+             '<button type="button" class="bs-fire" id="bsFire" disabled>ATEŞ</button>' +
+           '</div>';
+    }
 
     h += '<div class="bs-fleet-status"><div class="bs-fleet-status-title">🚩 Rakip Filosu</div><div class="bs-fleet-status-list">';
     (s.enemyFleet || []).forEach(function (f) {
@@ -598,17 +631,71 @@
         setVoiceOn(!voiceOn());
         if (window.GVArena) GVArena.repaint();
       });
+      /* ---------------- KÖPRÜ: panorama + radar ---------------- */
+      if (window.GVKopru) {
+        var enemyHits = {};
+        (s.myShots || []).forEach(function (v) {
+          if (v.result !== 'miss' && v.shipId) enemyHits[v.shipId] = (enemyHits[v.shipId] || 0) + 1;
+        });
+        GVKopru.durum({
+          filo: (s.enemyFleet || []).map(function (f) {
+            return { ad: f.name, boy: f.size, vurus: enemyHits[f.id] || 0, batik: !!f.sunk };
+          }),
+          sira: myTurn,
+          benimVurus: (s.myShots || []).map(function (v) {
+            return { r: v.r, c: v.c, isabet: v.result !== 'miss' };
+          })
+        });
+        GVKopru.bagla(root.querySelector('#bsSea'), root.querySelector('#bsRadar'));
+      }
+
+      /* ---------------- HEDEF SEÇ → ATEŞ ----------------
+         Kareye basınca hedef KİLİTLENİR, ateş konsoldaki düğmeyle (ya da
+         aynı kareye ikinci kez basarak) verilir. Dokunmatikte yanlış kareye
+         basıp atış harcamak böylece mümkün olmuyor. */
+      // DİKKAT: myTurn renderBattle'ın yerel değişkeni; bind ayrı bir
+      // fonksiyon olduğu için burada YENİDEN hesaplanmalı (aksi halde
+      // ReferenceError bind'i yarıda keser ve hiçbir dinleyici bağlanmaz).
+      var myTurn = !m.isSpectator && s.turn === m.seat;
+      var secili = null;
+      var hedefEl = root.querySelector('#bsTarget');
+      var ipucuEl = root.querySelector('#bsHint');
+      var atesEl = root.querySelector('#bsFire');
+
+      function hedefYaz() {
+        if (hedefEl) hedefEl.textContent = secili ? coordText(secili.r, secili.c) : '—';
+        if (atesEl) atesEl.disabled = !(secili && myTurn);
+        if (ipucuEl) {
+          ipucuEl.textContent = !myTurn ? 'Sıranı bekle'
+            : (secili ? 'ATEŞ düğmesine bas' : 'Rakip sularından bir kare seç');
+        }
+      }
+      function ates() {
+        if (!secili || m.isSpectator) return;
+        if (window.GVDeniz && GVDeniz.oynuyor && GVDeniz.oynuyor()) return;
+        if (window.GVDeniz && GVDeniz.ses) GVDeniz.ses.uyandir();
+        if (window.GVDeniz && GVDeniz.ses && GVDeniz.ses.acik()) GVDeniz.ses.cal('ates');
+        var v = secili; secili = null; hedefYaz();
+        m.emit('battleshipFire', { r: v.r, c: v.c });
+      }
+      if (atesEl) atesEl.addEventListener('click', ates);
+
       root.querySelectorAll('.bs-enemy-grid .bs-cell.live').forEach(function (cell) {
         cell.addEventListener('click', function () {
           if (m.isSpectator) return;
-          // Sahne oynarken atış alınmaz: hem görüntü bölünmesin hem de
-          // yanlışlıkla çift atış gitmesin.
           if (window.GVDeniz && GVDeniz.oynuyor && GVDeniz.oynuyor()) return;
+          var r = Number(cell.dataset.r), c = Number(cell.dataset.c);
+          // Aynı kareye ikinci basış = onay (konsolu kullanmak istemeyenler için).
+          if (secili && secili.r === r && secili.c === c) { ates(); return; }
+          root.querySelectorAll('.bs-enemy-grid .bs-cell.aim')
+              .forEach(function (e) { e.classList.remove('aim'); });
+          cell.classList.add('aim');
+          secili = { r: r, c: c };
           if (window.GVDeniz && GVDeniz.ses) GVDeniz.ses.uyandir();
-          if (window.GVDeniz && GVDeniz.ses && GVDeniz.ses.acik()) GVDeniz.ses.cal('ates');
-          m.emit('battleshipFire', { r: Number(cell.dataset.r), c: Number(cell.dataset.c) });
+          hedefYaz();
         });
       });
+      hedefYaz();
     }
   });
 })();

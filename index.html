@@ -690,8 +690,67 @@ button,input,select{font-family:var(--font)}
 .bs-log-item.mine{background:rgba(79,195,224,.14)}
 .bs-log-item.opp{background:rgba(255,123,84,.14)}
 .bs-log-item.sunk{font-weight:800}
+/* ===== KOMUTA KÖPRÜSÜ KABUĞU (js/deniz-kopru.js) =====
+   Üstte panoramik cam, altta konsol. Izgaralar aradadır; onların
+   kuralları değişmedi, yalnız çevrelerine bu kabuk geldi. */
+.bs-bridge{--kopru-cizgi:#23384a;--kopru-hud:#5cc8ff;--kopru-fosfor:#4fe3a1}
+.bs-view{position:relative;border:1px solid var(--kopru-cizgi);border-radius:12px;
+  overflow:hidden;background:#04090f;margin-bottom:12px;
+  box-shadow:0 14px 40px rgba(0,0,0,.45),inset 0 0 0 1px rgba(92,200,255,.06)}
+.bs-sea{display:block;width:100%;height:clamp(110px,18vh,190px)}
+/* Cam dikmeleri: köprüde oturduğumuzu hatırlatır (dekoratif, tıklama geçirmez) */
+.bs-view::before,.bs-view::after{content:'';position:absolute;top:0;bottom:0;width:8px;
+  background:linear-gradient(180deg,#1b2a36,#0d151d);pointer-events:none}
+.bs-view::before{left:32%}.bs-view::after{right:32%}
+.bs-view-hud{position:absolute;left:0;right:0;top:0;display:flex;justify-content:space-between;
+  gap:10px;padding:8px 12px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+  font-size:10.5px;letter-spacing:.1em;color:rgba(92,200,255,.8);
+  text-shadow:0 0 10px rgba(92,200,255,.35);pointer-events:none}
+.bs-view-state{position:absolute;left:50%;bottom:10px;transform:translateX(-50%);
+  max-width:calc(100% - 20px);overflow:hidden;text-overflow:ellipsis;
+  font-weight:800;font-size:.82em;letter-spacing:.14em;padding:4px 12px;border-radius:999px;
+  background:rgba(4,12,18,.72);border:1px solid rgba(92,200,255,.3);color:#9fd8f5;pointer-events:none}
+.bs-view-state.mine{border-color:rgba(79,227,161,.55);color:#7ef0bb;
+  box-shadow:0 0 18px rgba(79,227,161,.25)}
+
+/* Konsol şeridi */
+.bs-console{display:flex;align-items:center;gap:12px;margin-top:12px;padding:10px 12px;
+  border:1px solid var(--kopru-cizgi);border-radius:12px;
+  background:linear-gradient(180deg,#16242f,#101b26)}
+.bs-radar{width:62px;height:62px;flex:0 0 auto;border-radius:50%;
+  border:1px solid rgba(79,227,161,.35);background:#04120d}
+.bs-console-mid{flex:1;min-width:0}
+.bs-console-label{font-size:9.5px;letter-spacing:.18em;color:var(--text3,#8ea6b8)}
+.bs-console-target{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+  font-size:1.45em;font-weight:800;color:var(--kopru-fosfor);line-height:1.1}
+.bs-console-hint{font-size:.76em;color:var(--text3,#8ea6b8);margin-top:1px}
+.bs-fire{flex:0 0 auto;min-width:104px;min-height:48px;border-radius:12px;cursor:pointer;
+  font-weight:900;letter-spacing:.14em;font-size:.95em;color:#2a0703;
+  background:linear-gradient(180deg,#ff7a4d,#e0331c);border:1px solid #ff9b6e;
+  box-shadow:0 8px 22px rgba(224,51,28,.35);transition:filter .15s}
+.bs-fire:hover:not(:disabled){filter:brightness(1.08)}
+.bs-fire:disabled{cursor:default;filter:grayscale(.75);opacity:.45;box-shadow:none}
+.bs-fire:focus-visible{outline:2px solid #ffb020;outline-offset:2px}
+/* Kilitlenen hedef karesi */
+.bs-cell.aim{outline:2px solid #ffb020;outline-offset:-2px;
+  background:rgba(255,176,32,.22)!important;box-shadow:0 0 14px rgba(255,176,32,.35) inset}
+@media(prefers-reduced-motion:reduce){.bs-fire{transition:none}}
+
 /* Mobil: yalnız hücre ölçüsü küçülür — etkileşim ve görünüm aynıdır. */
-@media(max-width:760px){.bs-wrap{--bs-cell:28px}.bs-battlefield{gap:12px}}
+/* Sesli anlatım şeridi: sıra durumu camda yazdığı için burası ince */
+.bs-status-thin{display:flex;align-items:center;justify-content:flex-end;gap:8px}
+.bs-voice-label{font-size:.78em;color:var(--text3,#8ea6b8);letter-spacing:.02em}
+@media(max-width:760px){.bs-wrap{--bs-cell:28px}.bs-battlefield{gap:12px}
+  .bs-sea{height:clamp(96px,15vh,140px)}
+  .bs-view-hud{font-size:9px;letter-spacing:.06em;padding:6px 9px}
+  .bs-view::before{left:30%}.bs-view::after{right:30%}
+  .bs-view-state{font-size:.72em;letter-spacing:.08em;padding:3px 10px;bottom:7px;white-space:nowrap}
+  .bs-console{gap:9px;padding:9px 10px}
+  .bs-radar{width:52px;height:52px}
+  .bs-fire{min-width:86px;min-height:46px;font-size:.88em;letter-spacing:.1em}}
+/* Çok dar ekranda sağdaki hava/görüş bilgisi düşer — kerteriz ve filo kalır */
+@media(max-width:520px){.bs-view-hud span:last-child{display:none}
+  .bs-view-state{font-size:.66em;padding:3px 8px}}
 @media(max-width:420px){.bs-wrap{--bs-cell:24px}}
 @media(prefers-reduced-motion:reduce){.bs-cell.bs-latest{animation:none}}
 
@@ -5203,7 +5262,8 @@ GV.init();
 <script src="js/connect4-online.js?v=20260904b" defer></script>
 <script src="js/bilardo-online.js?v=20260914b" defer></script>
 <script src="js/deniz-sinematik.js?v=20260920a" defer></script>
-<script src="js/battleship-online.js?v=20260920b" defer></script>
+<script src="js/deniz-kopru.js?v=20260920a" defer></script>
+<script src="js/battleship-online.js?v=20260920c" defer></script>
 <script src="js/chat.js?v=20260821c" defer></script>
 <script src="js/leave-guard.js?v=20260908b" defer></script>
 <script src="js/auth.js?v=20260912a" defer></script>
