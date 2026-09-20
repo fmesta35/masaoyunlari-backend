@@ -35,3 +35,7 @@ _to_delete/
 #  config.php ezildi ve uyelik sistemi durdu. Depoda yalniz
 #  yoncu-api/config.ornek.php bulunur.)
 yoncu-api/config.php
+
+# Python ara dosyalari (tools/ altindaki kapak ureticisi)
+__pycache__/
+*.pyc
