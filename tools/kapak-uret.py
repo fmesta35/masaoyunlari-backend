@@ -548,26 +548,34 @@ def _tas_maskesi(tur, g, y):
     return m
 
 
-def _tas(tur, g, beyaz):
-    """Maskeyi ışıklandırıp RGBA taş üretir: dikey geçiş + sol kenar ışığı."""
+def _tas(tur, g, beyaz, renkler=None, kenar_guc=None):
+    """
+    Maskeyi ışıklandırıp RGBA taş üretir: dikey geçiş + sol kenar ışığı.
+    renkler=(ust, alt) verilirse fildişi/siyah yerine o iki renk kullanılır —
+    bir fotoğrafın içine taş eklerken oradaki ahşabın tonu tutturulabilsin diye.
+    """
     y = int(g * TAS_YUK[tur])
     g = int(g)
     m = _tas_maskesi(tur, g, y)
-    ust, alt = ((253, 246, 230), (198, 179, 146)) if beyaz else ((92, 80, 68), (18, 15, 12))
+    ust, alt = renkler if renkler else \
+               (((253, 246, 230), (198, 179, 146)) if beyaz else ((92, 80, 68), (18, 15, 12)))
     yy, xx = np.mgrid[0:y, 0:g].astype(np.float32)
     dv = yy / max(1.0, y - 1.0)                       # 0 tepe -> 1 taban
     isik = np.clip(1.24 - (xx / g) * 0.62, 0.56, 1.24)  # ışık soldan
     arr = np.stack([ust[i] + (alt[i] - ust[i]) * dv for i in range(3)], axis=2) * isik[:, :, None]
     im = Image.fromarray(np.clip(arr, 0, 255).astype(np.uint8)).convert('RGBA')
     im.putalpha(m.filter(ImageFilter.GaussianBlur(0.6)))
-    # sol kenar ışığı: maskeyi hafif sağa kaydırıp farkını aydınlatır
+    # Sol kenar ışığı: maske biraz sağa kaydırılıp farkı aydınlatılır.
+    # KAYDIRMA TAŞIN ENİYLE ORANTILI olmalı — sabit piksel verilirse küçük
+    # taşlarda kenar ışığı bütün siluete yayılıp taşı bembeyaz gösteriyor.
+    kay = max(1.0, g * 0.045)
     kenar = Image.new('RGBA', im.size, (255, 236, 198, 0))
     fark = Image.fromarray(np.clip(
         np.asarray(m).astype(int) - np.asarray(m.transform(
-            m.size, Image.AFFINE, (1, 0, 3, 0, 1, 0))).astype(int), 0, 255).astype(np.uint8))
-    # Siyah taşlar koyu tahtaya karışmasın diye kenar ışığı onlarda DAHA güçlü.
+            m.size, Image.AFFINE, (1, 0, kay, 0, 1, 0))).astype(int), 0, 255).astype(np.uint8))
+    guc = kenar_guc if kenar_guc is not None else (0.80 if beyaz else 1.0)
     kenar.putalpha(Image.eval(fark.filter(ImageFilter.GaussianBlur(1.0)),
-                              lambda v: int(v * (0.80 if beyaz else 1.0))))
+                              lambda v: int(v * guc)))
     return Image.alpha_composite(im, kenar)
 
 
