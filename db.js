@@ -140,6 +140,31 @@ try {
     );
     CREATE INDEX IF NOT EXISTS idx_report_scope ON reports(scope, created_at);
     CREATE INDEX IF NOT EXISTS idx_report_reported ON reports(reported_uid);
+
+    -- TURNUVALAR ------------------------------------------------------------
+    -- Kurucu panelinden kurulur: gün/saat, kayıt penceresi ve kapasite
+    -- tamamen kurucunun belirlediği değerlerdir. Katılımcı listesi ve
+    -- braket (eşleşme ağacı) tek bir JSON alanında durur; braketin şekli
+    -- tournament-engine.js'in ürettiği yapıdır ve bir bütün olarak
+    -- okunup yazılır, satır satır sorgulanmaz.
+    CREATE TABLE IF NOT EXISTS tournaments(
+      id TEXT PRIMARY KEY,
+      game_id TEXT NOT NULL,
+      name TEXT NOT NULL,
+      status TEXT NOT NULL,          -- taslak|kayit|hazir|devam|bitti|iptal|ertelendi
+      register_open_at INTEGER,      -- kayıtların açılacağı an
+      register_close_at INTEGER,     -- kayıtların kapanacağı an
+      start_at INTEGER,              -- turnuvanın başlayacağı an
+      end_at INTEGER,                -- kurucunun öngördüğü bitiş
+      capacity INTEGER NOT NULL,     -- hedeflenen katılımcı sayısı
+      note TEXT,                     -- kurucunun bildirimlere eklediği özel not
+      created_by INTEGER,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      data TEXT                      -- JSON: {katilimcilar:[...], braket:{...}, duyurular:[...]}
+    );
+    CREATE INDEX IF NOT EXISTS idx_tourn_status ON tournaments(status, start_at);
+    CREATE INDEX IF NOT EXISTS idx_tourn_game ON tournaments(game_id, start_at);
   `);
   // Eski veritabanları: kurucu bayrağı sütunu sonradan eklendi (idempotent).
   try {

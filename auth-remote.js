@@ -264,6 +264,20 @@ function puanSiralama(limit, gameId) {
   return callJson(REMOTE + '/social.php?action=scoreBoard' + q, { key: KEY })
     .then(r => (r.data && r.data.ok) ? (r.data.siralama || []) : []).catch(() => []);
 }
+/* ---------------- TURNUVALAR (uzak mod → Yöncü MySQL) ---------------- */
+function turnuvaListe() {
+  return callJson(REMOTE + '/social.php?action=tournamentList', { key: KEY })
+    .then(r => (r.data && r.data.ok) ? (r.data.liste || []) : []).catch(() => []);
+}
+function turnuvaKaydet(t) {
+  return callJson(REMOTE + '/social.php?action=tournamentSave', { key: KEY, body: { turnuva: t } })
+    .then(r => r.data || { ok: false }).catch(() => ({ ok: false }));
+}
+function turnuvaSil(id) {
+  return callJson(REMOTE + '/social.php?action=tournamentDelete', { key: KEY, body: { id: String(id) } })
+    .then(r => r.data || { ok: false }).catch(() => ({ ok: false }));
+}
+
 function puanSifirla(byUserId, mode) {
   return callJson(REMOTE + '/social.php?action=scoreReset', { key: KEY, body: { by: byUserId, mode } })
     .then(r => r.data || { ok: false }).catch(() => ({ ok: false }));
@@ -325,4 +339,5 @@ function raporListe(p) {
 module.exports = { enabled, installProxy, me, meFull, userPublic, isFriendPair, hasRequest, hasRequestOrNull, isFriendPairOrNull, recordMatch, logChat,
   puanYaz, puanOzet, puanSiralama, puanSifirla, puanAyarOku, puanAyarYaz,
   yaptirimUygula, yaptirimKaldir, yaptirimAktif, yaptirimListe,
-  yaptirimGecmis, raporEkle, raporListe, REMOTE };
+  yaptirimGecmis, raporEkle, raporListe,
+  turnuvaListe, turnuvaKaydet, turnuvaSil, REMOTE };

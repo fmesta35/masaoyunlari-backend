@@ -207,6 +207,10 @@ function installAuth(app, deps) {
       yaptirimGecmis: () => [],
       raporEkle: () => ({ ok: false, error: 'Veritabanı yok.' }),
       raporListe: () => [],
+      // Turnuva: veritabanı yoksa liste boştur, kayıt yapılamaz.
+      turnuvaListe: () => [],
+      turnuvaKaydet: () => ({ ok: false, error: 'Veritabanı yok.' }),
+      turnuvaSil: () => ({ ok: false, error: 'Veritabanı yok.' }),
       userFromReq: () => null,
       userFromReqAsync: async () => null,
       verifyToken: async () => null, verifyTokenFull: async () => ({ uid: null, status: 'invalid' }),
@@ -849,6 +853,78 @@ function installAuth(app, deps) {
     } catch (e) { console.warn('şikayet listesi okunamadı:', e.message); return []; }
   }
 
+  /* ==================================================================
+     TURNUVALAR (yerel / SQLite)
+     Braket ve katılımcı listesi tek bir JSON alanında tutulur; sunucu
+     turnuvayı bir bütün olarak okur, değiştirir ve geri yazar. Böylece
+     tournament-engine.js'in ürettiği yapı olduğu gibi saklanır.
+     ================================================================== */
+  function turnuvaSatirTemiz(r) {
+    if (!r) return null;
+    let d = {};
+    try { d = JSON.parse(r.data || '{}'); } catch (_) { d = {}; }
+    return {
+      id: String(r.id),
+      gameId: String(r.game_id || ''),
+      ad: String(r.name || ''),
+      durum: String(r.status || 'taslak'),
+      kayitAcilis: r.register_open_at != null ? Number(r.register_open_at) : null,
+      kayitKapanis: r.register_close_at != null ? Number(r.register_close_at) : null,
+      baslangic: r.start_at != null ? Number(r.start_at) : null,
+      bitis: r.end_at != null ? Number(r.end_at) : null,
+      kapasite: Number(r.capacity) || 0,
+      not: String(r.note || ''),
+      olusturanUid: r.created_by != null ? Number(r.created_by) : null,
+      olusturma: Number(r.created_at) || 0,
+      guncelleme: Number(r.updated_at) || 0,
+      katilimcilar: Array.isArray(d.katilimcilar) ? d.katilimcilar : [],
+      braket: d.braket || null,
+      duyurular: Array.isArray(d.duyurular) ? d.duyurular : []
+    };
+  }
+
+  function turnuvaListe() {
+    if (!db) return [];
+    try {
+      return db.prepare('SELECT * FROM tournaments ORDER BY start_at DESC, created_at DESC LIMIT 200')
+               .all().map(turnuvaSatirTemiz);
+    } catch (e) { console.warn('turnuva listesi okunamadı:', e.message); return []; }
+  }
+
+  function turnuvaKaydet(t) {
+    if (!db) return { ok: false, error: 'Veritabanı yok.' };
+    if (!t || !t.id) return { ok: false, error: 'Turnuva kimliği yok.' };
+    const simdi = Date.now();
+    const veri = JSON.stringify({
+      katilimcilar: t.katilimcilar || [],
+      braket: t.braket || null,
+      duyurular: t.duyurular || []
+    });
+    try {
+      db.prepare(`INSERT INTO tournaments
+          (id,game_id,name,status,register_open_at,register_close_at,start_at,end_at,
+           capacity,note,created_by,created_at,updated_at,data)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+        ON CONFLICT(id) DO UPDATE SET
+          game_id=excluded.game_id, name=excluded.name, status=excluded.status,
+          register_open_at=excluded.register_open_at, register_close_at=excluded.register_close_at,
+          start_at=excluded.start_at, end_at=excluded.end_at, capacity=excluded.capacity,
+          note=excluded.note, updated_at=excluded.updated_at, data=excluded.data`)
+        .run(String(t.id), String(t.gameId || ''), String(t.ad || ''), String(t.durum || 'taslak'),
+             t.kayitAcilis || null, t.kayitKapanis || null, t.baslangic || null, t.bitis || null,
+             Number(t.kapasite) || 0, String(t.not || ''),
+             t.olusturanUid != null ? Number(t.olusturanUid) : null,
+             Number(t.olusturma) || simdi, simdi, veri);
+      return { ok: true };
+    } catch (e) { console.warn('turnuva kaydedilemedi:', e.message); return { ok: false, error: e.message }; }
+  }
+
+  function turnuvaSil(id) {
+    if (!db) return { ok: false, error: 'Veritabanı yok.' };
+    try { db.prepare('DELETE FROM tournaments WHERE id = ?').run(String(id)); return { ok: true }; }
+    catch (e) { return { ok: false, error: e.message }; }
+  }
+
   function raporSatirTemiz(r) {
     if (!r) return null;
     let dokum = [];
@@ -981,6 +1057,7 @@ function installAuth(app, deps) {
     emitToUser, yaptirimUygula, yaptirimKaldir, yaptirimAktif, yaptirimListe,
     // Uyarı geçmişi (panelde "Notlar") + şikayet kayıtları.
     yaptirimGecmis, raporEkle, raporListe,
+    turnuvaListe, turnuvaKaydet, turnuvaSil,
     // Kurucu Paneli yetki kontrolü (server.js requireAdmin): istemcinin
     // oturum sahibini (e-posta dahil) döndürür.
     userFromReq: (req) => authFromReq(req),
@@ -1253,6 +1330,10 @@ function installRemoteMode(app, deps) {
     yaptirimGecmis: (uid, limit) => remote.yaptirimGecmis(uid, limit),
     raporEkle: (p) => remote.raporEkle(p),
     raporListe: (p) => remote.raporListe(p),
+    // Turnuvalar — UZAK MOD: kalıcılık Yöncü MySQL'de, mantık Render'da.
+    turnuvaListe: () => remote.turnuvaListe(),
+    turnuvaKaydet: (t) => remote.turnuvaKaydet(t),
+    turnuvaSil: (id) => remote.turnuvaSil(id),
     // Kurucu Paneli yetkisi — UZAK MOD. Eskiden bu API userFromReq'i HİÇ
     // döndürmüyordu; server.js'teki requireAdmin bu yüzden üretimde kurucuya
     // bile 403 veriyordu (/api/admin/stats hiç çalışmadı). Kimlik artık

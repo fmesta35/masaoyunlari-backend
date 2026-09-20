@@ -620,4 +620,79 @@ if ($action === 'chatHistory') {
     gv_json(array('ok' => true, 'messages' => $messages));
 }
 
+/* ==========================================================================
+   TURNUVALAR — Render mantığı kurar, burası yalnız saklar.
+   Katılımcı listesi ve braket "data" alanında JSON olarak durur; kayıt
+   bir bütün olarak okunur ve yazılır.
+   ========================================================================== */
+if ($action === 'tournamentList') {
+    gv_require_server_key();
+    $pdo = gv_pdo();
+    $st = $pdo->query("SELECT * FROM gv_tournaments ORDER BY start_at DESC, created_at DESC LIMIT 200");
+    $liste = array();
+    foreach ($st->fetchAll() as $r) {
+        $d = json_decode($r['data'] ? $r['data'] : '{}', true);
+        if (!is_array($d)) $d = array();
+        $liste[] = array(
+            'id' => strval($r['id']),
+            'gameId' => strval($r['game_id']),
+            'ad' => strval($r['name']),
+            'durum' => strval($r['status']),
+            'kayitAcilis' => $r['register_open_at'] !== null ? intval($r['register_open_at']) : null,
+            'kayitKapanis' => $r['register_close_at'] !== null ? intval($r['register_close_at']) : null,
+            'baslangic' => $r['start_at'] !== null ? intval($r['start_at']) : null,
+            'bitis' => $r['end_at'] !== null ? intval($r['end_at']) : null,
+            'kapasite' => intval($r['capacity']),
+            'not' => strval($r['note']),
+            'olusturanUid' => $r['created_by'] !== null ? intval($r['created_by']) : null,
+            'olusturma' => intval($r['created_at']),
+            'guncelleme' => intval($r['updated_at']),
+            'katilimcilar' => isset($d['katilimcilar']) && is_array($d['katilimcilar']) ? $d['katilimcilar'] : array(),
+            'braket' => isset($d['braket']) ? $d['braket'] : null,
+            'duyurular' => isset($d['duyurular']) && is_array($d['duyurular']) ? $d['duyurular'] : array()
+        );
+    }
+    gv_json(array('ok' => true, 'liste' => $liste));
+}
+
+if ($action === 'tournamentSave') {
+    gv_require_server_key();
+    $t = isset($in['turnuva']) && is_array($in['turnuva']) ? $in['turnuva'] : null;
+    if (!$t || empty($t['id'])) gv_json(array('ok' => false, 'error' => 'Turnuva kimliği yok.'));
+    $pdo = gv_pdo();
+    $veri = json_encode(array(
+        'katilimcilar' => isset($t['katilimcilar']) ? $t['katilimcilar'] : array(),
+        'braket' => isset($t['braket']) ? $t['braket'] : null,
+        'duyurular' => isset($t['duyurular']) ? $t['duyurular'] : array()
+    ), JSON_UNESCAPED_UNICODE);
+    $pdo->prepare("INSERT INTO gv_tournaments
+        (id,game_id,name,status,register_open_at,register_close_at,start_at,end_at,
+         capacity,note,created_by,created_at,updated_at,data)
+        VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+        ON DUPLICATE KEY UPDATE
+          game_id=VALUES(game_id), name=VALUES(name), status=VALUES(status),
+          register_open_at=VALUES(register_open_at), register_close_at=VALUES(register_close_at),
+          start_at=VALUES(start_at), end_at=VALUES(end_at), capacity=VALUES(capacity),
+          note=VALUES(note), updated_at=VALUES(updated_at), data=VALUES(data)")
+        ->execute(array(
+            strval($t['id']), strval($t['gameId'] ?? ''), strval($t['ad'] ?? ''),
+            strval($t['durum'] ?? 'taslak'),
+            isset($t['kayitAcilis']) ? intval($t['kayitAcilis']) : null,
+            isset($t['kayitKapanis']) ? intval($t['kayitKapanis']) : null,
+            isset($t['baslangic']) ? intval($t['baslangic']) : null,
+            isset($t['bitis']) ? intval($t['bitis']) : null,
+            intval($t['kapasite'] ?? 0), strval($t['not'] ?? ''),
+            isset($t['olusturanUid']) ? intval($t['olusturanUid']) : null,
+            intval($t['olusturma'] ?? $now), $now, $veri));
+    gv_json(array('ok' => true));
+}
+
+if ($action === 'tournamentDelete') {
+    gv_require_server_key();
+    $id = strval($in['id'] ?? '');
+    if ($id === '') gv_json(array('ok' => false, 'error' => 'Kimlik yok.'));
+    gv_pdo()->prepare("DELETE FROM gv_tournaments WHERE id = ?")->execute(array($id));
+    gv_json(array('ok' => true));
+}
+
 gv_json(array('ok' => false, 'error' => 'Bilinmeyen işlem.'), 404);

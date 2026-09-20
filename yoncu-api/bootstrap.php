@@ -276,6 +276,27 @@ function gv_schema($pdo) {
         status VARCHAR(16) NOT NULL DEFAULT 'open',
         INDEX (scope, created_at), INDEX (reported_uid)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci");
+
+    /* TURNUVALAR — kurucu panelinden kurulur; katılımcı listesi ve braket
+       (eşleşme ağacı) tek bir JSON alanında durur. */
+    $pdo->exec("CREATE TABLE IF NOT EXISTS gv_tournaments(
+        id VARCHAR(64) NOT NULL PRIMARY KEY,
+        game_id VARCHAR(32) NOT NULL,
+        name VARCHAR(160) NOT NULL,
+        status VARCHAR(16) NOT NULL,
+        register_open_at BIGINT NULL,
+        register_close_at BIGINT NULL,
+        start_at BIGINT NULL,
+        end_at BIGINT NULL,
+        capacity INT NOT NULL DEFAULT 0,
+        note TEXT NULL,
+        created_by INT NULL,
+        created_at BIGINT NOT NULL,
+        updated_at BIGINT NOT NULL,
+        data MEDIUMTEXT NULL,
+        INDEX idx_tourn_status (status, start_at),
+        INDEX idx_tourn_game (game_id, start_at)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
 }
 
 // ---------------- Üye yardımcıları ----------------

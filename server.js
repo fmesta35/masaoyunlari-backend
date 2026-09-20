@@ -2083,6 +2083,11 @@ function scheduleRoomReset(room) {
     room.__playCounted = true;
     try { playCounts.bump(room.gameId); } catch (_) {}
   }
+  /* TURNUVA MAÇI: her oyunun bitişi bu tek noktadan geçtiği için kazananı
+     brakete buradan işliyoruz (oyun başına ayrı kanca gerekmiyor). */
+  if (room.turnuva && room.result) {
+    try { turnuvaKatmani.macBitti(room); } catch (e) { console.warn('turnuva sonucu:', e.message); }
+  }
   // Maç geçmişi: bitişte (her yol buradan geçer) üyeli oyuncular için tek
   // defalık kayıt düşülür (profilde "Son Maçlar" ve istatistikler bundan okunur).
   if (authApi && room.result && !room.__matchRecorded) {
@@ -3767,6 +3772,16 @@ async function requireAdmin(req, res) {
   }
   return u;
 }
+
+/* ==========================================================================
+   TURNUVALAR
+   Kurallar tournament-engine.js'te, kalıcılık authApi'de, zaman yönetimi
+   tournament-server.js'te. Burada yalnız bağlanıyor: uçlar Express'e,
+   maç sonuçları da aşağıdaki scheduleRoomReset kancasına.
+   ========================================================================== */
+const turnuvaKatmani = require('./tournament-server').kur({
+  io, authApi, app, rooms, createRoom, emitRoom, requireAdmin
+});
 
 // Kurucu Paneli — üye listesi (yalnız yerel modda Render; uzak modda
 // istemci Yöncü PHP'sine /api/admin.php?action=users gider):

@@ -236,6 +236,7 @@
           <button type="button" class="admin-tab" data-tab="users" style="padding:9px 14px;border:none;border-radius:9px 9px 0 0;font-weight:700;cursor:pointer;background:var(--bg3);color:var(--text)">👥 Kullanıcı &amp; Roller</button>
           <button type="button" class="admin-tab" data-tab="games" style="padding:9px 14px;border:none;border-radius:9px 9px 0 0;font-weight:700;cursor:pointer;background:var(--bg3);color:var(--text)">🎮 Oyunlar</button>
           <button type="button" class="admin-tab" data-tab="reports" style="padding:9px 14px;border:none;border-radius:9px 9px 0 0;font-weight:700;cursor:pointer;background:var(--bg3);color:var(--text)">🚩 Şikayetler</button>
+          <button type="button" class="admin-tab" data-tab="tourn" style="padding:9px 14px;border:none;border-radius:9px 9px 0 0;font-weight:700;cursor:pointer;background:var(--bg3);color:var(--text)">🏆 Turnuvalar</button>
         </div>
         <div id="adminPanelBody" style="flex:1;overflow-y:auto;padding:16px"></div>
       </div>`;
@@ -259,7 +260,165 @@
     });
     if (panelTab === 'users') renderUsersTab(body);
     else if (panelTab === 'reports') renderReportsTab(body);
+    else if (panelTab === 'tourn') renderTournTab(body);
     else renderGamesTab(body);
+  }
+
+  /* ================== SEKME 4: TURNUVALAR ==================
+     Kullanıcının isteği: "Turnuva günü ve saatleri tamamen kurucu
+     tarafından ayarlanır." Buradan oyun, ad, KAYIT penceresi, BAŞLANGIÇ/
+     BİTİŞ saati, kontenjan ve bildirimlere eklenecek özel not girilir;
+     ayrıca erteleme/iptal duyurusu yapılır.
+
+     Turnuva mantığı sunucudadır (tournament-server.js) — burası yalnız
+     formu gösterip uçlara yazar. */
+  let tournCache = [];
+
+  function yerelZamanDegeri(ms) {
+    // <input type="datetime-local"> YEREL saat ister; ISO'ya çevirirken
+    // UTC'ye kaymasın diye zaman dilimi farkı elle düşülür.
+    if (!ms) return '';
+    const d = new Date(Number(ms) - new Date(Number(ms)).getTimezoneOffset() * 60000);
+    return d.toISOString().slice(0, 16);
+  }
+  function zamanMs(deger) {
+    if (!deger) return null;
+    const t = new Date(deger).getTime();
+    return Number.isFinite(t) ? t : null;
+  }
+  const TURNUVA_DURUM = {
+    taslak: 'Kayıtlar açılmadı', kayit: 'Kayıtlar açık', hazir: 'Başlamayı bekliyor',
+    devam: 'Devam ediyor', bitti: 'Tamamlandı', iptal: 'İptal', ertelendi: 'Ertelendi'
+  };
+
+  async function fetchTournaments() {
+    const r = await api(BACKEND + '/api/admin/tournaments', null, 'GET');
+    return (r && r.ok) ? (r.liste || []) : [];
+  }
+
+  function turnuvaSatiri(t) {
+    const g = (window.GAMES && window.GAMES[t.gameId]) || { name: t.gameId, icon: '🎮' };
+    const tarih = ms => ms ? new Date(Number(ms)).toLocaleString('tr-TR',
+      { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—';
+    return `
+      <div style="border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:8px;background:var(--bg2)">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          <span style="font-size:1.2em">${g.icon}</span>
+          <b style="flex:1;min-width:120px">${esc(t.ad)}</b>
+          <span style="font-size:.76em;color:var(--text3)">${esc(g.name)}</span>
+          <span style="font-size:.74em;font-weight:800;padding:3px 9px;border-radius:999px;background:var(--bg3)">${TURNUVA_DURUM[t.durum] || t.durum}</span>
+        </div>
+        <div style="font-size:.78em;color:var(--text3);margin-top:6px">
+          Kayıt: ${tarih(t.kayitAcilis)} – ${tarih(t.kayitKapanis)} · Başlangıç: ${tarih(t.baslangic)}
+          · Katılımcı: ${t.katilimci}/${t.kapasite}
+        </div>
+        ${t.not ? `<div style="font-size:.78em;margin-top:5px;color:#ffcf82">📌 ${esc(t.not)}</div>` : ''}
+        <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">
+          <button type="button" data-t-duzen="${esc(t.id)}" style="border:1px solid var(--border);background:var(--bg3);color:var(--text);border-radius:8px;padding:5px 10px;cursor:pointer;font-size:.8em">✏️ Düzenle</button>
+          <button type="button" data-t-duyuru="${esc(t.id)}" style="border:1px solid var(--border);background:var(--bg3);color:var(--text);border-radius:8px;padding:5px 10px;cursor:pointer;font-size:.8em">📣 Duyuru / Ertele</button>
+          <button type="button" data-t-sil="${esc(t.id)}" style="border:1px solid var(--danger,#ff7675);background:transparent;color:var(--danger,#ff7675);border-radius:8px;padding:5px 10px;cursor:pointer;font-size:.8em">🗑️ Sil</button>
+        </div>
+      </div>`;
+  }
+
+  function turnuvaFormu(t) {
+    const oyunlar = Object.keys(window.GAMES || { chess: 1 });
+    const secili = t ? t.gameId : oyunlar[0];
+    const inp = 'padding:8px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg3);color:var(--text);width:100%';
+    return `
+      <div style="border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:14px;background:var(--bg2)">
+        <div style="font-weight:800;margin-bottom:8px">${t ? '✏️ Turnuvayı düzenle' : '➕ Yeni turnuva'}</div>
+        <input type="hidden" id="tfId" value="${t ? esc(t.id) : ''}">
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px">
+          <label style="font-size:.8em;color:var(--text3)">Oyun
+            <select id="tfGame" style="${inp}">
+              ${oyunlar.map(gid => `<option value="${gid}"${gid === secili ? ' selected' : ''}>${esc((window.GAMES[gid] || {}).name || gid)}</option>`).join('')}
+            </select></label>
+          <label style="font-size:.8em;color:var(--text3)">Turnuva adı
+            <input id="tfAd" style="${inp}" value="${t ? esc(t.ad) : ''}" placeholder="Cumartesi Kupası"></label>
+          <label style="font-size:.8em;color:var(--text3)">Kayıt açılışı
+            <input id="tfKayitAc" type="datetime-local" style="${inp}" value="${yerelZamanDegeri(t && t.kayitAcilis)}"></label>
+          <label style="font-size:.8em;color:var(--text3)">Kayıt kapanışı
+            <input id="tfKayitKapa" type="datetime-local" style="${inp}" value="${yerelZamanDegeri(t && t.kayitKapanis)}"></label>
+          <label style="font-size:.8em;color:var(--text3)">Turnuva başlangıcı
+            <input id="tfBas" type="datetime-local" style="${inp}" value="${yerelZamanDegeri(t && t.baslangic)}"></label>
+          <label style="font-size:.8em;color:var(--text3)">Öngörülen bitiş
+            <input id="tfBit" type="datetime-local" style="${inp}" value="${yerelZamanDegeri(t && t.bitis)}"></label>
+          <label style="font-size:.8em;color:var(--text3)">Kontenjan
+            <select id="tfKap" style="${inp}">
+              ${[4, 8, 16, 32, 64].map(n => `<option value="${n}"${t && t.kapasite === n ? ' selected' : ''}>${n} kişi</option>`).join('')}
+            </select></label>
+        </div>
+        <label style="font-size:.8em;color:var(--text3);display:block;margin-top:10px">Bildirimlere eklenecek özel not (isteğe bağlı)
+          <textarea id="tfNot" rows="2" style="${inp};resize:vertical" placeholder="Örn. Maçlar 10 dakikalıktır, geç kalan hükmen kaybeder.">${t ? esc(t.not || '') : ''}</textarea></label>
+        <div style="font-size:.76em;color:var(--text3);margin-top:8px">
+          Kayıtlar açılınca herkese, kontenjan dolunca yine herkese bildirim gider.
+          Kayıt olan üyeye ayrıca kendi bildirimi ulaşır.
+        </div>
+        <div style="display:flex;gap:8px;margin-top:10px">
+          <button type="button" id="tfKaydet" style="background:linear-gradient(135deg,#6c5ce7,#8f7bff);color:#fff;border:none;padding:9px 18px;border-radius:9px;font-weight:800;cursor:pointer">💾 Kaydet</button>
+          ${t ? '<button type="button" id="tfIptalEt" style="border:1px solid var(--border);background:var(--bg3);color:var(--text);border-radius:9px;padding:9px 14px;cursor:pointer">Vazgeç</button>' : ''}
+        </div>
+      </div>`;
+  }
+
+  function renderTournTab(body, duzenlenen) {
+    body.innerHTML = turnuvaFormu(duzenlenen || null) +
+      '<div style="font-weight:800;margin-bottom:6px">🏆 Turnuvalar</div>' +
+      '<div id="adminTournList" style="color:var(--text3);font-size:.85em">Yükleniyor…</div>';
+
+    const kaydet = document.getElementById('tfKaydet');
+    if (kaydet) kaydet.addEventListener('click', async () => {
+      const govde = {
+        id: (document.getElementById('tfId').value || '') || undefined,
+        gameId: document.getElementById('tfGame').value,
+        ad: document.getElementById('tfAd').value.trim(),
+        kayitAcilis: zamanMs(document.getElementById('tfKayitAc').value),
+        kayitKapanis: zamanMs(document.getElementById('tfKayitKapa').value),
+        baslangic: zamanMs(document.getElementById('tfBas').value),
+        bitis: zamanMs(document.getElementById('tfBit').value),
+        kapasite: Number(document.getElementById('tfKap').value),
+        not: document.getElementById('tfNot').value.trim()
+      };
+      if (!govde.ad) return toast('⚠️ Turnuvaya bir ad verin.', 'error');
+      kaydet.disabled = true;
+      const r = await api(BACKEND + '/api/admin/tournaments', govde, 'POST');
+      kaydet.disabled = false;
+      if (r && r.ok) { toast('✅ Turnuva kaydedildi.', 'success'); renderTournTab(body); }
+      else toast('⚠️ ' + ((r && r.error) || 'Kaydedilemedi.'), 'error');
+    });
+    const vazgec = document.getElementById('tfIptalEt');
+    if (vazgec) vazgec.addEventListener('click', () => renderTournTab(body));
+
+    fetchTournaments().then(liste => {
+      tournCache = liste;
+      const el = document.getElementById('adminTournList');
+      if (!el) return;
+      el.innerHTML = liste.length
+        ? liste.map(turnuvaSatiri).join('')
+        : '<div style="padding:18px;text-align:center">Henüz turnuva yok. Yukarıdan yeni bir turnuva kurun.</div>';
+
+      el.querySelectorAll('[data-t-duzen]').forEach(b => b.addEventListener('click', () => {
+        const t = tournCache.find(x => x.id === b.getAttribute('data-t-duzen'));
+        if (t) renderTournTab(body, t);
+      }));
+      el.querySelectorAll('[data-t-duyuru]').forEach(b => b.addEventListener('click', async () => {
+        const id = b.getAttribute('data-t-duyuru');
+        const metin = window.prompt('Tüm kullanıcılara gidecek duyuru:\n\n(Örn. "Turnuva teknik nedenle 1 saat ertelendi.")');
+        if (!metin) return;
+        const durum = window.confirm('Turnuva ERTELENDİ olarak işaretlensin mi?\n\nTamam = ertelendi, İptal = durum değişmesin')
+          ? 'ertelendi' : undefined;
+        const r = await api(BACKEND + '/api/admin/tournaments/' + id + '/duyuru', { metin, durum }, 'POST');
+        if (r && r.ok) { toast('📣 Duyuru gönderildi.', 'success'); renderTournTab(body); }
+        else toast('⚠️ ' + ((r && r.error) || 'Gönderilemedi.'), 'error');
+      }));
+      el.querySelectorAll('[data-t-sil]').forEach(b => b.addEventListener('click', async () => {
+        if (!window.confirm('Turnuva silinsin mi? Bu işlem geri alınamaz.')) return;
+        const r = await api(BACKEND + '/api/admin/tournaments/' + b.getAttribute('data-t-sil'), null, 'DELETE');
+        if (r && r.ok) { toast('Turnuva silindi.', 'info'); renderTournTab(body); }
+        else toast('⚠️ ' + ((r && r.error) || 'Silinemedi.'), 'error');
+      }));
+    });
   }
 
   // ---------- SEKME 1: Kullanıcı & Roller ----------
