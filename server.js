@@ -113,7 +113,7 @@ const MAX_SPECTATORS = 20;
 // görürken renginin değişmemesi için sonuç bir süre korunur.
 const POST_GAME_HOLD_MS = Number(process.env.GV_POST_GAME_HOLD_MS) || 8000;
 // Oyun sırasında kopan oyuncuya yeniden bağlanması için tanınan süre (ms).
-const RECONNECT_GRACE_MS = 30000;
+const RECONNECT_GRACE_MS = Number(process.env.GV_RECONNECT_GRACE_MS) || 30000;
 
 // ==================== SOHBET (masa içi + genel) ====================
 // Kurallar: mesaj GÖNDERMEK üyelere özeldir (misafirler okuyabilir);
@@ -1083,6 +1083,7 @@ function battleshipState(room, seat) {
     kind: 'battleship',
     status: room.status,
     phase: b.phase,
+    macNo: b.macNo || 0,          // her yeni el için benzersiz damga (rövanş)
     seat,
     turn: b.turn,
     winner: b.winner,
@@ -1109,6 +1110,11 @@ function startBattleship(room) {
   if (room.status === 'playing' || room.players.length !== 2 || !room.players.every(p => p.isReady)) return;
   room.status = 'playing'; room.result = null;
   room.battleship = battleshipEngine.init();
+  /* EL DAMGASI: rövanşta oda kimliği aynı kaldığı için istemci eski
+     yerleşimini (filo dizili + "onayladım") sürdürüyor ve yeni filoyu hiç
+     göndermiyordu. Her yeni el benzersiz bir damga taşır; istemci damga
+     değişince yerleşimi sıfırdan kurar. */
+  room.battleship.macNo = now();
   room.turnStartedAt = now(); touchMoveTimer(room);
   emitRoom(room);
   room.players.forEach(p => emitToPlayer(p, 'gameStarted', { roomId: room.id, seat: p.seat, players: publicRoom(room).players, gameState: battleshipState(room, p.seat) }));
@@ -2851,10 +2857,20 @@ io.on('connection', socket => {
       // sahte N kurucu/maç kayıtlarına sızmıştı (bkz. creatorId hırsızlığı).
       // Genel odada eski userKey yedeği korunur.
       player.userId = player.userId || socket.userId || (room.isPrivate ? null : (authApi ? authApi.uidFromUserKey(userKey) : null));
+      const kopuktu = !!player.disconnectedAt;
       player.disconnectedAt = null;
       cancelDisconnectTimer(roomId, player);
       if (spectator) room.spectators = room.spectators.filter(s => s !== spectator);
       socket.role = 'player';
+      // Kopan oyuncu geri döndü: bekleyen rakibe haber ver (geri sayım bitti).
+      if (kopuktu && room.status === 'playing') {
+        room.players.forEach(p => {
+          if (p === player) return;
+          emitToPlayer(p, 'playerReconnected', {
+            roomId: room.id, seat: player.seat, name: player.name || 'Rakip'
+          });
+        });
+      }
     } else if (spectator && (wantSpectate || room.players.length >= room.maxPlayers || room.status === 'playing')) {
       spectator.id = socket.id;
       spectator.name = name || spectator.name;
@@ -3491,6 +3507,21 @@ io.on('connection', socket => {
     // yenileme, mobil ağ kopması, Render uyku/uyanma vb. durumlar için).
     if (room.status === 'playing') {
       player.disconnectedAt = now();
+      /* KALAN OYUNCUYA HABER VER. Eskiden bu 30 saniye boyunca karşı tarafa
+         HİÇBİR bilgi gitmiyordu: tahta donuyor, "rakip çıktı" da denmiyor,
+         oyuncu ne olduğunu anlamadan bekliyordu (kullanıcı raporu). Artık
+         kopma anında bilgi ve geri sayım, dönüşte de "geri döndü" gider. */
+      room.players.forEach(p => {
+        if (p === player) return;
+        emitToPlayer(p, 'playerConnectionLost', {
+          roomId: room.id, seat: player.seat, name: player.name || 'Rakip',
+          graceMs: RECONNECT_GRACE_MS
+        });
+      });
+      (room.spectators || []).forEach(sp => emitToPlayer(sp, 'playerConnectionLost', {
+        roomId: room.id, seat: player.seat, name: player.name || 'Oyuncu',
+        graceMs: RECONNECT_GRACE_MS, isSpectator: true
+      }));
       const key = playerKey(roomId, player);
       cancelDisconnectTimer(roomId, player);
       const timer = setTimeout(() => {
@@ -3857,6 +3888,19 @@ app.get('/api/admin/stats', async (req, res) => {
   if (!await requireAdmin(req, res)) return;
   const now = Date.now();
   const DAY = 86400000, WEEK = 7 * DAY, MONTH = 30 * DAY;
+  /* "BUGÜN" = TAKVİM GÜNÜ, son 24 saat DEĞİL.
+     Kullanıcı raporu: "en yakın üye 20 Eylül'de üye olmuş ama istatistikte
+     hâlâ 'bugün yeni 1 üye' diyor." Sebep: sayım `now - 24 saat` ile
+     yapılıyordu; dün akşam kaydolan bir üye ertesi sabah hâlâ "bugün"
+     sayılıyordu. Artık Türkiye saatine (UTC+3, yaz saati yok) göre o günün
+     gece yarısından itibaren sayılır. Haftalık/aylık kutular kasıtlı olarak
+     "son 7/30 gün" kayan penceresi olarak kalır. */
+  const gunBasi = ts => {
+    const TR = 3 * 60 * 60 * 1000;
+    const t = Number(ts) || Date.now();
+    return Math.floor((t + TR) / DAY) * DAY - TR;
+  };
+  const bugunBasi = gunBasi(now);
   // ⚠ HATA DÜZELTMESİ (kullanıcı raporu: Kurucu Paneli'ndeki "Online
   // Kullanıcı" kutusu hep 0 gösteriyor, ana sayfadaki "Çevrimiçi Oyuncu"
   // ise doğru sayıyı gösteriyordu — aynı anda iki farklı sayı). Kök neden:
@@ -3885,8 +3929,8 @@ app.get('/api/admin/stats', async (req, res) => {
       const totalUsers = db.prepare('SELECT COUNT(*) c FROM users').get().c;
       const c = db.prepare('SELECT COUNT(*) c FROM matches').get().c;
       const totalMatches = c, completedMatches = c;
-      const gamesToday = db.prepare('SELECT COUNT(*) c FROM matches WHERE ts >= ?').get(now - DAY).c;
-      const newUsersToday = db.prepare('SELECT COUNT(*) c FROM users WHERE created_at >= ?').get(now - DAY).c;
+      const gamesToday = db.prepare('SELECT COUNT(*) c FROM matches WHERE ts >= ?').get(bugunBasi).c;
+      const newUsersToday = db.prepare('SELECT COUNT(*) c FROM users WHERE created_at >= ?').get(bugunBasi).c;
       const newUsersWeek = db.prepare('SELECT COUNT(*) c FROM users WHERE created_at >= ?').get(now - WEEK).c;
       const newUsersMonth = db.prepare('SELECT COUNT(*) c FROM users WHERE created_at >= ?').get(now - MONTH).c;
       // 7 günde en az 1 maçı olan AYRIK üye adedi (son 500 maç taramasıyla):

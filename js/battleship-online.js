@@ -86,12 +86,35 @@
 
   // ------------------------------------------------------------ YERLEŞTİRME
   var placeState = null;
+  var sonFaz = null;          // en son GÖRÜLEN faz (render her fazda çağrılır)
+  /* Yerleşim durumu YALNIZ oda kimliğine bağlıydı. Rövanşta oda aynı kaldığı
+     için eski durum (ships dolu + submitted:true) duruyor, ekran "Filon hazır
+     — rakibi bekliyorsun" diye kilitleniyor ve yeni filo sunucuya hiç
+     gönderilmiyordu: iki taraf da oyuna başlayamıyordu.
+     Artık üç şeyden biri değişince yerleşim SIFIRDAN kurulur:
+       • oda değişti,
+       • sunucunun el damgası (macNo) değişti — yeni el,
+       • faz muharebe/bitiş'ten yeniden 'placing'e döndü (rövanş).
+     Üçüncüsü, sunucu eski sürümdeyse (macNo göndermiyorsa) da çalışır. */
   function ensurePlaceState(m) {
     var rid = String(m.roomId == null ? '' : m.roomId);
-    if (!placeState || placeState.roomId !== rid) {
-      placeState = { roomId: rid, ships: {}, dir: 'h', submitted: false, bitis: 0 };
+    var s = m.state || {};
+    var damga = String(s.macNo == null ? '' : s.macNo);
+    if (!placeState || placeState.roomId !== rid ||
+        (damga && placeState.damga !== damga)) {
+      placeState = { roomId: rid, damga: damga, ships: {}, dir: 'h', submitted: false, bitis: 0 };
     }
     return placeState;
+  }
+  /* Faz izleyici: render her fazda çağrılır. Muharebe/bitiş fazından yeniden
+     yerleştirmeye dönüldüyse (rövanş) eski yerleşim atılır. */
+  function faziIzle(m) {
+    var faz = (m.state && m.state.phase) || '';
+    if (!faz) return;
+    if (faz === 'placing' && sonFaz && sonFaz !== 'placing') {
+      placeState = null;      // yeni el: filo baştan dizilecek
+    }
+    sonFaz = faz;
   }
   function cellsFor(size, r, c, dir) {
     var out = [];
@@ -239,7 +262,18 @@
       return '<div class="bs-log-item ' + (it.mine ? 'mine' : 'opp') + ' ' + it.result + '">' + it.text + '</div>';
     }).join('');
   }
-  function voiceOn() { try { return localStorage.getItem('gv-bs-voice') !== 'off'; } catch (_) { return true; } }
+  /* ANA SES ANAHTARI sesli anlatımı da kapatır. Kullanıcı üstteki "🔇 Ses"
+     düğmesiyle sesi kapatmasına rağmen seslendirme konuşmaya devam ediyordu;
+     oyuncu için ikisi de "oyun sesi"dir. Artık ana anahtar kapalıysa
+     seslendirme de susar (kendi anahtarı ayrıca ince ayar olarak kalır). */
+  function anaSesAcik() {
+    try { return !(window.GVDeniz && GVDeniz.ses && GVDeniz.ses.acik() === false); }
+    catch (_) { return true; }
+  }
+  function voiceOn() {
+    if (!anaSesAcik()) return false;
+    try { return localStorage.getItem('gv-bs-voice') !== 'off'; } catch (_) { return true; }
+  }
   function setVoiceOn(on) { try { localStorage.setItem('gv-bs-voice', on ? 'on' : 'off'); } catch (_) {} }
   function speak(p, isMe) {
     if (!voiceOn() || !window.speechSynthesis || typeof window.SpeechSynthesisUtterance !== 'function') return;
@@ -457,6 +491,7 @@
     render: function (m) {
       var s = m.state;
       if (!s) return '';
+      faziIzle(m);            // rövanşta yerleşim durumu sıfırlansın
       return (s.phase === 'battle' || s.phase === 'finished') ? renderBattle(m) : renderPlacement(m);
     },
     bind: function (root, m) {

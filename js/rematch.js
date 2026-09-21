@@ -223,6 +223,35 @@
       document.querySelectorAll('.gv-end, .chess-end-overlay').forEach(function (e) { e.remove(); });
     });
 
+    /* RAKİBİN BAĞLANTISI KOPTU: sunucu kopan oyuncuya yeniden bağlanma
+       süresi tanıyor. Eskiden bu süre boyunca kalan oyuncuya HİÇBİR bilgi
+       gitmiyordu — tahta donuyor, "rakip çıktı" da denmiyordu (kullanıcı
+       raporu: "karşının oyundan çıktığına dair bilgi gelmedi"). Artık
+       kopma anında bilgi + geri sayım, dönüşte de haber verilir. */
+    var kopukSayac = null;
+    function kopukTemizle() {
+      if (kopukSayac) { clearInterval(kopukSayac); kopukSayac = null; }
+    }
+    s.on('playerConnectionLost', function (p) {
+      if (!p) return;
+      kopukTemizle();
+      var kalan = Math.max(1, Math.round((Number(p.graceMs) || 30000) / 1000));
+      var ad = esc(p.name || 'Rakip');
+      toast('📴 ' + ad + ' bağlantısı koptu. ' + kalan +
+            ' sn içinde dönmezse maçı sen kazanacaksın.', 'warning');
+      kopukSayac = setInterval(function () {
+        kalan -= 10;
+        if (kalan <= 0) return kopukTemizle();
+        toast('⏳ ' + ad + ' hâlâ dönmedi — ' + kalan + ' sn kaldı.', 'info');
+      }, 10000);
+    });
+    s.on('playerReconnected', function (p) {
+      kopukTemizle();
+      if (p) toast('🔌 ' + esc(p.name || 'Rakip') + ' oyuna geri döndü.', 'success');
+    });
+    s.on('gameEnded', function () { kopukTemizle(); });
+    s.on('playerLeft', function () { kopukTemizle(); });
+
     s.on('playerResigned', function (p) {
       if (!p) return;
       toast('🏳️ ' + (p.name || 'Bir oyuncu') + ' pes etti.', 'warning');

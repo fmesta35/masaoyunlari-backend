@@ -92,13 +92,20 @@ if ($action === 'gamesSave') {
 if ($action === 'stats') {
     gv_require_admin();
     $DAY = 86400000; $WEEK = 7 * $DAY; $MONTH = 30 * $DAY;
+    /* "BUGÜN" takvim günüdür, son 24 saat değil (bkz. server.js'teki aynı
+       düzeltme): dün akşam kaydolan üye ertesi sabah "bugün" sayılmamalı.
+       Türkiye saati UTC+3, yaz saati uygulaması yok. */
+    $TR = 3 * 3600000;
+    $bugunBasi = intval(floor(($now + $TR) / $DAY)) * $DAY - $TR;
     $totalUsers = intval($pdo->query("SELECT COUNT(*) c FROM gv_users")->fetchColumn());
     $cnt = function ($ms) use ($pdo, $now) {
         $s = $pdo->prepare("SELECT COUNT(*) c FROM gv_users WHERE created_at >= ?");
         $s->execute(array($now - $ms));
         return intval($s->fetchColumn());
     };
-    $newUsersToday = $cnt($DAY);
+    $sBugun = $pdo->prepare("SELECT COUNT(*) c FROM gv_users WHERE created_at >= ?");
+    $sBugun->execute(array($bugunBasi));
+    $newUsersToday = intval($sBugun->fetchColumn());
     $newUsersWeek = $cnt($WEEK);
     $newUsersMonth = $cnt($MONTH);
     $totalMatches = intval($pdo->query("SELECT COUNT(*) c FROM gv_matches")->fetchColumn());
