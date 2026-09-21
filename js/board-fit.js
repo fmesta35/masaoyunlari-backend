@@ -70,7 +70,14 @@
     if (!tbl) { unwrapOrphan(); return; }
 
     var availW = Math.max(240, area.clientWidth || window.innerWidth);
-    var availH = Math.max(240, window.innerHeight - 140);
+    /* Kullanılabilir YÜKSEKLİK ölçülerek bulunur: sabit "innerHeight - 140"
+       varsayımı, masanın sayfada nerede başladığını bilmiyordu. Yatay
+       telefonda (412 px) ve tam ekranda masa alanı 170 px aşağıdan
+       başlıyor; 140'lık sabit pay yüzünden okey masası ekranın altından
+       ~32 px taşıyordu (ölçüldü). */
+    var ust = 0;
+    try { ust = Math.max(0, area.getBoundingClientRect().top); } catch (_) { ust = 140; }
+    var availH = Math.max(200, (window.innerHeight || 600) - ust - 10);
 
     if (availW >= MIN_W && availH >= MIN_H) {
       // AKIŞKAN mod: CSS kendi işini yapar, hiçbir dönüşüm uygulanmaz.
@@ -102,6 +109,19 @@
     tbl.style.transform = 'scale(' + s + ')';
     wrap.style.width = (DW * s) + 'px';
     wrap.style.height = (DH * s) + 'px';
+    /* DÜZELTME TURU: ölçek uygulandıktan sonra düzen oturunca masanın
+       başladığı nokta değişebiliyor (üstteki şeritler yeniden akıyor);
+       gerçek kutuyu ölçüp gerekirse biraz daha küçültüyoruz. */
+    for (var tur = 0; tur < 3; tur++) {
+      var kutu = wrap.getBoundingClientRect();
+      var sinir = (window.innerHeight || 600) - 8;
+      if (kutu.bottom <= sinir + 1) break;
+      var oran = Math.max(0.5, (sinir - kutu.top) / Math.max(1, kutu.height));
+      s = Math.max(0.2, s * oran);
+      tbl.style.transform = 'scale(' + s + ')';
+      wrap.style.width = (DW * s) + 'px';
+      wrap.style.height = (DH * s) + 'px';
+    }
     publishVars(tbl);
   }
 

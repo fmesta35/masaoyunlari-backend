@@ -35,14 +35,27 @@ const assert = require('assert');
 const serverModule = require('../server.js');
 const uyu = ms => new Promise(r => setTimeout(r, ms));
 
+/* İKİ KİŞİLİK masada başlayan oyunlar (dört kişilikler aşağıda ayrıca). */
 const OYUNLAR = [
   ['chess', '#boardArea .chess-c', 'satranç'],
   ['dama', '#boardArea .dama-board,#boardArea .dm-board', 'dama'],
+  ['turkdamasi', '#boardArea .dama-board,#boardArea .dm-board', 'türk daması'],
   ['reversi', '#boardArea .rv-board', 'reversi'],
+  ['gomoku', '#boardArea .gm-board', 'gomoku'],
   ['connect4', '#boardArea .c4-board', 'connect4'],
   ['tavla', '#boardArea .tavla-board', 'tavla'],
   ['bilardo', '#boardArea .bil-canvas', 'bilardo'],
+  ['pisti', '#boardArea .card-wrap', 'pişti', '341'],   // 2 kişilik hazır masa
   ['battleship', '#boardArea .bs-battlefield', 'amiral battı'],
+];
+/* DÖRT KİŞİLİK masalar: okey (301), 101 okey (331), batak (361). Bunlar
+   ayrı bir turda, dört pencereyle ölçülür. */
+const DORTLU = [
+  /* Hazır masa kimlikleri 2/3/4 kişilik diye sıralanır; DÖRT kişilik
+     olanlar seçilmeli (301 ve 331 iki kişiliktir). */
+  ['okey', '313', '#boardArea .okey-table', 'okey'],
+  ['okey101', '335', '#boardArea .okey-table', '101 okey'],
+  ['batak', '361', '#boardArea .card-wrap', 'batak'],
 ];
 
 async function gir(ctx, BASE, oyun, oda) {
@@ -53,8 +66,18 @@ async function gir(ctx, BASE, oyun, oda) {
     null, { timeout: 30000 });
   await p.evaluate(a => { window.st.curGame = a[0]; window.GV.joinRoom(a[1]); }, [oyun, oda]);
   await p.waitForSelector('#gv-real-chess-wait .gv-ready', { timeout: 20000 });
-  // Alçak ekranda düğme görünür alanın dışında kalabiliyor: JS ile tıkla.
-  await p.evaluate(() => document.querySelector('#gv-real-chess-wait .gv-ready').click());
+  /* Alçak ekranda düğme görünür alanın dışında kalabiliyor: JS ile tıkla.
+     Bekleme odası sık yeniden çizildiği için düğme iki ölçüm arasında
+     düşebiliyor — tıklama birkaç kez denenir. */
+  for (let i = 0; i < 12; i++) {
+    const oldu = await p.evaluate(() => {
+      const b = document.querySelector('#gv-real-chess-wait .gv-ready');
+      if (!b) return false;
+      b.click(); return true;
+    });
+    if (oldu) break;
+    await uyu(250);
+  }
   return p;
 }
 const olc = (p, sec) => p.evaluate(s => {
@@ -89,10 +112,13 @@ async function main() {
 
   for (const [ad, vp] of [['yatay telefon 915×412', { width: 915, height: 412 }],
                           ['yatay küçük 740×360', { width: 740, height: 360 }]]) {
-    for (const [oyun, sec, tad] of OYUNLAR) {
+    for (const [oyun, sec, tad, hazirOda] of OYUNLAR) {
       const c1 = await tr.newContext({ viewport: vp });
       const c2 = await tr.newContext({ viewport: vp });
-      const oda = 'yat-' + oyun + '-' + vp.width;
+      /* Hazır masalar KALICIDIR: ikinci ekran ölçüsü için komşu masayı
+         kullan, yoksa ilk turdan kalan oyuncularla dolu görünüyor. */
+      const oda = hazirOda ? String(Number(hazirOda) + (vp.width === 740 ? 1 : 0))
+                           : ('yat-' + oyun + '-' + vp.width);
       const p1 = await gir(c1, BASE, oyun, oda), p2 = await gir(c2, BASE, oyun, oda);
       if (oyun === 'battleship') {
         for (const p of [p1, p2]) {
@@ -121,8 +147,33 @@ async function main() {
     }
   }
 
+  // ---- DÖRT KİŞİLİK MASALAR (okey / 101 okey / batak) ----
+  for (const [ad, vp] of [['yatay telefon 915×412', { width: 915, height: 412 }]]) {
+    for (const [oyun, oda, sec, tad] of DORTLU) {
+      const ctxs = [], sayfalar = [];
+      for (let i = 0; i < 4; i++) {
+        const c = await tr.newContext({ viewport: vp });
+        ctxs.push(c); sayfalar.push(await gir(c, BASE, oyun, oda));
+      }
+      const p1 = sayfalar[0];
+      await p1.waitForSelector(sec, { timeout: 25000 }).catch(() => {});
+      await uyu(900);
+      const std = await olc(p1, sec);
+      assert.deepStrictEqual(tasmalar(std), [],
+        ad + ' / ' + tad + ' / standart: tahta ekrana sığmalı — ' + JSON.stringify(std.tahta));
+      await p1.evaluate(() => document.getElementById('pg-room').classList.add('gv-fs'));
+      await uyu(800);
+      const tam = await olc(p1, sec);
+      assert.deepStrictEqual(tasmalar(tam), [],
+        ad + ' / ' + tad + ' / tam ekran: tahta ekrana sığmalı — ' + JSON.stringify(tam.tahta));
+      console.log('  ✓ ' + ad + ' · ' + tad + ': standart ' + std.tahta.g + '×' + std.tahta.y +
+                  ', tam ekran ' + tam.tahta.g + '×' + tam.tahta.y + ' — ikisi de sığıyor');
+      for (const c of ctxs) await c.close();
+    }
+  }
+
   await tr.close(); server.close();
-  console.log('OK mobil yatay sığma');
+  console.log('OK mobil yatay sığma (11 oyun)');
   process.exit(0);
 }
 main().catch(e => { console.error('❌ YATAY SIĞMA HATASI:', e.message); process.exit(1); });
