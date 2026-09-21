@@ -735,6 +735,24 @@ button,input,select{font-family:var(--font)}
 .bs-cell.aim{outline:2px solid #ffb020;outline-offset:-2px;
   background:rgba(255,176,32,.22)!important;box-shadow:0 0 14px rgba(255,176,32,.35) inset}
 @media(prefers-reduced-motion:reduce){.bs-fire{transition:none}}
+/* ===== STANDART EKRAN = TAM EKRAN YERLEŞİMİ =====
+   Kullanıcı isteği: "Tam ekran alındığında ve normal dashboard'da — webde
+   de mobilde de standart olması gerek. Tüm butonların yerleri vs. sadece
+   optimizasyonu ve ölçek değişecek. Standart ekranda F5 ATEŞ ET butonu
+   çok uzun, tam ekranda derli toplu."
+   ÖLÇÜLEN FARK (gerçek Chromium, 1600×900):
+     standart  → konsol 1248px, ATEŞ düğmesi x=1146 (sağ kenarda)
+     tam ekran → konsol  288px, ATEŞ düğmesi ortada
+   KÖK NEDEN: tam ekranda .bs-wrap flex sütun + align-items:center oluyor
+   (bkz. #pg-room.gv-fs kuralı), çocuklar içerikleri kadar daralıyor;
+   standart ekranda ise sıradan blok olduğu için tüm genişliğe yayılıyordu.
+   ÇÖZÜM: aynı flex düzeni HER İKİ modda da geçerli. Yalnız hücre ölçüsü
+   (--bs-cell) ekrana göre değişir — yerleşim değişmez. */
+.bs-wrap{display:flex;flex-direction:column;align-items:center}
+.bs-wrap>*{max-width:100%}
+.bs-view{align-self:stretch}          /* panorama cam tam genişlik kalır */
+/* Konsol her yerde aynı: ortada, derli toplu, ATEŞ düğmesi hedefin yanında */
+.bs-console{width:min(100%,420px);box-sizing:border-box}
 
 /* Mobil: yalnız hücre ölçüsü küçülür — etkileşim ve görünüm aynıdır. */
 /* ===== TURNUVA SAYFASI (js/tournaments.js) ===== */

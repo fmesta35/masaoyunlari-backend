@@ -42,6 +42,22 @@
   function sock() {
     return window.__gvRoomSocket || window.__gvChessSocket || window.__gvLobbySocket || null;
   }
+  /* Sayfadaki BÜTÜN soketler. Oyun istemcileri (room-waiting-fix, chess,
+     tavla, okey...) masaya girerken kendi soketlerini kuruyor ve bu
+     değişkenleri birbirine devrediyor; tek bir değişkene bakmak yetmez. */
+  var SOKET_ANAHTARLARI = ['__gvRoomSocket', '__gvChessSocket', '__gvLobbySocket', '__gvSocket'];
+  function tumSoketler() {
+    var out = [];
+    for (var i = 0; i < SOKET_ANAHTARLARI.length; i++) {
+      var s = window[SOKET_ANAHTARLARI[i]];
+      if (s && out.indexOf(s) < 0) out.push(s);
+    }
+    return out;
+  }
+  function baglaHepsi() {
+    var l = tumSoketler();
+    for (var i = 0; i < l.length; i++) { try { bagla(l[i]); } catch (_) {} }
+  }
   function odaId() {
     return window.__gvActiveRoomId ||
       (window.st && window.st.curRoom && (window.st.curRoom.id || window.st.curRoom)) || null;
@@ -84,6 +100,7 @@
     teklifAcik = false;
     var k = document.getElementById('gvRematchAsk');
     if (k) k.remove();
+    kilitleBitisDugmesi(false);
   }
   function kutuGoster(p) {
     kutuKapat();
@@ -109,6 +126,26 @@
     d.querySelector('#gvRematchYes').addEventListener('click', function () { oyVer(true); });
     d.querySelector('#gvRematchNo').addEventListener('click', function () { oyVer(false); });
     oylariYaz(p);
+    /* ÖNCELİK: "Lobiye Dön / Rövanş Talep Et" ekranı açıkken talep gelirse
+       karar kutusu öne geçer (kullanıcı isteği). Bitiş ekranının kendi
+       rövanş düğmesi bu sırada kilitlenir; iki taraf aynı anda talep edip
+       oylamayı birbirine karıştırmasın. Geri sayım da durur. */
+    kilitleBitisDugmesi(true);
+    yazGeriSayim(null);
+  }
+  /* Bitiş ekranındaki "Rövanş Talep Et" düğmesini kilitle/aç. */
+  function kilitleBitisDugmesi(kilit) {
+    document.querySelectorAll('.gv-rematch-btn').forEach(function (b) {
+      if (kilit) {
+        if (!b.dataset.gvEskiMetin) b.dataset.gvEskiMetin = b.textContent;
+        b.disabled = true;
+        b.textContent = '🔄 Karar bekleniyor…';
+      } else if (b.dataset.gvEskiMetin) {
+        b.disabled = false;
+        b.textContent = b.dataset.gvEskiMetin;
+        delete b.dataset.gvEskiMetin;
+      }
+    });
   }
   function oylariYaz(p) {
     var el = document.getElementById('gvRematchVotes');
@@ -124,8 +161,11 @@
       toast('🔄 Rövanş kabul edildi — diğer oyuncular bekleniyor…', 'info');
       yazGeriSayim(null);
     } else {
-      toast('Rövanş reddedildi.', 'info');
-      baslatGeriSayim();
+      /* Kullanıcı isteği: "hayır derse lobiye döner zaten." Reddeden
+         oyuncu zaten yeni el oynamak istemiyor; 30 sn beklemek yerine
+         doğrudan lobiye alınır (masadaki diğerlerine ret bildirilir). */
+      toast('Rövanş reddedildi — lobiye dönülüyor.', 'info');
+      setTimeout(lobiyeDon, 600);
     }
   }
   function esc(s) {
@@ -136,8 +176,17 @@
 
 
   // ---------- Soket olayları ----------
+  /* Oyun istemcileri soket devrederken socket.off() çağırıyor; bu, bizim
+     dinleyicilerimizi de siliyor. Bayrak açık kalsa bile dinleyici yoksa
+     yeniden bağlanmalıyız — yoksa rövanş teklifi sessizce kaybolur. */
+  function dinleyiciVar(s) {
+    if (!s || typeof s.listeners !== 'function') return true;   // ölçemiyoruz
+    try { var l = s.listeners('rematchOffer'); return !!(l && l.length); }
+    catch (_) { return true; }
+  }
   function bagla(s) {
-    if (!s || s.__gvRematch) return;
+    if (!s) return;
+    if (s.__gvRematch && dinleyiciVar(s)) return;
     s.__gvRematch = true;
 
     s.on('rematchOffer', function (p) {
@@ -237,8 +286,30 @@
   // Aynı tikte "Pes Et" düğmesinin görünürlüğü de ayarlanır: yalnız MAÇ
   // SÜRERKEN ve oyuncuysan görünür (izleyici pes edemez, bekleme odasında
   // pes edilecek maç yoktur).
+  /* ⚠ ASIL HATA BURADAYDI: dinleyiciler yalnız 1 sn'lik sayaçla ve yalnız
+     TEK bir değişkene (sock()) bağlanıyordu. Maç hızlı bitince (pes etme,
+     mat) rakibin soketi henüz bağlanmamış oluyor; sunucu 'rematchOffer'
+     gönderiyor ama karşı tarafta dinleyen kimse olmadığı için kutu hiç
+     açılmıyordu — kullanıcının gördüğü "talep gitti mi belli değil, takılı
+     kaldı" durumu tam olarak buydu. Çözüm: soket DOĞDUĞU ANDA bağlanır.
+     window.io sarmalanır; her yeni soket anında dinlemeye alınır. */
+  function ioKancasi() {
+    var asil = window.io;
+    if (typeof asil !== 'function' || asil.__gvRematchKanca) return;
+    var sarmal = function () {
+      var s = asil.apply(this, arguments);
+      try { bagla(s); } catch (_) {}
+      return s;
+    };
+    for (var k in asil) { try { sarmal[k] = asil[k]; } catch (_) {} }
+    sarmal.__gvRematchKanca = true;
+    try { window.io = sarmal; } catch (_) {}
+  }
+  ioKancasi();
+
   setInterval(function () {
-    bagla(sock());
+    ioKancasi();
+    baglaHepsi();
     var btn = document.getElementById('gvResignBtn');
     if (!btn) return;
     /* Görünürlük DOĞRUDAN O ANKİ EKRANDAN türetilir; tek seferlik bir
@@ -256,12 +327,12 @@
                   !bitisEkraniAcikMi() && !bittiDurum;
     btn.style.display = gorunur ? '' : 'none';
   }, 1000);
-  bagla(sock());
+  baglaHepsi();
 
   // Biçem
   var css = document.createElement('style');
   css.textContent =
-    '.gv-rematch-ask{position:fixed;inset:0;z-index:2147483000;background:rgba(4,6,16,.72);display:flex;align-items:center;justify-content:center;padding:16px}' +
+    '.gv-rematch-ask{position:fixed;inset:0;z-index:2147483600;background:rgba(4,6,16,.72);display:flex;align-items:center;justify-content:center;padding:16px}' +
     '.gv-rematch-card{background:#161a2e;border:1px solid rgba(255,255,255,.14);border-radius:16px;padding:22px 20px;max-width:380px;width:100%;text-align:center;box-shadow:0 24px 60px rgba(0,0,0,.6)}' +
     '.gv-rematch-ico{font-size:2.4em;margin-bottom:6px}' +
     '.gv-rematch-card h3{margin:0 0 8px;font-size:1.15em;color:#fff}' +

@@ -3403,6 +3403,15 @@ io.on('connection', socket => {
       return;
     }
     cancelRoomReset(room);                      // oda sıfırlanmasın, rövanş bekleniyor
+    /* İKİ OYUNCU DA AYNI ANDA "Rövanş Talep Et" derse: ikinci talep,
+       birincinin oylamasını SIFIRLAMAMALI. Aksi halde herkes talep etmiş
+       ama kimsenin oyu sayılmamış gibi olur ve masa "karşı taraf kabul
+       etti mi belli değil" diye kilitlenirdi. İkinci talep = kabul oyu. */
+    if (room.rematch && room.rematch.bySeat !== player.seat) {
+      room.rematch.votes[player.seat] = true;
+      yayinlaRematch(room);
+      return;
+    }
     room.rematch = {
       bySeat: player.seat,
       byName: player.name || 'Oyuncu',
