@@ -124,8 +124,12 @@ async function main() {
     const onay = await bekle(() => A.document.querySelector('.gvlg-yes'), 10000, 'terk onay penceresi');
     tikla(A, onay);
 
-    const kart = await bekle(() => B.document.querySelector('#boardArea .gv-end'), 15000,
+    /* Maç sonu ekranı artık tahtanın ÜSTÜNDE değil, kendi yuvasında
+       (#gvEndSlot) duruyor — tahtayı kapatmasın diye (bkz.
+       test/bitis-paneli-yerlesim.test.js). Bu yüzden belge genelinde aranır. */
+    const kart = await bekle(() => B.document.querySelector('.gv-end'), 15000,
       'kalan oyuncuda maç sonu ekranı');
+    assert.ok(kart.closest('#gvEndSlot'), 'maç sonu ekranı kendi yuvasında olmalı (tahtayı kapatmaz)');
     const baslik = kart.querySelector('.gv-end-title').textContent;
     const metin = kart.querySelector('.gv-end-text').textContent;
     assert.ok(/Kazand/i.test(baslik), 'kalan oyuncu KAZANDI görmeli, görülen: ' + baslik);
@@ -142,7 +146,7 @@ async function main() {
                       B.document.querySelector('#pg-rooms.active') ||
                       !B.document.querySelector('#pg-room.active'), 8000, 'lobiye dönüş');
     assert.ok(!B.document.querySelector('#pg-room.active'), 'oyun odasından çıkılmış olmalı');
-    assert.ok(!B.document.querySelector('#boardArea .gv-end'), 'sonuç ekranı kapanmalı');
+    assert.ok(!B.document.querySelector('.gv-end'), 'sonuç ekranı kapanmalı');
     console.log('  ✓ 3) "Lobiye dön" düğmesi oyuncuyu odadan çıkarıyor');
 
     for (const w of [A, B]) { try { w.close(); } catch (_) {} }

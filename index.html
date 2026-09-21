@@ -1143,6 +1143,83 @@ button,input,select{font-family:var(--font)}
      yonetiliyor (sabit px "bottom" degerleri istakayi eziyordu). */
 }
 
+/* ==========================================================================
+   MAÇ SONU PANELİ — tahtanın ÜSTÜNÜ kapatmaz
+   --------------------------------------------------------------------------
+   Kullanıcı isteği: "rövanş ve lobiye dön pop-up'ın dashboardı direkt
+   kapatmaması lazım ki oyunu nasıl kaybedip/kazandıklarını anlasınlar...
+   oyun dashboard alanlarının sağına, skor tablolarına yakın, dikey."
+   Ve mobil için: "Siz ve rakip sürelerinin üstüne öncelik gelerek
+   gösterilmesi... tam örtüşerek."
+
+   TASARIM: panel YÜZEN bir katman DEĞİL, düzende GERÇEK bir kutu. Böylece
+   hiçbir oyunda tahtayla üst üste binmez; tahta kalan alana göre yeniden
+   ölçeklenir (tahtaların hepsi esnek).
+     • ≥1025 px  → tahtanın sağında 230 px'lik dikey sütun (yan panelin solu)
+     • ≤1024 px  → yan panelde SÜRE KARTLARININ yerinde (kartlar gizlenir)
+     • mobil tam ekran → oyun alanının altında yatay şerit
+   Ölçüm (gerçek Chromium 1600×900): tahtaların sağında zaten 194–239 px
+   boşluk var; tam ekranda tahtayı tüm genişliğe yayan oyunlar (reversi,
+   gomoku, connect4, tavla) 220 px daralıp yeniden ölçekleniyor.
+   ========================================================================== */
+#gvEndSlot{display:none}
+.gv-bitis-acik #gvEndSlot{display:block;flex:0 0 230px;width:230px;min-width:0}
+/* Tam ekran: ızgaraya ÜÇÜNCÜ sütun eklenir (tahta kendiliğinden daralır) */
+#pg-room.gv-fs.gv-bitis-acik{grid-template-columns:minmax(0,1fr) 220px minmax(190px,240px)}
+#pg-room.gv-fs.gv-bitis-acik #gvEndSlot{grid-column:2;grid-row:2;flex:none;width:auto;
+  align-self:start;overflow:auto;max-height:100%}
+#pg-room.gv-fs.gv-bitis-acik .game-side{grid-column:3;grid-row:2}
+/* Tam ekran kabuğu: yuva .game-layout'un çocuğu ama display:contents ile
+   doğrudan ızgaraya düşüyor — ayrıca bir şey gerekmiyor. */
+
+/* Yüzen kaplamayı sıradan bir kutuya çevir: karartma/bulanıklık gider,
+   tahta tamamen görünür kalır. */
+.gv-bitis-panel{position:static!important;inset:auto!important;z-index:auto!important;
+  background:none!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important;
+  display:block!important;padding:0!important;height:auto!important;width:auto!important}
+.gv-bitis-panel .gv-end-card,.gv-bitis-panel .chess-end-modal{
+  max-width:none!important;width:100%!important;margin:0!important;
+  padding:16px 14px!important;border-radius:14px!important;
+  box-shadow:0 10px 30px rgba(0,0,0,.42)!important}
+.gv-bitis-panel .gv-end-ico,.gv-bitis-panel .end-icon{font-size:2.1em!important}
+.gv-bitis-panel .chess-end-modal h2{font-size:1.15em!important;margin:6px 0 6px!important}
+.gv-bitis-panel .chess-end-modal p,.gv-bitis-panel .gv-end-text{font-size:.86em!important;
+  margin-bottom:10px!important}
+/* Düğmeler dikey ve eşit genişlikte (yanlış tıklama olmasın) */
+.gv-bitis-panel .gv-end-row,
+.gv-bitis-panel .chess-end-modal>div:not(.end-icon){
+  display:flex!important;flex-direction:column!important;gap:9px!important;
+  align-items:stretch!important;margin-top:12px!important}
+.gv-bitis-panel .btn{width:100%!important;min-height:42px!important;margin:0!important;
+  padding:0 12px!important;white-space:nowrap}
+.gv-bitis-panel .gv-end-hint,.gv-bitis-panel .gv-rematch-count{
+  display:block;margin-top:10px!important;font-size:.78em!important;text-align:center}
+
+/* ---- ≤1024 px: panel SÜRE KARTLARININ yerine geçer (tam örtüşme) ---- */
+@media(max-width:1024px){
+  .gv-bitis-acik #gvEndSlot{flex:none;width:100%}
+  /* js/rematch.js yuvayı .game-side içine, .timers'ın önüne taşır ve
+     süre kartlarını gizler: panel tam onların yerini kaplar. */
+  .gv-bitis-acik .game-side>.timers{display:none!important}
+  .gv-bitis-panel .gv-end-card,.gv-bitis-panel .chess-end-modal{padding:14px 13px!important}
+}
+/* ---- Mobil TAM EKRAN: altta yatay şerit (yan panel 86 px'e daralıyor) ---- */
+@media(max-width:760px){
+  /* Panel KENDİ SATIRINI alır: tahta kalan yüksekliğe göre küçülür, hiçbir
+     noktada üst üste binmez (yalnız 'align-self:end' ile alta yaslamak
+     yetmiyordu — tahta dikeyde ortalandığı için şeridin üstüne taşıyordu). */
+  #pg-room.gv-fs.gv-bitis-acik{grid-template-columns:86px minmax(0,1fr);
+    grid-template-rows:auto minmax(0,1fr) auto}
+  #pg-room.gv-fs.gv-bitis-acik #gvEndSlot{grid-column:1/-1;grid-row:3;align-self:end;
+    width:auto;max-height:42vh;overflow:auto}
+  #pg-room.gv-fs.gv-bitis-acik .game-side{grid-column:1;grid-row:2}
+  #pg-room.gv-fs.gv-bitis-acik .game-board-area{grid-column:2;grid-row:2}
+  #pg-room.gv-fs .gv-bitis-panel .gv-end-row,
+  #pg-room.gv-fs .gv-bitis-panel .chess-end-modal>div:not(.end-icon){
+    flex-direction:row!important;flex-wrap:wrap!important}
+  #pg-room.gv-fs .gv-bitis-panel .btn{width:auto!important;flex:1 1 140px!important}
+}
+
 /* ==================== OYUN ALANI: SABİT TAHTA + RESPONSIVE SİĞDIRMA =================
    "Tahta aşağı yukarı oynuyor" düzeltmesi + telefon/tablet/PC için tüm oyun
    modüllerinde ekrana sığdırma. Kurallar burada en sonda durur; yukarıdaki
@@ -1799,6 +1876,11 @@ body.gv-app input,body.gv-app textarea,body.gv-app .chat-msgs,body.gv-app .moves
       </div>
       <div class="game-layout">
         <div class="game-board-area" id="boardArea"></div>
+        <!-- MAÇ SONU PANELİ YUVASI: bitiş ekranı artık tahtanın ÜSTÜNÜ
+             kapatmıyor; js/rematch.js onu buraya taşıyor. Masaüstünde
+             tahtanın sağında dikey bir sütun, telefonda süre kartlarının
+             yerinde. Boşken hiç yer kaplamaz. -->
+        <div id="gvEndSlot" aria-live="polite"></div>
         <div class="game-side">
           <!-- Süre şeridi artık "Sen vs Rakip" panosunun DOĞRUDAN ÜSTÜNDE, yan
                kolonun içinde (kullanıcı isteği: "tam ekranda gösterildiği gibi

@@ -213,9 +213,15 @@
   // hiçbir bildirim gelmiyordu. Sonuç artık tahtanın üzerinde gösterilir
   // ve iki taraf da oyunun lobisine döner.
   function kapatBitis() {
-    var a = boardEl();
-    var eski = a && a.querySelector('.gv-end');
-    if (eski && eski.parentNode) eski.parentNode.removeChild(eski);
+    /* Maç sonu ekranı artık tahtanın İÇİNDE değil: js/rematch.js onu
+       #gvEndSlot yuvasına taşıyor (tahtayı kapatmasın diye). Bu yüzden
+       yalnız tahtanın içine bakmak yetmez — belge genelinde aranır,
+       yoksa "Lobiye dön"den sonra panel ekranda asılı kalıyordu. */
+    document.querySelectorAll('.gv-end').forEach(function (e) {
+      if (e && e.parentNode) e.parentNode.removeChild(e);
+    });
+    var r = document.getElementById('pg-room');
+    if (r) r.classList.remove('gv-bitis-acik');
   }
 
   function lobiyeDon() {

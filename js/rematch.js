@@ -219,9 +219,13 @@
       durdurGeriSayim();
       sonDurum = null;
       toast('🔄 Rövanş kabul edildi — yeni el başlıyor!', 'success');
-      // Bitiş ekranlarını kaldır; yeni oyun durumu zaten sunucudan gelir.
-      document.querySelectorAll('.gv-end, .chess-end-overlay').forEach(function (e) { e.remove(); });
+      paneliKapat();
     });
+    /* YENİ EL BAŞLADI: bitiş paneli artık tahtanın İÇİNDE değil, ayrı bir
+       yuvada duruyor. Oyunların kendi "bitiş ekranını kaldır" kodu tahtanın
+       içinde arıyor ve bulamıyor — panel ekranda asılı kalırdı. Bu yüzden
+       yeni oyun başlar başlamaz panel buradan kapatılır. */
+    s.on('gameStarted', function () { paneliKapat(); });
 
     /* RAKİBİN BAĞLANTISI KOPTU: sunucu kopan oyuncuya yeniden bağlanma
        süresi tanıyor. Eskiden bu süre boyunca kalan oyuncuya HİÇBİR bilgi
@@ -296,8 +300,106 @@
     }
   }, true);
 
+  /* ======================================================================
+     MAÇ SONU PANELİNİN YERİ
+     ----------------------------------------------------------------------
+     Kullanıcı isteği: "rövanş ve lobiye dön pop-up'ın dashboardı direkt
+     kapatmaması lazım ki oyunu nasıl kaybedip/kazandıklarını anlasınlar...
+     oyun dashboard alanlarının sağına, skor tablolarına yakın, dikey."
+     Mobil için: "Siz ve rakip sürelerinin üstüne öncelik gelerek
+     gösterilmesi... tam örtüşerek."
+
+     Oyunların bitiş ekranı işaretlemesine DOKUNULMAZ: iki kabuk var
+     (.gv-end → arena'nın 8 oyunu, .chess-end-overlay → satranç/tavla/okey)
+     ve ikisi de olduğu gibi taşınır. Böylece içlerindeki düğme dinleyicileri
+     ve geri sayımları çalışmaya devam eder; her oyuna ayrı kod yazılmaz.
+     ====================================================================== */
+  var YUVA = 'gvEndSlot';
+  function yuva() { return document.getElementById(YUVA); }
+  function odaKok() { return document.getElementById('pg-room'); }
+  function darMi() {
+    try { return window.matchMedia('(max-width:1024px)').matches; }
+    catch (_) { return (window.innerWidth || 1200) <= 1024; }
+  }
+  function tamEkranMi() {
+    var r = odaKok();
+    return !!(r && r.classList.contains('gv-fs'));
+  }
+  /* Yuvayı ekran genişliğine göre doğru ebeveyne taşır:
+       geniş  → .game-layout içinde, tahtayla yan panelin ARASINA
+       dar    → .game-side içinde, SÜRE KARTLARININ önüne (kartlar gizlenir)
+       dar+tam ekran → yine .game-layout (altta yatay şerit olur; mobil tam
+                       ekranda yan panel 86 px'e daraldığı için oraya sığmaz) */
+  function yuvayiKonumla() {
+    var y = yuva();
+    if (!y) return null;
+    var yan = document.querySelector('#pg-room .game-side');
+    var duzen = document.querySelector('#pg-room .game-layout');
+    var hedef, once;
+    if (darMi() && !tamEkranMi() && yan) { hedef = yan; once = yan.querySelector('.timers'); }
+    else if (duzen) { hedef = duzen; once = yan && yan.parentNode === duzen ? yan : null; }
+    else return y;
+    if (y.parentNode !== hedef || (once && y.nextSibling !== once)) {
+      hedef.insertBefore(y, once || null);
+    }
+    return y;
+  }
+  function bitisEkrani() {
+    return document.querySelector('.gv-end, .chess-end-overlay');
+  }
+  function paneliKapat() {
+    document.querySelectorAll('.gv-end, .chess-end-overlay').forEach(function (e) {
+      try { e.remove(); } catch (_) {}
+    });
+    var y = yuva(); if (y) y.innerHTML = '';
+    var r = odaKok(); if (r) r.classList.remove('gv-bitis-acik');
+  }
+  function paneliYerlestir() {
+    var ekran = bitisEkrani(), r = odaKok();
+    // Oda sayfasından çıkıldıysa panel hiç durmamalı (güvenlik ağı).
+    if (ekran && !(r && r.classList.contains('active'))) { paneliKapat(); return; }
+    var y = yuvayiKonumla();
+    if (!ekran || !y) {
+      if (r) r.classList.remove('gv-bitis-acik');
+      if (y && y.firstChild) y.innerHTML = '';
+      return;
+    }
+    /* Ekran her durum yayınında yeniden çizilebiliyor (satranç tahtayı
+       innerHTML ile kuruyor); o yüzden her seferinde yeniden taşınır. */
+    if (ekran.parentNode !== y) {
+      y.innerHTML = '';
+      y.appendChild(ekran);
+    }
+    ekran.classList.add('gv-bitis-panel');
+    if (r) r.classList.add('gv-bitis-acik');
+  }
+  try {
+    window.addEventListener('resize', function () {
+      if (bitisEkrani()) paneliYerlestir();
+    }, { passive: true });
+    window.addEventListener('gv:roomLeft', paneliKapat);
+    /* Tam ekrana girip çıkmak yalnız #pg-room'un SINIFINI değiştiriyor;
+       bu ne bir 'resize' ne de bir childList değişimi. Panelin yeri tam
+       ekranda farklı olduğu için sınıf değişimini ayrıca izliyoruz
+       (yoksa panel bir saniye boyunca yanlış yerde/gizli kalıyordu). */
+    var oda = odaKok();
+    if (oda && window.MutationObserver) {
+      var sonTam = tamEkranMi();
+      new MutationObserver(function () {
+        /* DİKKAT: paneliYerlestir'in kendisi bu elemana sınıf ekliyor;
+           koşulsuz tepki verirsek gözlemci kendi kendini tetikleyip
+           sonsuz döngüye girer. Yalnız TAM EKRAN durumu değişince çalışır. */
+        var simdi = tamEkranMi();
+        if (simdi === sonTam) return;
+        sonTam = simdi;
+        if (bitisEkrani()) paneliYerlestir();
+      }).observe(oda, { attributes: true, attributeFilter: ['class'] });
+    }
+  } catch (_) {}
+
   // Bitiş ekranı açıldığında geri sayımı başlat (dört ekran da aynı yoldan).
   var gozlemci = new MutationObserver(function () {
+    paneliYerlestir();
     if (bitisEkraniAcikMi()) { if (!geriSayimInt && !teklifAcik) baslatGeriSayim(); return; }
     durdurGeriSayim();
     // ⚠ Teklif kutusu BURADA kapatılmaz: kutu gövdeye eklendiği anda bu
@@ -339,6 +441,7 @@
   setInterval(function () {
     ioKancasi();
     baglaHepsi();
+    paneliYerlestir();
     var btn = document.getElementById('gvResignBtn');
     if (!btn) return;
     /* Görünürlük DOĞRUDAN O ANKİ EKRANDAN türetilir; tek seferlik bir
