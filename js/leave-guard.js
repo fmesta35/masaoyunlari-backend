@@ -153,7 +153,9 @@
       '<button type="button" class="gvlg-yes">🚪 Evet, Terk Et</button>' +
       '<button type="button" class="gvlg-no">🛡️ Hayır, Oyunda Kal</button>' +
       '</div></div>';
-    document.body.appendChild(overlay);
+    // Tam ekranda gövdeye eklenen kaplama ÇİZİLMEZ; oyuncu onay penceresini
+    // göremediği için masadan ayrılamıyordu (kullanıcı raporu).
+    (window.__gvKaplamaKati ? window.__gvKaplamaKati() : document.body).appendChild(overlay);
     overlay.querySelector('.gvlg-yes').addEventListener('click', () => {
       const fn = pendingYes;
       closeModal();

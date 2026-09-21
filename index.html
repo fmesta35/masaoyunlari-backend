@@ -1143,6 +1143,17 @@ button,input,select{font-family:var(--font)}
      yonetiliyor (sabit px "bottom" degerleri istakayi eziyordu). */
 }
 
+/* KAZANDIRAN HAMLE: maç bitince kazandıran kareler altın parıltıyla
+   işaretlenir ve maç sonu boyunca işaretli kalır (kullanıcı isteği:
+   "oyuncuların hangi hamleyle bitirdiğini görebilmeleri için"). Kareler
+   sunucudan gelir; her oyun kendi hücresine .gv-kazandiran sınıfını basar. */
+.gv-kazandiran{position:relative;z-index:2}
+.gv-kazandiran::after{content:'';position:absolute;inset:0;border-radius:inherit;
+  box-shadow:inset 0 0 0 3px #ffc43c,0 0 16px rgba(255,196,60,.65);
+  background:rgba(255,196,60,.22);pointer-events:none;animation:gvKazandiran 1.4s ease-in-out infinite}
+@keyframes gvKazandiran{0%,100%{opacity:.75}50%{opacity:1}}
+@media(prefers-reduced-motion:reduce){.gv-kazandiran::after{animation:none}}
+
 /* ==========================================================================
    MAÇ SONU PANELİ — tahtanın ÜSTÜNÜ kapatmaz
    --------------------------------------------------------------------------
@@ -3796,10 +3807,31 @@ function toggleFullscreen(){
    İÇİNE taşı; çıkarken eski yerlerine (döküman sonu) geri koy. #pg-room
    yalnız #boardArea gibi ALT container'ları yeniden çizer, kendi
    innerHTML'ini hiç ezmediği için buraya eklenen modallar güvenle kalır. */
+/* AYNI KÖK NEDEN, DAHA GENİŞ LİSTE (kullanıcı raporu: "okey de tam ekranda
+   tıklama problemi var, odadan da ayrılmıyor", "tam ekrandayken taş
+   sürüklemede fiziksel hareketi gözükmüyor"):
+   Tam ekranda YALNIZ #pg-room'un alt ağacı çizilir. Gövdeye eklenen her
+   kaplama görünmez olur — yalnız modallar değil:
+     • .gvlg-overlay  → "Masadan ayrılmak istiyor musun?" onayı  → oyuncu
+       hiçbir şey görmediği için odadan ÇIKAMIYORDU,
+     • #toastWrap     → tüm bildirimler (tıklama geri bildirimi yok),
+     • .gv-rematch-ask→ rövanş karar kutusu,
+     • .ok-drag-ghost / .bs-drag-ghost → sürüklenen taşın/geminin kopyası
+       (sürükleme çalışıyor ama GÖRÜNMÜYORDU),
+     • .gv-deniz-cam  → Amiral Battı sinematik katmanı.
+   Hepsi tam ekranda #pg-room'un içine taşınır, çıkışta gövdeye döner. */
+const GV_FS_KAPLAMALAR =
+  '.modal-bg,#toastWrap,.gvlg-overlay,.gv-rematch-ask,.gv-deniz-cam,.ok-drag-ghost,.bs-drag-ghost';
+/* Yeni kaplamalar DOĞRU ebeveyne eklensin diye ortak yardımcı:
+   tam ekranda #pg-room, değilse <body>. */
+window.__gvKaplamaKati = function(){
+  const oda = document.getElementById('pg-room');
+  return (oda && _gvFsEl() === oda) ? oda : document.body;
+};
 function _gvFsMoveModals(icine){
   const oda = document.getElementById('pg-room');
   if(!oda) return;
-  document.querySelectorAll('.modal-bg').forEach(m=>{
+  document.querySelectorAll(GV_FS_KAPLAMALAR).forEach(m=>{
     if(icine){ if(m.parentNode!==oda) oda.appendChild(m); }
     else { if(m.parentNode===oda) document.body.appendChild(m); }
   });
@@ -4677,7 +4709,9 @@ function _okPointerDown(e, type, sh, sl) {
   clone.style.zIndex = '99999';
   clone.style.willChange = 'transform';
   clone.style.transition = 'none';
-  document.body.appendChild(clone);
+  // Tam ekranda gövdeye eklenen kopya ÇİZİLMEZ (yalnız #pg-room'un alt ağacı
+  // çizilir) — taş sürüklenir ama görünmezdi. Doğru katmana ekleniyor.
+  (window.__gvKaplamaKati ? window.__gvKaplamaKati() : document.body).appendChild(clone);
   okDrag.clone = clone;
   _okDragTo(p.clientX, p.clientY);
 

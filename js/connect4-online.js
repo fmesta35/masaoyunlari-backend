@@ -22,8 +22,15 @@
           ((s.board[0][c] || !mine) ? ' disabled' : '') + '>⬇</button>';
       }
       h += '</div><div class="c4-board">';
+      /* KAZANDIRAN DİZİ: maç bitince dörtlü altın parıltıyla işaretlenir ve
+         işaretli kalır — oyuncu nasıl kazandığını/kaybettiğini görsün
+         (kullanıcı isteği). Kareler sunucudan gelir (connect4-engine). */
+      var kz = {}, kzList = s.kazananKareler || (s.result && s.result.kazananKareler) || null;
+      if (kzList) kzList.forEach(function (p) { kz[p[0] + ',' + p[1]] = 1; });
       for (var r = 0; r < 6; r++) for (var k = 0; k < 7; k++) {
-        h += '<div class="c4-c">' + (s.board[r][k] ? '<div class="c4-pc ' + s.board[r][k] + '"></div>' : '') + '</div>';
+        var vur = kz[r + ',' + k] ? ' gv-kazandiran' : '';
+        h += '<div class="c4-c' + vur + '">' +
+          (s.board[r][k] ? '<div class="c4-pc ' + s.board[r][k] + '"></div>' : '') + '</div>';
       }
       return h + '</div></div>';
     },

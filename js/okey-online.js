@@ -216,6 +216,18 @@
   function mePlaying() {
     return !isSpectator && mySeat !== null && gameState && gameState.status === 'playing' && !gameState.finished;
   }
+  /* ==================== SES (ortak motor: js/deniz-sinematik.js) ====================
+     Kullanıcı isteği: "okey içerisinde taş atma orijinal sesleri de çıksın,
+     sıra oyuncuya gelirse de ufak bir zil çalsın. Hamle süresi 10 saniye
+     kala farklı bir 1-2 ton ayrı ses çıksın."
+     Sesler üstteki "🔊 Ses" anahtarına bağlıdır: kapalıyken hiçbiri çalmaz. */
+  function sesCal(ad) {
+    try { if (window.GVDeniz && GVDeniz.ses) GVDeniz.ses.cal(ad); } catch (_) {}
+  }
+  let sonSiraZil = null;     // hangi el/sıra için zil çaldı
+  let sonSnSes = null;       // son çalınan "süre bitiyor" saniyesi
+  let sonAtikSayisi = null;  // masaya atılan taş sayısı (taş sesi için)
+
   function myTurnNow() {
     return mePlaying() && gameState.turn === mySeat;
   }
@@ -489,6 +501,15 @@
           toast(`⏰ Hamle süreniz dolmak üzere! ${secs} sn içinde oynamazsanız otomatik oynanır (3. uyarıda diskalifiye).`, 'error');
         }
       }
+      /* SON 10 SANİYE UYARI TONU (kullanıcı isteği: "Hamle süresi 10 saniye
+         kala farklı bir 1-2 ton ayrı ses çıksın; böylece hamle süresinin
+         biteceğini anlar oyuncu"). Zil sesinden AÇIKÇA farklı iki tonlu
+         uyarı; yalnız KENDİ sıramda ve saniye değiştikçe bir kez çalar. */
+      if (playing && myTurnNow() && secs <= 10 && secs >= 1) {
+        if (sonSnSes !== secs) { sonSnSes = secs; sesCal('sure'); }
+      } else if (!playing || !myTurnNow() || secs > 10) {
+        sonSnSes = null;
+      }
     }
 
     if (gs.clockMs) {
@@ -594,6 +615,26 @@
 
     if (roundInfo && gs.round !== roundInfo.round) roundInfo = null; // yeni el başladı
     if (evName === 'okeyRoundEnded') handleRoundEnded(gs);
+
+    /* ---- SESLER ----
+       1) TAŞ ATMA: masadaki toplam atık sayısı arttıysa biri taş attı
+          demektir — kimin attığı fark etmez, masada gerçek taş sesi duyulur.
+       2) SIRA ZİLİ: sıra BANA yeni geçtiyse ufak bir zil çalar. Aynı sıra
+          için yalnız bir kez (durum paketi saniyede birkaç kez gelebilir). */
+    try {
+      const oyunda = gs.status === 'playing' && !gs.finished;
+      let atik = 0;
+      const piles = gs.discardPiles || {};
+      for (const k in piles) if (Object.prototype.hasOwnProperty.call(piles, k)) {
+        atik += (piles[k] || []).length;
+      }
+      if (sonAtikSayisi !== null && atik > sonAtikSayisi && oyunda) sesCal('tas');
+      sonAtikSayisi = atik;
+
+      const siraAnahtar = oyunda && myTurnNow() ? (gs.round + ':' + gs.turn) : null;
+      if (siraAnahtar && sonSiraZil !== siraAnahtar) { sonSiraZil = siraAnahtar; sesCal('zil'); }
+      if (!siraAnahtar) sonSiraZil = null;
+    } catch (_) {}
 
     // Otomatik oynama uyarısı (kendi strike sayacım arttıysa)
     if (mySeat !== null && gs.strikes) {

@@ -17,9 +17,13 @@
         (s.turn === 'b' ? '⚫ Siyah' : '⚪ Beyaz') +
         (m.isSpectator ? ' • 👁️ İzleyici' : (mine ? ' • 👉 Sizin sıranız' : '')) +
         '</div><div class="gm-board">';
+      /* Kazandıran beşli maç sonunda işaretli kalır (bkz. connect4-online.js). */
+      var kz = {}, kzList = s.kazananKareler || (s.result && s.result.kazananKareler) || null;
+      if (kzList) kzList.forEach(function (q) { kz[q[0] + ',' + q[1]] = 1; });
       for (var r = 0; r < 15; r++) for (var c = 0; c < 15; c++) {
         var p = s.board[r][c];
-        h += '<div class="gm-c" data-r="' + r + '" data-c="' + c + '">' +
+        h += '<div class="gm-c' + (kz[r + ',' + c] ? ' gv-kazandiran' : '') +
+          '" data-r="' + r + '" data-c="' + c + '">' +
           (p ? '<div class="gm-pc ' + p + '"></div>' : '') + '</div>';
       }
       return h + '</div></div>';

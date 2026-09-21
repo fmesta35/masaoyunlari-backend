@@ -122,7 +122,8 @@
           '<button type="button" class="btn btn-s" id="gvRematchNo">✖ Reddet</button>' +
         '</div>' +
       '</div>';
-    document.body.appendChild(d);
+    // Tam ekranda yalnız #pg-room çizilir; kutu gövdeye eklenirse görünmez.
+    (window.__gvKaplamaKati ? window.__gvKaplamaKati() : document.body).appendChild(d);
     d.querySelector('#gvRematchYes').addEventListener('click', function () { oyVer(true); });
     d.querySelector('#gvRematchNo').addEventListener('click', function () { oyVer(false); });
     oylariYaz(p);

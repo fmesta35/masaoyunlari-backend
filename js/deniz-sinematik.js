@@ -178,6 +178,46 @@
                 gecikme: 1.70, atak: 0.55 });                                      // suyun kapanması
       gurultu({ f0: 520, f1: 130, sure: 1.20, hacim: 0.18, tip: 'lowpass',
                 gecikme: 2.60, atak: 0.50 });                                      // son köpük
+    },
+
+    /* ==================== OKEY SESLERİ ====================
+       Kullanıcı isteği: "okey içerisinde taş atma orijinal sesleri de
+       çıksın, sıra oyuncuya gelirse de ufak bir zil çalsın... Hamle süresi
+       10 saniye kala farklı bir 1-2 ton ayrı ses çıksın."
+       Hepsi aynı ses motorundan (WebAudio) üretilir; dosya indirilmez ve
+       ana ses anahtarı kapalıysa hiçbiri çalmaz. */
+
+    /* TAŞ ATMA: mermer/bakalit taşın masaya vuruşu — kısa, tok bir "tak".
+       Gerçek okey taşı sert ve kuru ses verir: yüksek frekanslı kısa bir
+       çarpma + hemen sönen alçak gövde tınısı. */
+    tas: function () {
+      gurultu({ f0: 5200, f1: 1400, sure: 0.045, hacim: 0.38, tip: 'bandpass',
+                q: 1.1, atak: 0.001 });                                            // çarpmanın "tık"ı
+      ton({ f0: 430, f1: 210, sure: 0.085, hacim: 0.34, dalga: 'triangle' });       // taşın gövdesi
+      ton({ f0: 1250, f1: 820, sure: 0.05, hacim: 0.16, dalga: 'sine' });           // bakalit tınısı
+      gurultu({ f0: 900, f1: 300, sure: 0.10, hacim: 0.09, tip: 'lowpass',
+                gecikme: 0.03, atak: 0.02 });                                       // masanın yankısı
+    },
+
+    /* ISTAKAYA TAŞ KOYMA: taş atmanın daha yumuşak/kısık hâli. */
+    tasKoy: function () {
+      gurultu({ f0: 3600, f1: 1100, sure: 0.035, hacim: 0.20, tip: 'bandpass',
+                q: 1.0, atak: 0.001 });
+      ton({ f0: 360, f1: 190, sure: 0.07, hacim: 0.20, dalga: 'triangle' });
+    },
+
+    /* SIRA SENDE: ufak, nazik bir zil (iki notalı, parlak). */
+    zil: function () {
+      ton({ f0: 1568, f1: 1568, sure: 0.16, hacim: 0.20, dalga: 'sine' });          // sol
+      ton({ f0: 2093, f1: 2093, sure: 0.30, hacim: 0.17, dalga: 'sine', gecikme: 0.11 }); // do
+      ton({ f0: 3136, f1: 3136, sure: 0.22, hacim: 0.06, dalga: 'sine', gecikme: 0.11 }); // üst ton
+    },
+
+    /* SON 10 SANİYE: zilden AÇIKÇA farklı, iki tonlu uyarı (alçak→yüksek
+       değil, yüksek→alçak: "dikkat" hissi). Tekrar tekrar çalar. */
+    sure: function () {
+      ton({ f0: 880, f1: 880, sure: 0.13, hacim: 0.22, dalga: 'square' });
+      ton({ f0: 660, f1: 660, sure: 0.17, hacim: 0.20, dalga: 'square', gecikme: 0.16 });
     }
   };
 
@@ -195,7 +235,8 @@
     cam = document.createElement('canvas');
     cam.className = 'gv-deniz-cam';
     cam.setAttribute('aria-hidden', 'true');
-    document.body.appendChild(cam);
+    // Tam ekranda gövde katmanı çizilmez — sinematik görünmez kalırdı.
+    (window.__gvKaplamaKati ? window.__gvKaplamaKati() : document.body).appendChild(cam);
     cx = cam.getContext ? cam.getContext('2d') : null;
     boyutla();
     try { window.addEventListener('resize', boyutla, { passive: true }); } catch (_) {}
