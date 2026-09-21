@@ -158,7 +158,10 @@
     return { len: Math.min(best, wall), hit: hit };
   }
 
-  function paint(canvas, s, aim, power, canAim) {
+  /* Vuruş anında ıstekanın topa doğru İLERLEMESİ için geri çekme mesafesi
+     dışarıdan verilebilir (bkz. vurusAnimasyonu). Negatif değer, ıstekanın
+     topun içine kadar girdiği "temas" anıdır. */
+  function paint(canvas, s, aim, power, canAim, cekmePx) {
     if (!canvas) return;
     var x = canvas.getContext('2d');
     if (!x) return;
@@ -184,7 +187,7 @@
         x.lineTo(q.hit.x + ox / on * 58, q.hit.y + oy / on * 58); x.stroke();
       }
       // Isteka
-      var pull = 18 + power * 62;
+      var pull = (cekmePx == null) ? (18 + power * 62) : cekmePx;
       x.translate(cue.x - dx * pull, cue.y - dy * pull);
       x.rotate(aim);
       var g = x.createLinearGradient(-235, 0, 0, 0);
@@ -194,6 +197,45 @@
       x.restore();
     }
     balls.forEach(function (b) { if (!b.potted) drawBall(x, b); });
+  }
+
+  /* ==========================================================================
+     ANINDA VURUŞ (kullanıcı isteği: "ıstakayı bıraktığı anda ıstakayla topa
+     vurması gerek gecikme olmadan")
+     --------------------------------------------------------------------------
+     ÖLÇÜLEN DURUM: fiziğin tamamını sunucu çözüyor (28 ms) ve kareleri
+     yayınlıyor; istemci ESKİDEN fare bırakıldıktan sonra kareler GELENE KADAR
+     hiçbir şey yapmıyordu. Sunucuya gidiş-dönüş + ~74 KB kare paketi, uzak
+     sunucuda 2-3 saniyeye çıkabiliyor ve oyuncu "ıstekayı bıraktım, bir şey
+     olmadı" diye görüyordu.
+     ÇÖZÜM: temas ANINDA yerelde canlandırılır — ısteka topa doğru atılır,
+     değme sesi çalar, nişan çizgisi kalkar. Sunucunun kareleri geldiğinde
+     toplar oradan devam eder. Fizik hâlâ TAMAMEN sunucuda; yerelde yalnız
+     ıstekanın hareketi çizilir (top konumu değiştirilmez, hile kapısı yok).
+     ========================================================================== */
+  var vurusAnim = { raf: null, token: 0 };
+  function vurusAnimDurdur() {
+    if (vurusAnim.raf != null) { cAF(vurusAnim.raf); vurusAnim.raf = null; }
+    vurusAnim.token++;
+  }
+  function vurusAnimasyonu(canvas, s, aim, power) {
+    vurusAnimDurdur();
+    var jeton = vurusAnim.token;
+    var basPull = 18 + power * 62;          // ıstekanın o anki geri çekilmişliği
+    var sure = 90;                          // ms — insan gözüne "anında" gelen süre
+    var t0 = nowMs();
+    try { if (window.GVDeniz && GVDeniz.ses) GVDeniz.ses.cal('isteka'); } catch (_) {}
+    (function adim() {
+      if (jeton !== vurusAnim.token) return;
+      var k = Math.min(1, (nowMs() - t0) / sure);
+      // Hızlanarak ilerleyen vuruş: geri çekmeden topa (ve biraz içine) doğru
+      var pull = basPull + (-(C.r * 0.55) - basPull) * (k * k);
+      paint(canvas, s, aim, power, true, pull);
+      if (k < 1) { vurusAnim.raf = rAF(adim); return; }
+      // Temas bitti: ısteka sahneden çekilir, toplar sunucunun karelerini bekler
+      paint(canvas, s, aim, power, false);
+      vurusAnim.raf = null;
+    })();
   }
 
   function drawBallsOnly(canvas, balls) {
@@ -226,6 +268,7 @@
   function stopShotAnim() {
     if (shotAnim.raf != null) { cAF(shotAnim.raf); shotAnim.raf = null; }
     shotAnim.token++;
+    vurusAnimDurdur();      // yerel ısteka vuruşu da kesilir (kareler geldi)
   }
   /* Kareden topları kur. Dönme açısı, topun o ana kadar aldığı YOLDAN
      türetilir (yuvarlanan bir topta dönüş = yol / yarıçap) — sunucunun
@@ -397,6 +440,9 @@
       }
       function fire() {
         if (!mine) return;
+        /* ÖNCE vuruşu göster, SONRA sunucuya gönder: ekranda bekleme olmaz.
+           (Emit senkron değil; animasyonu başlatmak paketi geciktirmez.) */
+        vurusAnimasyonu(c, s, setup.aim, setup.power);
         m.emit('bilardoShoot', {
           angle: setup.aim,
           power: Math.max(0.05, Math.min(1, setup.power)),

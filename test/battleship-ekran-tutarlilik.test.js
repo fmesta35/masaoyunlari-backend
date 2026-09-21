@@ -56,8 +56,17 @@ const olc = p => p.evaluate(() => {
     const b = e.getBoundingClientRect();
     return { g: Math.round(b.width), mer: Math.round(b.left + b.width / 2),
              sag: Math.round(b.right) }; };
-  return { sarmal: g('.bs-wrap'), savas: g('.bs-battlefield'), konsol: g('.bs-console'),
-           ates: g('.bs-fire'), filo: g('.bs-fleet-status') };
+  /* board-fit alçak/tam ekranda tahtayı orantılı küçültebiliyor; ölçüler
+     o ölçekle çarpılı gelir. Beklenen değerleri düzeltmek için ölçeği oku. */
+  var w = document.querySelector('.bs-wrap');
+  var olcek = 1;
+  if (w) {
+    var t = getComputedStyle(w).transform;
+    var m = t && t !== 'none' ? t.match(/matrix\(([^,]+)/) : null;
+    if (m) olcek = parseFloat(m[1]) || 1;
+  }
+  return { olcek: olcek, sarmal: g('.bs-wrap'), savas: g('.bs-battlefield'),
+           konsol: g('.bs-console'), ates: g('.bs-fire'), filo: g('.bs-fleet-status') };
 });
 
 async function main() {
@@ -90,8 +99,10 @@ async function main() {
        karşılaştırılır: ölçek değişir, düzen değişmez. */
     [['standart', std], ['tam ekran', tam]].forEach(function (x) {
       var mod = x[0], m = x[1];
-      assert.strictEqual(m.konsol.g, Math.min(m.sarmal.g, 420),
-        ad + ' / ' + mod + ': konsol genişliği alanla sınırlı 420px olmalı — bulunan ' + m.konsol.g);
+      var beklenen = Math.min(m.sarmal.g, Math.round(420 * (m.olcek || 1)));
+      assert.ok(Math.abs(m.konsol.g - beklenen) <= 2,
+        ad + ' / ' + mod + ': konsol genişliği alanla sınırlı 420px olmalı (ölçek ' +
+        (m.olcek || 1).toFixed(2) + ') — beklenen ' + beklenen + ', bulunan ' + m.konsol.g);
       assert.ok(Math.abs(m.konsol.mer - m.sarmal.mer) <= 2,
         ad + ' / ' + mod + ': konsol ORTALI olmalı');
       assert.ok(Math.abs(m.savas.mer - m.sarmal.mer) <= 2,
@@ -103,12 +114,16 @@ async function main() {
     });
     /* ATEŞ düğmesi konsolun SAĞ kenarına aynı payla oturur (sayfanın sağ
        kenarına kaçmaz): pay = konsol padding'i, iki modda da aynı. */
-    var payStd = std.konsol.sag - std.ates.sag, payTam = tam.konsol.sag - tam.ates.sag;
-    assert.strictEqual(payStd, payTam,
+    /* Ölçek farkını hesaba kat: board-fit tam ekranda tahtayı biraz
+       küçültebilir, o zaman tüm ölçüler aynı oranda küçülür. */
+    var payStd = (std.konsol.sag - std.ates.sag) / (std.olcek || 1);
+    var payTam = (tam.konsol.sag - tam.ates.sag) / (tam.olcek || 1);
+    assert.ok(Math.abs(payStd - payTam) <= 2,
       ad + ': ATEŞ düğmesi konsol kenarına aynı payla oturmalı — standart ' +
-      payStd + 'px / tam ekran ' + payTam + 'px');
+      payStd.toFixed(1) + 'px / tam ekran ' + payTam.toFixed(1) + 'px');
     assert.ok(payStd <= 16, ad + ': ATEŞ düğmesi konsolun içinde, kenara yakın olmalı');
-    assert.strictEqual(std.ates.g, tam.ates.g, ad + ': ATEŞ düğmesi aynı boyda olmalı');
+    assert.ok(Math.abs(std.ates.g / (std.olcek || 1) - tam.ates.g / (tam.olcek || 1)) <= 2,
+      ad + ': ATEŞ düğmesi aynı boyda olmalı');
     console.log('  ✓ ' + ad + ': konsol ' + std.konsol.g + 'px (tam ekran ' + tam.konsol.g +
       'px), iki modda da ortalı ve ATEŞ düğmesi aynı yerde');
     await c1.close(); await c2.close();

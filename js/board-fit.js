@@ -105,6 +105,90 @@
     publishVars(tbl);
   }
 
+  /* ==========================================================================
+     TÜM OYUNLAR: TAHTAYI GÖRÜNEN ALANA SIĞDIR (özellikle YATAY TELEFON)
+     --------------------------------------------------------------------------
+     Kullanıcı raporu: "Bilardo oyununda mobilde, ekranı yatay yatırdığımda
+     veya tam ekran moduna geçtiğimde görüntüde kaymalar ve ekrana sığmama
+     var. Tüm oyunlar için bu hatayı düzelt."
+     ÖLÇÜLEN DURUM (gerçek Chromium, 915×412 ve 740×360 yatay):
+       satranç alt taşması 76 px, dama 178, reversi 142, connect4 99,
+       tavla 251, bilardo 499, amiral battı 567; TAM EKRANDA hepsi ~61 px.
+     KÖK NEDEN: mobil kurallar yalnız GENİŞLİĞE bakıyordu (max-width:760px).
+     Yatay çevrilince genişlik 740-915 px oluyor, masaüstü düzeni uygulanıyor
+     ama YÜKSEKLİK 360-412 px'e düşüyor; hiçbir kural tahtayı yüksekliğe göre
+     sınırlamıyordu.
+     ÇÖZÜM: tahta doğal boyunda kalır; görünen alana sığmıyorsa ORANTILI
+     küçültülür (transform: scale). Oran bozulmaz, düzen değişmez, yalnız
+     ölçek küçülür. Dokunma/tıklama koordinatları getBoundingClientRect ile
+     okunduğu için ölçek hesaba kendiliğinden katılır. Okey masası kendi
+     mekanizmasıyla oturtulduğu için burada ATLANIR. */
+  var OYUN_SARMAL = '.chess-wrapper,.dama-wrap,.tdama-wrap,.rv-wrap,.gm-wrap,' +
+                    '.c4-wrap,.bil-wrap,.card-wrap,.bs-wrap,.tavla-wrap';
+  var sigdirmaKilit = false;
+  function sigdir() {
+    var area = areaEl();
+    if (!area) return;
+    if (area.querySelector('.okey-table')) return;        // okey kendi yolunu kullanır
+    var el = area.querySelector(OYUN_SARMAL);
+    if (!el) { if (area.style.minHeight) area.style.minHeight = ''; return; }
+    /* YALNIZ GEREKTİĞİNDE: alçak ekran (yatay telefon) ya da tam ekran.
+       Normal masaüstü penceresinde sayfa zaten kaydırılabiliyor; orada
+       tahtayı küçültmek düzeni gereksiz yere değiştirirdi. */
+    var oda = document.getElementById('pg-room');
+    var tamEkran = !!(oda && oda.classList.contains('gv-fs'));
+    var kisaEkran = (window.innerHeight || 600) < 560;
+    if (!tamEkran && !kisaEkran) {
+      if (el.style.transform) { el.style.transform = ''; el.style.transformOrigin = ''; }
+      if (area.style.minHeight) area.style.minHeight = '';
+      return;
+    }
+    sigdirmaKilit = true;
+    try {
+      // Ölçüm doğal boyutta yapılır: önce varsa ölçek kaldırılır.
+      if (el.style.transform) { el.style.transform = ''; el.style.transformOrigin = ''; }
+      area.style.minHeight = '';
+      var r = area.getBoundingClientRect();
+      var altPay = 10;
+      var kullanY = Math.max(140, (window.innerHeight || 600) - r.top - altPay);
+      var kullanG = Math.max(200, area.clientWidth || r.width);
+      var dogalY = Math.max(1, el.scrollHeight || el.offsetHeight);
+      var dogalG = Math.max(1, el.scrollWidth || el.offsetWidth);
+      var s = Math.min(kullanY / dogalY, kullanG / dogalG, 1);
+      /* Oran "sığıyor" dese bile GERÇEK kutuyu doğrulayacağız: bazı oyunlarda
+         (bilardo, amiral battı) sarmalayıcının dışına taşan kumanda/günlük
+         şeritleri var ve scrollHeight gerçeği tam yansıtmıyor. */
+      var gercekTasma = el.getBoundingClientRect().bottom >
+                        ((window.innerHeight || 600) - altPay) + 1;
+      if (s >= 0.995 && !gercekTasma) return;              // zaten sığıyor
+      /* Alt sınır ekrana göre: yatay telefonda (yükseklik < 500 px) bilardo
+         ve amiral battı gibi uzun masalar 0.35'e sıkışıp yine taşıyordu;
+         alçak ekranlarda daha fazla küçülmeye izin veriyoruz. */
+      var altSinir = ((window.innerHeight || 600) < 500) ? 0.24 : 0.45;
+      s = Math.max(altSinir, Math.min(1, s));
+      el.style.transformOrigin = 'top center';
+      el.style.transform = 'scale(' + s.toFixed(4) + ')';
+      // Ölçekli kutu kadar yer ayır (altta boşluk/kayma olmasın).
+      area.style.minHeight = Math.ceil(dogalY * s) + 'px';
+      /* DÜZELTME TURU: bazı oyunlarda (bilardo, amiral battı) sarmalayıcının
+         altında kumanda/günlük şeridi var; ölçek uygulandıktan sonra düzen
+         oturunca birkaç piksel taşma kalabiliyordu. Gerçek kutuyu yeniden
+         ölçüp gerekirse biraz daha küçültüyoruz — ölçüm, tahmin değil. */
+      for (var tur = 0; tur < 4; tur++) {
+        var kutu = el.getBoundingClientRect();
+        var sinir = (window.innerHeight || 600) - altPay;
+        if (kutu.bottom <= sinir + 1) break;
+        var oran = Math.max(0.5, (sinir - kutu.top) / Math.max(1, kutu.height));
+        s = Math.max(altSinir, s * oran);
+        el.style.transform = 'scale(' + s.toFixed(4) + ')';
+        area.style.minHeight = Math.ceil(dogalY * s) + 'px';
+      }
+    } finally {
+      // Kendi yazdığımız stiller gözlemciyi tetiklemesin.
+      setTimeout(function () { sigdirmaKilit = false; }, 0);
+    }
+  }
+
   function unwrapOrphan() {
     var wrap = document.getElementById('gvBoardFit');
     if (wrap && !wrap.querySelector('.okey-table') && wrap.parentNode) {
@@ -116,15 +200,20 @@
   function boot() {
     var area = areaEl();
     if (!area) { setTimeout(boot, 400); return; }
-    mo = new MutationObserver(function () { fit(); });
+    var hepsi = function () { if (sigdirmaKilit) return; fit(); sigdir(); };
+    mo = new MutationObserver(hepsi);
     mo.observe(area, { childList: true, subtree: false });
-    if (window.ResizeObserver) { ro = new ResizeObserver(function () { fit(); }); ro.observe(area); }
-    window.addEventListener('resize', fit);
-    window.addEventListener('orientationchange', fit);
+    if (window.ResizeObserver) { ro = new ResizeObserver(hepsi); ro.observe(area); }
+    window.addEventListener('resize', hepsi);
+    window.addEventListener('orientationchange', function () { setTimeout(hepsi, 120); });
+    // Tam ekrana girip çıkmak da kullanılabilir yüksekliği değiştirir.
+    ['fullscreenchange', 'webkitfullscreenchange'].forEach(function (ev) {
+      try { document.addEventListener(ev, function () { setTimeout(hepsi, 120); }); } catch (_) {}
+    });
     // Kenar çubuğu 0.3 sn animasyonla açılıp kapanır: geçiş sonrası kesin oturtma
     // (yalnız stil yazar, DOM üretmez — ucuzdur).
-    setInterval(fit, 1200);
-    fit();
+    setInterval(hepsi, 1200);
+    hepsi();
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot, { once: true });

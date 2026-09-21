@@ -213,6 +213,14 @@
       ton({ f0: 3136, f1: 3136, sure: 0.22, hacim: 0.06, dalga: 'sine', gecikme: 0.11 }); // üst ton
     },
 
+    /* ISTEKA TEMASI: tebeşirli deri uç ile fildişi topun kuru, kısa "tak"ı. */
+    isteka: function () {
+      gurultu({ f0: 6200, f1: 2200, sure: 0.030, hacim: 0.30, tip: 'bandpass',
+                q: 1.4, atak: 0.001 });
+      ton({ f0: 1650, f1: 900, sure: 0.055, hacim: 0.24, dalga: 'triangle' });
+      ton({ f0: 520, f1: 300, sure: 0.075, hacim: 0.14, dalga: 'sine' });
+    },
+
     /* SON 10 SANİYE: zilden AÇIKÇA farklı, iki tonlu uyarı (alçak→yüksek
        değil, yüksek→alçak: "dikkat" hissi). Tekrar tekrar çalar. */
     sure: function () {
