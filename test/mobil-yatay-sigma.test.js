@@ -129,20 +129,49 @@ async function main() {
         }
       }
       await p1.waitForSelector(sec.split(',')[0], { timeout: 22000 }).catch(() => {});
-      await uyu(800);
+      await uyu(1600);          // board-fit'in ikinci geçişi de otursun
 
       const std = await olc(p1, sec);
       assert.deepStrictEqual(tasmalar(std), [],
         ad + ' / ' + tad + ' / standart: tahta ekrana sığmalı — ' + JSON.stringify(std.tahta));
 
       await p1.evaluate(() => document.getElementById('pg-room').classList.add('gv-fs'));
-      await uyu(700);
+      await uyu(1200);
       const tam = await olc(p1, sec);
       assert.deepStrictEqual(tasmalar(tam), [],
         ad + ' / ' + tad + ' / tam ekran: tahta ekrana sığmalı — ' + JSON.stringify(tam.tahta));
 
-      console.log('  ✓ ' + ad + ' · ' + tad + ': standart ' + std.tahta.g + '×' + std.tahta.y +
-                  ', tam ekran ' + tam.tahta.g + '×' + tam.tahta.y + ' — ikisi de sığıyor');
+      /* GERÇEK TELEFON KOŞULU: adres çubuğu görünürken window.innerHeight
+         hâlâ tam yüksekliği söyler ama GÖRÜNEN alan daha kısadır
+         (visualViewport). Tahta innerHeight'a göre sığdırılırsa alt kısmı
+         çubuğun altında kalır — kullanıcı "oyun alanı gelmedi" der.
+         Burada o durumu taklit edip tahtanın GÖRÜNEN alana sığmasını
+         doğruluyoruz. */
+      if (vp.width === 915) {
+        await p1.evaluate(() => document.getElementById('pg-room').classList.remove('gv-fs'));
+        await p1.evaluate(() => {
+          const sahte = {
+            width: window.innerWidth, height: window.innerHeight - 90,
+            offsetTop: 0, offsetLeft: 0, scale: 1,
+            addEventListener() {}, removeEventListener() {}
+          };
+          Object.defineProperty(window, 'visualViewport',
+            { configurable: true, get: () => sahte });
+          window.dispatchEvent(new Event('resize'));
+        });
+        await uyu(1400);
+        const cubuk = await olc(p1, sec);
+        const gorunen = cubuk.ekranY - 90;
+        assert.ok(cubuk.tahta && cubuk.tahta.alt <= gorunen + 2,
+          ad + ' / ' + tad + ' / adres çubuğu açık: tahta GÖRÜNEN alana sığmalı — ' +
+          'tahta altı ' + (cubuk.tahta && cubuk.tahta.alt) + ', görünen sınır ' + gorunen);
+        console.log('  ✓ ' + ad + ' · ' + tad + ': standart ' + std.tahta.g + '×' + std.tahta.y +
+                    ', tam ekran ' + tam.tahta.g + '×' + tam.tahta.y +
+                    ', adres çubuğu açıkken ' + cubuk.tahta.g + '×' + cubuk.tahta.y + ' — hepsi sığıyor');
+      } else {
+        console.log('  ✓ ' + ad + ' · ' + tad + ': standart ' + std.tahta.g + '×' + std.tahta.y +
+                    ', tam ekran ' + tam.tahta.g + '×' + tam.tahta.y + ' — ikisi de sığıyor');
+      }
       await c1.close(); await c2.close();
     }
   }

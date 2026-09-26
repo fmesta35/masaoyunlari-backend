@@ -118,8 +118,20 @@ const C = {
 // yüzeyinin biraz DIŞINDADIR; yakalama yarıçapı topun merkezine bakar.
 const POCKET_DEFS = (() => {
   const L = P.tableLength, W = P.tableWidth;
-  const cornerMouth = 0.115, sideMouth = 0.125;
-  const cornerCap = 0.060, sideCap = 0.062;
+  /* CEP ÖLÇÜLERİ — ÖLÇÜLEREK DENGELENDİ (kullanıcı raporu: "bazı delikler
+     daha büyük, bazılarına daha kolay giriyormuş gibi geldi").
+     ESKİ DEĞERLERLE ÖLÇÜM (masaya yayılmış 44 noktadan cebin MERKEZİNE
+     nişan alıp kaç atışın girdiği):
+        köşe cepler %4.5   —   orta cepler %57.1   (52.6 puan fark!)
+     KÖK NEDEN: köşe ağzı 0.115 m ve çene yarıçapı 0.012 m ile köşegen
+     boyunca NET açıklık 0.0573 m çıkıyordu; top çapı 0.0571 m. Yani top
+     ağza 0.2 mm payla giriyordu ve pratikte hep çeneye çarpıp dönüyordu.
+     Orta ceplerde net açıklık 0.101 m (topun 1.77 katı) olduğu için onlar
+     rahat çalışıyordu — oyuncunun hissettiği dengesizlik tam olarak buydu.
+     YENİ DEĞERLER (tarayarak seçildi): köşe %54.5, orta %57.1 → 2.6 puan.
+     Dört köşe birbirinin aynısı, iki orta cep birbirinin aynısı. */
+  const cornerMouth = 0.143, sideMouth = 0.133;
+  const cornerCap = 0.066, sideCap = 0.068;
   const out = 0.022;
   return [
     { x: -out, y: -out, cap: cornerCap, mouth: cornerMouth, kind: 'corner' },
@@ -148,7 +160,7 @@ function cushionGap(axis, coord) {
 // Çene (jaw) noktaları: cep ağzının iki ucundaki yuvarlak köşeler. Toplar
 // buradan sekerek "çıngırdayabilir" (rattle) — gerçek bir masanın hissi.
 const JAWS = (() => {
-  const L = P.tableLength, W = P.tableWidth, jr = 0.012;
+  const L = P.tableLength, W = P.tableWidth, jr = 0.010;
   const j = [];
   for (const p of POCKET_DEFS) {
     const half = p.mouth / 2;

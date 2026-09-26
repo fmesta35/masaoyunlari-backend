@@ -145,7 +145,11 @@ button,input,select{font-family:var(--font)}
      └──────────────────────────────┴─────────┘                        */
 #pg-room.gv-fs{
   background:var(--bg,#0f1115);padding:10px 12px;box-sizing:border-box;
-  height:100vh;width:100vw;overflow:hidden;              /* KAYDIRMA YOK */
+  /* TELEFONDA 100vh YANILTICIDIR: adres çubuğunun arkasında kalan alanı da
+     sayar, tam ekran düzeni ekranın altından taşar. 100dvh gerçek görünür
+     yüksekliği verir; desteklemeyen tarayıcı bir üstteki 100vh'de kalır. */
+  height:100vh;height:100dvh;width:100vw;width:100dvw;
+  overflow:hidden;                                       /* KAYDIRMA YOK */
   display:grid;grid-template-columns:minmax(0,1fr) minmax(190px,240px);
   grid-template-rows:auto minmax(0,1fr);column-gap:12px;row-gap:8px
 }
@@ -1141,6 +1145,21 @@ button,input,select{font-family:var(--font)}
   .game-layout{flex-direction:column}.game-side{width:100%}
   /* Okey masası ölçüleri artık .okey-table blogundaki oransal kurallarda
      yonetiliyor (sabit px "bottom" degerleri istakayi eziyordu). */
+}
+
+/* YATAY TELEFON: oda sayfası görünür alana sığsın, sayfa yana kaymasın.
+   (Tahtanın kendisi js/board-fit.js ile orantılı küçültülür; bu kural
+   yalnız sayfanın yatay taşmasını ve gereksiz kaydırmayı keser.) */
+@media(max-height:560px) and (orientation:landscape){
+  #pg-room{padding-left:8px;padding-right:8px;padding-top:4px}
+  /* Başlık şeridini inceltip tahtaya dikey alan kazandır (yatayda her
+     piksel değerli: adres çubuğu açıkken görünen alan ~320 px). */
+  #pg-room .gr-header{margin-bottom:6px;gap:6px}
+  #pg-room .gr-header h2,#pg-room .gr-header .gr-title{font-size:1em}
+  #pg-room .gr-header .btn{padding:4px 9px;font-size:.78em;min-height:30px}
+  #pg-room .game-layout{gap:8px}
+  #pg-room .game-board-area{overflow:hidden}
+  html,body{overflow-x:hidden}
 }
 
 /* KAZANDIRAN HAMLE: maç bitince kazandıran kareler altın parıltıyla

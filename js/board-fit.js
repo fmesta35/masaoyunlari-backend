@@ -28,6 +28,25 @@
 
   function areaEl() { return document.getElementById('boardArea'); }
 
+  /* GERÇEKTEN GÖRÜNEN YÜKSEKLİK.
+     Telefon tarayıcılarında window.innerHeight, adres çubuğunun ARKASINDA
+     kalan alanı da sayar: yatay çevrildiğinde 412 px "var" görünür ama
+     gerçekte 330 px görünür. Tahtayı innerHeight'a göre sığdırınca alt
+     kısmı adres çubuğunun altında kalıyor ve oyuncu "oyun alanı gelmedi"
+     diyor (kullanıcı raporu). visualViewport, tarayıcı çubukları çıkarılmış
+     GERÇEK görünür alanı verir; desteklenmeyen tarayıcıda innerHeight'a
+     düşeriz. */
+  function gorunurYukseklik() {
+    var vv = window.visualViewport;
+    var h = (vv && vv.height) ? vv.height : (window.innerHeight || 600);
+    return Math.max(160, Math.round(h));
+  }
+  function gorunurGenislik() {
+    var vv = window.visualViewport;
+    var w = (vv && vv.width) ? vv.width : (window.innerWidth || 800);
+    return Math.max(200, Math.round(w));
+  }
+
   function unwrap(tbl) {
     // Eski sürümün bıraktığı sarıcıyı temizle (akışkan modda gerekmez).
     var wrap = document.getElementById('gvBoardFit');
@@ -77,7 +96,7 @@
        ~32 px taşıyordu (ölçüldü). */
     var ust = 0;
     try { ust = Math.max(0, area.getBoundingClientRect().top); } catch (_) { ust = 140; }
-    var availH = Math.max(200, (window.innerHeight || 600) - ust - 10);
+    var availH = Math.max(200, gorunurYukseklik() - ust - 10);
 
     if (availW >= MIN_W && availH >= MIN_H) {
       // AKIŞKAN mod: CSS kendi işini yapar, hiçbir dönüşüm uygulanmaz.
@@ -114,7 +133,7 @@
        gerçek kutuyu ölçüp gerekirse biraz daha küçültüyoruz. */
     for (var tur = 0; tur < 3; tur++) {
       var kutu = wrap.getBoundingClientRect();
-      var sinir = (window.innerHeight || 600) - 8;
+      var sinir = gorunurYukseklik() - 8;
       if (kutu.bottom <= sinir + 1) break;
       var oran = Math.max(0.5, (sinir - kutu.top) / Math.max(1, kutu.height));
       s = Math.max(0.2, s * oran);
@@ -157,7 +176,7 @@
        tahtayı küçültmek düzeni gereksiz yere değiştirirdi. */
     var oda = document.getElementById('pg-room');
     var tamEkran = !!(oda && oda.classList.contains('gv-fs'));
-    var kisaEkran = (window.innerHeight || 600) < 560;
+    var kisaEkran = gorunurYukseklik() < 560;
     if (!tamEkran && !kisaEkran) {
       if (el.style.transform) { el.style.transform = ''; el.style.transformOrigin = ''; }
       if (area.style.minHeight) area.style.minHeight = '';
@@ -170,8 +189,8 @@
       area.style.minHeight = '';
       var r = area.getBoundingClientRect();
       var altPay = 10;
-      var kullanY = Math.max(140, (window.innerHeight || 600) - r.top - altPay);
-      var kullanG = Math.max(200, area.clientWidth || r.width);
+      var kullanY = Math.max(140, gorunurYukseklik() - r.top - altPay);
+      var kullanG = Math.max(200, Math.min(area.clientWidth || r.width, gorunurGenislik()));
       var dogalY = Math.max(1, el.scrollHeight || el.offsetHeight);
       var dogalG = Math.max(1, el.scrollWidth || el.offsetWidth);
       var s = Math.min(kullanY / dogalY, kullanG / dogalG, 1);
@@ -184,7 +203,13 @@
       /* Alt sınır ekrana göre: yatay telefonda (yükseklik < 500 px) bilardo
          ve amiral battı gibi uzun masalar 0.35'e sıkışıp yine taşıyordu;
          alçak ekranlarda daha fazla küçülmeye izin veriyoruz. */
-      var altSinir = ((window.innerHeight || 600) < 500) ? 0.24 : 0.45;
+      /* Alt sınır görünür alana göre kademeli: adres çubuğu açık yatay
+         telefonda (görünen ~320 px) bilardo/amiral battı gibi uzun masalar
+         0.24'e sıkışıp yine taşıyordu. Çok dar alanda daha fazla
+         küçülmeye izin veriyoruz — küçük ama TAM görünür bir masa,
+         yarısı ekran dışında kalan bir masadan iyidir. */
+      var gy = gorunurYukseklik();
+      var altSinir = gy < 380 ? 0.16 : (gy < 500 ? 0.24 : 0.45);
       s = Math.max(altSinir, Math.min(1, s));
       el.style.transformOrigin = 'top center';
       el.style.transform = 'scale(' + s.toFixed(4) + ')';
@@ -196,7 +221,7 @@
          ölçüp gerekirse biraz daha küçültüyoruz — ölçüm, tahmin değil. */
       for (var tur = 0; tur < 4; tur++) {
         var kutu = el.getBoundingClientRect();
-        var sinir = (window.innerHeight || 600) - altPay;
+        var sinir = gorunurYukseklik() - altPay;
         if (kutu.bottom <= sinir + 1) break;
         var oran = Math.max(0.5, (sinir - kutu.top) / Math.max(1, kutu.height));
         s = Math.max(altSinir, s * oran);
@@ -220,19 +245,39 @@
   function boot() {
     var area = areaEl();
     if (!area) { setTimeout(boot, 400); return; }
-    var hepsi = function () { if (sigdirmaKilit) return; fit(); sigdir(); };
+    /* Tek geçiş bazen erken kalıyor: tahta çizildikten sonra yazı tipleri,
+       tuval ve şeritler oturunca yükseklik değişebiliyor. Her tetikten
+       sonra kısa bir gecikmeyle İKİNCİ bir ölçüm yapıyoruz (borçlanma
+       yok: ikinci geçiş yalnız gerekiyorsa stil yazar). */
+    var ikinci = null;
+    var hepsi = function () {
+      if (sigdirmaKilit) return;
+      fit(); sigdir();
+      if (ikinci) clearTimeout(ikinci);
+      ikinci = setTimeout(function () { ikinci = null; fit(); sigdir(); }, 320);
+    };
     mo = new MutationObserver(hepsi);
     mo.observe(area, { childList: true, subtree: false });
     if (window.ResizeObserver) { ro = new ResizeObserver(hepsi); ro.observe(area); }
     window.addEventListener('resize', hepsi);
-    window.addEventListener('orientationchange', function () { setTimeout(hepsi, 120); });
+    window.addEventListener('orientationchange', function () {
+      // Döndürme sonrası düzen birkaç kare sonra oturuyor: iki kez ölç.
+      setTimeout(hepsi, 120); setTimeout(hepsi, 450); setTimeout(hepsi, 900);
+    });
+    /* Adres çubuğu kayarken görünür alan değişir — o da yeniden ölçülmeli. */
+    if (window.visualViewport) {
+      try {
+        window.visualViewport.addEventListener('resize', hepsi);
+        window.visualViewport.addEventListener('scroll', hepsi);
+      } catch (_) {}
+    }
     // Tam ekrana girip çıkmak da kullanılabilir yüksekliği değiştirir.
     ['fullscreenchange', 'webkitfullscreenchange'].forEach(function (ev) {
       try { document.addEventListener(ev, function () { setTimeout(hepsi, 120); }); } catch (_) {}
     });
     // Kenar çubuğu 0.3 sn animasyonla açılıp kapanır: geçiş sonrası kesin oturtma
     // (yalnız stil yazar, DOM üretmez — ucuzdur).
-    setInterval(hepsi, 1200);
+    setInterval(hepsi, 700);
     hepsi();
   }
 
