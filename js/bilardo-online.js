@@ -324,16 +324,63 @@
   // ------------------------------------------------------------- ADAPTÖR
   // Vuruş ayarları render'lar arası KORUNUR (sunucudan durum gelince tahta
   // yeniden çizilir; oyuncunun seçtiği falso/açı sıfırlanmamalı).
-  var setup = { spinX: 0, spinY: 0, elevation: 0, power: 0.55, aim: 0, roomId: null };
+  var setup = { spinX: 0, spinY: 0, elevation: 0, power: 0.55, aim: 0, roomId: null, kilit: false };
   // ESC ile ıstekayı bırakma: dinleyici BİR KEZ bağlanır, güncel iptal
   // fonksiyonunu buradan okur (her bind()'de yeni dinleyici eklenmez).
   var iptalEdici = null;
+  // Nişan kilidi değişince tahtayı yeniden çizen güncel işlev (bind() yazar).
+  var kilitYenileyici = null;
+
+  /* Kullanıcı bir yazı alanına mı yazıyor? Sohbete "f" yazarken nişan
+     kilitlenmesin. */
+  function yaziyorMu() {
+    var a = document.activeElement;
+    if (!a) return false;
+    var t = (a.tagName || '').toLowerCase();
+    return t === 'input' || t === 'textarea' || t === 'select' || a.isContentEditable === true;
+  }
+
+  /* NİŞAN KİLİDİ (kullanıcı isteği):
+     "mouse imleciyle ıstaka yönünü ayarlarken, aşağıdaki ayarları yapmaya
+     çalışırken yön kayıyor... F tuşuna bastığında fare imlecin en son duran
+     hizada kilitlensin, tekrar F basarsa açılır."
+     Kilit açıkken tuval üzerindeki hareket nişanı DEĞİŞTİRMEZ; oyuncu güç,
+     açı ve falso kumandalarına rahatça gidip gelebilir. */
+  function kilidiCevir() {
+    setup.kilit = !setup.kilit;
+    if (typeof kilitYenileyici === 'function') kilitYenileyici();
+    if (window.GV && GV.toast) {
+      GV.toast(setup.kilit ? '🔒 Nişan kilitlendi — F ile serbest bırakın.'
+                           : '🔓 Nişan serbest — fareyle yön verebilirsiniz.', 'info');
+    }
+  }
+
   document.addEventListener('keydown', function (e) {
     if (e.key === 'Escape' && typeof iptalEdici === 'function') iptalEdici();
+    if ((e.key === 'f' || e.key === 'F') && !e.ctrlKey && !e.altKey && !e.metaKey) {
+      if (yaziyorMu()) return;
+      if (!document.getElementById('bilOnlineCanvas')) return;   // bilardo masasında değiliz
+      e.preventDefault();
+      kilidiCevir();
+    }
   });
+
+  /* DOKUNMATİK EKRAN MI?
+     Kullanıcı isteği: "dokunmatik ekranda sadece ıstaka vuruş yönü
+     ayarlanabilsin, çekme ve bırakma vurmayı sağlamasın." Telefonda parmakla
+     çekip bırakmak yanlışlıkla vuruş yapıyordu; artık dokunmak YALNIZCA
+     nişan alır, vuruş sadece "Vuruşu Yap" düğmesiyle olur. */
+  function dokunmaMi(e) {
+    if (e && e.pointerType) return e.pointerType === 'touch';
+    try { return !!(window.matchMedia && window.matchMedia('(hover: none)').matches); }
+    catch (_) { return false; }
+  }
+
   function resetSetupIfRoomChanged(m) {
     var rid = String(m.roomId == null ? '' : m.roomId);
-    if (setup.roomId !== rid) { setup = { spinX: 0, spinY: 0, elevation: 0, power: 0.55, aim: 0, roomId: rid }; }
+    if (setup.roomId !== rid) {
+      setup = { spinX: 0, spinY: 0, elevation: 0, power: 0.55, aim: 0, roomId: rid, kilit: false };
+    }
   }
 
   function spinWidget(root) {
@@ -371,8 +418,13 @@
       var n = names(m), score = s.score || [0, 0], groups = s.groups || [null, null];
       var grup = function (g) { return g === 'solid' ? 'Düz toplar' : g === 'stripe' ? 'Çizgili toplar' : 'Açık masa'; };
       var durum = m.isSpectator ? '👁️ İzleyici modundasınız.'
-        : mine ? '<b>Sıra sizde.</b> Nişan alın, falso ve gücü ayarlayıp vurun. ' +
-                 '<span class="bil-hint">Çekişi iptal edip yeniden nişan almak için <b>sağ tık</b> (veya ESC).</span>'
+        : mine ? '<b>Sıra sizde.</b> Nişan alın, falso ve gücü ayarlayıp vurun.' +
+                 /* Fare ve dokunmatik akışları FARKLI: hangisinin görüneceğine
+                    CSS karar verir (bkz. .bil-ipucu-fare / .bil-ipucu-dokunma). */
+                 '<span class="bil-hint bil-ipucu-fare">Yönü sabitlemek için <b>F</b>. ' +
+                 'Çekişi iptal edip yeniden nişan almak için <b>sağ tık</b> (veya ESC).</span>' +
+                 '<span class="bil-hint bil-ipucu-dokunma">Masaya dokunup parmağınızı sürükleyerek ' +
+                 'yönü ayarlayın, sonra <b>Vuruşu Yap</b>\'a basın.</span>'
                : 'Rakibin vuruşu bekleniyor…';
       var faul = (s.lastShot && s.lastShot.foul) ? '<div class="bil-foul">⚠️ Son vuruş fauldü — beyaz top yeniden yerleştirildi.</div>' : '';
 
@@ -405,6 +457,8 @@
                   Math.round(setup.elevation * 180 / Math.PI) + '°</span></div>' +
                 '<input type="range" id="bilElev" min="0" max="60" value="' +
                   Math.round(setup.elevation * 180 / Math.PI) + '" ' + (mine ? '' : 'disabled') + '>' +
+                (mine ? '<button type="button" class="bil-mini bil-kilit" id="bilAimLock" ' +
+                        'title="Nişan yönünü sabitle (F)"></button>' : '') +
               '</div>' +
             '</div>' +
             '<button class="bil-reset" id="bilOnlineShoot" ' + (mine ? '' : 'disabled') + '>Vuruşu Yap</button>' +
@@ -427,12 +481,29 @@
       var mine = s.turn === m.seat && !m.isSpectator;
       var drag = false, start = null;
 
+      var kilitBtn = root.querySelector('#bilAimLock');
+      function kilitYaz() {
+        if (!kilitBtn) return;
+        kilitBtn.textContent = setup.kilit ? '🔒 Nişan kilitli (F)' : '🔓 Nişan serbest (F)';
+        kilitBtn.classList.toggle('acik', !!setup.kilit);
+        kilitBtn.setAttribute('aria-pressed', setup.kilit ? 'true' : 'false');
+      }
       function redraw() {
         if (txt) txt.textContent = Math.round(setup.power * 100) + '%';
         if (elTxt) elTxt.textContent = Math.round(setup.elevation * 180 / Math.PI) + '°';
+        kilitYaz();
         spinWidget(root);
         paint(c, s, setup.aim, setup.power, mine);
+        /* TEŞHİS KANCASI: o anki nişan/güç/kilit durumu. Oyun mantığı bunu
+           okumaz; testler ve destek için dışarı verilir (tahta her sunucu
+           durumunda yeniden çizildiği için tuvale kanca takmak güvenilmez). */
+        try {
+          window.__gvBilDurum = { aim: setup.aim, power: setup.power,
+                                  kilit: !!setup.kilit, benim: !!mine };
+        } catch (_) {}
       }
+      kilitYenileyici = redraw;       // F tuşu bu tahtayı yeniden çizsin
+      if (kilitBtn) kilitBtn.addEventListener('click', function () { kilidiCevir(); });
       function pt(e) {
         var r = c.getBoundingClientRect();
         return { x: (e.clientX - r.left) * C.W / (r.width || C.W),
@@ -466,34 +537,64 @@
         if (window.GV && GV.toast) GV.toast('🎯 Isteka bırakıldı — yeniden nişan alabilirsiniz.', 'info');
       }
       iptalEdici = istekayiBirak;          // ESC için (tek, modül düzeyinde dinleyici)
+
+      /* Parmakla nişan: dokunma başladığında true olur, parmak kalkınca
+         false. Bu moddayken çekiş (güç) ve vuruş HİÇ devreye girmez. */
+      var parmakNisan = false;
+      function nisanAl(p) {
+        if (setup.kilit) return false;                 // F ile kilitliyse yön sabit
+        var cue = liveBalls(s).find(function (b) { return b.id === 'cue' && !b.potted; });
+        if (!cue) return false;
+        setup.aim = Math.atan2(p.y - cue.y, p.x - cue.x);
+        return true;
+      }
+
       if (c && mine) {
         c.addEventListener('contextmenu', function (e) { e.preventDefault(); istekayiBirak(); });
         c.addEventListener('pointermove', function (e) {
+          if (parmakNisan || dokunmaMi(e)) {           // DOKUNMA: yalnız nişan
+            if (!parmakNisan) return;                  // parmak basılı değilse yoksay
+            e.preventDefault();
+            nisanAl(pt(e)); redraw();
+            return;
+          }
           var p = pt(e);
-          var cue = liveBalls(s).find(function (b) { return b.id === 'cue' && !b.potted; });
-          if (!cue) return;
           if (drag) {
             // Geriye çekme mesafesi gücü belirler (klasik bilardo hissi)
             setup.power = Math.max(0.05, Math.min(1, Math.hypot(p.x - start.x, p.y - start.y) / 170));
             if (pw) pw.value = Math.round(setup.power * 100);
-          } else {
-            setup.aim = Math.atan2(p.y - cue.y, p.x - cue.x);
+          } else if (!nisanAl(p)) {
+            return;                    // kilitli ya da beyaz top yok: çizme
           }
           redraw();
         });
         c.addEventListener('pointerdown', function (e) {
           if (e.button === 2) { e.preventDefault(); istekayiBirak(); return; }   // sağ tık: bırak
+          if (dokunmaMi(e)) {
+            /* DOKUNMATİK: basmak/sürüklemek SADECE nişan alır. Çekip bırakmak
+               vuruş YAPMAZ — vuruş yalnızca "Vuruşu Yap" düğmesiyle olur. */
+            e.preventDefault();
+            parmakNisan = true; drag = false; iptal = false;
+            if (c.setPointerCapture) { try { c.setPointerCapture(e.pointerId); } catch (_) {} }
+            nisanAl(pt(e)); redraw();
+            return;
+          }
           drag = true; iptal = false; start = pt(e);
           if (c.setPointerCapture) { try { c.setPointerCapture(e.pointerId); } catch (_) {} }
         });
-        c.addEventListener('pointerup', function () {
+        c.addEventListener('pointerup', function (e) {
+          if (parmakNisan) { parmakNisan = false; return; }   // dokunma: vuruş YOK
           if (!drag) { iptal = false; return; }
           drag = false;
           if (iptal) { iptal = false; return; }        // iptal edilmiş çekiş vuruş YAPMAZ
           if (setup.power >= 0.05) fire();
         });
+        c.addEventListener('pointercancel', function () { parmakNisan = false; });
         // İmleç masadan çıkarsa çekişi iptal et (yanlışlıkla vuruş olmasın)
-        c.addEventListener('pointerleave', function () { if (drag) istekayiBirak(); });
+        c.addEventListener('pointerleave', function () {
+          if (parmakNisan) { parmakNisan = false; return; }
+          if (drag) istekayiBirak();
+        });
       }
       if (pw) pw.addEventListener('input', function () {
         setup.power = Math.max(0.05, Math.min(1, Number(pw.value) / 100));

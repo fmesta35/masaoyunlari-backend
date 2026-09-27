@@ -600,6 +600,20 @@ button,input,select{font-family:var(--font)}
 .bil-callout{position:absolute;inset:0;display:none;align-items:center;justify-content:center;background:rgba(5,7,9,.78);backdrop-filter:blur(5px);z-index:4}.bil-callout.show{display:flex}.bil-result-card{width:min(430px,88%);padding:28px;background:#161a20;border:1px solid rgba(214,180,106,.45);border-radius:12px;text-align:center;box-shadow:0 24px 70px rgba(0,0,0,.55)}.bil-result-card h2{margin-bottom:8px}.bil-result-card p{color:rgba(255,255,255,.72);margin-bottom:18px}.bil-result-actions{display:flex;justify-content:center;gap:10px;flex-wrap:wrap}
 @media(max-width:700px){.bil-stage{padding:10px}.bil-hud{grid-template-columns:1fr auto 1fr;padding:9px}.bil-player-name{max-width:90px}.bil-avatar{width:32px;height:32px}.bil-controls{grid-template-columns:1fr;gap:10px}.bil-reset{width:100%}.bil-canvas{transform:none}.bil-help{text-align:center}}
 @media(prefers-reduced-motion:reduce){.bil-canvas,.bil-power>i{transition:none}}
+/* ---------- BİLARDO: FARE / DOKUNMA İPUÇLARI ve NİŞAN KİLİDİ ----------
+   Kullanıcı isteği: telefonda masaya dokunmak YALNIZCA nişan alır (çekip
+   bırakmak vuruş yapmaz, vuruş "Vuruşu Yap" düğmesiyle olur); web'de ise
+   F tuşu nişan yönünü son konumda kilitler, böylece güç/açı/falso
+   kumandalarına giderken yön kaymaz. İki akışın ipucu metni farklı;
+   hangisinin görüneceğine giriş aygıtı karar verir. */
+.bil-ipucu-dokunma{display:none}
+@media(hover:none),(pointer:coarse){
+  .bil-ipucu-fare{display:none}
+  .bil-ipucu-dokunma{display:block}
+  .bil-kilit{display:none}          /* dokunmada nişan zaten sabit kalır */
+}
+.bil-kilit{margin-top:6px;width:100%;text-align:center}
+.bil-kilit.acik{border-color:#d6b46a;background:#3a2f16;color:#f7dfa4}
 /* ==========================================================================
    BİLARDO — KOMPAKT DÜZEN (yatay telefon + tam ekran)
    --------------------------------------------------------------------------
@@ -5582,7 +5596,7 @@ GV.init();
 <script src="js/reversi-online.js?v=20260904b" defer></script>
 <script src="js/gomoku-online.js?v=20260904b" defer></script>
 <script src="js/connect4-online.js?v=20260904b" defer></script>
-<script src="js/bilardo-online.js?v=20260914b" defer></script>
+<script src="js/bilardo-online.js?v=20260927b" defer></script>
 <script src="js/deniz-sinematik.js?v=20260920a" defer></script>
 <script src="js/deniz-kopru.js?v=20260920a" defer></script>
 <script src="js/tournaments.js?v=20260927a" defer></script>
