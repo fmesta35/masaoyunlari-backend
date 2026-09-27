@@ -178,7 +178,7 @@ button,input,select{font-family:var(--font)}
    (yalnız kenarlık payı) çöküyordu. Çözüm: sarmalayıcıya KESİN (auto
    olmayan) bir genişlik veriyoruz. */
 #pg-room.gv-fs .dama-wrap,#pg-room.gv-fs .tdama-wrap,#pg-room.gv-fs .rv-wrap,
-#pg-room.gv-fs .gm-wrap,#pg-room.gv-fs .c4-wrap,#pg-room.gv-fs .bil-wrap,
+#pg-room.gv-fs .gm-wrap,#pg-room.gv-fs .c4-wrap,
 #pg-room.gv-fs .bs-wrap,#pg-room.gv-fs .card-wrap,#pg-room.gv-fs .chess-wrapper,
 #pg-room.gv-fs .tavla-wrap{
   max-width:none;width:100%;height:100%;max-height:100%;min-height:0;
@@ -241,13 +241,20 @@ button,input,select{font-family:var(--font)}
 #pg-room.gv-fs .rv-board,#pg-room.gv-fs .gm-board,#pg-room.gv-fs .c4-board{
   width:100%;height:auto;max-height:100%;min-height:0
 }
-/* Bilardo: masa esner, HUD ve kumanda sabit kalır */
-#pg-room.gv-fs .bil-stage{flex:1;min-height:0;width:100%;display:flex;flex-direction:column}
-#pg-room.gv-fs .bil-canvas-wrap{flex:1;min-height:0;display:flex;align-items:center;justify-content:center}
-#pg-room.gv-fs .bil-canvas{height:100%;width:auto;max-width:100%;max-height:100%}
+/* Bilardo: tam ekranda ve yatay telefonda KOMPAKT düzene geçer
+   (.bil-kompakt — bkz. aşağıdaki blok ve js/board-fit.js). Buradaki eski
+   kurallar (height:100%;width:auto) esnek kutuda tuvali 0x0'a düşürüyordu:
+   ölçülen değer tam ekranda tuval 0 px genişlik, yani masa hiç yoktu. */
 /* Amiral Battı: hücre ölçüsü hem yüksekliğe hem genişliğe göre daralır */
 #pg-room.gv-fs .bs-wrap{--bs-cell:min(34px, calc((100vh - 300px) / 10), calc((100vw - 340px) / 21))}
 #pg-room.gv-fs .okey-table{max-height:100%;min-height:0}
+/* DAR ekranda (portre telefon) bilardo tam ekrandayken yan panel şeridi
+   gizlenir: masaya 86 px daha genişlik kalır (ölçüldü: 260 → 354 px).
+   Sınıfı js/board-fit.js verir ve bilardodan çıkınca kaldırır. Geniş
+   ekranlarda yan panel (süre + sohbet) yerinde kalır. */
+#pg-room.gv-fs.gv-bil-genis{grid-template-columns:minmax(0,1fr)}
+#pg-room.gv-fs.gv-bil-genis .game-side{display:none}
+#pg-room.gv-fs.gv-bil-genis .game-board-area{grid-column:1}
 
 /* MOBİL TAM EKRAN: süre kartları yine DİKEY (dar bir şerit), tahta
    kalan tüm alanı alır. Yan panelin GERİ KALANI (puan panosu, hamleler,
@@ -256,7 +263,7 @@ button,input,select{font-family:var(--font)}
    çocuğu olduğundan (bkz. #pg-room işaretlemesi), .game-side'ı TAMAMEN
    gizlemek yerine yalnız .timers DIŞINDAKİ çocukları gizliyoruz —
    böylece dar sol şeritte süre hâlâ görünür kalır. */
-@media(max-width:760px){
+@media(max-width:760px),(max-height:560px) and (orientation:landscape){
   #pg-room.gv-fs{grid-template-columns:86px minmax(0,1fr);grid-template-rows:auto minmax(0,1fr);
     padding:6px 8px;column-gap:8px}
   #pg-room.gv-fs .gr-header{grid-column:1/-1;grid-row:1}
@@ -593,6 +600,89 @@ button,input,select{font-family:var(--font)}
 .bil-callout{position:absolute;inset:0;display:none;align-items:center;justify-content:center;background:rgba(5,7,9,.78);backdrop-filter:blur(5px);z-index:4}.bil-callout.show{display:flex}.bil-result-card{width:min(430px,88%);padding:28px;background:#161a20;border:1px solid rgba(214,180,106,.45);border-radius:12px;text-align:center;box-shadow:0 24px 70px rgba(0,0,0,.55)}.bil-result-card h2{margin-bottom:8px}.bil-result-card p{color:rgba(255,255,255,.72);margin-bottom:18px}.bil-result-actions{display:flex;justify-content:center;gap:10px;flex-wrap:wrap}
 @media(max-width:700px){.bil-stage{padding:10px}.bil-hud{grid-template-columns:1fr auto 1fr;padding:9px}.bil-player-name{max-width:90px}.bil-avatar{width:32px;height:32px}.bil-controls{grid-template-columns:1fr;gap:10px}.bil-reset{width:100%}.bil-canvas{transform:none}.bil-help{text-align:center}}
 @media(prefers-reduced-motion:reduce){.bil-canvas,.bil-power>i{transition:none}}
+/* ==========================================================================
+   BİLARDO — KOMPAKT DÜZEN (yatay telefon + tam ekran)
+   --------------------------------------------------------------------------
+   Kullanıcı raporu: "bilardo - yatay ekranda mobilde çok küçülmüş işe
+   yaramıyor. Tam ekrana geçildiğinde ise tamamen bilardo dashboard
+   yansıtacak ve oynanacak şekilde ayarla."
+   ÖLÇÜLEN ESKİ DURUM (gerçek Chromium): 915x412 yatayda tuval 322x177 px
+   (sarmalayıcı 0.395 ölçekle küçültülmüştü) — ekran genişliğinin yalnızca
+   %35'i, sağda 500 px boş alan; TAM EKRANDA tuval 0x0 px, yani masa hiç
+   çizilmiyordu.
+   KÖK NEDEN: HUD ve kumanda şeridi masanın ALTINDA duruyor, doğal yükseklik
+   ~740 px'e çıkıyor ve board-fit tamamını orantılı küçültünce masa da aynı
+   oranda eziliyordu. Oysa yatay ekranda YÜKSEKLİK kıt, GENİŞLİK boldu.
+   ÇÖZÜM: kompakt düzende HUD ve kumandalar masanın SAĞINA dar bir şeride
+   geçer; masa kalan alanın TAMAMINI alır. Tuvalin piksel ölçüsü 9:5 oranı
+   korunarak js/board-fit.js tarafından hesaplanır — transform:scale YOK,
+   yani yazılar ve düğmeler okunaklı kalır.
+   .bil-stage burada display:contents alır: DOM'u değiştirmeden çocukları
+   (.bil-canvas-wrap ve .bil-controls) doğrudan ızgaranın hücrelerine oturur.
+   ========================================================================== */
+.bil-wrap.bil-kompakt{max-width:none;width:100%;margin:0;display:grid;
+  /* Tam ekranda .game-board-area esnek ve ORTALIYOR; kompakt kutu kendi
+     yüksekliğini görünür alana göre hesapladığı için ortalama onu aşağı
+     kaydırıp alttan taşırıyordu (ölçüldü: 28 px). Üste hizalanıyor. */
+  align-self:flex-start;justify-self:stretch;
+  /* VARSAYILAN: DİKEY kompakt — dar/portre ekran. HUD üstte ince bir şerit,
+     masa ortada tüm boşluğu alır, kumandalar altta tek satır. */
+  grid-template-columns:minmax(0,1fr);
+  grid-template-rows:auto auto minmax(0,1fr) auto;gap:6px;align-items:stretch}
+.bil-kompakt .bil-stage{display:contents}
+.bil-kompakt .bil-canvas-wrap{grid-column:1;grid-row:3;position:relative;
+  min-width:0;min-height:0;max-width:none;margin:0;padding:6px;perspective:none;
+  background:radial-gradient(ellipse at 50% 10%,rgba(255,255,255,.10),transparent 48%),
+             linear-gradient(180deg,#282b31,#111318);
+  border:1px solid rgba(255,255,255,.1);border-radius:14px;overflow:hidden}
+/* Tuval mutlak konumlu: kutunun boyu tuvale bağlı kalmasın (yoksa ölçü
+   hesabı kendi kendine geri besleme yapardı). Ölçü board-fit'ten gelir. */
+.bil-kompakt .bil-canvas{position:absolute;left:50%;top:50%;
+  transform:translate(-50%,-50%);max-width:none;max-height:none;
+  aspect-ratio:auto;border-radius:10px;filter:none}
+.bil-kompakt .bil-hud{grid-column:1;grid-row:1;margin:0;padding:6px 8px;gap:6px;
+  border-radius:10px;box-shadow:none}
+.bil-kompakt .bil-avatar{width:26px;height:26px;font-size:.66em}
+.bil-kompakt .bil-player-name{font-size:.68em;max-width:120px}
+.bil-kompakt .bil-player-score{font-size:.74em}
+.bil-kompakt .bil-round{font-size:.56em;letter-spacing:.09em}
+.bil-kompakt .bil-match-score{font-size:.9em}
+.bil-kompakt .bil-foul{grid-column:1;grid-row:2;margin:0;padding:4px 6px;font-size:.66em}
+.bil-kompakt .bil-hint{display:none}                /* sağ tık ipucu telefonda gereksiz */
+.bil-kompakt .bil-tool-h{font-size:.58em;letter-spacing:.08em}
+.bil-kompakt #bilSpin{width:56px;height:56px}
+.bil-kompakt .bil-power-label{font-size:.6em;margin-bottom:3px}
+.bil-kompakt .bil-power{height:9px}
+.bil-kompakt .bil-mini{min-height:22px;font-size:.62em;padding:0 6px}
+.bil-kompakt .bil-reset{min-height:34px;padding:0 10px;font-size:.78em;white-space:nowrap}
+/* DİKEY biçimde kumandalar tek satır: yardım metni gizlenir, falso +
+   kaydırıcılar solda, vuruş düğmesi sağda. */
+.bil-kompakt:not(.bil-serit) .bil-controls{grid-column:1;grid-row:4;margin:0;min-height:0;
+  display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:8px}
+.bil-kompakt:not(.bil-serit) .bil-help{display:none}
+.bil-kompakt:not(.bil-serit) .bil-tools{flex-wrap:nowrap;gap:8px;align-items:center}
+
+/* ŞERİT biçimi (yatay/geniş kutu): HUD ve kumandalar masanın SAĞINDA dar
+   bir sütunda; masa yüksekliğin TAMAMINI alır. board-fit kutunun eni
+   boyunun 1.5 katından fazlaysa bu sınıfı verir. */
+.bil-wrap.bil-kompakt.bil-serit{
+  grid-template-columns:minmax(0,1fr) var(--bil-rail,200px);
+  grid-template-rows:auto auto minmax(0,1fr);gap:8px}
+.bil-serit .bil-canvas-wrap{grid-column:1;grid-row:1/4}
+.bil-serit .bil-hud{grid-column:2;grid-row:1;grid-template-columns:minmax(0,1fr)}
+.bil-serit .bil-player{gap:7px}
+.bil-serit .bil-player.right{justify-content:flex-start;text-align:left}
+.bil-serit .bil-foul{grid-column:2;grid-row:2}
+.bil-serit .bil-controls{grid-column:2;grid-row:3;margin:0;min-height:0;
+  display:flex;flex-direction:column;gap:6px;align-items:stretch;
+  overflow-y:auto;overscroll-behavior:contain}
+.bil-serit .bil-help{font-size:.66em;line-height:1.35;text-align:left;
+  max-height:3.4em;overflow:hidden}
+.bil-serit .bil-tools{gap:8px;flex-wrap:nowrap;align-items:flex-start}
+.bil-serit .bil-tool.grow{min-width:0}
+/* Çok dar yatay ekranda (740 px) şerit biraz daralır. */
+@media(max-width:800px){ .bil-wrap.bil-kompakt.bil-serit{--bil-rail:176px} }
+
 
 /* ===================== AMİRAL BATTI (Battleship) =====================
    Izgara artık gerçek bir CSS grid: etiketler ayrı, hücreler ayrı bir
@@ -1382,6 +1472,7 @@ html{scrollbar-gutter:stable}
 }
 @media(max-width:560px){
   #themeBtn{display:none}                    /* dar ekranda üst barda yer kazan */
+  /* (800 px altında zaten gizli — bkz. gv-responsive katmanı) */
 }
 @media(max-width:480px){
   #headerAuthContainer .btn{padding:5px 8px;font-size:.72em}
@@ -1698,9 +1789,10 @@ body.gv-app input,body.gv-app textarea,body.gv-app .chat-msgs,body.gv-app .moves
     border:1px solid var(--border);border-radius:12px;background:var(--card);
     color:var(--text);font-size:1em;font-weight:600;cursor:pointer}
   .sb-nav-item:active{background:var(--card2)}
-  /* Görünüm (karanlık/aydınlık) düğmesi mobilde de üst barda kalır —
-     eskiden 560 px altında tamamen gizleniyordu. */
-  #themeBtn{display:flex!important}
+  /* Görünüm (karanlık/aydınlık) düğmesi mobilde üst barda GÖRÜNMEZ:
+     hamburger menüsündeki "🌓 Görünümü Değiştir" (#sbThemeBtn) aynı işi
+     yapıyor, üst barda iki kez yer kaplamasın diye kaldırıldı. */
+  #themeBtn{display:none!important}
 }
 
 @supports (height:100dvh){ @media(max-width:800px){ .sidebar{height:100dvh} } }
@@ -1772,7 +1864,8 @@ body.gv-app input,body.gv-app textarea,body.gv-app .chat-msgs,body.gv-app .moves
   <div class="header-right">
     <button class="icon-btn" id="themeBtn" onclick="GV.toggleTheme()">🌙</button>
     <button class="icon-btn" id="friendsBtn" title="Arkadaşlarım" onclick="GV.openFriends && GV.openFriends()" style="display:none;position:relative">👥<span class="badge-count" id="friendsBadgeCount" style="display:none">0</span></button>
-    <div style="position: relative;">
+    <!-- Bildirim zili yalnız üye girişinde görünür (ziyaretçinin bildirimi olmaz). -->
+    <div id="notifWrap" style="position: relative;display:none">
       <button class="icon-btn" onclick="GV.toggleNotif()">
         <span>🔔</span>
         <span class="badge-count" id="notifBadgeCount" style="display:none">0</span>
@@ -2364,6 +2457,11 @@ function updateAuthState() {
   // Arkadaşlar butonu yalnızca üye girişinde görünür.
   const fb = document.getElementById('friendsBtn');
   if (fb) fb.style.display = st.isGuest ? 'none' : '';
+  // Bildirim zili de yalnızca üye girişinde: ziyaretçiye bildirim gitmiyor.
+  const nw = document.getElementById('notifWrap');
+  if (nw) nw.style.display = st.isGuest ? 'none' : '';
+  if (st.isGuest) { var np = document.getElementById('notifPanel');
+    if (np) np.classList.remove('show'); }
 
   // İstatistikler / Sıralama / Rütbeler ziyaretçiye HİÇ gösterilmez (üst
   // menü + sol/mobil menü) — gerçek değerleri görmesine gerek yok, giriş
@@ -5487,7 +5585,7 @@ GV.init();
 <script src="js/bilardo-online.js?v=20260914b" defer></script>
 <script src="js/deniz-sinematik.js?v=20260920a" defer></script>
 <script src="js/deniz-kopru.js?v=20260920a" defer></script>
-<script src="js/tournaments.js?v=20260920a" defer></script>
+<script src="js/tournaments.js?v=20260927a" defer></script>
 <script src="js/battleship-online.js?v=20260920c" defer></script>
 <script src="js/chat.js?v=20260821c" defer></script>
 <script src="js/leave-guard.js?v=20260908b" defer></script>
@@ -5511,7 +5609,7 @@ GV.init();
 }
 </script>
 <script src="js/no-bots.js?v=20260823b" defer></script>
-<script src="js/board-fit.js?v=20260904a" defer></script>
+<script src="js/board-fit.js?v=20260927a" defer></script>
 <!-- Pes et + rövanş/yeniden oyna: dört bitiş ekranının ortak mantığı -->
 <script src="js/rematch.js?v=20260920a" defer></script>
 <!-- Kullanıcıyı bildir (şikayet) + kişisel susturma -->

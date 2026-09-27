@@ -161,7 +161,18 @@
     '</div>';
   }
 
+  /* SAYFA HÂLÂ AÇIK MI?
+     `yenile()` bir ağ isteğinin ardından çiziyor; istek dönene kadar sayfa
+     kapanmış olabilir (test ortamında jsdom penceresi kapanınca `document`
+     tanımsızlaşıyor ve "Cannot read properties of undefined" ile süreç
+     düşüyordu). Çizimden önce belgenin yaşadığını doğruluyoruz. */
+  function sayfaVar() {
+    try { return typeof document !== 'undefined' && !!document && !!document.getElementById; }
+    catch (_) { return false; }
+  }
+
   function ciz() {
+    if (!sayfaVar()) return;
     var el = document.getElementById('tournList');
     if (!el) return;
     var sekme = (window.st && window.st.currentTournTab) || 'all';
@@ -247,7 +258,7 @@
     });
     try { if (window.GVArena && GVArena.socket) soketeBagla(GVArena.socket()); } catch (_) {}
   }
-  setInterval(soketAra, 3000);
+  setInterval(function () { if (sayfaVar()) soketAra(); }, 3000);
   soketAra();
 
   window.GVTurnuva = { yenile: yenile, ciz: ciz, veri: function () { return liste; }, bagla: soketeBagla };

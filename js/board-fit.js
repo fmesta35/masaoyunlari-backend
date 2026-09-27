@@ -26,7 +26,15 @@
   var MIN_W = 560;   // bu genişliğin altında tuval sabitlenip küçültülür
   var MIN_H = 430;   // bu yüksekliğin altında tuval sabitlenip küçültülür
 
-  function areaEl() { return document.getElementById('boardArea'); }
+  /* Sayfa hâlâ açık mı? Zamanlayıcılar ve gözlemciler, belge kapandıktan
+     sonra da bir kez daha tetiklenebiliyor (test ortamında jsdom penceresi
+     kapanınca `document` tanımsızlaşıyor). */
+  function sayfaVar() {
+    try { return typeof document !== 'undefined' && !!document && !!document.getElementById; }
+    catch (_) { return false; }
+  }
+
+  function areaEl() { return sayfaVar() ? document.getElementById('boardArea') : null; }
 
   /* GERÇEKTEN GÖRÜNEN YÜKSEKLİK.
      Telefon tarayıcılarında window.innerHeight, adres çubuğunun ARKASINDA
@@ -165,11 +173,100 @@
   var OYUN_SARMAL = '.chess-wrapper,.dama-wrap,.tdama-wrap,.rv-wrap,.gm-wrap,' +
                     '.c4-wrap,.bil-wrap,.card-wrap,.bs-wrap,.tavla-wrap';
   var sigdirmaKilit = false;
+
+  /* ==========================================================================
+     BİLARDO: ORANTILI KÜÇÜLTME YERİNE GERÇEK DÜZEN DEĞİŞİKLİĞİ
+     --------------------------------------------------------------------------
+     Kullanıcı raporu: "bilardo - yatay ekranda mobilde çok küçülmüş işe
+     yaramıyor. Tam ekrana geçildiğinde ise tamamen bilardo dashboard
+     yansıtacak ve oynanacak şekilde ayarla."
+     ÖLÇÜLEN ESKİ DURUM (gerçek Chromium, 915x412 yatay): tuval 322x177 px,
+     sarmalayıcı 0.395 ölçekle küçültülmüş, sağda ~500 px boş alan duruyor;
+     TAM EKRANDA tuval 0x0 px (eski `#pg-room.gv-fs .bil-canvas` kuralı esnek
+     kutuda çöküyordu) — masa hiç görünmüyordu.
+     KÖK NEDEN: HUD + kumanda şeridi masanın ALTINDA; doğal yükseklik ~740 px
+     ve hepsi birlikte 290 px'e sıkıştırılınca masa da aynı oranda eziliyor.
+     ÇÖZÜM: bilardo alçak/yatay ekranda ve tam ekranda `.bil-kompakt` düzenine
+     geçer (HUD ve kumandalar sağdaki dar şeride taşınır, masa kalan alanın
+     tamamını alır) ve tuvalin piksel ölçüsü burada 9:5 oranı korunarak
+     hesaplanır. Ölçek dönüşümü UYGULANMAZ: yazılar ve düğmeler okunaklı kalır.
+     ======================================================================== */
+  /* DAR telefonda (portre) tam ekranda yan panel şeridi 86 px genişlik
+     alıyor ve masaya yalnız 260 px kalıyordu (ölçüldü). Yalnız bu durumda
+     şerit gizlenir — oyuncu ve skor bilgisi zaten bilardo HUD'unda var.
+     Geniş ekranlarda yan panel (süre + sohbet) korunur. */
+  function odaBilGenis(acik) {
+    var oda = document.getElementById('pg-room');
+    if (oda) oda.classList.toggle('gv-bil-genis', !!acik);
+  }
+
+  function bilardoTuvaliOlc(el) {
+    var kutu = el.querySelector('.bil-canvas-wrap');
+    var cv = el.querySelector('.bil-canvas');
+    if (!kutu || !cv) return;
+    // Oran tuvalin KENDİ piksel çözünürlüğünden gelir (900x450 = 2.0 vb.).
+    var oran = (cv.width && cv.height) ? (cv.width / cv.height) : 1.8;
+    var ic = 12;                                   // .bil-canvas-wrap dolgusu
+    var kw = Math.max(60, (kutu.clientWidth || 0) - ic);
+    var kh = Math.max(40, (kutu.clientHeight || 0) - ic);
+    var g = Math.min(kw, kh * oran);
+    var y = g / oran;
+    cv.style.width = Math.floor(g) + 'px';
+    cv.style.height = Math.floor(y) + 'px';
+  }
+
+  function bilardoKompakt(el, area) {
+    if (el.style.transform) { el.style.transform = ''; el.style.transformOrigin = ''; }
+    /* Ölçüm önce KENDİ yazdığımız enden arındırılır: kalan inline genişlik,
+       alanın gerçek genişliğini gizliyordu (1440 px tam ekranda masa
+       1096 → 936 px'e düşüyordu). */
+    el.style.width = '';
+    el.classList.add('bil-kompakt');
+    /* Yan panel şeridi yalnız DAR ekranda gizlenir; ölçümden ÖNCE karar
+       verilir, çünkü kullanılabilir genişliği değiştirir. */
+    odaBilGenis(gorunurGenislik() < 560);
+    var r = area.getBoundingClientRect();
+    var kullanY = Math.max(150, gorunurYukseklik() - r.top - 10);
+    var kullanG = Math.max(240, Math.min(area.clientWidth || r.width, gorunurGenislik()));
+    el.style.height = Math.floor(kullanY) + 'px';
+    el.style.width = Math.floor(kullanG) + 'px';
+    /* ŞERİT mi DİKEY mi? Tahmin YERİNE ÖLÇÜM: iki biçim de uygulanıp
+       masanın gerçek eni okunur, büyük olan kalır.
+         · ŞERİT  : HUD + kumandalar masanın SAĞINDA, masa boyun tamamını alır
+                    (yatay telefonda kazanan biçim).
+         · DİKEY  : HUD üstte, kumandalar altta, masa eni tamamen alır
+                    (portre telefonda ve çok geniş masaüstü tam ekranında
+                    kazanan biçim).
+       Üç düzen geçişi maliyetlidir ama bu işlev yalnız ölçü değiştiğinde
+       çalışır (yeniden boyutlandırma / tam ekran), her karede değil. */
+    var eniOlc = function (serit) {
+      el.classList.toggle('bil-serit', serit);
+      bilardoTuvaliOlc(el);
+      var c = el.querySelector('.bil-canvas');
+      return c ? c.getBoundingClientRect().width : 0;
+    };
+    var enSerit = eniOlc(true);
+    var enDikey = eniOlc(false);
+    if (enSerit >= enDikey) eniOlc(true);
+    return kullanY;
+  }
+
+  function bilardoNormal(el) {
+    odaBilGenis(false);
+    if (!el.classList.contains('bil-kompakt') && !el.style.height) return;
+    el.classList.remove('bil-kompakt');
+    el.classList.remove('bil-serit');
+    el.style.height = ''; el.style.width = '';
+    var cv = el.querySelector('.bil-canvas');
+    if (cv) { cv.style.width = ''; cv.style.height = ''; }
+  }
+
   function sigdir() {
     var area = areaEl();
     if (!area) return;
     if (area.querySelector('.okey-table')) return;        // okey kendi yolunu kullanır
     var el = area.querySelector(OYUN_SARMAL);
+    if (!el || !el.classList.contains('bil-wrap')) odaBilGenis(false);
     if (!el) { if (area.style.minHeight) area.style.minHeight = ''; return; }
     /* YALNIZ GEREKTİĞİNDE: alçak ekran (yatay telefon) ya da tam ekran.
        Normal masaüstü penceresinde sayfa zaten kaydırılabiliyor; orada
@@ -177,12 +274,37 @@
     var oda = document.getElementById('pg-room');
     var tamEkran = !!(oda && oda.classList.contains('gv-fs'));
     var kisaEkran = gorunurYukseklik() < 560;
+    var bilardo = el.classList.contains('bil-wrap');
     if (!tamEkran && !kisaEkran) {
       if (el.style.transform) { el.style.transform = ''; el.style.transformOrigin = ''; }
+      if (bilardo) bilardoNormal(el);
       if (area.style.minHeight) area.style.minHeight = '';
       return;
     }
     sigdirmaKilit = true;
+    if (bilardo) {
+      try {
+        var bKullanY = bilardoKompakt(el, area);
+        area.style.minHeight = Math.ceil(bKullanY) + 'px';
+        /* DÜZELTME TURU: tam ekranda .game-board-area kutusu görünür alandan
+           uzun olabiliyor (ölçüldü: 362 px alan, 412 px ekran, üstte 115 px
+           şerit) — kutunun GERÇEK alt kenarını ölçüp gerekirse kısaltıyoruz.
+           Şerit içeriği oturunca kutunun eni de değişebildiği için tuval her
+           turda yeniden ölçülür. */
+        for (var btur = 0; btur < 3; btur++) {
+          var bkutu = el.getBoundingClientRect();
+          var bsinir = gorunurYukseklik() - 10;
+          if (bkutu.bottom <= bsinir + 1) break;
+          bKullanY = Math.max(140, bKullanY - (bkutu.bottom - bsinir));
+          el.style.height = Math.floor(bKullanY) + 'px';
+          area.style.minHeight = Math.ceil(bKullanY) + 'px';
+        }
+        bilardoTuvaliOlc(el);
+      } finally {
+        setTimeout(function () { sigdirmaKilit = false; }, 0);
+      }
+      return;
+    }
     try {
       // Ölçüm doğal boyutta yapılır: önce varsa ölçek kaldırılır.
       if (el.style.transform) { el.style.transform = ''; el.style.transformOrigin = ''; }
@@ -251,7 +373,7 @@
        yok: ikinci geçiş yalnız gerekiyorsa stil yazar). */
     var ikinci = null;
     var hepsi = function () {
-      if (sigdirmaKilit) return;
+      if (sigdirmaKilit || !sayfaVar()) return;
       fit(); sigdir();
       if (ikinci) clearTimeout(ikinci);
       ikinci = setTimeout(function () { ikinci = null; fit(); sigdir(); }, 320);

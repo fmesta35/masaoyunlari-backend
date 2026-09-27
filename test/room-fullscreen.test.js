@@ -191,8 +191,15 @@ async function main() {
     'tahta alanı taşmamalı (içerik küçülmeli)');
   assert.ok(kaynak.includes('#pg-room.gv-fs .game-layout{display:contents}'),
     'yan panel ve tahta dış grid\'e katılmalı (display:contents)');
-  assert.ok(/@media\(max-width:760px\)\{[\s\S]{0,900}#pg-room\.gv-fs\{/.test(kaynak),
+  /* Mobil tam ekran kuralları artık YATAY telefonu da kapsıyor: 915x412
+     yatayda genişlik 760'tan büyük olduğu için eski sorgu devreye girmiyor,
+     yan panel 240 px kalıyor ve tahtaya yer kalmıyordu. Bu yüzden medya
+     sorgusu "(max-width:760px), (max-height:560px) and (orientation:landscape)"
+     biçiminde VEYA'lı. */
+  assert.ok(/@media\(max-width:760px\)[^{]*\{[\s\S]{0,900}#pg-room\.gv-fs\{/.test(kaynak),
     'mobilde de tam ekran düzeni tanımlı olmalı');
+  assert.ok(/@media\(max-width:760px\),\(max-height:560px\) and \(orientation:landscape\)\{/.test(kaynak),
+    'yatay telefon da mobil tam ekran düzenini kullanmalı');
   A.GV.toggleFullscreen();
   await sleep(50);
   assert.ok(!pgRoom.classList.contains('gv-fs'), 'standarda dönünce gv-fs kalkmalı');
@@ -231,7 +238,14 @@ async function main() {
   };
   const sarmalayici = cokSatirliBlok('#pg-room.gv-fs .dama-wrap,#pg-room.gv-fs .tdama-wrap,#pg-room.gv-fs .rv-wrap,');
   assert.ok(sarmalayici, 'tahta sarmalayıcıları için tam ekran kuralı bulunmalı');
-  for (const sinif of ['.dama-wrap', '.tdama-wrap', '.rv-wrap', '.gm-wrap', '.c4-wrap', '.bil-wrap', '.bs-wrap', '.card-wrap', '.chess-wrapper', '.tavla-wrap']) {
+  /* BİLARDO bu listede ARTIK YOK: tam ekranda ve yatay telefonda kendi
+     "kompakt" düzenini kullanıyor (.bil-kompakt). Genel sarmalayıcı kuralı
+     (display:flex;height:100%) bilardoya uygulandığında ızgara düzenini
+     eziyordu ve eski `.bil-canvas{height:100%;width:auto}` kuralı esnek
+     kutuda tuvali 0x0'a düşürüyordu — ölçülen değer tam ekranda 0 px
+     genişlikti, yani masa hiç görünmüyordu (bkz.
+     test/bilardo-yatay-tamekran.test.js). */
+  for (const sinif of ['.dama-wrap', '.tdama-wrap', '.rv-wrap', '.gm-wrap', '.c4-wrap', '.bs-wrap', '.card-wrap', '.chess-wrapper', '.tavla-wrap']) {
     assert.ok(kaynak.includes('#pg-room.gv-fs ' + sinif), 'tam ekran sarmalayıcı kuralı ' + sinif + ' için eksik olmamalı');
   }
   assert.ok(/width:\s*100%/.test(sarmalayici), 'sarmalayıcı KESİN genişlik almalı (width:auto DEĞİL) — yoksa flex shrink-to-fit çöküşü geri gelir');
@@ -259,8 +273,17 @@ async function main() {
   assert.ok(/width:\s*100%/.test(genislikTemelli) && /height:\s*auto/.test(genislikTemelli),
     'reversi/gomoku/connect4 genişliği esas alıp yüksekliğin hücrelerden doğal oluşmasına izin vermeli');
 
-  assert.ok(/#pg-room\.gv-fs \.bil-canvas\{[^}]*height:\s*100%/.test(kaynak),
-    'bilardo (canvas — gerçek intrinsik orana sahip) tam ekranda hâlâ doğru boyutlanmalı');
+  /* BİLARDO: tam ekranda kompakt düzen. Tuvalin ölçüsü CSS'te değil
+     js/board-fit.js içinde 9:5 oranı korunarak piksel piksel hesaplanır;
+     burada düzenin kendisi doğrulanır. */
+  assert.ok(kaynak.includes('.bil-wrap.bil-kompakt{'),
+    'bilardo kompakt düzeni tanımlı olmalı (tam ekran + yatay telefon)');
+  assert.ok(/\.bil-kompakt \.bil-stage\{display:contents\}/.test(kaynak),
+    'kompakt düzende .bil-stage saydamlaşmalı — HUD ve kumandalar ızgaraya kendileri otursun');
+  assert.ok(/\.bil-kompakt \.bil-canvas\{[^}]*position:absolute/.test(kaynak),
+    'kompakt düzende tuval mutlak konumlu olmalı — kutunun boyu tuvale bağlı kalmamalı');
+  assert.ok(kaynak.includes('.bil-wrap.bil-kompakt.bil-serit{'),
+    'yatay/geniş kutuda şerit biçimi (HUD ve kumandalar sağda) tanımlı olmalı');
   console.log('  ✓ 7) TÜM tahta oyunlarının (satranç dahil) tam ekran CSS kuralları eksiksiz — 6px\'e çökme regresyonu engellendi');
 
   // ---- 8) KURALLAR PENCERESİ TAM EKRANDA #pg-room İÇİNDE BAŞKA SAYFAYA
