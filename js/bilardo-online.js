@@ -259,6 +259,61 @@
       (3) bind() her çağrıldığında (yani sunucudan taze yetkili durum geldiğinde)
           önce stopShotAnim() çalışır; hiçbir eski kare taze çizimin üzerine yazamaz. */
   var shotAnim = { raf: null, token: 0 };
+  var sesZaman = [];                      // planlanan vuruş sesi zamanlayıcıları
+
+  /* ---------------- VURUŞ SESLERİ ----------------
+     Kullanıcı raporu: "ses açık ama ne topa vurma sesi geliyor, ne deliğe
+     top girince ses geliyor."
+     Motor her vuruşta zaman damgalı olaylar üretiyor (bilardo-engine.js:
+     type 'ball' | 'cushion' | 'jaw' | 'pot', çarpma hızı v ile) ve bunlar
+     `bilardoShotFrames` paketiyle zaten istemciye geliyordu — ama hiç
+     kullanılmıyordu. Artık her olay, animasyonun AYNI anında çalınacak
+     şekilde planlanıyor.
+     KALABALIK DENETİMİ: açılış vuruşunda motor birkaç ms içinde onlarca
+     'ball' olayı üretir; hepsini çalmak tek bir gürültü duvarına dönüşür.
+     Aynı türden sesler en az 45 ms arayla, en gürültülüsü seçilerek
+     çalınır; çok zayıf temaslar (v < 0.25 m/s) hiç duyulmaz. */
+  function sesleriDurdur() {
+    for (var i = 0; i < sesZaman.length; i++) { try { clearTimeout(sesZaman[i]); } catch (_) {} }
+    sesZaman = [];
+  }
+
+  function cal(ad, siddet) {
+    try { if (window.GVDeniz && GVDeniz.ses) GVDeniz.ses.cal(ad, siddet); } catch (_) {}
+  }
+
+  function vurusSesleriniPlanla(events, jeton) {
+    sesleriDurdur();
+    if (!Array.isArray(events) || !events.length) return;
+    var TUR = { ball: 'topCarpma', cushion: 'bant', jaw: 'cene', pot: 'cep' };
+    var ARALIK = { ball: 45, cushion: 60, jaw: 90, pot: 0 };   // pot her zaman duyulur
+    var ENAZ = { ball: 0.25, cushion: 0.35, jaw: 0, pot: 0 };  // m/s
+    var son = {};
+    var secilen = [];
+    for (var i = 0; i < events.length; i++) {
+      var e = events[i];
+      var ad = TUR[e.type];
+      if (!ad) continue;
+      var hiz = Number(e.v || 0);
+      if (hiz && hiz < (ENAZ[e.type] || 0)) continue;
+      var ms = Math.max(0, Number(e.t || 0) * 1000);
+      if (ms > 15000) continue;                       // makul sınır
+      var bosluk = ARALIK[e.type] || 0;
+      if (bosluk && son[e.type] != null && ms - son[e.type] < bosluk) continue;
+      son[e.type] = ms;
+      // Şiddet: 4 m/s ve üstü tam güç sayılır (motorun tipik aralığı).
+      secilen.push({ ad: ad, ms: ms, siddet: hiz ? Math.min(1, hiz / 4) : null });
+      if (secilen.length > 60) break;                 // güvenlik sınırı
+    }
+    for (var k = 0; k < secilen.length; k++) {
+      (function (o) {
+        sesZaman.push(setTimeout(function () {
+          if (jeton !== shotAnim.token) return;       // vuruş iptal/yenilendi
+          cal(o.ad, o.siddet);
+        }, o.ms));
+      })(secilen[k]);
+    }
+  }
   var rAF = window.requestAnimationFrame ? function (fn) { return window.requestAnimationFrame(fn); }
                                          : function (fn) { return setTimeout(fn, 16); };
   var cAF = window.cancelAnimationFrame ? function (id) { window.cancelAnimationFrame(id); }
@@ -266,6 +321,7 @@
   var nowMs = function () { return (window.performance && performance.now) ? performance.now() : Date.now(); };
 
   function stopShotAnim() {
+    sesleriDurdur();
     if (shotAnim.raf != null) { cAF(shotAnim.raf); shotAnim.raf = null; }
     shotAnim.token++;
     vurusAnimDurdur();      // yerel ısteka vuruşu da kesilir (kareler geldi)
@@ -298,6 +354,9 @@
     var meta = Array.isArray(payload.meta) ? payload.meta : [];
     var frames = payload.frames;
     var stepMs = Math.max(8, Number(payload.frameMs) || 17);
+    // Sesler animasyonla AYNI saat üzerinde: olayın t'si kaçıncı saniyedeyse
+    // ses de o anda duyulur.
+    vurusSesleriniPlanla(payload.events, myToken);
     var roomId = String(payload.roomId == null ? '' : payload.roomId);
     var totalMs = (frames.length - 1) * stepMs;
     var t0 = nowMs();
@@ -410,6 +469,20 @@
   define({
     id: 'bilardo', kinds: ['bilardo'], reject: ['bilardoRejected'],
     events: { bilardoShotFrames: function (payload) { playShotFrames(payload); } },
+    /* Bilardo tahtası HTML'DE DEĞİL TUVALDE yaşıyor: iki farklı masa düzeni
+       birebir aynı HUD metnini üretebilir (ör. rövanş sonrası skor 0-0 ve
+       gruplar "Açık masa" — eski maçın son hâliyle aynı). Arena yalnız
+       HTML'e baksaydı tuvali yeniden çizmez, oyuncu dağılmış eski topları
+       görmeye devam ederdi. Damga topların konumunu da kapsar. */
+    damga: function (m) {
+      var s = m.state || {};
+      var b = s.balls || [];
+      var p = '';
+      for (var i = 0; i < b.length; i++) {
+        p += (b[i].potted ? 'P' : (Math.round(b[i].x) + ',' + Math.round(b[i].y))) + '|';
+      }
+      return (s.status || '') + '#' + (s.turn == null ? '-' : s.turn) + '#' + p;
+    },
     render: function (m) {
       var s = m.state || {};
       useTable(s);
@@ -492,6 +565,12 @@
         input.style.setProperty('--gv-oran', Math.max(0, Math.min(1, o)));
       }
 
+      /* Yeni bir tahta basıldı: eski vuruşun kare animasyonu HÂLÂ akıyor
+         olabilir ve bir sonraki karede TAZE masanın üstüne eski topları
+         çizer (rövanşta "ekran öyle kalıyor" şikâyetinin bir kaynağı).
+         Yeniden çizim her zaman temiz bir sayfadan başlar. */
+      stopShotAnim();
+
       var kilitBtn = root.querySelector('#bilAimLock');
       function kilitYaz() {
         if (!kilitBtn) return;
@@ -513,8 +592,10 @@
            okumaz; testler ve destek için dışarı verilir (tahta her sunucu
            durumunda yeniden çizildiği için tuvale kanca takmak güvenilmez). */
         try {
+          var eski = window.__gvBilDurum || {};
           window.__gvBilDurum = { aim: setup.aim, power: setup.power,
-                                  kilit: !!setup.kilit, benim: !!mine };
+                                  kilit: !!setup.kilit, benim: !!mine,
+                                  cizim: (eski.cizim || 0) + 1 };
         } catch (_) {}
       }
       kilitYenileyici = redraw;       // F tuşu bu tahtayı yeniden çizsin

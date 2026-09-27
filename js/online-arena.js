@@ -69,6 +69,7 @@
       a.innerHTML = '';
       a.__gvArenaOwner = null;
       a.__gvArenaHtml = null;
+      a.__gvArenaDamga = null;
       a.__gvArenaNode = null;
     }
   }
@@ -80,7 +81,23 @@
     var a = boardEl();
     if (!a) return;
     var html = active.def.render(active);
-    if (force || a.__gvArenaHtml !== html || a.__gvArenaOwner !== active.def.id) {
+    /* İŞARETLEME (damga): bazı oyunların tahtası HTML'DE DEĞİL, TUVALDE
+       yaşıyor (bilardo). Orada iki farklı oyun durumu birebir aynı HTML
+       üretir ve yalnız HTML'e bakan bu karşılaştırma yeniden çizmeyi
+       atlar — ÖLÇÜLEN HATA: rövanş kabul edilip yeni el başladığında
+       skor 0-0 ve gruplar "Açık masa" olduğu için HUD metni eski maçın
+       son hâliyle AYNI oluyordu; tuval hiç yeniden çizilmiyor ve oyuncu
+       dağılmış eski topları görmeye devam ediyordu (kullanıcı raporu:
+       "rövanş kabul edildi diyor ama oyun sıfırdan başlamıyor, ekran öyle
+       kalıyor"). Adaptör isterse bir damga verir; damga değiştiyse tuval
+       yeniden çizilir. */
+    var damga = null;
+    if (typeof active.def.damga === 'function') {
+      try { damga = active.def.damga(active); } catch (_) { damga = null; }
+    }
+    if (force || a.__gvArenaHtml !== html || a.__gvArenaOwner !== active.def.id ||
+        (damga != null && a.__gvArenaDamga !== damga)) {
+      a.__gvArenaDamga = damga;
       a.innerHTML = html;
       a.__gvArenaHtml = html;
       a.__gvArenaOwner = active.def.id;
@@ -165,7 +182,7 @@
     }
   }
 
-  function onState(p) {
+  function onState(p, yeniMac) {
     if (!p || !p.gameState) return;
     var kind = p.gameState.kind;
     var def = findDef(kind);
@@ -183,7 +200,7 @@
     active.roomId = rid;
     if (p.seat !== undefined && p.seat !== null) active.seat = p.seat;
     active.isSpectator = !!p.isSpectator;
-    paint(false);
+    paint(!!yeniMac);
     syncStrip();
   }
 
@@ -302,7 +319,10 @@
     if (s === bound) return;
     detach();
     if (!s) return;
-    handlers = { gameStarted: onState, gameStateUpdated: onState,
+    /* 'gameStarted' YENİ BİR MAÇ demektir (ilk başlangıç ya da rövanş):
+       HTML aynı kalsa bile tahta mutlaka baştan çizilir. */
+    handlers = { gameStarted: function (p) { onState(p, true); },
+                 gameStateUpdated: onState,
                  gameEnded: onEnded, playerLeft: onPlayerLeft };
     defs.forEach(function (d) {
       (d.reject || []).forEach(function (ev) { handlers[ev] = onReject; });

@@ -221,6 +221,20 @@
       sonDurum = null;
       toast('🔄 Rövanş kabul edildi — yeni el başlıyor!', 'success');
       paneliKapat();
+      /* TAHTAYI ZORLA YENİDEN ÇİZ.
+         Kullanıcı raporu: "rövanş talep edince iki oyuncu kabul ediyor,
+         yeniden başlıyor gibi komut veriyor ama oyun sıfırdan başlamıyor,
+         ekran öyle kalıyor."
+         Ortak yaşam döngüsü (js/online-arena.js) tahtayı yalnız ÜRETİLEN
+         HTML değiştiğinde basar. Yeni el, eski maçın son hâliyle AYNI HTML
+         üretebiliyor (bilardoda skor 0-0 ve gruplar "Açık masa"; tahta
+         zaten TUVALDE yaşıyor) — o zaman tuval hiç yenilenmiyordu. Burada
+         yeni el haberi gelir gelmez bir kez zorla çizdiriyoruz; bu tüm
+         arena oyunlarını (dama, reversi, gomoku, connect4, kart, bilardo)
+         kapsar. */
+      try { if (window.GVArena && GVArena.repaint) GVArena.repaint(); } catch (_) {}
+      /* Tuval/DOM dışı istemciler (satranç, tavla, okey) kendi sıfırlama
+         kancalarını taşır; sunucu yeni durumu zaten yolluyor. */
     });
     /* YENİ EL BAŞLADI: bitiş paneli artık tahtanın İÇİNDE değil, ayrı bir
        yuvada duruyor. Oyunların kendi "bitiş ekranını kaldır" kodu tahtanın

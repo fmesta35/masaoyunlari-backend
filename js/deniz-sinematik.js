@@ -221,6 +221,51 @@
       ton({ f0: 520, f1: 300, sure: 0.075, hacim: 0.14, dalga: 'sine' });
     },
 
+    /* ==================== BİLARDO SESLERİ ====================
+       Kullanıcı isteği: "Bilardoda ses açık ama ne topa vurma sesi geliyor,
+       ne deliğe top girince ses geliyor, özel gerçekçi efektler ayarla."
+       Motor her vuruşta zaman damgalı olaylar üretiyor (ball / cushion /
+       jaw / pot, çarpma hızıyla birlikte); bu sesler o olaylara bağlanır.
+       ŞİDDET parametresi (0..1) çarpma hızından gelir: sert vuruş daha
+       parlak ve yüksek, yumuşak temas kısık ve tok duyulur — gerçek bir
+       masada olduğu gibi. */
+
+    /* TOP TOPA: fildişi/reçine topların kuru, parlak "tak"ı. Çok kısa bir
+       vuruş gürültüsü + tepeden inen iki kısa tını. */
+    topCarpma: function (siddet) {
+      var v = Math.max(0.12, Math.min(1, siddet == null ? 0.55 : siddet));
+      gurultu({ f0: 6800 + 2600 * v, f1: 1700, sure: 0.016 + 0.014 * v,
+                hacim: 0.08 + 0.34 * v, tip: 'bandpass', q: 1.7, atak: 0.0008 });
+      ton({ f0: 2050 + 800 * v, f1: 1050, sure: 0.032 + 0.022 * v,
+            hacim: 0.07 + 0.24 * v, dalga: 'triangle' });
+      ton({ f0: 700, f1: 400, sure: 0.05, hacim: 0.04 + 0.10 * v, dalga: 'sine' });
+    },
+
+    /* BANDA ÇARPMA: kauçuk bant sesi topa göre DAHA TOK ve alçak. */
+    bant: function (siddet) {
+      var v = Math.max(0.12, Math.min(1, siddet == null ? 0.5 : siddet));
+      gurultu({ f0: 1700, f1: 240, sure: 0.045 + 0.03 * v, hacim: 0.06 + 0.22 * v,
+                tip: 'lowpass', atak: 0.002 });
+      ton({ f0: 300, f1: 130, sure: 0.07, hacim: 0.04 + 0.14 * v, dalga: 'sine' });
+    },
+
+    /* CEP ÇENESİ: top ağızda çıngırdayıp geçiyor — ince, kısa bir tıkırtı. */
+    cene: function () {
+      gurultu({ f0: 3200, f1: 900, sure: 0.024, hacim: 0.14, tip: 'bandpass',
+                q: 1.3, atak: 0.001 });
+      ton({ f0: 880, f1: 580, sure: 0.04, hacim: 0.09, dalga: 'triangle' });
+    },
+
+    /* CEBE DÜŞME: ağza düşüş + tok gümbürtü + filede yuvarlanma ve son tık.
+       Oyuncunun "top girdi" diye duyacağı ses budur. */
+    cep: function () {
+      gurultu({ f0: 2400, f1: 280, sure: 0.085, hacim: 0.34, tip: 'lowpass', atak: 0.002 });
+      ton({ f0: 250, f1: 85, sure: 0.16, hacim: 0.30, dalga: 'sine', gecikme: 0.02 });
+      gurultu({ f0: 1200, f1: 400, sure: 0.30, hacim: 0.15, tip: 'bandpass', q: 0.7,
+                gecikme: 0.10, atak: 0.035 });
+      ton({ f0: 500, f1: 290, sure: 0.10, hacim: 0.10, dalga: 'triangle', gecikme: 0.23 });
+    },
+
     /* SON 10 SANİYE: zilden AÇIKÇA farklı, iki tonlu uyarı (alçak→yüksek
        değil, yüksek→alçak: "dikkat" hissi). Tekrar tekrar çalar. */
     sure: function () {
@@ -229,10 +274,12 @@
     }
   };
 
-  function sesCal(ad) {
+  /* Bazı sesler ŞİDDET parametresi alır (bkz. topCarpma / bant): çarpma
+     hızına göre parlaklık ve hacim değişir. */
+  function sesCal(ad, siddet) {
     if (!sesAcik() || !SESLER[ad]) return false;
     if (!uyandir()) return false;
-    try { SESLER[ad](); return true; } catch (_) { return false; }
+    try { SESLER[ad](siddet); return true; } catch (_) { return false; }
   }
 
   /* =================================================================== KATMAN */

@@ -1473,12 +1473,38 @@ html{scrollbar-gutter:stable}
 <meta name="author" content="Masa Oyunları">
 <meta name="robots" content="index, follow">
 
-<!-- Open Graph / Social Media -->
+<!-- ==========================================================
+     LİNK PAYLAŞIM KAPAĞI (WhatsApp / Instagram / X / Facebook)
+     ----------------------------------------------------------
+     ESKİ DURUM: og:image olarak "assets/images/og-image.jpg" yazıyordu
+     ama O DOSYA YOKTU; üstelik yol GÖRECELİYDİ — WhatsApp ve diğer
+     önizleme robotları MUTLAK URL ister. og:url da eski bir alan adını
+     (gameverse.com) gösteriyordu. Bu yüzden link paylaşımlarında hiçbir
+     görsel çıkmıyordu.
+     YENİ: 1200x630'luk gerçek kapak (assets/og-kapak.jpg — üretimi
+     tools/kapak-paylasim.py) ve mutlak adresler. Görseli değiştirince
+     WhatsApp/Facebook önbelleğini tazelemek için dosya adını değiştirmek
+     ya da Facebook Sharing Debugger'dan "Scrape Again" demek gerekir.
+     ========================================================== -->
 <meta property="og:type" content="website">
-<meta property="og:title" content="Masa Oyunları - Çok Oyunculu Masa Oyunları Platformu">
-<meta property="og:description" content="Okey, Tavla, Satranç ve daha fazlası! Arkadaşlarınla ücretsiz online masa oyunları oyna.">
-<meta property="og:image" content="assets/images/og-image.jpg">
-<meta property="og:url" content="https://gameverse.com">
+<meta property="og:site_name" content="Masa Oyunları">
+<meta property="og:locale" content="tr_TR">
+<meta property="og:title" content="Masa Oyunları — Okey, 101 Okey, Tavla, Satranç ve 9 oyun daha">
+<meta property="og:description" content="Arkadaşlarınla gerçek masalarda ücretsiz oyna: Okey, 101 Okey, Tavla, Satranç, Bilardo, Amiral Battı, Pişti, Batak ve daha fazlası. Üyelik ücretsiz, Türkçe.">
+<meta property="og:image" content="https://www.masaoyunlari.com.tr/assets/og-kapak.jpg">
+<meta property="og:image:secure_url" content="https://www.masaoyunlari.com.tr/assets/og-kapak.jpg">
+<meta property="og:image:type" content="image/jpeg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Masa Oyunları — Okey, 101 Okey, Tavla, Satranç, Bilardo, Amiral Battı ve Pişti">
+<meta property="og:url" content="https://www.masaoyunlari.com.tr/">
+<!-- X (Twitter) büyük görselli kart: og etiketlerini okumaz, kendi ad alanını ister. -->
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Masa Oyunları — Okey, 101 Okey, Tavla, Satranç ve 9 oyun daha">
+<meta name="twitter:description" content="Arkadaşlarınla gerçek masalarda ücretsiz oyna. Üyelik ücretsiz, Türkçe.">
+<meta name="twitter:image" content="https://www.masaoyunlari.com.tr/assets/og-kapak.jpg">
+<meta name="twitter:image:alt" content="Masa Oyunları paylaşım kapağı">
+<link rel="canonical" href="https://www.masaoyunlari.com.tr/">
 
 <!-- Favicon & PWA -->
 <link rel="icon" type="image/png" sizes="32x32" href="assets/icons/favicon-32x32.png">
@@ -3864,7 +3890,19 @@ function sendChat(type){
   inp.value='';
 }
 
-function showRules(){document.getElementById('rulesBody').innerHTML=RULES[st.curGame]||'Yükleniyor';showModal('rulesModal');}
+/* Kurallar penceresi: içeriği HER ZAMAN doludur. Eskiden eksik bir oyun
+   için kalıcı olarak "Yükleniyor" yazıyordu — hiçbir zaman yüklenmeyen bir
+   bekleme metni kullanıcıyı boşuna bekletir. Artık oyun seçilmemişse ya da
+   metin yoksa ne yapması gerektiğini söyleyen gerçek bir mesaj çıkar. */
+function showRules(gid){
+  const oyun = gid || st.curGame;
+  const govde = document.getElementById('rulesBody');
+  if(govde){
+    govde.innerHTML = (oyun && RULES[oyun]) ? RULES[oyun] :
+      '<div class="rules-content"><h3>📖 Kurallar</h3><p>Kuralları görmek için önce bir oyun masasına girin ya da Oyunlar sayfasından bir oyun seçin.</p></div>';
+  }
+  showModal('rulesModal');
+}
 
 /* ============ 101 OKEY ÖĞRENME MODU (madde 7) ============
    Kullanıcı isteği: "101 okey için ilettiğim resimlerden oyunun
@@ -5673,15 +5711,15 @@ GV.init();
 <script src="js/chess-online.js?v=20260908d" defer></script>
 <script src="js/tavla-online.js?v=20260908d" defer></script>
 <script src="js/okey-online.js?v=20260908d" defer></script>
-<script src="js/online-arena.js?v=20260908b" defer></script>
+<script src="js/online-arena.js?v=20260927d" defer></script>
 <script src="js/card-online.js?v=20260904b" defer></script>
 <script src="js/dama-online.js?v=20260908b" defer></script>
 <script src="js/turkdamasi-online.js?v=20260908b" defer></script>
 <script src="js/reversi-online.js?v=20260904b" defer></script>
 <script src="js/gomoku-online.js?v=20260904b" defer></script>
 <script src="js/connect4-online.js?v=20260904b" defer></script>
-<script src="js/bilardo-online.js?v=20260927c" defer></script>
-<script src="js/deniz-sinematik.js?v=20260920a" defer></script>
+<script src="js/bilardo-online.js?v=20260927d" defer></script>
+<script src="js/deniz-sinematik.js?v=20260927d" defer></script>
 <script src="js/deniz-kopru.js?v=20260920a" defer></script>
 <script src="js/tournaments.js?v=20260927a" defer></script>
 <script src="js/battleship-online.js?v=20260920c" defer></script>
@@ -5691,25 +5729,25 @@ GV.init();
 <script src="js/social.js?v=20260823e" defer></script>
 <script src="js/admin-panel.js?v=20260908a" defer></script>
 
-<!-- Structured Data for SEO -->
+<!-- Yapısal veri (SEO).
+     Eskiden burada da eski alan adı (gameverse.com) yazıyordu ve olmayan
+     bir "/search?q=" ucunu tarif eden bir SearchAction vardı — arama motoruna
+     var olmayan bir yetenek bildirmek yanlış. İkisi de düzeltildi. -->
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
   "@type": "WebSite",
   "name": "Masa Oyunları",
-  "url": "https://gameverse.com",
-  "description": "Türkiye'nin en popüler çok oyunculu masa oyunları platformu",
-  "potentialAction": {
-    "@type": "SearchAction",
-    "target": "https://gameverse.com/search?q={search_term_string}",
-    "query-input": "required name=search_term_string"
-  }
+  "url": "https://www.masaoyunlari.com.tr/",
+  "inLanguage": "tr-TR",
+  "description": "Okey, 101 Okey, Tavla, Satranç, Bilardo, Amiral Battı, Pişti ve Batak dahil 13 masa oyununu arkadaşlarınla ücretsiz oynayabileceğin çok oyunculu platform.",
+  "image": "https://www.masaoyunlari.com.tr/assets/og-kapak.jpg"
 }
 </script>
 <script src="js/no-bots.js?v=20260823b" defer></script>
 <script src="js/board-fit.js?v=20260927a" defer></script>
 <!-- Pes et + rövanş/yeniden oyna: dört bitiş ekranının ortak mantığı -->
-<script src="js/rematch.js?v=20260920a" defer></script>
+<script src="js/rematch.js?v=20260927d" defer></script>
 <!-- Kullanıcıyı bildir (şikayet) + kişisel susturma -->
 <script src="js/report.js?v=20260920a" defer></script></body>
 </html>
