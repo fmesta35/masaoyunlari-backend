@@ -451,7 +451,7 @@
               '<div class="bil-tool grow">' +
                 '<div class="bil-power-label"><span>VURUŞ GÜCÜ</span><span id="bilOnlinePowerText">' +
                   Math.round(setup.power * 100) + '%</span></div>' +
-                '<input type="range" id="bilPower" min="5" max="100" value="' + Math.round(setup.power * 100) + '" ' +
+                '<input type="range" id="bilPower" min="0" max="100" value="' + Math.round(setup.power * 100) + '" ' +
                   (mine ? '' : 'disabled') + '>' +
                 '<div class="bil-power-label"><span>ISTEKA AÇISI</span><span id="bilElevText">' +
                   Math.round(setup.elevation * 180 / Math.PI) + '°</span></div>' +
@@ -481,6 +481,17 @@
       var mine = s.turn === m.seat && !m.isSpectator;
       var drag = false, start = null;
 
+      /* Kaydırıcı dolgusunu ibrenin MERKEZİYLE hizala: CSS dolgunun bittiği
+         noktayı `9px + (100% - 18px) x --gv-oran` ile hesaplıyor (bkz.
+         index.html #bilPower kuralları). Oranı burada yazıyoruz. */
+      function oraniYaz(input) {
+        if (!input) return;
+        var mn = Number(input.min || 0), mx = Number(input.max || 100);
+        var v = Number(input.value);
+        var o = (mx > mn) ? (v - mn) / (mx - mn) : 0;
+        input.style.setProperty('--gv-oran', Math.max(0, Math.min(1, o)));
+      }
+
       var kilitBtn = root.querySelector('#bilAimLock');
       function kilitYaz() {
         if (!kilitBtn) return;
@@ -491,6 +502,10 @@
       function redraw() {
         if (txt) txt.textContent = Math.round(setup.power * 100) + '%';
         if (elTxt) elTxt.textContent = Math.round(setup.elevation * 180 / Math.PI) + '°';
+        if (pw && Math.round(Number(pw.value)) !== Math.round(setup.power * 100)) {
+          pw.value = Math.round(setup.power * 100);
+        }
+        oraniYaz(pw); oraniYaz(el);
         kilitYaz();
         spinWidget(root);
         paint(c, s, setup.aim, setup.power, mine);
@@ -532,7 +547,7 @@
       function istekayiBirak() {
         if (!drag) return;
         drag = false; iptal = true;
-        setup.power = pw ? Math.max(0.05, Math.min(1, Number(pw.value) / 100)) : setup.power;
+        setup.power = pw ? Math.max(0, Math.min(1, Number(pw.value) / 100)) : setup.power;
         redraw();
         if (window.GV && GV.toast) GV.toast('🎯 Isteka bırakıldı — yeniden nişan alabilirsiniz.', 'info');
       }
@@ -561,7 +576,7 @@
           var p = pt(e);
           if (drag) {
             // Geriye çekme mesafesi gücü belirler (klasik bilardo hissi)
-            setup.power = Math.max(0.05, Math.min(1, Math.hypot(p.x - start.x, p.y - start.y) / 170));
+            setup.power = Math.max(0, Math.min(1, Math.hypot(p.x - start.x, p.y - start.y) / 170));
             if (pw) pw.value = Math.round(setup.power * 100);
           } else if (!nisanAl(p)) {
             return;                    // kilitli ya da beyaz top yok: çizme
@@ -597,7 +612,10 @@
         });
       }
       if (pw) pw.addEventListener('input', function () {
-        setup.power = Math.max(0.05, Math.min(1, Number(pw.value) / 100));
+        /* Kaydırıcı 0'dan başlar ki ibre rayın tam ucuna otursun. Gerçek
+           vuruşta 0.05 (=%5) alt sınırı uygulanır — sıfır güçlü bir vuruş
+           sırayı boşa harcardı; bkz. fire(). */
+        setup.power = Math.max(0, Math.min(1, Number(pw.value) / 100));
         redraw();
       });
       if (el) el.addEventListener('input', function () {

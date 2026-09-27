@@ -69,6 +69,19 @@
   // Gerçekten oda bağlamında mıyız? (oyun sayfası aktif ya da bekleme maskesi
   // görünür). Değilse inGame bayrağı bayattır: oyuncu çoktan çıktıysa bekçi
   // "Oyunda Kal" diye yapışmamalı.
+  /* ODA ZATEN TERK EDİLDİYSE BEKÇİ SUSAR.
+     ÖLÇÜLEN HATA: maç sonu ekranındaki "🚪 Lobiye Dön" ve içeriden yapılan
+     çıkışlar window.__gvRealChessLeave() çağırıyor; o da sonunda
+     GV.openLobby() diyor. Bekçi openLobby'yi sarmaladığı ve `inGame` hâlâ
+     açık olduğu için lobiye GEÇİLMİYOR, bunun yerine "masadan ayrılmak
+     istiyor musun?" kutusu bir kez daha açılıyordu — oyuncu odada takılı
+     kalıyor (gerçek tarayıcıda ölçüldü: openLobby çağrıldı ama curPage
+     'room' kaldı). Oda bırakıldığı an bekçinin koruyacağı bir şey yoktur. */
+  window.addEventListener('gv:roomLeft', function () {
+    inGame = false;
+    closeModal();
+  });
+
   function inRoomContext() {
     try {
       if (window.st && st.curPage === 'room') return true;

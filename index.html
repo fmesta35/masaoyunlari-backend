@@ -593,7 +593,40 @@ button,input,select{font-family:var(--font)}
 #bilSpin{background:#0d1013;border:1px solid rgba(255,255,255,.16);border-radius:50%;cursor:crosshair;touch-action:none}
 .bil-mini{min-height:26px;padding:0 10px;font-size:.72em;font-weight:700;border:1px solid rgba(255,255,255,.18);border-radius:6px;background:#20242b;color:#fff;cursor:pointer}
 .bil-mini:hover{border-color:#d6b46a;color:#f1d18d}
-#bilPower,#bilElev{width:100%;accent-color:#d6b46a;cursor:pointer}
+/* VURUŞ GÜCÜ / ISTEKA AÇISI KAYDIRICILARI
+   Kullanıcı raporu: "vuruş gücü yatay skala değeri tam sıfır değerine
+   çektiğimizde ibre de sıfırda gözüksün 100'e çekince 100'de gözüksün,
+   hafif kayma var."
+   KÖK NEDEN: tarayıcının kendi range çiziminde ibrenin MERKEZİ hiçbir zaman
+   rayın uçlarına gelmez — uçlarda ibre yarıçapı kadar (≈9 px) içeride durur
+   ve `accent-color` ile boyanan dolgu da ibrenin merkeziyle hizalanmaz.
+   ÇÖZÜM: ray ve dolgu elle çizilir; dolgunun bittiği nokta ibrenin merkezi
+   ile AYNI formülle hesaplanır:  9px + (100% - 18px) x oran.
+   Oranı js/bilardo-online.js her değişimde --gv-oran değişkenine yazar. */
+#bilPower,#bilElev{
+  --gv-oran:0;                 /* 0..1 — JS yazar */
+  --gv-ibre:18px;              /* ibre çapı (aşağıdaki thumb ile aynı) */
+  width:100%;cursor:pointer;height:var(--gv-ibre);
+  -webkit-appearance:none;appearance:none;background:transparent;margin:0}
+#bilPower::-webkit-slider-runnable-track,#bilElev::-webkit-slider-runnable-track{
+  height:8px;border-radius:5px;background:
+    linear-gradient(90deg,#d6b46a,#f1d18d) no-repeat,
+    #2a2f38;
+  background-size:calc(var(--gv-ibre)/2 + (100% - var(--gv-ibre)) * var(--gv-oran)) 100%}
+#bilPower::-moz-range-track,#bilElev::-moz-range-track{
+  height:8px;border-radius:5px;background:
+    linear-gradient(90deg,#d6b46a,#f1d18d) no-repeat,
+    #2a2f38;
+  background-size:calc(var(--gv-ibre)/2 + (100% - var(--gv-ibre)) * var(--gv-oran)) 100%}
+#bilPower::-webkit-slider-thumb,#bilElev::-webkit-slider-thumb{
+  -webkit-appearance:none;appearance:none;
+  width:var(--gv-ibre);height:var(--gv-ibre);border-radius:50%;
+  background:linear-gradient(180deg,#fdf2d4,#d6b46a);
+  border:1px solid #8c6f34;box-shadow:0 1px 4px rgba(0,0,0,.5);
+  margin-top:calc((8px - var(--gv-ibre)) / 2)}
+#bilPower::-moz-range-thumb,#bilElev::-moz-range-thumb{
+  width:var(--gv-ibre);height:var(--gv-ibre);border-radius:50%;border:1px solid #8c6f34;
+  background:linear-gradient(180deg,#fdf2d4,#d6b46a);box-shadow:0 1px 4px rgba(0,0,0,.5)}
 #bilPower:disabled,#bilElev:disabled{opacity:.45;cursor:not-allowed}
 .bil-hint{display:block;margin-top:4px;color:rgba(255,255,255,.5);font-size:.92em}
 .bil-foul{margin-top:10px;padding:7px 10px;border-radius:8px;background:rgba(214,48,49,.16);border:1px solid rgba(255,107,107,.4);color:#ffb3b3;font-size:.8em;font-weight:600;text-align:center}
@@ -687,13 +720,29 @@ button,input,select{font-family:var(--font)}
 .bil-serit .bil-player{gap:7px}
 .bil-serit .bil-player.right{justify-content:flex-start;text-align:left}
 .bil-serit .bil-foul{grid-column:2;grid-row:2}
+/* ŞERİTTE "VURUŞU YAP" DÜĞMESİ ASLA KIRPILMAZ.
+   Kullanıcı raporu: "Vuruş yap dediğimde hiçbir işlem yapmıyor mobilde."
+   ÖLÇÜLEN KÖK NEDEN (gerçek Chromium, 915x412 yatay): şerit içeriği
+   (yardım metni + falso + iki kaydırıcı + düğme ≈ 170 px) şeride ayrılan
+   147 px'e sığmıyordu; `overflow-y:auto` yüzünden düğme aşağı taşıp
+   kırpılıyordu. Düğmenin çizim kutusu y 388..422 görünüyordu ama gerçek
+   tıklama alanı 402'de bitiyordu: ekranın o noktasında
+   document.elementFromPoint "game-layout" döndürüyordu, yani parmak
+   düğmeye HİÇ değmiyordu.
+   ÇÖZÜM: şerit artık kaymaz; kaydırma yalnız ORTA bölümde (falso +
+   kaydırıcılar) olur, düğme her zaman en altta ve tam boyda durur. */
 .bil-serit .bil-controls{grid-column:2;grid-row:3;margin:0;min-height:0;
   display:flex;flex-direction:column;gap:6px;align-items:stretch;
-  overflow-y:auto;overscroll-behavior:contain}
-.bil-serit .bil-help{font-size:.66em;line-height:1.35;text-align:left;
+  overflow:hidden}
+.bil-serit .bil-help{flex:0 0 auto;font-size:.66em;line-height:1.35;text-align:left;
   max-height:3.4em;overflow:hidden}
-.bil-serit .bil-tools{gap:8px;flex-wrap:nowrap;align-items:flex-start}
+.bil-serit .bil-tools{flex:1 1 auto;min-height:0;overflow-y:auto;
+  overscroll-behavior:contain;gap:8px;flex-wrap:nowrap;align-items:flex-start}
 .bil-serit .bil-tool.grow{min-width:0}
+.bil-serit .bil-reset{flex:0 0 auto}
+/* Alçak yatay ekranda yardım metni yer kaplamasın — akış zaten tek satır:
+   nişan al, gücü ayarla, "Vuruşu Yap". */
+@media(max-height:560px){ .bil-serit .bil-help{display:none} }
 /* Çok dar yatay ekranda (740 px) şerit biraz daralır. */
 @media(max-width:800px){ .bil-wrap.bil-kompakt.bil-serit{--bil-rail:176px} }
 
@@ -2921,6 +2970,12 @@ function page(p){
   // sayfalara hiç girmez, gerçek değerler (sıralama, rütbe) hiç görünmez.
   if(st.isGuest && (p==='stats'||p==='lb'||p==='ranks')) return showModal('guestPromptModal');
   guardNavigation(() => {
+    // Odadan BAŞKA bir sayfaya geçiliyorsa tam ekran da bırakılmalı:
+    // aksi halde tarayıcı #pg-room'u göstermeye devam eder (bkz.
+    // window.__gvTamEkrandanCik).
+    if (p !== 'room' && st.curPage === 'room') {
+      try { window.__gvTamEkrandanCik && window.__gvTamEkrandanCik(); } catch(_){}
+    }
     document.querySelectorAll('.page').forEach(e=>e.classList.remove('active'));
     const pg=document.getElementById('pg-'+p);
     if(pg)pg.classList.add('active');
@@ -2942,6 +2997,10 @@ function _gvStopOnlineClients(){
 function openLobby(gid){
   gid = gid || st.curGame || 'okey';
   guardNavigation(() => {
+    /* Odadan lobiye dönülüyorsa tam ekranı da bırak: tam ekranda tarayıcı
+       yalnız #pg-room'u çizdiği için lobi görünmez, oyuncu boşalmış masada
+       kalmış gibi olur (bkz. window.__gvTamEkrandanCik). */
+    try { window.__gvTamEkrandanCik && window.__gvTamEkrandanCik(); } catch(_){}
     // Lobiye dönüldüğünde ONLINE oyun istemcilerini kesin olarak sustur.
     // (Pişti'den çıkıp Okey'e geçildiğinde kart masasının arka planda
     // #boardArea'yı ezmeye devam etmesi buradan da engellenir.)
@@ -3967,6 +4026,31 @@ function _gvFsMoveModals(icine){
     else { if(m.parentNode===oda) document.body.appendChild(m); }
   });
 }
+/* ODADAN AYRILINCA TAM EKRANDAN DA ÇIK.
+   Kullanıcı raporu: "Bilardo webde ve mobilde odadan ayrıl dedikten sonra
+   (tam ekranda) bekleme yapıyor, direkt lobiye yönlendirmiyor."
+   KÖK NEDEN gezinme DEĞİL: Fullscreen API tam ekranda YALNIZ #pg-room'un
+   alt ağacını çizer. Oyuncu ayrıldığında sayfa gerçekten lobiye geçiyor
+   (pg-lobby 'active' oluyor) ama tarayıcı hâlâ #pg-room'u gösterdiği için
+   oyuncu boşalmış masayı görüyor ve "yönlendirmedi" diye algılıyor.
+   ÇÖZÜM: odadan çıkan her akışta (ayrıl, terk, maç sonu "Lobiye Dön",
+   sayfa değişimi) tam ekrandan da çıkılır. */
+window.__gvTamEkrandanCik = function(){
+  try {
+    const oda = document.getElementById('pg-room');
+    if (_gvFsEl() !== oda) return false;
+    const exit = document.exitFullscreen || document.webkitExitFullscreen ||
+                 document.mozCancelFullScreen || document.msExitFullscreen;
+    if (exit) { const r = exit.call(document); if (r && r.catch) r.catch(()=>{}); }
+    /* Tarayıcı çıkış olayını bir kare sonra yayınlıyor; düzen sınıfını
+       hemen kaldır ki oda boş bir tam ekran olarak takılı kalmasın. */
+    if (oda) oda.classList.remove('gv-fs');
+    _gvFsMoveModals(false);
+    return true;
+  } catch(_) { return false; }
+};
+window.addEventListener('gv:roomLeft', function(){ window.__gvTamEkrandanCik(); });
+
 function _gvSyncFullscreenBtn(){
   const oda = document.getElementById('pg-room');
   const dolu = _gvFsEl() === oda;
@@ -5596,13 +5680,13 @@ GV.init();
 <script src="js/reversi-online.js?v=20260904b" defer></script>
 <script src="js/gomoku-online.js?v=20260904b" defer></script>
 <script src="js/connect4-online.js?v=20260904b" defer></script>
-<script src="js/bilardo-online.js?v=20260927b" defer></script>
+<script src="js/bilardo-online.js?v=20260927c" defer></script>
 <script src="js/deniz-sinematik.js?v=20260920a" defer></script>
 <script src="js/deniz-kopru.js?v=20260920a" defer></script>
 <script src="js/tournaments.js?v=20260927a" defer></script>
 <script src="js/battleship-online.js?v=20260920c" defer></script>
 <script src="js/chat.js?v=20260821c" defer></script>
-<script src="js/leave-guard.js?v=20260908b" defer></script>
+<script src="js/leave-guard.js?v=20260927c" defer></script>
 <script src="js/auth.js?v=20260912a" defer></script>
 <script src="js/social.js?v=20260823e" defer></script>
 <script src="js/admin-panel.js?v=20260908a" defer></script>
