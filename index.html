@@ -1466,6 +1466,113 @@ html{scrollbar-gutter:stable}
   .chess-wrapper{max-width:min(820px,calc(100vh - 230px))}
   .game-side{width:300px}
 }
+
+/* ===================== KELİMELİK ===================================== */
+.kl-wrap{width:100%;display:flex;flex-direction:column;align-items:stretch}
+.kl-durum{background:var(--card);border:1px solid var(--border);border-radius:var(--r);
+  padding:7px 10px;margin-bottom:8px;font-size:.9em;display:flex;align-items:center;gap:10px}
+.kl-durum-metin{flex:1;min-width:0;text-align:center}
+.kl-durum b{color:var(--warning)}
+.kl-arac{display:flex;gap:5px;align-items:center;flex:0 0 auto}
+.kl-olcek-et{font-size:.74em;color:var(--text2);min-width:52px;text-align:center}
+.kl-arac .btn{min-height:30px;padding:4px 9px;font-size:.8em}
+.kl-skor{display:flex;align-items:center;justify-content:center;gap:12px;flex-wrap:wrap;
+  margin-bottom:8px;font-size:.84em;color:var(--text2)}
+.kl-sk{padding:3px 10px;border-radius:999px;border:1px solid var(--border);background:var(--card)}
+.kl-sk.aktif{border-color:var(--accent);color:var(--text);box-shadow:0 0 12px rgba(0,206,201,.25)}
+.kl-sk b{color:var(--warning);font-family:var(--mono,monospace)}
+.kl-torba,.kl-pas,.kl-saat{font-size:.92em}
+.kl-saat{font-weight:700;color:var(--accent)}
+.kl-kutu{background:linear-gradient(180deg,#232840,#151827);border:1px solid var(--border);
+  border-radius:16px;padding:8px;box-shadow:0 16px 40px rgba(0,0,0,.42);margin:0 auto;max-width:100%;
+  overflow:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;scrollbar-width:thin}
+.kl-kutu::-webkit-scrollbar{width:8px;height:8px}
+.kl-kutu::-webkit-scrollbar-thumb{background:#3a4162;border-radius:6px}
+.kl-tahta{display:grid;grid-template-columns:repeat(15,1fr);gap:2px;width:100%;aspect-ratio:1/1;
+  background:#0d1018;border-radius:10px;padding:4px;touch-action:manipulation}
+.kl-tahta.yakin{width:auto;aspect-ratio:auto}
+.kl-hc{position:relative;border-radius:3px;background:#1e2333;display:grid;place-items:center;
+  font-size:calc(var(--hc) * .30);font-weight:800;color:rgba(255,255,255,.6);line-height:1;
+  user-select:none;-webkit-user-select:none;cursor:pointer;overflow:hidden}
+.kl-hc.h2{background:#3a6ea8} .kl-hc.h3{background:#2f9fa8}
+.kl-hc.k2{background:#8a5ab0} .kl-hc.k3{background:#c0533f}
+.kl-hc.merkez{background:linear-gradient(145deg,#b0873a,#8a6522);color:#fff}
+.kl-hc.hedef{outline:2px solid var(--accent);outline-offset:-2px}
+.kl-tas{position:absolute;inset:0;border-radius:3px;display:grid;place-items:center;
+  background:linear-gradient(160deg,#f3e2bd,#d9c193);color:#2a2010;font-weight:800;
+  font-size:calc(var(--hc) * .52);box-shadow:inset 0 -2px 0 rgba(0,0,0,.18),0 1px 2px rgba(0,0,0,.4)}
+.kl-tas .pv{position:absolute;right:calc(var(--hc) * .06);bottom:0;font-size:calc(var(--hc) * .26);opacity:.78}
+.kl-tas.yeni{background:linear-gradient(160deg,#ffe9a8,#e8c76a);box-shadow:0 0 0 2px rgba(246,201,84,.85)}
+.kl-tas.joker{color:#7a3b8f}
+.kl-hc.son .kl-tas{box-shadow:0 0 0 2px var(--accent)}
+/* Hücre 17 px'in altına düşerse puan rakamı okunmuyor, bonus etiketi de
+   sığmıyor; o boyutta gizlenir (ölçüldü). */
+.kl-tahta.ufak .kl-tas .pv{display:none}
+.kl-tahta.ufak .kl-hc{font-size:0}
+.kl-tahta.ufak .kl-hc.merkez{font-size:calc(var(--hc) * .5)}
+.kl-istaka-kutu{margin-top:10px;background:linear-gradient(180deg,#3a2c17,#241a0c);
+  border:1px solid #4a3a1e;border-radius:14px;padding:8px;box-shadow:0 10px 24px rgba(0,0,0,.4)}
+.kl-istaka{display:flex;gap:5px;justify-content:center;align-items:center;min-height:54px;
+  flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;padding:2px}
+.kl-istaka::-webkit-scrollbar{display:none}
+.kl-izleyici{color:#cdbb92;font-size:.86em}
+.kl-rt{position:relative;flex:0 0 auto;width:clamp(34px,9.6vw,54px);aspect-ratio:1/1;border-radius:7px;
+  background:linear-gradient(160deg,#f3e2bd,#d9c193);color:#2a2010;display:grid;place-items:center;
+  font-weight:800;font-size:clamp(17px,5vw,26px);cursor:grab;touch-action:none;
+  user-select:none;-webkit-user-select:none;
+  box-shadow:inset 0 -3px 0 rgba(0,0,0,.18),0 2px 5px rgba(0,0,0,.45);transition:transform .1s}
+.kl-rt .pv{position:absolute;right:3px;bottom:1px;font-size:.4em;opacity:.8}
+.kl-rt.sec{transform:translateY(-8px);box-shadow:0 0 0 3px var(--accent),0 6px 14px rgba(0,0,0,.5)}
+.kl-rt.bos,.kl-rt.kullanildi{background:rgba(255,255,255,.06);box-shadow:none;cursor:default;color:transparent}
+.kl-rt.kullanildi .pv{opacity:0}
+.kl-rt.takas{outline:3px solid var(--danger);outline-offset:-3px}
+.kl-rt.joker{color:#7a3b8f}
+.kl-hayalet{position:fixed;z-index:2147483000;pointer-events:none;opacity:.92;
+  transform:translate(-50%,-50%) scale(1.06)}
+.kl-kumanda{display:flex;gap:6px;flex-wrap:wrap;justify-content:center;margin-top:9px}
+/* joker seçimi ve kelime bildirimi — tam ekranda da görünsün diye
+   __gvKaplamaKati() ile #pg-room'un içine eklenir (bkz. GV_FS_KAPLAMALAR). */
+.kl-joker-ov{position:fixed;inset:0;z-index:2147483000;background:rgba(6,7,20,.82);
+  backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;padding:16px}
+.kl-joker-kart{background:var(--card);border:1px solid var(--border);border-radius:18px;padding:18px;
+  width:min(440px,94vw);max-height:88vh;overflow:auto;box-shadow:0 26px 70px rgba(0,0,0,.6)}
+.kl-joker-kart h3{margin:0 0 8px;font-size:1.05em}
+.kl-joker-kart p{color:var(--text2);font-size:.86em;margin:0 0 12px;line-height:1.5}
+.kl-joker-liste{display:grid;grid-template-columns:repeat(auto-fill,minmax(42px,1fr));gap:6px;margin-bottom:12px}
+.kl-joker-liste .btn{justify-content:center;font-size:1em}
+.kl-bildir-liste label{display:flex;align-items:center;gap:7px;padding:6px 8px;border-radius:9px;
+  background:var(--bg2,rgba(255,255,255,.04));margin-bottom:6px;font-size:.88em}
+.kl-bildir-liste a{color:var(--accent);font-size:.86em;margin-left:auto;text-decoration:none}
+.kl-bdr-not{width:100%;margin:8px 0 12px;background:var(--bg2,rgba(255,255,255,.04));
+  border:1px solid var(--border);color:var(--text);border-radius:9px;padding:8px 10px;font:inherit;font-size:.86em}
+.kl-bildir-dgm{display:flex;gap:8px;flex-wrap:wrap}
+@media(max-width:800px),(max-height:560px){
+  .kl-kumanda{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;
+    justify-content:flex-start;scrollbar-width:none}
+  .kl-kumanda::-webkit-scrollbar{display:none}
+  .kl-kumanda .btn{flex:0 0 auto}
+  .kl-kumanda .btn .uz{display:none}
+  .kl-olcek-et{min-width:0;font-size:.7em}
+}
+/* Yatay telefon: tahtaya yer açmak için şeritler sıkışır. */
+@media(max-height:480px) and (orientation:landscape){
+  .kl-durum{padding:4px 7px;margin-bottom:5px;font-size:.76em}
+  .kl-durum-metin{display:none}
+  .kl-arac{margin-left:auto}
+  .kl-skor{margin-bottom:5px;font-size:.74em;gap:7px}
+  .kl-istaka-kutu{padding:4px;margin-top:5px;border-radius:10px}
+  .kl-istaka{min-height:38px;gap:4px}
+  .kl-rt{width:clamp(28px,4.6vw,38px);font-size:clamp(14px,2.6vw,19px)}
+  .kl-kumanda{margin-top:5px;gap:4px}
+  .kl-kumanda .btn{min-height:32px;padding:4px 8px;font-size:.74em}
+}
+/* TAM EKRAN: tahta kutusu kendi ölçüsünü JS'te hesaplar (bkz.
+   js/kelimelik-online.js olcuYaz), burada yalnız sarmalayıcı esnetilir. */
+#pg-room.gv-fs .kl-wrap{max-width:none;width:100%;height:100%;max-height:100%;min-height:0;
+  display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:0}
+#pg-room.gv-fs .kl-kutu{flex:0 0 auto;margin:0 auto}
+#pg-room.gv-fs .kl-durum,#pg-room.gv-fs .kl-skor,
+#pg-room.gv-fs .kl-istaka-kutu,#pg-room.gv-fs .kl-kumanda{width:100%;flex:0 0 auto}
 </style>
 <!-- SEO Meta Tags -->
 <meta name="description" content="Masa Oyunları - Türkiye'nin en popüler çok oyunculu masa oyunları platformu. Okey, Tavla, Satranç, Dama, 101 Okey, Çanak ve daha fazlası ücretsiz oynayın!">
@@ -2415,13 +2522,13 @@ body.gv-app input,body.gv-app textarea,body.gv-app .chat-msgs,body.gv-app .moves
 <script>
 const GV=(function(){'use strict';
 
-const TWO_PLAYER_GAMES = ['chess', 'tavla', 'dama', 'turkdamasi', 'reversi', 'gomoku', 'connect4', 'bilardo', 'battleship'];
+const TWO_PLAYER_GAMES = ['chess', 'tavla', 'dama', 'turkdamasi', 'reversi', 'gomoku', 'connect4', 'bilardo', 'battleship', 'kelimelik'];
 // Masa listesi sunucudan (Render) gelen gerçek zamanlı oyunlar.
 // Bu oyunlarda ASLA sahte/demo masa üretilmez.
 // SUNUCUDA GERÇEK MASALARI OLAN OYUNLAR: lobi listesi Render'dan gelir.
 // Damalar/reversi/gomoku/connect4/bilardo da 10'ar hazır masa açıldı —
 // bekleme odaları (otur/kalk/hazırım) tümünde aynı şekilde çalışır.
-const ONLINE_GAMES = ['chess', 'tavla', 'okey', 'okey101', 'dama', 'turkdamasi', 'reversi', 'gomoku', 'connect4', 'bilardo', 'battleship'];
+const ONLINE_GAMES = ['chess', 'tavla', 'okey', 'okey101', 'dama', 'turkdamasi', 'reversi', 'gomoku', 'connect4', 'bilardo', 'battleship', 'kelimelik'];
 // Okey VE 101 Okey ONLINE (gerçek oyuncular, sunucu yetkili). Bot yedeği
 // yalnızca henüz online motoru olmayan (pişti, batak) oyunlarda devrede.
 const BOT_FALLBACK_GAMES = ['pisti', 'batak'];
@@ -2445,12 +2552,14 @@ const GAMES={
   gomoku:{name:'Gomoku',icon:'⚪',cat:'strategy',bg:'linear-gradient(150deg,#3c2c14,#7a5326 55%,#b28a47)',cover:'assets/covers/gomoku.jpg'},
   connect4:{name:'Connect4',icon:'🔴',cat:'strategy',bg:'linear-gradient(150deg,#0b2560,#1746a8 55%,#e8495a)',cover:'assets/covers/connect4.jpg'},
   bilardo:{name:'Bilardo',icon:'🎱',cat:'board',bg:'linear-gradient(150deg,#07301d,#0f5c34 55%,#188a4e)',cover:'assets/covers/bilardo.jpg'},
-  battleship:{name:'Amiral Battı',icon:'🚢',cat:'strategy',bg:'linear-gradient(150deg,#041a2e,#0b3a54 55%,#1f7fa8)',cover:'assets/covers/battleship.jpg'}
+  battleship:{name:'Amiral Battı',icon:'🚢',cat:'strategy',bg:'linear-gradient(150deg,#041a2e,#0b3a54 55%,#1f7fa8)',cover:'assets/covers/battleship.jpg'},
+  kelimelik:{name:'Kelimelik',icon:'🔤',cat:'board',bg:'linear-gradient(150deg,#2b1c3f,#5a3a7a 55%,#9b6fc4)',cover:'assets/covers/kelimelik.jpg'}
 };
 
-const ROOMS = { chess:[], tavla:[], dama:[], turkdamasi:[], okey:[], okey101:[], pisti:[], batak:[], reversi:[], gomoku:[], connect4:[], bilardo:[], battleship:[] };
+const ROOMS = { chess:[], tavla:[], dama:[], turkdamasi:[], okey:[], okey101:[], pisti:[], batak:[], reversi:[], gomoku:[], connect4:[], bilardo:[], battleship:[], kelimelik:[] };
 
 const RULES={
+  kelimelik:`<div class="rules-content"><h3>🎯 Kelimelik — Amaç</h3><p>Istakandaki yedi harfle 15×15 tahtaya kelime dizerek rakibinden çok puan toplamak. Masa <b>iki kişiliktir</b>.</p><h3>📖 Sözlük</h3><p>TDK Güncel Türkçe Sözlük esas alınır ve denetim <b>kapatılamaz</b>. Sözlükte <b>madde başı</b> ne ise o geçerlidir; ek almış biçimler (kediler, evde, geldim) geçerli DEĞİLDİR. Fiiller mastar hâliyle bulunur: <b>gel</b> ✗ · <b>gelmek</b> ✓. Özel adlar, element simgeleri ve kısaltmalar yoktur; ülke adları kabul edilir. Sözlükte olduğunu düşündüğün bir kelime reddedilirse <b>📣 Kelime Bildir</b> ile iletebilirsin; doğrulanırsa sözlüğe eklenir.</p><h3>📋 Nasıl Oynanır</h3><p>İlk hamle ★ başlangıç karesinden geçmeli ve en az iki harfli olmalıdır. Sonraki her hamle tahtadaki bir kelimeye değmeli; harfler tek hat üzerinde ve aralarında boşluk kalmadan dizilmelidir. Kesişmeden doğan yan kelimeler de denetlenir ve ayrıca puanlanır.</p><h3>🎯 Puanlama</h3><ul><li>H²/H³ harfin, K²/K³ kelimenin puanını çarpar; bonus yalnız üzerine İLK konulduğu hamlede sayılır.</li><li>Yedi harfin tamamı kullanılırsa <b>+35 Bingo</b>.</li><li>Joker (★) her harfin yerine geçer, 0 puandır.</li></ul><h3>⚙️ Bu Platformda</h3><ul><li>Hamle süresi masa tipindedir: ⚡ Hızlı 30 sn · ♟️ Normal 60 sn · 🧠 Düşünen 90 sn. Süresi dolan oyuncu <b>pas geçmiş sayılır</b> (hükmen mağlup olmaz).</li><li>Hamle bulunamazsa oyuncu masadan atılmaz, sırası <b>otomatik pas</b> geçilir.</li><li>Bir oyuncu <b>üst üste 3 kez</b> pas geçerse (elle, otomatik ya da süre aşımıyla) <b>diskalifiye</b> olur: puanı silinir, rakip hükmen kazanır.</li><li>İki oyuncu da üst üste ikişer kez pas geçerse maç biter.</li><li>Torba boşalıp bir oyuncu taşlarını bitirince maç biter; rakibin elinde kalan taşların puanı ondan düşülüp bitirene eklenir.</li><li>Ayrılma ve pes etme hükmen mağlubiyettir: puanın silinir ve terk cezası uygulanır.</li><li>Rövanş için masadaki <b>her iki oyuncunun da</b> kabul etmesi gerekir.</li></ul></div>`,
   chess:`<div class="rules-content"><h3>🎯 Amaç</h3><p>Rakibinin şahını, kaçamayacağı ya da tehdidi savuşturamayacağı şekilde tehdit altında bırakarak (mat ederek) kazanmak.</p><h3>📋 Nasıl Oynanır</h3><p>8x8 tahtada piyon, at, fil, kale, vezir ve şah standart satranç hareketleriyle oynar. Rok (kısa/uzun), geçerken alma (en passant) ve piyon terfisi (son sıraya ulaşan piyon başka bir taşa dönüşür) desteklenir.</p><h3>⚙️ Bu Platformda</h3><ul><li>Ana oyun saatinin yanında her hamle için AYRI bir süre sınırı vardır: 40. saniyede uyarı, 60. saniyede (1 dakika içinde hamle yapılmazsa) o oyuncu hükmen kaybeder — ana saatte ne kadar süre kalmış olursa olsun.</li><li>Pes etme ya da beraberlik teklif etme düğmesi yoktur; parti yalnızca mat, pat (hamlesi olmayan taraf tehdit altında değilse berabere) veya süre bitimiyle sona erer.</li></ul></div>`,
   tavla:`<div class="rules-content"><h3>🎯 Amaç</h3><p>15 taşının tamamını kendi iç (ev) bölgene toplayıp tahtadan çıkaran (toplayan) ilk oyuncu olmak.</p><h3>📋 Nasıl Oynanır</h3><p>İki zar atılır, taşlar atılan sayılar kadar ilerletilir; çift gelirse (örn. 4-4) o sayı dört kez oynanır. Rakibin yalnız TEK taş bıraktığı bir noktaya gelinirse o taş vurulup bar'a gönderilir; iki veya daha fazla taşı olan nokta kapalıdır, oraya gelinemez. Bar'da taşın varken önce oradan girmen gerekir. Toplamaya (taş çıkarmaya) ancak tüm taşların iç bölgede olmasıyla başlanabilir.</p><h3>⚙️ Bu Platformda</h3><ul><li>Mümkün olan en çok zarın oynanması ZORUNLUDUR; zarlardan yalnız biri oynanabiliyorsa büyük olanı oynamak tercih edilir.</li><li>Dublaj küpü (doubling cube / bahis katlama) bu sürümde yoktur.</li><li>Rakibin hiç taş çıkaramadan sen tüm taşlarını toplarsan MARS ile kazanırsın — normal galibiyetten daha yüksek puan getirir.</li></ul></div>`,
   dama:`<div class="rules-content"><h3>🎯 İngiliz Daması — Amaç</h3><p>Rakibin tüm taşlarını almak ya da hareket edemez duruma düşürmek.</p><h3>📋 Nasıl Oynanır</h3><p>8x8 tahtanın yalnızca koyu karelerinde oynanır; her oyuncunun 12 taşı 3 sıra halinde dizilir. Taşlar çapraz olarak yalnızca İLERİ yönde hareket eder. Rakip taşının hemen ardındaki boş kareye çapraz atlayarak o taş alınır (yeme mümkünse yeme ZORUNLUDUR, başka hamle oynanamaz). Karşı kenara ulaşan taş "dama" (kral) olur ve artık çapraz her iki yöne de hareket/yeme yapabilir.</p><h3>⚙️ Bu Platformda</h3><p>Bir hamlede yalnız TEK taş alınır — art arda zincirleme çoklu yeme (aynı hamlede birden fazla taş atlamak) uygulanmıyor; ikinci yemeyi bir sonraki sıranda ayrı bir hamle olarak yaparsın.</p></div>`,
@@ -2482,7 +2591,8 @@ const GAME_REWARDS={
   okey:{win:30,winWithOkey:37,winPairs:45,lose:-15,forfeit:-35,disqualify:-50},okey101:{win:30,winWithOkey:37,winPairs:45,lose:-15,forfeit:-35,disqualify:-50},
   batak:{win:30,winFull:45,lose:-15,forfeit:-35,disqualify:-50},
   pisti:{win:20,lose:-10,forfeit:-25,disqualify:-35},reversi:{win:20,lose:-10,forfeit:-25,disqualify:-35},
-  gomoku:{win:20,lose:-10,forfeit:-25,disqualify:-35},connect4:{win:20,lose:-10,forfeit:-25,disqualify:-35}
+  gomoku:{win:20,lose:-10,forfeit:-25,disqualify:-35},connect4:{win:20,lose:-10,forfeit:-25,disqualify:-35},
+  kelimelik:{win:25,lose:-12,draw:0,forfeit:-30,disqualify:-40}
 };
 
 const GAME_THRESHOLDS={
@@ -2498,7 +2608,8 @@ const GAME_THRESHOLDS={
   gomoku:{legend:2000,champion:1800,elite:1600,grandmaster:1400,master:1100,uzman:800,tecrubeli:500,cirak:200,caylak:1},
   connect4:{legend:2100,champion:1900,elite:1700,grandmaster:1500,master:1200,uzman:900,tecrubeli:600,cirak:300,caylak:1},
   bilardo:{legend:2000,champion:1800,elite:1600,grandmaster:1400,master:1100,uzman:800,tecrubeli:500,cirak:200,caylak:1},
-  battleship:{legend:2100,champion:1900,elite:1700,grandmaster:1500,master:1200,uzman:900,tecrubeli:600,cirak:300,caylak:1}
+  battleship:{legend:2100,champion:1900,elite:1700,grandmaster:1500,master:1200,uzman:900,tecrubeli:600,cirak:300,caylak:1},
+  kelimelik:{legend:2600,champion:2400,elite:2200,grandmaster:1900,master:1600,uzman:1200,tecrubeli:800,cirak:400,caylak:1}
 };
 
 /* SIRALAMA VERİSİ ARTIK GÖMÜLÜ DEĞİL.
@@ -2533,7 +2644,7 @@ let st={
   timers:{t1:600,t2:600,player:1},boards:{},lastToast:null,lastToastTime:0,roomConfig:null,
   isGuest: true,
   user: { name: 'Ziyaretçi#' + visitorCounter, score: 0, level: 1 },
-  scores:{chess:0,tavla:0,dama:0,turkdamasi:0,okey:0,okey101:0,pisti:0,batak:0,reversi:0,gomoku:0,connect4:0,bilardo:0,battleship:0},
+  scores:{chess:0,tavla:0,dama:0,turkdamasi:0,okey:0,okey101:0,pisti:0,batak:0,reversi:0,gomoku:0,connect4:0,bilardo:0,battleship:0,kelimelik:0},
   currentLBTab:'overall',currentTournTab:'all',okTimerInt:null,roomWaitingInt:null,
   roomWaitingState: null, notifications: [], activeInviteData: null
 };
@@ -2645,7 +2756,7 @@ function submitLogin(){
   const u = document.getElementById('loginUser').value.trim() || ('Ahmet K.');
   st.isGuest = false;
   st.user = { name: u, score: 14540, level: 42 };
-  st.scores = {chess:1756,tavla:1420,dama:1180,turkdamasi:1050,okey:2150,okey101:1890,pisti:980,batak:1340,reversi:850,gomoku:720,connect4:1050,bilardo:640,battleship:0};
+  st.scores = {chess:1756,tavla:1420,dama:1180,turkdamasi:1050,okey:2150,okey101:1890,pisti:980,batak:1340,reversi:850,gomoku:720,connect4:1050,bilardo:640,battleship:0,kelimelik:0};
   checkAuthState();
   updateAuthState();
   updateScoreUI();
@@ -2676,7 +2787,7 @@ function logout(){
   visitorCounter = Math.floor(100 + Math.random() * 900);
   st.isGuest = true;
   st.user = { name: 'Ziyaretçi#' + visitorCounter, score: 0, level: 1 };
-  st.scores = {chess:0,tavla:0,dama:0,turkdamasi:0,okey:0,okey101:0,pisti:0,batak:0,reversi:0,gomoku:0,connect4:0,bilardo:0,battleship:0};
+  st.scores = {chess:0,tavla:0,dama:0,turkdamasi:0,okey:0,okey101:0,pisti:0,batak:0,reversi:0,gomoku:0,connect4:0,bilardo:0,battleship:0,kelimelik:0};
   checkAuthState();
   updateAuthState();
   updateScoreUI();
@@ -3219,7 +3330,27 @@ function openCreateRoomModal(){
     }
   }
 
-  if(gid === 'chess' || gid === 'tavla') {
+  const durationLabel = durationGroup ? durationGroup.querySelector('label') : null;
+  const durationSel = document.getElementById('crDuration');
+  /* Varsayılan (satranç/tavla) etiketleri — Kelimelik dalı bunları
+     değiştirdiği için her açılışta geri yazılır. */
+  if (durationLabel) durationLabel.textContent = '⏱️ Süre Belirleme:';
+  if (durationSel) durationSel.innerHTML =
+    '<option value="10" selected>⚡ Hızlı (10 Dakika)</option>' +
+    '<option value="15">♟️ Normal (15 Dakika)</option>' +
+    '<option value="20">🧠 Düşünen (20 Dakika)</option>';
+
+  if (gid === 'kelimelik') {
+    /* Kelimelik'te ANA SAAT yoktur; masa tipi yalnız HAMLE SÜRESİNİ belirler.
+       "El sayısı" da anlam taşımaz (maç torba bitince sona erer). */
+    if(roundsGroup) roundsGroup.style.display = 'none';
+    if(durationGroup) durationGroup.style.display = 'block';
+    if (durationLabel) durationLabel.textContent = '⏱️ Hamle Süresi:';
+    if (durationSel) durationSel.innerHTML =
+      '<option value="10" selected>⚡ Hızlı (30 saniye)</option>' +
+      '<option value="15">♟️ Normal (60 saniye)</option>' +
+      '<option value="20">🧠 Düşünen (90 saniye)</option>';
+  } else if(gid === 'chess' || gid === 'tavla') {
     if(roundsGroup) roundsGroup.style.display = 'none';
     if(durationGroup) durationGroup.style.display = 'block';
   } else if (gid === 'okey101') {
@@ -3249,12 +3380,13 @@ function createRoom(){
   const pCount = isTwoPlayer ? 2 : parseInt(countInp?.value || '4');
   const isPrivate = typeInp?.value === 'private';
 
-  const rRounds = (gid === 'chess' || gid === 'tavla' || gid === 'okey101') ? 1 : parseInt(roundsInp?.value || '3');
+  const rRounds = (gid === 'chess' || gid === 'tavla' || gid === 'okey101' || gid === 'kelimelik')
+    ? 1 : parseInt(roundsInp?.value || '3');
   // Okeyde süre ayrıca sorulmaz; el sayısından türetilir (hazır masalarla aynı
   // ölçek: 3 el=10 dk, 5 el=15 dk, 7 el=20 dk koltuk başına ana süre).
   // 101 Okey: el sayısı yok → koltuk başına sabit 20 dk ana süre.
   const OKEY_ROUND_DUR = { 3: 10, 5: 15, 7: 20 };
-  const gameDuration = (gid === 'chess' || gid === 'tavla')
+  const gameDuration = (gid === 'chess' || gid === 'tavla' || gid === 'kelimelik')
     ? parseInt(durationInp?.value || '10')
     : (gid === 'okey101') ? 20 : (OKEY_ROUND_DUR[rRounds] || 10);
 
@@ -3681,10 +3813,23 @@ function addMove(t){
   el.scrollTop=el.scrollHeight;
 }
 
+/* KELİMELİK — oyun yalnız ÇEVRİM İÇİ oynanır (sunucu yetkili motor +
+   sözlük). Yerel/demo tahtası yoktur: masa açılana kadar bekleme metni
+   gösterilir, oyun başlayınca #boardArea'yı js/kelimelik-online.js
+   (GVArena adaptörü) devralır. Boş "Yakında..." ekranı bırakılmaz. */
+function rKelimelik(el){
+  el.innerHTML = '<div class="center" style="padding:48px 20px;max-width:520px;margin:0 auto">'+
+    '<div style="font-size:2.6em">🔤</div>'+
+    '<h3 style="margin:10px 0 6px">Kelimelik</h3>'+
+    '<p style="color:var(--text2);font-size:.92em;line-height:1.6">'+
+    'Masa iki kişiliktir ve yalnız çevrim içi oynanır. Rakip masaya oturup '+
+    '<b>HAZIRIM</b> dediğinde tahta burada açılır.</p></div>';
+}
+
 function renderBoard(gid){
   const a=document.getElementById('boardArea');
   if(!a)return;
-  const R={chess:rChess,okey:rOkey,okey101:rOkey,tavla:rTavla,dama:rDama,turkdamasi:rTurkDama,reversi:rReversi,gomoku:rGomoku,connect4:rC4,bilardo:rBil,pisti:rPisti,batak:rBatak};
+  const R={chess:rChess,okey:rOkey,okey101:rOkey,tavla:rTavla,dama:rDama,turkdamasi:rTurkDama,reversi:rReversi,gomoku:rGomoku,connect4:rC4,bilardo:rBil,pisti:rPisti,batak:rBatak,kelimelik:rKelimelik};
   (R[gid]||(()=>{a.innerHTML=`<div class="center" style="padding:60px;font-size:2em">${GAMES[gid].icon}<br><br><span style="font-size:.5em;color:var(--text2)">Yakında...</span></div>`;}))(a);
 }
 
@@ -4049,7 +4194,8 @@ function toggleFullscreen(){
      • .gv-deniz-cam  → Amiral Battı sinematik katmanı.
    Hepsi tam ekranda #pg-room'un içine taşınır, çıkışta gövdeye döner. */
 const GV_FS_KAPLAMALAR =
-  '.modal-bg,#toastWrap,.gvlg-overlay,.gv-rematch-ask,.gv-deniz-cam,.ok-drag-ghost,.bs-drag-ghost';
+  '.modal-bg,#toastWrap,.gvlg-overlay,.gv-rematch-ask,.gv-deniz-cam,.ok-drag-ghost,.bs-drag-ghost,' +
+  '.kl-joker-ov,.kl-hayalet';
 /* Yeni kaplamalar DOĞRU ebeveyne eklensin diye ortak yardımcı:
    tam ekranda #pg-room, değilse <body>. */
 window.__gvKaplamaKati = function(){
@@ -4073,21 +4219,54 @@ function _gvFsMoveModals(icine){
    oyuncu boşalmış masayı görüyor ve "yönlendirmedi" diye algılıyor.
    ÇÖZÜM: odadan çıkan her akışta (ayrıl, terk, maç sonu "Lobiye Dön",
    sayfa değişimi) tam ekrandan da çıkılır. */
+/* KULLANICI RAPORU: "tam ekrandayken Ayrıl dediğimde oda arka planda kalıyor."
+   Eski sürüm yalnız tam ekran öğesi TAM OLARAK #pg-room ise çıkıyordu
+   (`if (_gvFsEl() !== oda) return false`). Oysa tam ekrana giren öğe
+   tarayıcıya/akışa göre başka bir düğüm olabiliyor (ör. kullanıcı F11 ile
+   belgeyi tam ekran yaptıysa, ya da oda yeniden çizilip düğüm değiştiyse);
+   o durumda çıkış hiç denenmiyor, oyuncu boşalmış masaya bakmaya devam
+   ediyordu. Artık çıkış KOŞULSUZDUR: tam ekranda ne varsa bırakılır ve
+   düzen sınıfı her hâlükârda temizlenir. */
 window.__gvTamEkrandanCik = function(){
+  let cikti = false;
   try {
-    const oda = document.getElementById('pg-room');
-    if (_gvFsEl() !== oda) return false;
-    const exit = document.exitFullscreen || document.webkitExitFullscreen ||
-                 document.mozCancelFullScreen || document.msExitFullscreen;
-    if (exit) { const r = exit.call(document); if (r && r.catch) r.catch(()=>{}); }
+    if (_gvFsEl()) {
+      const exit = document.exitFullscreen || document.webkitExitFullscreen ||
+                   document.mozCancelFullScreen || document.msExitFullscreen;
+      if (exit) { const r = exit.call(document); if (r && r.catch) r.catch(()=>{}); cikti = true; }
+    }
+  } catch(_) {}
+  try {
     /* Tarayıcı çıkış olayını bir kare sonra yayınlıyor; düzen sınıfını
        hemen kaldır ki oda boş bir tam ekran olarak takılı kalmasın. */
+    const oda = document.getElementById('pg-room');
     if (oda) oda.classList.remove('gv-fs');
     _gvFsMoveModals(false);
-    return true;
-  } catch(_) { return false; }
+  } catch(_) {}
+  return cikti;
 };
 window.addEventListener('gv:roomLeft', function(){ window.__gvTamEkrandanCik(); });
+
+/* NÖBETÇİ: yukarıdaki çağrıların HİÇBİRİ kaçırılmasın diye son bir ağ.
+   Oda sayfası artık etkin değilken (lobiye/başka sayfaya geçilmişken) tam
+   ekran hâlâ açıksa, oyuncu ekranda boş bir masa görür. Bu durum ölçülerek
+   saptandığında tam ekran kendiliğinden bırakılır. Ayrıca oda düğümü tam
+   ekranda değilken 'gv-fs' sınıfı kalmışsa o da temizlenir (düzen bozulur). */
+setInterval(function(){
+  try {
+    const oda = document.getElementById('pg-room');
+    if (!oda) return;
+    /* Oda sayfası ETKİNKEN hiçbir şeye dokunulmaz: tam ekran düzeni
+       (gv-fs) orada meşrudur ve bazı akışlar sınıfı Fullscreen API'siz
+       de kullanır. Nöbetçi yalnız ODADAN ÇIKILMIŞKEN artığı toplar. */
+    if (oda.classList.contains('active')) return;
+    if (_gvFsEl()) { window.__gvTamEkrandanCik(); return; }
+    if (oda.classList.contains('gv-fs')) {
+      oda.classList.remove('gv-fs');
+      _gvFsMoveModals(false);
+    }
+  } catch(_) {}
+}, 600);
 
 function _gvSyncFullscreenBtn(){
   const oda = document.getElementById('pg-room');
@@ -5723,6 +5902,7 @@ GV.init();
 <script src="js/deniz-kopru.js?v=20260920a" defer></script>
 <script src="js/tournaments.js?v=20260927a" defer></script>
 <script src="js/battleship-online.js?v=20260920c" defer></script>
+<script src="js/kelimelik-online.js?v=20261003a" defer></script>
 <script src="js/chat.js?v=20260821c" defer></script>
 <script src="js/leave-guard.js?v=20260927c" defer></script>
 <script src="js/auth.js?v=20260912a" defer></script>

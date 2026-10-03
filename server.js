@@ -13,6 +13,8 @@ const damaEngine = require('./dama-engine');
 const turkDamaEngine = require('./turkdamasi-engine');
 const reversiEngine = require('./reversi-engine');
 const gomokuEngine = require('./gomoku-engine');
+const kelimelikEngine = require('./kelimelik-engine');
+const kelimelikBildirim = require('./kelimelik-bildirim');
 const connect4Engine = require('./connect4-engine');
 const bilardoEngine = require('./bilardo-engine');
 const battleshipEngine = require('./battleship-engine');
@@ -316,7 +318,7 @@ const disconnectTimers = new Map();
 // o hesap sabit "kurucu123" şifresiyle otomatik açılıyordu.)
 const ADMIN_EMAIL = String(process.env.GV_ADMIN_EMAIL || '').trim().toLowerCase();
 const ALL_GAMES = ['chess', 'tavla', 'okey', 'okey101', 'pisti', 'batak',
-  'dama', 'turkdamasi', 'reversi', 'gomoku', 'connect4', 'bilardo', 'battleship'];
+  'dama', 'turkdamasi', 'reversi', 'gomoku', 'connect4', 'bilardo', 'battleship', 'kelimelik'];
 
 const PRESET_TYPES = [
   ...Array(4).fill({ type: 'fast', label: '⚡ Hızlı', durationMinutes: 10 }),
@@ -330,7 +332,7 @@ const PRESET_GAME_BASES = {
   // bilardo 921: 901-910 aralığı okey test süitinin oda kimlikleriyle
   // çakışmasın diye atlandı.
   dama: 401, turkdamasi: 501, reversi: 601, gomoku: 701, connect4: 801, bilardo: 921,
-  battleship: 1001
+  battleship: 1001, kelimelik: 1101
 };
 const STANDARD_PRESET_GAMES = Object.keys(PRESET_GAME_BASES);
 // Hazır masası SABİT olan oyunlar (panel yalnızca görünürlük yönetir):
@@ -713,6 +715,10 @@ function createRoom(id, gameId, maxPlayers, durationMinutes, meta) {
     turnStartedAt: null,
     moveStartedAt: null,
     moveWarned: false,
+    /* Kelimelik'te masa tipi HAMLE SÜRESİNİ belirler (ana saat yoktur):
+       ⚡ Hızlı 10 dk → 30 sn · ♟️ Normal 15 dk → 60 sn · 🧠 Düşünen 20 dk → 90 sn */
+    moveLimitMs: (gameId === 'kelimelik')
+      ? ({ 10: 30000, 15: 60000, 20: 90000 }[duration] || 60000) : null,
     result: null,
     lastMove: null
   };
@@ -737,6 +743,7 @@ function resetRoomToWaiting(room) {
   room.dama = null;
   room.reversi = null;
   room.gomoku = null;
+  room.kelimelik = null;
   room.connect4 = null;
   room.bilardo = null;
   /* AMİRAL BATTI: bu satır eksikti. Rövanş kabul edilince oda "waiting"e
@@ -1012,6 +1019,7 @@ function turnSeatOf(room) {
   if (room.dama) return room.dama.turn === (room.gameId === 'turkdamasi' ? 'w' : 'r') ? 0 : 1;
   if (room.reversi) return room.reversi.turn === 'b' ? 0 : 1;
   if (room.gomoku) return room.gomoku.turn === 'b' ? 0 : 1;
+  if (room.kelimelik) return room.kelimelik.turn;
   if (room.connect4) return room.connect4.turn === 'r' ? 0 : 1;
   if (room.bilardo) return room.bilardo.turn;
   // Yerleştirme (placing) fazında tur sahibi yok — her iki oyuncu da
@@ -1021,8 +1029,14 @@ function turnSeatOf(room) {
   if (room.cardGame) return room.cardGame.turn;
   return null;
 }
+/* Hamle süresi masaya göre değişebilir (Kelimelik: ⚡30 sn · ♟️60 sn · 🧠90 sn).
+   room.moveLimitMs kuruluşta atanır; atanmamışsa eski davranış sürer. */
+function moveLimitOf(room) {
+  if (room && Number(room.moveLimitMs) > 0) return Number(room.moveLimitMs);
+  return (room && room.gameId === 'pisti') ? PISTI_TURN_MS : MOVE_FORFEIT_MS;
+}
 function moveClockOf(room) {
-  const limit = room.gameId === 'pisti' ? PISTI_TURN_MS : MOVE_FORFEIT_MS;
+  const limit = moveLimitOf(room);
   const playing = room.status === 'playing' && !!room.moveStartedAt;
   const seat = turnSeatOf(room);
   // Sırası olan KİMSE YOKSA (ör. Amiral Battı'nın yerleştirme fazı) hamle
@@ -1051,6 +1065,87 @@ function startConnect4(room){if(room.status==='playing'||room.players.length!==2
 function gomokuState(room, seat) { const g=room.gomoku; return {kind:'gomoku',status:room.status,turn:g.turn,winner:g.winner,board:g.board.map(x=>x.slice()),seat,playerColor:seat===0?'b':'w',moves:g.moves,result:g.result||null,
   kazananKareler:g.kazananKareler||null,...moveClockOf(room)}; }
 function emitGomokuState(room,event='gameStateUpdated'){room.players.forEach(p=>emitToPlayer(p,event,{roomId:room.id,seat:p.seat,gameState:gomokuState(room,p.seat),isSpectator:false}));(room.spectators||[]).forEach(p=>emitToPlayer(p,event,{roomId:room.id,seat:null,gameState:gomokuState(room,null),isSpectator:true}));}
+/* ---------------------------------------------------------------- KELİMELİK
+   Durum paketinde RAKİBİN ISTAKASI YOKTUR: her oyuncuya yalnız kendi taşları
+   gönderilir, izleyiciye hiç gönderilmez. Sözlük de istemciye inmez. */
+function kelimelikState(room, seat) {
+  const k = room.kelimelik;
+  return {
+    kind: 'kelimelik', status: room.status, turn: k.turn, winner: k.winner,
+    board: k.board.map(r => r.map(x => x ? { harf: x.harf, joker: !!x.joker } : null)),
+    bonus: kelimelikEngine.BONUS, puanlar: Object.fromEntries(
+      Object.keys(kelimelikEngine.HARFLER).map(h => [h, kelimelikEngine.HARFLER[h].p])),
+    rack: (seat === 0 || seat === 1) ? k.racks[seat].slice() : [],
+    rackCounts: [k.racks[0].length, k.racks[1].length],
+    scores: k.scores.slice(), bag: k.bag.length, passStreak: k.passStreak.slice(),
+    lastSquares: (k.lastSquares || []).map(x => x.slice()),
+    moves: k.moves, history: k.history.slice(-12), seat,
+    result: k.result || null, ...moveClockOf(room)
+  };
+}
+function emitKelimelikState(room, event = 'gameStateUpdated') {
+  room.players.forEach(p => emitToPlayer(p, event, { roomId: room.id, seat: p.seat, gameState: kelimelikState(room, p.seat), isSpectator: false }));
+  (room.spectators || []).forEach(p => emitToPlayer(p, event, { roomId: room.id, seat: null, gameState: kelimelikState(room, null), isSpectator: true }));
+}
+function startKelimelik(room) {
+  if (room.status === 'playing' || room.players.length !== 2 || !room.players.every(p => p.isReady)) return;
+  room.status = 'playing'; room.result = null;
+  room.kelimelik = kelimelikEngine.init({ turnLimitMs: moveLimitOf(room) });
+  room.turnStartedAt = now(); touchMoveTimer(room); emitRoom(room);
+  room.players.forEach(p => emitToPlayer(p, 'gameStarted', { roomId: room.id, seat: p.seat, playerColor: p.seat === 0 ? 'b' : 'w', players: publicRoom(room).players, gameState: kelimelikState(room, p.seat) }));
+  emitKelimelikState(room);
+}
+/* OTOMATİK PAS — kullanıcı kuralı: hamle yapılamıyorsa oyuncu masadan
+   ATILMAZ, sırası otomatik pas geçilir. Diskalifiye yalnız üst üste 3
+   pastan sonra gelir. Her sıra değişiminden sonra çağrılır; iki taraf da
+   oynayamıyorsa zincir maç bitene kadar sürer (en çok 8 tur). */
+function kelimelikOtomatikPas(room) {
+  const k = room.kelimelik;
+  if (!k) return false;
+  let oldu = false;
+  for (let i = 0; i < 8; i++) {
+    if (k.status !== 'playing') break;
+    if (!kelimelikEngine.otomatikPasGerekli(k)) break;
+    const seat = k.turn;
+    const ad = (room.players.find(p => p.seat === seat) || {}).name || ('Koltuk ' + (seat + 1));
+    kelimelikEngine.pas(k, seat, true);
+    io.to(room.id).emit('kelimelikAutoPass', { roomId: room.id, seat, ad });
+    oldu = true;
+  }
+  return oldu;
+}
+/* Maç bitişini tek yerden yayınla (hamle, pas, süre aşımı, terk). */
+function kelimelikBitisYayinla(room, reason) {
+  const k = room.kelimelik;
+  room.status = 'finished';
+  const hamNeden = reason || (k.result && k.result.reason) || 'finished';
+  /* Puan katmanı BERABERLİĞİ nedenden okuyor (bkz. scheduleRoomReset →
+     beraberlikNedenleri). Kelimelik'te puanlar eşitse kazanan yoktur;
+     neden 'draw' olmazsa iki oyuncu da mağlup sayılıp eksik puan alırdı.
+     Ayrıntılı neden gameState.result.reason'da korunur. */
+  const neden = (k.winner === null) ? 'draw' : hamNeden;
+  room.result = { reason: neden, winnerSeat: k.winner, kelimelikNeden: hamNeden };
+  /* DİSKALİFİYE (üst üste 3 pas) masayı terk etmekle aynı sayılır: site
+     kuralı gereği terk cezası puanı uygulanır. Maçı bitirme puanı ayrıca
+     scheduleRoomReset'te işlenir. */
+  if (hamNeden === 'pass_disqualify' && k.winner !== null) {
+    const suclu = room.players.find(p => p.seat === (1 - k.winner));
+    if (suclu && suclu.userId) {
+      try {
+        puanYaz([scoring.terkOlayi({ uid: suclu.userId, ad: suclu.name,
+          gameId: room.gameId, roomId: room.id })]);
+      } catch (e) { console.warn('kelimelik diskalifiye puanı:', e.message); }
+    }
+  }
+  room.players.forEach(p => emitToPlayer(p, 'gameEnded', {
+    roomId: room.id, reason: room.result.reason, winnerSeat: k.winner,
+    youWon: k.winner !== null && p.seat === k.winner, gameState: kelimelikState(room, p.seat)
+  }));
+  (room.spectators || []).forEach(p => emitToPlayer(p, 'gameEnded', {
+    roomId: room.id, reason: room.result.reason, winnerSeat: k.winner,
+    youWon: false, isSpectator: true, gameState: kelimelikState(room, null)
+  }));
+}
 function startGomoku(room){if(room.status==='playing'||room.players.length!==2||!room.players.every(p=>p.isReady))return;room.status='playing';room.result=null;room.gomoku=gomokuEngine.init();room.turnStartedAt=now();touchMoveTimer(room);emitRoom(room);room.players.forEach(p=>emitToPlayer(p,'gameStarted',{roomId:room.id,seat:p.seat,playerColor:p.seat===0?'b':'w',players:publicRoom(room).players,gameState:gomokuState(room,p.seat)}));emitGomokuState(room);}
 function reversiState(room, seat) { const r=room.reversi; return {kind:'reversi',status:room.status,turn:r.turn,winner:r.winner,board:r.board.map(x=>x.slice()),seat,playerColor:seat===0?'b':'w',legalMoves:seat===null?[]:r.turn===(seat===0?'b':'w')?reversiEngine.legalMoves(r):[],result:r.result||null,...moveClockOf(room)}; }
 function emitReversiState(room,event='gameStateUpdated'){room.players.forEach(p=>emitToPlayer(p,event,{roomId:room.id,seat:p.seat,gameState:reversiState(room,p.seat),isSpectator:false}));(room.spectators||[]).forEach(p=>emitToPlayer(p,event,{roomId:room.id,seat:null,gameState:reversiState(room,null),isSpectator:true}));}
@@ -1160,6 +1255,7 @@ function buildBoardState(room, opts) {
   if (room.dama) return damaState(room, opts && opts.seat);
   if (room.reversi) return reversiState(room, opts && opts.seat);
   if (room.gomoku) return gomokuState(room, opts && opts.seat);
+  if (room.kelimelik) return kelimelikState(room, opts && opts.seat);
   if (room.connect4) return connect4State(room, opts && opts.seat);
   if (room.bilardo) return bilardoState(room, opts && opts.seat);
   if (room.battleship) return battleshipState(room, opts && opts.seat);
@@ -1222,6 +1318,7 @@ function emitPlayingSnapshot(room, socketId, player) {
   if (room && room.status === 'playing' && room.bilardo) { const p=player?player.seat:null; io.to(socketId).emit('gameStarted',{roomId:room.id,seat:p,isSpectator:!player,players:publicRoom(room).players,gameState:bilardoState(room,p)}); io.to(socketId).emit('gameStateUpdated',{roomId:room.id,seat:p,isSpectator:!player,gameState:bilardoState(room,p)}); return; }
   if (room && room.status === 'playing' && room.battleship) { const p=player?player.seat:null; io.to(socketId).emit('gameStarted',{roomId:room.id,seat:p,isSpectator:!player,players:publicRoom(room).players,gameState:battleshipState(room,p)}); io.to(socketId).emit('gameStateUpdated',{roomId:room.id,seat:p,isSpectator:!player,gameState:battleshipState(room,p)}); return; }
   if (room && room.status === 'playing' && room.connect4) { const p=player?player.seat:null; io.to(socketId).emit('gameStarted',{roomId:room.id,seat:p,isSpectator:!player,players:publicRoom(room).players,gameState:connect4State(room,p)}); io.to(socketId).emit('gameStateUpdated',{roomId:room.id,seat:p,isSpectator:!player,gameState:connect4State(room,p)}); return; }
+  if (room && room.status === 'playing' && room.kelimelik) { const p=player?player.seat:null; io.to(socketId).emit('gameStarted',{roomId:room.id,seat:p,isSpectator:!player,players:publicRoom(room).players,gameState:kelimelikState(room,p)}); io.to(socketId).emit('gameStateUpdated',{roomId:room.id,seat:p,isSpectator:!player,gameState:kelimelikState(room,p)}); return; }
   if (room && room.status === 'playing' && room.gomoku) { const p=player?player.seat:null; io.to(socketId).emit('gameStarted',{roomId:room.id,seat:p,isSpectator:!player,players:publicRoom(room).players,gameState:gomokuState(room,p)}); io.to(socketId).emit('gameStateUpdated',{roomId:room.id,seat:p,isSpectator:!player,gameState:gomokuState(room,p)}); return; }
   if (room && room.status === 'playing' && room.reversi) { const p=player?player.seat:null; io.to(socketId).emit('gameStarted',{roomId:room.id,seat:p,isSpectator:!player,players:publicRoom(room).players,gameState:reversiState(room,p)}); io.to(socketId).emit('gameStateUpdated',{roomId:room.id,seat:p,isSpectator:!player,gameState:reversiState(room,p)}); return; }
   if (room && room.status === 'playing' && room.dama) { const p=player?player.seat:null; io.to(socketId).emit('gameStarted',{roomId:room.id,seat:p,isSpectator:!player,players:publicRoom(room).players,gameState:damaState(room,p)}); io.to(socketId).emit('gameStateUpdated',{roomId:room.id,seat:p,isSpectator:!player,gameState:damaState(room,p)}); return; }
@@ -1342,6 +1439,7 @@ function startRoomGame(room) {
   if (ONLINE_CARD_GAMES.has(room.gameId)) return startCardGame(room);
   if (room.gameId === 'reversi') return startReversi(room);
   if (room.gameId === 'gomoku') return startGomoku(room);
+  if (room.gameId === 'kelimelik') return startKelimelik(room);
   if (room.gameId === 'connect4') return startConnect4(room);
   if (room.gameId === 'bilardo') return startBilardo(room);
   if (room.gameId === 'battleship') return startBattleship(room);
@@ -1972,6 +2070,12 @@ function resignMatch(room, player) {
     endOkeyMatch(room, 'resign', loserSeat);
     return;
   }
+  /* KELİMELİK: site kuralı gereği pes edenin MASADAKİ PUANI SİLİNİR.
+     Motor durumu da bitmiş sayılmalı; yoksa bitiş paketindeki skor eski
+     hâliyle kalır ve oyuncu "pes ettim ama puanım duruyor" görür. */
+  if (room.kelimelik && room.kelimelik.status === 'playing') {
+    kelimelikEngine.pesEt(room.kelimelik, loserSeat);
+  }
 
   room.status = 'finished';
 
@@ -2011,6 +2115,7 @@ function resignMatch(room, player) {
       room.dama ? damaState(room, seat) :
       room.reversi ? reversiState(room, seat) :
       room.gomoku ? gomokuState(room, seat) :
+      room.kelimelik ? kelimelikState(room, seat) :
       room.connect4 ? connect4State(room, seat) :
       room.bilardo ? bilardoState(room, seat) :
       room.battleship ? battleshipState(room, seat) :
@@ -2322,7 +2427,7 @@ function removePlayerFromRoom(room, player, message) {
   // aşağıdaki resetRoomToWaiting()'e düşer, status 'waiting' olur ve o andan
   // sonra hamle süresi denetimi de çalışmaz (saat 0'da donar). Amiral Battı
   // tam olarak bu yüzden rakip ayrılınca bitmiyordu.
-  if (wasPlaying && (room.dama || room.reversi || room.gomoku || room.connect4 || room.bilardo || room.battleship || room.cardGame)) {
+  if (wasPlaying && (room.dama || room.reversi || room.gomoku || room.kelimelik || room.connect4 || room.bilardo || room.battleship || room.cardGame)) {
     const kalanKoltuklar = room.players.map(p => p.seat);
     let winnerSeat = kalanKoltuklar[0];
     if (kalanKoltuklar.length > 1) {
@@ -2337,6 +2442,7 @@ function removePlayerFromRoom(room, player, message) {
       room.dama ? damaState(room, seat) :
       room.reversi ? reversiState(room, seat) :
       room.gomoku ? gomokuState(room, seat) :
+      room.kelimelik ? kelimelikState(room, seat) :
       room.connect4 ? connect4State(room, seat) :
       room.bilardo ? bilardoState(room, seat) :
       room.battleship ? battleshipState(room, seat) :
@@ -3278,6 +3384,95 @@ io.on('connection', socket => {
   // ---------- GOMOKU eylemleri (sunucu yetkili) ----------
   socket.on('gomokuMove', data => { const room=rooms.get(socket.roomId||String(data?.roomId||'')); const p=room?.gomoku&&room.players.find(x=>x.id===socket.id); if(!p||room.status!=='playing')return socket.emit('gomokuRejected',{roomId:room?.id||data?.roomId,reason:'not_in_room'}); const r=gomokuEngine.play(room.gomoku,p.seat,Number(data.r),Number(data.c)); if(!r.ok)return socket.emit('gomokuRejected',{roomId:room.id,reason:r.reason,gameState:gomokuState(room,p.seat)}); if(room.gomoku.status==='finished'){room.status='finished';room.result=room.gomoku.result;} touchMoveTimer(room);emitGomokuState(room);emitRoom(room);if(room.status==='finished')room.players.forEach(q=>emitToPlayer(q,'gameEnded',{roomId:room.id,reason:'finished',winnerSeat:room.gomoku.winner,youWon:q.seat===room.gomoku.winner,gameState:gomokuState(room,q.seat)})); });
 
+  /* ===================================================================== */
+  /* KELİMELİK — bütün kurallar sunucuda (kelimelik-engine.js).            */
+  /* İstemci yalnız öneri gönderir: tahta, ıstaka ve sözlük burada.        */
+  /* ===================================================================== */
+  function klOda(data) {
+    const room = rooms.get(socket.roomId || String(data && data.roomId || ''));
+    if (!room || !room.kelimelik) return null;
+    return room;
+  }
+  function klRed(room, reason, ek) {
+    socket.emit('kelimelikRejected', Object.assign(
+      { roomId: room ? room.id : null, reason: reason }, ek || {}));
+  }
+  /* Hamle sonrası ortak kuyruk: otomatik pas zinciri → yayın → bitiş. */
+  function klSonrasi(room) {
+    const k = room.kelimelik;
+    if (k.status === 'playing') kelimelikOtomatikPas(room);
+    touchMoveTimer(room);
+    if (k.status !== 'playing') {
+      kelimelikBitisYayinla(room);
+      emitKelimelikState(room); emitRoom(room); scheduleRoomReset(room);
+      return;
+    }
+    emitKelimelikState(room); emitRoom(room);
+  }
+
+  socket.on('kelimelikMove', data => {
+    const room = klOda(data);
+    const p = room && room.players.find(x => x.id === socket.id);
+    if (!p || room.status !== 'playing') return klRed(room, 'not_in_room');
+    const konumlar = Array.isArray(data && data.konumlar) ? data.konumlar.slice(0, 7) : [];
+    const r = kelimelikEngine.play(room.kelimelik, p.seat, konumlar);
+    if (!r.ok) return klRed(room, r.reason, { kelimeler: r.kelimeler || null,
+      gameState: kelimelikState(room, p.seat) });
+    klSonrasi(room);
+  });
+
+  socket.on('kelimelikPass', data => {
+    const room = klOda(data);
+    const p = room && room.players.find(x => x.id === socket.id);
+    if (!p || room.status !== 'playing') return klRed(room, 'not_in_room');
+    const r = kelimelikEngine.pas(room.kelimelik, p.seat, false);
+    if (!r.ok) return klRed(room, r.reason);
+    klSonrasi(room);
+  });
+
+  socket.on('kelimelikSwap', data => {
+    const room = klOda(data);
+    const p = room && room.players.find(x => x.id === socket.id);
+    if (!p || room.status !== 'playing') return klRed(room, 'not_in_room');
+    const r = kelimelikEngine.takas(room.kelimelik, p.seat,
+      Array.isArray(data && data.indeksler) ? data.indeksler.slice(0, 7) : []);
+    if (!r.ok) return klRed(room, r.reason);
+    klSonrasi(room);
+  });
+
+  /* Karıştır yalnız SIRALAMAYI değiştirir; sıra geçmez, pas sayılmaz. */
+  socket.on('kelimelikShuffle', data => {
+    const room = klOda(data);
+    const p = room && room.players.find(x => x.id === socket.id);
+    if (!p) return;
+    const rack = room.kelimelik.racks[p.seat];
+    for (let i = rack.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      const t = rack[i]; rack[i] = rack[j]; rack[j] = t;
+    }
+    emitToPlayer(p, 'gameStateUpdated', { roomId: room.id, seat: p.seat,
+      gameState: kelimelikState(room, p.seat), isSpectator: false });
+  });
+
+  /* KELİME BİLDİR — sözlükte olmadığı için reddedilen kelimeyi oyuncu
+     bildirir; kayıt yönetici paneline düşer (GET /api/kelimelik/reports). */
+  socket.on('kelimelikReport', data => {
+    const room = rooms.get(socket.roomId || String(data && data.roomId || ''));
+    const kelimeler = (Array.isArray(data && data.kelimeler) ? data.kelimeler : [])
+      .map(x => kelimelikEngine.trBuyuk(String(x || '').trim()))
+      .filter(x => /^[A-ZÇĞİÖŞÜ]{2,15}$/.test(x)).slice(0, 5);
+    if (!kelimeler.length) return;
+    kelimelikBildirim.ekle({
+      kelimeler,
+      not: String((data && data.not) || '').slice(0, 120),
+      oda: room ? room.id : null,
+      kim: socket.userName || null,
+      uid: socket.userId || null,
+      ts: now()
+    });
+    socket.emit('kelimelikReported', { ok: true, kelimeler });
+  });
+
   // ---------- REVERSİ eylemleri (sunucu yetkili) ----------
   socket.on('reversiMove', data => { const room=rooms.get(socket.roomId||String(data?.roomId||'')); const p=room?.reversi&&room.players.find(x=>x.id===socket.id); if(!p||room.status!=='playing')return socket.emit('reversiRejected',{roomId:room?.id||data?.roomId,reason:'not_in_room'}); const r=reversiEngine.play(room.reversi,p.seat,Number(data.r),Number(data.c)); if(!r.ok)return socket.emit('reversiRejected',{roomId:room.id,reason:r.reason,gameState:reversiState(room,p.seat)}); if(r.winner!==undefined&&r.winner!==null||room.reversi.status==='finished'){room.status='finished';room.result=room.reversi.result;} touchMoveTimer(room);emitReversiState(room);emitRoom(room); if(room.status==='finished')room.players.forEach(q=>emitToPlayer(q,'gameEnded',{roomId:room.id,reason:'finished',winnerSeat:room.reversi.winner,youWon:q.seat===room.reversi.winner,gameState:reversiState(room,q.seat)})); });
 
@@ -3603,7 +3798,7 @@ const clockTimer = setInterval(() => {
   // Sıra kimde? — tek kaynak turnSeatOf() (durum paketleriyle birebir aynı).
   function cardMoveTurn(room) { return turnSeatOf(room); }
 function enforceOnlineMoveTimeout(room) {
-  if (!room.moveStartedAt || !room.players.length || (!room.dama && !room.reversi && !room.gomoku && !room.connect4 && !room.bilardo && !room.battleship && !room.cardGame)) return false;
+  if (!room.moveStartedAt || !room.players.length || (!room.dama && !room.reversi && !room.gomoku && !room.kelimelik && !room.connect4 && !room.bilardo && !room.battleship && !room.cardGame)) return false;
   // Amiral Battı 'placing' fazında kimsenin "sırası" yok (bkz. turnSeatOf),
   // bu yüzden genel tek-koltuklu zaman-aşımı mantığı burada işlemez —
   // ayrı bir dal: süresi dolduğunda HANGİ koltuk(lar) hâlâ hazır değilse
@@ -3626,8 +3821,23 @@ function enforceOnlineMoveTimeout(room) {
     return true;
   }
   const elapsed=now()-room.moveStartedAt, seat=cardMoveTurn(room); if (seat===null) return false;
-  if (!room.moveWarned && elapsed>=(room.gameId==='pisti'?Math.min(MOVE_WARN_MS, PISTI_TURN_MS-1000):MOVE_WARN_MS)) { room.moveWarned=true; io.to(room.id).emit('moveTimeWarning',{roomId:room.id,seat,remainingMs:Math.max(0,MOVE_FORFEIT_MS-elapsed)}); }
-  if (elapsed<(room.gameId==='pisti'?PISTI_TURN_MS:MOVE_FORFEIT_MS)) return false;
+  const sinir=moveLimitOf(room);
+  if (!room.moveWarned && elapsed>=Math.min(MOVE_WARN_MS, sinir-1000)) { room.moveWarned=true; io.to(room.id).emit('moveTimeWarning',{roomId:room.id,seat,remainingMs:Math.max(0,sinir-elapsed)}); }
+  if (elapsed<sinir) return false;
+
+  /* KELİMELİK: süresi dolan oyuncu HÜKMEN MAĞLUP OLMAZ — pas geçmiş sayılır.
+     Diskalifiye yalnız ÜST ÜSTE 3 pastan sonra gelir (site kuralı). */
+  if (room.kelimelik) {
+    const k = room.kelimelik;
+    kelimelikEngine.pas(k, seat, true);
+    io.to(room.id).emit('kelimelikAutoPass', { roomId: room.id, seat,
+      ad: (room.players.find(p => p.seat === seat) || {}).name || 'Oyuncu', sure: true });
+    if (k.status === 'playing') kelimelikOtomatikPas(room);
+    touchMoveTimer(room);
+    if (k.status !== 'playing') { kelimelikBitisYayinla(room); emitKelimelikState(room); emitRoom(room); scheduleRoomReset(room); return true; }
+    emitKelimelikState(room); emitRoom(room);
+    return true;
+  }
   // KAZANAN: 2 kişilik masada karşı koltuk. 4 kişilik masalarda (pişti/batak)
   // eskiden koşulsuz "seat===0?1:0" deniyordu — koltuk 2 ya da 3 süreyi
   // doldurduğunda kazanan yanlış ilan ediliyordu. Artık süreyi dolduran
@@ -3643,10 +3853,10 @@ function enforceOnlineMoveTimeout(room) {
     winner = seat === 0 ? 1 : 0;
   }
   room.status='finished'; room.result={reason:'move_timeout',winnerSeat:winner};
-  const stateFor=(p)=>room.dama?damaState(room,p):room.reversi?reversiState(room,p):room.gomoku?gomokuState(room,p):room.connect4?connect4State(room,p):room.bilardo?bilardoState(room,p):room.battleship?battleshipState(room,p):cardGameState(room,p);
+  const stateFor=(p)=>room.dama?damaState(room,p):room.reversi?reversiState(room,p):room.gomoku?gomokuState(room,p):room.kelimelik?kelimelikState(room,p):room.connect4?connect4State(room,p):room.bilardo?bilardoState(room,p):room.battleship?battleshipState(room,p):cardGameState(room,p);
   room.players.forEach(p=>emitToPlayer(p,'gameEnded',{roomId:room.id,reason:'move_timeout',winnerSeat:winner,youWon:p.seat===winner,gameState:stateFor(p.seat)}));
   (room.spectators||[]).forEach(p=>emitToPlayer(p,'gameEnded',{roomId:room.id,reason:'move_timeout',winnerSeat:winner,youWon:false,isSpectator:true,gameState:stateFor(null)}));
-  if (room.dama) emitDamaState(room); else if(room.reversi) emitReversiState(room); else if(room.gomoku) emitGomokuState(room); else if(room.connect4) emitConnect4State(room); else if(room.bilardo) emitBilardoState(room); else if(room.battleship) emitBattleshipState(room); else emitCardState(room);
+  if (room.dama) emitDamaState(room); else if(room.reversi) emitReversiState(room); else if(room.gomoku) emitGomokuState(room); else if(room.kelimelik) emitKelimelikState(room); else if(room.connect4) emitConnect4State(room); else if(room.bilardo) emitBilardoState(room); else if(room.battleship) emitBattleshipState(room); else emitCardState(room);
   emitRoom(room); scheduleRoomReset(room); return true;
 }
 
@@ -3825,6 +4035,22 @@ async function requireAdmin(req, res) {
    ========================================================================== */
 const turnuvaKatmani = require('./tournament-server').kur({
   io, authApi, app, rooms, createRoom, emitRoom, requireAdmin
+});
+
+/* KELİME BİLDİRİMLERİ — Kurucu Paneli. Oyuncuların "TDK'de var ama oyun
+   kabul etmiyor" diye ilettiği kelimeler; doğrulananlar sözlüğe eklenir. */
+app.get('/api/kelimelik/reports', async (req, res) => {
+  if (!(await requireAdmin(req, res))) return;
+  res.json({ ok: true, sayilar: kelimelikBildirim.sayilar(),
+             kayitlar: kelimelikBildirim.liste({ durum: req.query.durum || null, limit: req.query.limit }) });
+});
+app.post('/api/kelimelik/reports', async (req, res) => {
+  if (!(await requireAdmin(req, res))) return;
+  const kelime = kelimelikEngine.trBuyuk(String((req.body && req.body.kelime) || '').trim());
+  const durum = String((req.body && req.body.durum) || '');
+  if (!kelimelikBildirim.durumAta(kelime, durum))
+    return res.status(400).json({ ok: false, error: 'Kelime ya da durum geçersiz.' });
+  res.json({ ok: true, sayilar: kelimelikBildirim.sayilar() });
 });
 
 // Kurucu Paneli — üye listesi (yalnız yerel modda Render; uzak modda

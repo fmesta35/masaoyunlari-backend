@@ -27,7 +27,8 @@
       'ingiliz daması': 'dama', dama: 'dama',
       'türk daması': 'turkdamasi', reversi: 'reversi',
       gomoku: 'gomoku', connect4: 'connect4', bilardo: 'bilardo',
-      'amiral battı': 'battleship', battleship: 'battleship'
+      'amiral battı': 'battleship', battleship: 'battleship',
+      kelimelik: 'kelimelik'
     };
     return map[name] || currentGame || 'chess';
   }

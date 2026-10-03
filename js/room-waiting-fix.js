@@ -16,7 +16,8 @@
   // masada-bekleme görünümünü (otur/kalk/hazırım/izle) kullanır.
   // (Kart oyunları ve diğerleri için ilgili online modül ayrıca devreye girer.)
   const BRIDGE_GAMES = ['chess', 'satranc', 'satranç', 'tavla', 'okey', 'okey101',
-    'pisti', 'batak', 'dama', 'turkdamasi', 'reversi', 'gomoku', 'connect4', 'bilardo', 'battleship'];
+    'pisti', 'batak', 'dama', 'turkdamasi', 'reversi', 'gomoku', 'connect4', 'bilardo', 'battleship',
+    'kelimelik'];
   const normGame = (g) => {
     g = String(g || '').toLowerCase().trim();
     if (g === 'satranc' || g === 'satranç') return 'chess';
@@ -346,7 +347,8 @@
     // Online motoru henüz olmayan oyunlarda "başlatılıyor" yerine dürüst
     // bir bekleme mesajı göster (masada otur/kalk/hazırım çalışmaya devam
     // eder; motor eklendiğinde oyun otomatik başlar).
-    const engineReady = ['chess', 'tavla', 'okey', 'okey101'].includes(_ag);
+    const engineReady = ['chess', 'tavla', 'okey', 'okey101', 'dama', 'turkdamasi',
+      'reversi', 'gomoku', 'connect4', 'bilardo', 'battleship', 'kelimelik'].includes(_ag);
     const status = watching
       ? (full ? '👁️ İzleyici olarak bekliyorsunuz. Oyun başlayınca masayı göreceksiniz.' : '👁️ İzleyici olarak bekliyorsunuz.')
       : allReady ? (engineReady ? '🚀 Oyun başlatılıyor...' : '⏳ Tüm oyuncular hazır — online oyun bu masada aktif edildiğinde başlayacak.') : full

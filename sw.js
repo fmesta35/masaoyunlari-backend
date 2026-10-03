@@ -17,7 +17,7 @@
  */
 'use strict';
 
-const SURUM = 'gv-v1-20260927d';
+const SURUM = 'gv-v1-20261003a';
 const KABUK = 'gv-kabuk-' + SURUM;
 const VARLIK = 'gv-varlik-' + SURUM;
 

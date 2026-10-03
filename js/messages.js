@@ -44,6 +44,27 @@
     round_over:     '⏹️ Bu el kapandı, yeni el bekleniyor.',
     real_okey_discarded: '⚠️ Gerçek okeyi açık attınız! 101 puan ceza aldınız.',
 
+    // ---- Kelimelik ----
+    // Sunucu motorunun (kelimelik-engine.js) döndürdüğü her ret sebebinin
+    // oyuncuya KOD değil CÜMLE olarak karşılığı.
+    bos_hamle:        '🔤 Tahtaya hiç harf koymadınız.',
+    tek_hat_degil:    '🔤 Harfler tek bir hat üzerinde olmalı — ya hepsi yatay ya hepsi dikey.',
+    arada_bosluk:     '🔤 Harflerin arasında boşluk var — kelime kesintisiz dizilmeli.',
+    merkezden_gecmeli:'⭐ İlk kelime ★ başlangıç karesinden geçmeli.',
+    en_az_iki_harf:   '🔤 İlk kelime en az iki harfli olmalı.',
+    temas_yok:        '🔤 Yeni harfler tahtadaki bir kelimeye değmeli.',
+    kelime_olusmadi:  '🔤 Geçerli bir kelime oluşmadı.',
+    sozlukte_yok:     '📖 Bu kelime sözlükte yok. TDK\'de olduğunu düşünüyorsanız 📣 Kelime Bildir ile iletebilirsiniz.',
+    istakanda_yok:    '🔤 O harf ıstakanızda yok — masayı yenileyin.',
+    kare_dolu:        '⛔ Burası dolu — boş bir kareye oynayın.',
+    ayni_kare:        '⛔ Aynı kareye iki taş konamaz.',
+    gecersiz_kare:    '⛔ Tahtanın dışına taş konamaz.',
+    gecersiz_harf:    '🔤 Geçersiz harf — joker için harf seçmelisiniz.',
+    gecersiz_hamle:   '🚫 Bu hamle oyunun kurallarına uymuyor.',
+    torba_bos:        '🎒 Torbada taş kalmadı — harf değiştirilemez.',
+    torbada_yetersiz: '🎒 Torbada o kadar taş yok — daha az harf seçin.',
+    secim_yok:        '🔤 Değiştirmek için hiç harf seçmediniz.',
+
     // ---- Amiral Battı (Battleship) ----
     bad_seat: '🔌 Masayla bağlantı kurulamadı. Sayfayı yenileyip tekrar deneyin.',
     wrong_phase: '🚫 Bu işlem şu anki oyun aşamasında yapılamaz.',

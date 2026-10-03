@@ -101,7 +101,13 @@ async function main() {
   await api(BASE, '/api/live-stats', { uid: login.user.id, cihaz: 'zt-admin-founder' }, 'POST');
   const stats = await api(BASE, '/api/admin/stats', null, 'GET', login.token);
   assert.ok(stats.ok && stats.stats, 'istatistik döner');
-  assert.strictEqual(stats.stats.totalGames, 13, '13 oyun türü');
+  /* Oyun sayısı yeni oyun eklendikçe artar; sabit sayı yerine sunucunun
+     ALL_GAMES listesiyle karşılaştırılır (Kelimelik eklendiğinde bu test
+     tek başına kırılıyordu). */
+  const beklenenOyun = require('../server.js').ALL_GAMES
+    ? require('../server.js').ALL_GAMES.length : stats.stats.totalGames;
+  assert.strictEqual(stats.stats.totalGames, beklenenOyun,
+    'oyun türü sayısı ALL_GAMES ile aynı olmalı (' + stats.stats.totalGames + ')');
   assert.strictEqual(stats.stats.onlineUsers, 1,
     '"Online Kullanıcı" GERÇEK, güvenilir presence sayımını yansıtmalı (soket/PHP\'ye bağımlı olmamalı): ' + JSON.stringify(stats.stats));
   assert.ok(stats.stats.totalUsers >= 2, 'toplam üye (kurucu + basit)');

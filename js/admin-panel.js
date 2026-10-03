@@ -237,6 +237,7 @@
           <button type="button" class="admin-tab" data-tab="games" style="padding:9px 14px;border:none;border-radius:9px 9px 0 0;font-weight:700;cursor:pointer;background:var(--bg3);color:var(--text)">🎮 Oyunlar</button>
           <button type="button" class="admin-tab" data-tab="reports" style="padding:9px 14px;border:none;border-radius:9px 9px 0 0;font-weight:700;cursor:pointer;background:var(--bg3);color:var(--text)">🚩 Şikayetler</button>
           <button type="button" class="admin-tab" data-tab="tourn" style="padding:9px 14px;border:none;border-radius:9px 9px 0 0;font-weight:700;cursor:pointer;background:var(--bg3);color:var(--text)">🏆 Turnuvalar</button>
+          <button type="button" class="admin-tab" data-tab="sozluk" style="padding:9px 14px;border:none;border-radius:9px 9px 0 0;font-weight:700;cursor:pointer;background:var(--bg3);color:var(--text)">📣 Kelime Bildirimleri</button>
         </div>
         <div id="adminPanelBody" style="flex:1;overflow-y:auto;padding:16px"></div>
       </div>`;
@@ -261,7 +262,62 @@
     if (panelTab === 'users') renderUsersTab(body);
     else if (panelTab === 'reports') renderReportsTab(body);
     else if (panelTab === 'tourn') renderTournTab(body);
+    else if (panelTab === 'sozluk') renderSozlukTab(body);
     else renderGamesTab(body);
+  }
+
+  /* ================== SEKME 5: KELİME BİLDİRİMLERİ ==================
+     Kelimelik'te oyuncu, sözlükte bulunmayan bir kelimeyi "TDK'de var"
+     diyerek bildirir (📣 Kelime Bildir). Kayıtlar burada toplanır; kurucu
+     doğrulayıp "Eklendi" ya da "Reddedildi" işaretler. Onaylananlar
+     tools/kelimelik-sozluk.py içindeki EK_LISTE'ye yazılıp sözlük yeniden
+     üretilir (sözlük sunucuda durur, istemciye hiç inmez). */
+  function renderSozlukTab(body) {
+    body.innerHTML = '<div style="color:var(--text2)">Yükleniyor…</div>';
+    api(BACKEND + '/api/kelimelik/reports', null, 'GET').then(r => {
+      if (!r || !r.ok) { body.innerHTML = '<div style="color:var(--danger)">Bildirimler okunamadı.</div>'; return; }
+      const s = r.sayilar || {};
+      const kayitlar = r.kayitlar || [];
+      const satir = k => {
+        const renk = k.durum === 'eklendi' ? 'var(--success)'
+                   : k.durum === 'reddedildi' ? 'var(--danger)' : 'var(--warning)';
+        const etiket = k.durum === 'eklendi' ? '✔ Eklendi'
+                     : k.durum === 'reddedildi' ? '✘ Reddedildi' : '⏳ Bekliyor';
+        return '<tr>' +
+          '<td style="padding:7px 9px;font-weight:700">' + esc(k.kelime) + '</td>' +
+          '<td style="padding:7px 9px;text-align:center">' + Number(k.adet || 1) + '</td>' +
+          '<td style="padding:7px 9px;color:' + renk + '">' + etiket + '</td>' +
+          '<td style="padding:7px 9px;color:var(--text2);font-size:.86em">' + esc((k.notlar || []).join(' · ')) + '</td>' +
+          '<td style="padding:7px 9px;white-space:nowrap">' +
+            '<a href="https://sozluk.gov.tr/?q=' + encodeURIComponent(String(k.kelime).toLowerCase()) +
+              '" target="_blank" rel="noopener" style="color:var(--accent);font-size:.85em;margin-right:8px">TDK ↗</a>' +
+            '<button type="button" class="btn btn-sm kl-ekle" data-k="' + esc(k.kelime) + '">Eklendi</button> ' +
+            '<button type="button" class="btn btn-sm kl-red" data-k="' + esc(k.kelime) + '">Reddet</button>' +
+          '</td></tr>';
+      };
+      body.innerHTML =
+        '<div style="margin-bottom:12px;color:var(--text2);font-size:.9em">' +
+          'Toplam <b>' + (s.toplam || 0) + '</b> · Bekleyen <b style="color:var(--warning)">' + (s.bekliyor || 0) + '</b>' +
+          ' · Eklenen <b style="color:var(--success)">' + (s.eklendi || 0) + '</b>' +
+          ' · Reddedilen <b style="color:var(--danger)">' + (s.reddedildi || 0) + '</b>' +
+        '</div>' +
+        (kayitlar.length
+          ? '<table style="width:100%;border-collapse:collapse;font-size:.92em">' +
+            '<thead><tr style="color:var(--text2);font-size:.82em;text-align:left">' +
+            '<th style="padding:6px 9px">Kelime</th><th style="padding:6px 9px;text-align:center">Bildiren</th>' +
+            '<th style="padding:6px 9px">Durum</th><th style="padding:6px 9px">Not</th>' +
+            '<th style="padding:6px 9px">İşlem</th></tr></thead><tbody>' +
+            kayitlar.map(satir).join('') + '</tbody></table>'
+          : '<div style="color:var(--text2);padding:20px 0">Henüz kelime bildirimi yok.</div>') +
+        '<div style="margin-top:14px;color:var(--text3);font-size:.8em;line-height:1.6">' +
+          'Onayladığın kelimeler sözlüğe <b>tools/kelimelik-sozluk.py</b> içindeki EK_LISTE\'ye ' +
+          'eklenip sözlük yeniden üretilerek yayına alınır. Sözlük sunucuda durur; istemciye hiç inmez.' +
+        '</div>';
+      const isle = (kelime, durum) => api(BACKEND + '/api/kelimelik/reports', { kelime, durum }, 'POST')
+        .then(() => renderSozlukTab(body));
+      body.querySelectorAll('.kl-ekle').forEach(b => b.addEventListener('click', () => isle(b.dataset.k, 'eklendi')));
+      body.querySelectorAll('.kl-red').forEach(b => b.addEventListener('click', () => isle(b.dataset.k, 'reddedildi')));
+    }).catch(() => { body.innerHTML = '<div style="color:var(--danger)">Bildirimler okunamadı.</div>'; });
   }
 
   /* ================== SEKME 4: TURNUVALAR ==================
