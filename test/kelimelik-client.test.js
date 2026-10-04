@@ -4,7 +4,9 @@
  * İki pencere masaya oturur, tahta çizilir, oyuncu ıstakadan harf seçip
  * tahtaya tıklayarak KELİME kurar, hamle sunucudan iki pencereye de döner.
  * Ayrıca: rakibin ıstakası sızmıyor mu, sözlük reddi "Kelime Bildir"i
- * açıyor mu, ölçek kademeleri ve pas/değiştir düğmeleri çalışıyor mu.
+ * açıyor mu, hamle kaydına kelime + puan yazılıyor mu, tahtanın üstündeki
+ * bilgi şeritleri ve yakınlaştırma kumandası gerçekten kalktı mı,
+ * pas/değiştir düğmeleri çalışıyor mu.
  */
 process.env.GV_POST_GAME_HOLD_MS = '400';
 
@@ -124,6 +126,46 @@ async function main() {
   assert.strictEqual(sirali.__gvKelimelik.taslak().length, 0, 'onaydan sonra taslak temizlenmeli');
   console.log('  ✓ 3) ıstakadan seçip tahtaya tıklayarak KEDİ kuruldu, 12 puan, rakibe yansıdı');
 
+  /* 4b) HAMLE KAYDI — kullanıcı isteği: "Oyunlarda yapılan hamleler de
+     kazanılan puanlar ve kelimeler not edilsin." İki pencerede de yazmalı:
+     hamleyi yapan "Siz" diye, rakip oyuncu adıyla görür. */
+  for (const w of [sirali, oteki]) {
+    const kayit = await bekle(() => {
+      const el = w.document.getElementById('moveHist');
+      return el && /KEDİ/.test(el.textContent) ? el : null;
+    }, 10000, 'hamle kaydında kelime görünmeli');
+    assert.ok(/\+12/.test(kayit.textContent), 'hamle kaydında puan görünmeli → ' + kayit.textContent.trim());
+  }
+  assert.ok(/Siz/.test(sirali.document.getElementById('moveHist').textContent),
+    'hamleyi yapan kendini "Siz" diye görmeli');
+  /* Merkez karesi (★) kullanıldığı için sunucu bonus bayrağı yollamalı:
+     ayrı ses efekti (klBonus) buna bakıyor. */
+  const sonKayit = oda.kelimelik.history.filter(g => g.tur === 'move').pop();
+  assert.strictEqual(sonKayit.bonus, true, 'merkez karesi kullanıldı → bonus bayrağı açık olmalı');
+  assert.strictEqual(sonKayit.bingo, false, '4 harf bingo değil');
+  console.log('  ✓ 3b) hamle kaydına kelime + puan yazıldı, bonus bayrağı doğru');
+
+  /* 4c) SES EFEKTLERİ — kullanıcı isteği: "Bonus puanlarda ses efekti ayrı
+     olsun, hamle oynama sesleri de olsun taş koyma ve kaldırma, isterlerse
+     kullanıcılar sesleri kapatabilirler." Ses motorunda bu adların GERÇEKTEN
+     tanımlı olması gerekir; eksikse adaptör sessizce hiçbir şey çalmaz ve
+     hata da vermez — bu yüzden ayrıca doğrulanır. Kapatma anahtarı da
+     burada sınanır: kapalıyken cal() false dönmeli. */
+  const D = sirali.GVDeniz;
+  assert.ok(D && D.ses, 'ses motoru yüklenmeli');
+  const oncekiSes = D.ses.acik();
+  D.ses.ayarla(false);
+  for (const ad of ['klTas', 'klGeri', 'klOnay', 'klBonus', 'klBingo', 'klRed']) {
+    assert.strictEqual(D.ses.cal(ad), false, 'ses kapalıyken ' + ad + ' çalmamalı');
+  }
+  D.ses.ayarla(oncekiSes);
+  const sesKaynak = await (await fetch(BASE + '/js/deniz-sinematik.js')).text();
+  for (const ad of ['klTas', 'klGeri', 'klOnay', 'klBonus', 'klBingo', 'klRed']) {
+    assert.ok(new RegExp('\\n\\s*' + ad + ':\\s*function').test(sesKaynak),
+      'ses motorunda tanımlı olmalı: ' + ad);
+  }
+  console.log('  ✓ 3c) kelimelik ses efektleri tanımlı ve ses anahtarı hepsini kapatıyor');
+
   // 5) sözlükte olmayan kelime reddedilir ve Kelime Bildir açılır
   oda.kelimelik.turn = oteki.GVArena.seat();
   await istakaKur(oda, oteki, oteki.GVArena.seat(), ['Z', 'Z', 'Z', 'Z', 'Z', 'Z', 'Z'], ODA);
@@ -153,23 +195,30 @@ async function main() {
   assert.ok(bildirim.liste().length > 0, 'bildirim sunucuya kaydedilmeli');
   console.log('  ✓ 4) sözlük reddi → Kelime Bildir → sunucuya kayıt');
 
-  // 6) ölçek kademeleri ve kumanda düğmeleri
-  /* jsdom'da düzen ölçüsü sıfırdır; "Sığdır" kademesinde hücre
-     okunabilirlik eşiğinin altına düştüğü için ölçek KENDİLİĞİNDEN bir
-     kademe yükselir (gerçek tarayıcıda da telefon yatayda böyle olur).
-     Bu yüzden mutlak değer değil, DEĞİŞİM doğrulanır. */
+  // 6) GÖRÜNTÜ SADELEŞTİRMESİ + kumanda düğmeleri
+  /* Kullanıcı isteği: "Tam ekran seçilmeden de rakip oynuyor, diğer taş
+     bilgileri vs. oyun üzerindeki bilgiler kalksın, harita yakınlaştırma
+     - ve + kısımları kalksın." Tahtanın ÜSTÜNDEKİ her şey kaldırıldı;
+     torba/pas bilgisi yan panele tek satır olarak taşındı. Burada o
+     şeritlerin GERÇEKTEN yok olduğu, bilginin ise kaybolmadığı sınanır. */
   const kokA = sirali.document.getElementById('boardArea');
-  const once0 = sirali.__gvKelimelik.olcek();
-  assert.ok(once0 >= 0 && once0 <= 2, 'ölçek kademesi 0-2 arasında olmalı');
-  tikla(sirali, kokA.querySelector('.kl-buyut'));
-  const sonra = sirali.__gvKelimelik.olcek();
-  assert.ok(sonra > once0 || sonra === 2, '➕ kademeyi artırmalı (' + once0 + '→' + sonra + ')');
-  tikla(sirali, sirali.document.querySelector('#boardArea .kl-kucult'));
-  assert.ok(sirali.__gvKelimelik.olcek() < sonra, '➖ kademeyi azaltmalı');
-  for (const sec of ['.kl-onay', '.kl-geri', '.kl-temiz', '.kl-karistir', '.kl-takas', '.kl-pas', '.kl-bildir', '.kl-merkez']) {
+  for (const sec of ['.kl-buyut', '.kl-kucult', '.kl-merkez', '.kl-olcek-et',
+                     '.kl-durum', '.kl-skor', '.kl-torba', '.kl-arac']) {
+    assert.strictEqual(kokA.querySelector(sec), null, 'tahta üstünde kalmamalı: ' + sec);
+  }
+  assert.strictEqual(typeof sirali.__gvKelimelik.olcek, 'undefined',
+    'yakınlaştırma kademesi tamamen kaldırılmalı');
+  /* Tahta kutusunun dışına taşan bir kaydırma şeridi kalmamalı. */
+  const kutuEl = kokA.querySelector('.kl-kutu');
+  assert.ok(kutuEl, 'tahta kutusu yerinde olmalı');
+  const yanDurum = await bekle(() => sirali.document.getElementById('klYanDurum'),
+    8000, 'torba/pas bilgisi yan panele taşınmalı');
+  assert.ok(/taş/.test(yanDurum.textContent) && /pas/.test(yanDurum.textContent),
+    'yan panel satırı torba ve pas bilgisini taşımalı → ' + yanDurum.textContent.trim());
+  for (const sec of ['.kl-onay', '.kl-geri', '.kl-temiz', '.kl-karistir', '.kl-takas', '.kl-pas', '.kl-bildir']) {
     assert.ok(sirali.document.querySelector('#boardArea ' + sec), 'düğme eksik: ' + sec);
   }
-  console.log('  ✓ 5) ölçek kademeleri ve tüm kumanda düğmeleri yerinde');
+  console.log('  ✓ 5) tahta üstü şeritler ve yakınlaştırma kalktı, bilgi yan panele taşındı');
 
   // 7) PAS: sunucuya gider, sayaç artar
   /* Sırası GERÇEKTEN kimdeyse o pencere pas geçer: sunucu durumunu elle
@@ -191,7 +240,7 @@ async function main() {
 
   for (const w of [A, B]) { try { w.close(); } catch (_) {} }
   server.close();
-  console.log('OK kelimelik istemci (jsdom): çizim, hamle, sözlük reddi, kelime bildir, ölçek, pas');
+  console.log('OK kelimelik istemci (jsdom): çizim, hamle, hamle kaydı, sesler, sözlük reddi, kelime bildir, sade görünüm, pas');
   process.exit(0);
 }
 main().catch(e => { console.error('❌ KELİMELİK İSTEMCİ HATASI:', e); process.exit(1); });

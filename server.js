@@ -793,7 +793,13 @@ function publicPlayer(p) {
     isReady: !!p.isReady,
     // Koltuk yapay zekâda mı? İstemci bu bayrakla oyuncu kartına
     // "🤖 idareci" rozeti basar; masadaki herkes durumu görür.
-    ai: !!p.aiControlled
+    ai: !!p.aiControlled,
+    // İZLEYİCİ İZNİ — oyuncu kendi ekranının izlenmesine izin veriyor mu?
+    // Varsayılan AÇIK (eski davranış: izleyici masayı serbestçe izlerdi).
+    // İstemci bunu hem izleyici seçim penceresinde (sönük/aktif) hem de
+    // oyuncunun kendi "İzleyiciye İzin Ver / İznini Kaldır" düğmesinde
+    // kullanır. Bkz. izleKoltuk() ve 'setSpectatorPermission'.
+    allowSpectators: p.allowSpectators !== false
   };
 }
 
@@ -801,8 +807,63 @@ function publicSpectator(s) {
   return {
     id: s.id,
     userKey: s.userKey,
-    name: s.name
+    name: s.name,
+    // Hangi koltuğun ekranından izliyor? (seçmediyse null)
+    watchSeat: (typeof s.watchSeat === 'number') ? s.watchSeat : null
   };
+}
+
+/* ====================================================================
+ * KOLTUK SEÇEREK İZLEME
+ * ====================================================================
+ * Kullanıcı isteği: "okey, 101 okey, pişti, batak ve amiral battı
+ * oyunlarında, dışarıdan odalarda izleyiciler katılmak isterse, izleyici
+ * olarak katılmak isteyen kişi oyundaki oyuncuların isimlerini pop-up
+ * açılarak seçer ve o oyuncunun ekranından izlemeye devam eder.
+ * Oyuncularda 'İzleyiciye İzin Ver' veya 'İzleyici İznini Kaldır'
+ * seçenekleri olacak... izin verilmeyen oyuncu seçilemez, rengi sönük
+ * gözükür... önceden izleyici var ise de artık oyundan izleyici atılır ve
+ * lobiye yönlendirilerek pop-up uyarı mesajıyla uyarı versin."
+ *
+ * NEDEN YALNIZ BU BEŞ OYUN? Gizli bilgi taşıyan oyunlar bunlar: okey/101
+ * okey ıstakası, pişti/batak eldeki kâğıtlar, amiral battı gemi yerleşimi.
+ * Satranç/dama gibi açık tahtalarda "kimin ekranı" diye bir soru yok,
+ * oradaki izleyici eskisi gibi tarafsız görünümü alır.
+ *
+ * GÜVENLİK: izleyici hiçbir koşulda İZİN VERMEYEN bir oyuncunun gizli
+ * bilgisini alamaz. Paket üretilirken koltuk HER SEFERİNDE izleKoltuk()
+ * ile yeniden doğrulanır; izin o an kalkmışsa koltuk null'a düşer ve
+ * tarafsız görünüm gider. İstemciye "izin yok" deyip paketi yine de
+ * göndermek sızıntı olurdu.
+ */
+const IZLEME_SECIMLI_OYUNLAR = ['okey', 'okey101', 'pisti', 'batak', 'battleship'];
+function izlemeSecimliMi(room) {
+  return !!room && IZLEME_SECIMLI_OYUNLAR.includes(room.gameId);
+}
+function izleyiciIzinliMi(room, seat) {
+  const p = room && room.players.find(x => x.seat === seat);
+  return !!p && p.allowSpectators !== false;
+}
+/* İzleyicinin O AN hangi koltuğun ekranını göreceği. Seçim yoksa, koltuk
+   yoksa ya da izin kalkmışsa null = tarafsız görünüm. */
+function izleKoltuk(room, spec) {
+  if (!spec || !izlemeSecimliMi(room)) return null;
+  const k = spec.watchSeat;
+  if (typeof k !== 'number') return null;
+  return izleyiciIzinliMi(room, k) ? k : null;
+}
+/* İzleyici seçim penceresinin içeriği: masadaki oyuncular + izin durumu.
+   Ziyaretçinin adı zaten "Ziyaretçi 1234" biçiminde geldiği için ayrıca
+   numara üretmeye gerek yok. */
+function izlemeSecenekleri(room) {
+  if (!izlemeSecimliMi(room)) return [];
+  return room.players.map(p => ({
+    seat: p.seat,
+    name: p.name,
+    uid: p.userId || null,
+    uye: !!p.userId,
+    allowed: p.allowSpectators !== false
+  })).sort((a, b) => a.seat - b.seat);
 }
 
 function publicRoom(room) {
@@ -1203,7 +1264,10 @@ function battleshipState(room, seat) {
 }
 function emitBattleshipState(room, event = 'gameStateUpdated') {
   room.players.forEach(p => emitToPlayer(p, event, { roomId: room.id, seat: p.seat, gameState: battleshipState(room, p.seat), isSpectator: false }));
-  (room.spectators || []).forEach(p => emitToPlayer(p, event, { roomId: room.id, seat: null, gameState: battleshipState(room, null), isSpectator: true }));
+  /* İzleyici seçtiği koltuğun EKRANINI görür (gemi yerleşimi dâhil); hiç
+     seçmediyse ya da o oyuncu izni kaldırdıysa koltuk null'a düşer ve
+     tarafsız görünüm gider. Koltuk her pakette yeniden doğrulanır. */
+  (room.spectators || []).forEach(p => { const k = izleKoltuk(room, p); emitToPlayer(p, event, { roomId: room.id, seat: k, gameState: battleshipState(room, k), isSpectator: true }); });
 }
 function startBattleship(room) {
   if (room.status === 'playing' || room.players.length !== 2 || !room.players.every(p => p.isReady)) return;
@@ -1235,7 +1299,7 @@ function cardGameState(room, forSeat) {
 }
 function emitCardState(room, event='gameStateUpdated') {
   room.players.forEach(p => emitToPlayer(p, event, { roomId: room.id, seat:p.seat, gameState:cardGameState(room,p.seat), isSpectator:false }));
-  (room.spectators||[]).forEach(p => emitToPlayer(p,event,{roomId:room.id,seat:null,gameState:cardGameState(room,null),isSpectator:true}));
+  (room.spectators||[]).forEach(p => { const k = izleKoltuk(room, p); emitToPlayer(p,event,{roomId:room.id,seat:k,gameState:cardGameState(room,k),isSpectator:true}); });
   // Sıra yapay zekâdaysa hamlesini zamanla (pişti/batak masaları).
   try { aiSiraKontrol(room); } catch (_) {}
 }
@@ -1297,32 +1361,37 @@ function emitGameState(room) {
 }
 
 function emitPlayingSnapshot(room, socketId, player) {
+  /* KOLTUK SEÇEREK İZLEME: izleyici odaya girdiğinde ya da yeniden
+     bağlandığında da seçtiği oyuncunun EKRANINI alır. Oyuncu için bakış
+     kendi koltuğu; seçim yoksa veya izin kalkmışsa null (tarafsız). */
+  const izleyici = player ? null : (room && (room.spectators || []).find(x => x.id === socketId));
+  const bakis = player ? player.seat : izleKoltuk(room, izleyici);
   if (room && room.status === 'playing' && room.okey) {
     emitToPlayer({ id: socketId }, 'gameStarted', {
       roomId: room.id,
-      seat: player ? player.seat : null,
+      seat: bakis,
       playerColor: null,
       isSpectator: !player,
       players: publicRoom(room).players,
-      gameState: buildOkeyState(room, player ? player.seat : null)
+      gameState: buildOkeyState(room, bakis)
     });
     emitToPlayer({ id: socketId }, 'gameStateUpdated', {
       roomId: room.id,
-      seat: player ? player.seat : null,
+      seat: bakis,
       playerColor: null,
       isSpectator: !player,
-      gameState: buildOkeyState(room, player ? player.seat : null)
+      gameState: buildOkeyState(room, bakis)
     });
     return;
   }
-  if (room && room.status === 'playing' && room.bilardo) { const p=player?player.seat:null; io.to(socketId).emit('gameStarted',{roomId:room.id,seat:p,isSpectator:!player,players:publicRoom(room).players,gameState:bilardoState(room,p)}); io.to(socketId).emit('gameStateUpdated',{roomId:room.id,seat:p,isSpectator:!player,gameState:bilardoState(room,p)}); return; }
-  if (room && room.status === 'playing' && room.battleship) { const p=player?player.seat:null; io.to(socketId).emit('gameStarted',{roomId:room.id,seat:p,isSpectator:!player,players:publicRoom(room).players,gameState:battleshipState(room,p)}); io.to(socketId).emit('gameStateUpdated',{roomId:room.id,seat:p,isSpectator:!player,gameState:battleshipState(room,p)}); return; }
-  if (room && room.status === 'playing' && room.connect4) { const p=player?player.seat:null; io.to(socketId).emit('gameStarted',{roomId:room.id,seat:p,isSpectator:!player,players:publicRoom(room).players,gameState:connect4State(room,p)}); io.to(socketId).emit('gameStateUpdated',{roomId:room.id,seat:p,isSpectator:!player,gameState:connect4State(room,p)}); return; }
-  if (room && room.status === 'playing' && room.kelimelik) { const p=player?player.seat:null; io.to(socketId).emit('gameStarted',{roomId:room.id,seat:p,isSpectator:!player,players:publicRoom(room).players,gameState:kelimelikState(room,p)}); io.to(socketId).emit('gameStateUpdated',{roomId:room.id,seat:p,isSpectator:!player,gameState:kelimelikState(room,p)}); return; }
-  if (room && room.status === 'playing' && room.gomoku) { const p=player?player.seat:null; io.to(socketId).emit('gameStarted',{roomId:room.id,seat:p,isSpectator:!player,players:publicRoom(room).players,gameState:gomokuState(room,p)}); io.to(socketId).emit('gameStateUpdated',{roomId:room.id,seat:p,isSpectator:!player,gameState:gomokuState(room,p)}); return; }
-  if (room && room.status === 'playing' && room.reversi) { const p=player?player.seat:null; io.to(socketId).emit('gameStarted',{roomId:room.id,seat:p,isSpectator:!player,players:publicRoom(room).players,gameState:reversiState(room,p)}); io.to(socketId).emit('gameStateUpdated',{roomId:room.id,seat:p,isSpectator:!player,gameState:reversiState(room,p)}); return; }
-  if (room && room.status === 'playing' && room.dama) { const p=player?player.seat:null; io.to(socketId).emit('gameStarted',{roomId:room.id,seat:p,isSpectator:!player,players:publicRoom(room).players,gameState:damaState(room,p)}); io.to(socketId).emit('gameStateUpdated',{roomId:room.id,seat:p,isSpectator:!player,gameState:damaState(room,p)}); return; }
-  if (room && room.status === 'playing' && room.cardGame) { const p = player ? player.seat : null; io.to(socketId).emit('gameStarted',{roomId:room.id,seat:p,isSpectator:!player,players:publicRoom(room).players,gameState:cardGameState(room,p)}); io.to(socketId).emit('gameStateUpdated',{roomId:room.id,seat:p,isSpectator:!player,gameState:cardGameState(room,p)}); return; }
+  if (room && room.status === 'playing' && room.bilardo) { const p=bakis; io.to(socketId).emit('gameStarted',{roomId:room.id,seat:p,isSpectator:!player,players:publicRoom(room).players,gameState:bilardoState(room,p)}); io.to(socketId).emit('gameStateUpdated',{roomId:room.id,seat:p,isSpectator:!player,gameState:bilardoState(room,p)}); return; }
+  if (room && room.status === 'playing' && room.battleship) { const p=bakis; io.to(socketId).emit('gameStarted',{roomId:room.id,seat:p,isSpectator:!player,players:publicRoom(room).players,gameState:battleshipState(room,p)}); io.to(socketId).emit('gameStateUpdated',{roomId:room.id,seat:p,isSpectator:!player,gameState:battleshipState(room,p)}); return; }
+  if (room && room.status === 'playing' && room.connect4) { const p=bakis; io.to(socketId).emit('gameStarted',{roomId:room.id,seat:p,isSpectator:!player,players:publicRoom(room).players,gameState:connect4State(room,p)}); io.to(socketId).emit('gameStateUpdated',{roomId:room.id,seat:p,isSpectator:!player,gameState:connect4State(room,p)}); return; }
+  if (room && room.status === 'playing' && room.kelimelik) { const p=bakis; io.to(socketId).emit('gameStarted',{roomId:room.id,seat:p,isSpectator:!player,players:publicRoom(room).players,gameState:kelimelikState(room,p)}); io.to(socketId).emit('gameStateUpdated',{roomId:room.id,seat:p,isSpectator:!player,gameState:kelimelikState(room,p)}); return; }
+  if (room && room.status === 'playing' && room.gomoku) { const p=bakis; io.to(socketId).emit('gameStarted',{roomId:room.id,seat:p,isSpectator:!player,players:publicRoom(room).players,gameState:gomokuState(room,p)}); io.to(socketId).emit('gameStateUpdated',{roomId:room.id,seat:p,isSpectator:!player,gameState:gomokuState(room,p)}); return; }
+  if (room && room.status === 'playing' && room.reversi) { const p=bakis; io.to(socketId).emit('gameStarted',{roomId:room.id,seat:p,isSpectator:!player,players:publicRoom(room).players,gameState:reversiState(room,p)}); io.to(socketId).emit('gameStateUpdated',{roomId:room.id,seat:p,isSpectator:!player,gameState:reversiState(room,p)}); return; }
+  if (room && room.status === 'playing' && room.dama) { const p=bakis; io.to(socketId).emit('gameStarted',{roomId:room.id,seat:p,isSpectator:!player,players:publicRoom(room).players,gameState:damaState(room,p)}); io.to(socketId).emit('gameStateUpdated',{roomId:room.id,seat:p,isSpectator:!player,gameState:damaState(room,p)}); return; }
+  if (room && room.status === 'playing' && room.cardGame) { const p = bakis; io.to(socketId).emit('gameStarted',{roomId:room.id,seat:p,isSpectator:!player,players:publicRoom(room).players,gameState:cardGameState(room,p)}); io.to(socketId).emit('gameStateUpdated',{roomId:room.id,seat:p,isSpectator:!player,gameState:cardGameState(room,p)}); return; }
   if (!room || room.status !== 'playing' || (!room.chess && !room.tavla)) return;
   updateClock(room);
   const isSpec = !player;
@@ -1560,13 +1629,14 @@ function emitOkeyState(room, event) {
     });
   });
   (room.spectators || []).forEach(spec => {
+    const k = izleKoltuk(room, spec);
     emitToPlayer(spec, evt, {
       roomId: room.id,
-      seat: null,
+      seat: k,
       playerColor: null,
       isSpectator: true,
       players: publicRoom(room).players,
-      gameState: buildOkeyState(room, null)
+      gameState: buildOkeyState(room, k)
     });
   });
   // Sıra yapay zekânın tuttuğu bir koltuktaysa hamlesini zamanla.
@@ -1635,6 +1705,7 @@ function endOkeyMatch(room, reason, loserSeat) {
     });
   });
   (room.spectators || []).forEach(spec => {
+    const k = izleKoltuk(room, spec);
     emitToPlayer(spec, 'gameEnded', {
       roomId: room.id,
       reason,
@@ -1642,10 +1713,10 @@ function endOkeyMatch(room, reason, loserSeat) {
       winnerSeat: room.result.winnerSeat,
       winnerName: room.result.winnerName,
       loserSeat: loserSeat ?? null,
-      seat: null,
+      seat: k,
       youWon: false,
       isSpectator: true,
-      gameState: buildOkeyState(room, null)
+      gameState: buildOkeyState(room, k)
     });
   });
   emitRoom(room);
@@ -2017,6 +2088,35 @@ function removeSpectator(room, spec) {
   if (!room || !spec) return;
   room.spectators = (room.spectators || []).filter(s => s !== spec);
   emitRoom(room);
+}
+
+/* İZNİ KALKAN KOLTUĞU İZLEYENLERİ ODADAN ÇIKAR
+   Kullanıcı isteği: "eğer önceden izleyici var ise de artık oyundan izleyici
+   atılır ve lobiye yönlendirilerek pop-up uyarı mesajıyla 'oyuncu izleyici
+   iznini kapattı' uyarısı versin."
+   Çıkarmak ŞART: izleyici odada kalsaydı bir sonraki pakette tarafsız
+   görünüme düşerdi ama oyuncunun kararı "beni izlemesin" idi. */
+function izleyicileriCikar(room, seat, oyuncuAdi) {
+  if (!room) return 0;
+  const gidecek = (room.spectators || []).filter(x => x.watchSeat === seat);
+  if (!gidecek.length) return 0;
+  for (const spec of gidecek) {
+    room.spectators = (room.spectators || []).filter(s => s !== spec);
+    try {
+      io.to(spec.id).emit('spectatorEjected', {
+        roomId: room.id,
+        gameId: room.gameId,
+        seat,
+        name: oyuncuAdi || 'Oyuncu',
+        reason: 'permission_revoked',
+        message: (oyuncuAdi || 'Oyuncu') + ' izleyici iznini kapattı. Lobiye yönlendiriliyorsunuz.'
+      });
+      const sck = io.sockets.sockets.get(spec.id);
+      if (sck) { sck.leave(room.id); sck.roomId = null; sck.role = null; }
+    } catch (_) {}
+  }
+  emitRoom(room);
+  return gidecek.length;
 }
 
 // Oyun sonrası oda TAKILI KALMAZ: bitişten (mat / süre / hamle hükmen /
@@ -3047,6 +3147,17 @@ io.on('connection', socket => {
       room: publicRoom(room)
     });
 
+    /* İZLEYİCİ GİRDİ: hangi oyuncunun ekranından izleyeceğini seçmesi için
+       pop-up'ın içeriğini hemen yolla (yalnız seçimli oyunlarda; diğer
+       oyunlarda izleyici eskisi gibi tarafsız görünümü alır). */
+    if (socket.role === 'spectator' && izlemeSecimliMi(room)) {
+      socket.emit('spectatorChoices', {
+        roomId: room.id, gameId: room.gameId, secimli: true,
+        choices: izlemeSecenekleri(room),
+        watchSeat: (spectator && typeof spectator.watchSeat === 'number') ? spectator.watchSeat : null
+      });
+    }
+
     if (room.status === 'playing') {
       // Yeniden bağlanan oyuncuya / izleyiciye durumu SADECE ona gönder;
       // tüm odaya yayınlamak rakibin taş seçimini sıfırlıyordu.
@@ -3374,7 +3485,7 @@ io.on('connection', socket => {
     emitRoom(room);
     if (room.status === 'finished') {
       room.players.forEach(q => emitToPlayer(q, 'gameEnded', { roomId: room.id, reason: room.battleship.result?.reason || 'finished', winnerSeat: room.battleship.winner, youWon: q.seat === room.battleship.winner, gameState: battleshipState(room, q.seat) }));
-      (room.spectators || []).forEach(q => emitToPlayer(q, 'gameEnded', { roomId: room.id, reason: room.battleship.result?.reason || 'finished', winnerSeat: room.battleship.winner, youWon: false, isSpectator: true, gameState: battleshipState(room, null) }));
+      (room.spectators || []).forEach(q => { const k = izleKoltuk(room, q); emitToPlayer(q, 'gameEnded', { roomId: room.id, reason: room.battleship.result?.reason || 'finished', winnerSeat: room.battleship.winner, youWon: false, isSpectator: true, seat: k, gameState: battleshipState(room, k) }); });
     }
   });
 
@@ -3566,6 +3677,68 @@ io.on('connection', socket => {
     }
     const o = { ok: true, gameId: bul ? bul.room.gameId : null };
     if (typeof cb === 'function') cb(o); else socket.emit('gvForfeitResult', o);
+  });
+
+  /* ============ İZLEYİCİ İZNİ (oyuncu tarafı) ============
+     Kullanıcı isteği: "Oyuncularda 'İzleyiciye İzin Ver' veya 'İzleyici
+     İznini Kaldır' seçenekleri olacak oyun esnasında webde ve mobilde."
+     Yalnız KOLTUKTAKİ oyuncu kendi iznini değiştirebilir — izleyici ya da
+     başka bir oyuncu adına istek gelirse sessizce yok sayılır. */
+  socket.on('setSpectatorPermission', payload => {
+    const room = rooms.get(socket.roomId);
+    if (!room) return;
+    const player = findExistingPlayer(room, socket, socket.userKey);
+    if (!player || socket.role === 'spectator') return;
+    const izin = !!(payload && payload.allow);
+    if ((player.allowSpectators !== false) === izin) return;   // değişmedi
+    player.allowSpectators = izin;
+    let atilan = 0;
+    if (!izin) atilan = izleyicileriCikar(room, player.seat, player.name);
+    emitRoom(room);
+    socket.emit('spectatorPermissionSet', {
+      roomId: room.id, seat: player.seat, allow: izin, ejected: atilan
+    });
+    /* Seçim penceresi açık olan izleyiciler listeyi anında tazelesin. */
+    io.to(room.id).emit('spectatorChoices', {
+      roomId: room.id, gameId: room.gameId, choices: izlemeSecenekleri(room)
+    });
+  });
+
+  /* ============ KOLTUK SEÇİMİ (izleyici tarafı) ============
+     İzleyici pop-up'tan bir oyuncu seçer; o andan sonra O OYUNCUNUN
+     ekranını görür. İzin vermeyen koltuk reddedilir: istemci düğmeyi
+     zaten sönük çizer ama kural SUNUCUDA durur. */
+  socket.on('spectateSeat', payload => {
+    const room = rooms.get(socket.roomId);
+    if (!room) return;
+    const spec = findExistingSpectator(room, socket, socket.userKey);
+    if (!spec || socket.role !== 'spectator') return;
+    if (!izlemeSecimliMi(room)) {
+      socket.emit('spectateSeatResult', { ok: false, reason: 'unsupported' });
+      return;
+    }
+    const seat = Number(payload && payload.seat);
+    const oyuncu = room.players.find(x => x.seat === seat);
+    if (!oyuncu) { socket.emit('spectateSeatResult', { ok: false, reason: 'no_seat' }); return; }
+    if (oyuncu.allowSpectators === false) {
+      socket.emit('spectateSeatResult', { ok: false, reason: 'not_allowed', name: oyuncu.name });
+      return;
+    }
+    spec.watchSeat = seat;
+    socket.emit('spectateSeatResult', { ok: true, seat, name: oyuncu.name });
+    emitRoom(room);
+    if (room.status === 'playing') emitPlayingSnapshot(room, socket.id, null);
+  });
+
+  /* İzleyicinin seçim penceresini (yeniden) doldurması için. */
+  socket.on('spectateOptions', () => {
+    const room = rooms.get(socket.roomId);
+    if (!room) return;
+    socket.emit('spectatorChoices', {
+      roomId: room.id, gameId: room.gameId,
+      secimli: izlemeSecimliMi(room),
+      choices: izlemeSecenekleri(room)
+    });
   });
 
   socket.on('leaveRoom', () => {
@@ -4095,7 +4268,20 @@ app.post('/api/admin/tables-apply', async (req, res) => {
 // istemci Yöncü PHP'sine gider):
 app.get('/api/admin/tables', async (req, res) => {
   if (!await requireAdmin(req, res)) return;
-  res.json({ ok: true, games: presetConfig, popular: popularConfig });
+  res.json({
+    ok: true, games: presetConfig, popular: popularConfig,
+    /* Panelin hangi oyuna masa ekleyip çıkarabileceğini ve masa
+       numaralarının nereden başladığını SUNUCU söyler; istemcide ikinci
+       bir liste tutulmaz (yeni oyun eklenince panel kendiliğinden
+       masa yönetimi gösterir). */
+    sema: {
+      standart: STANDARD_PRESET_GAMES,
+      sabit: FIXED_PRESET_GAMES,
+      tabanlar: PRESET_GAME_BASES,
+      tipler: PRESET_TYPES.map(t => ({ type: t.type, label: t.label, durationMinutes: t.durationMinutes })),
+      tumOyunlar: ALL_GAMES
+    }
+  });
 });
 
 // Kurucu Paneli / Ana sayfa — canlı istatistikler (yalnız yönetici).

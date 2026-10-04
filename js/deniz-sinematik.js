@@ -271,6 +271,70 @@
     sure: function () {
       ton({ f0: 880, f1: 880, sure: 0.13, hacim: 0.22, dalga: 'square' });
       ton({ f0: 660, f1: 660, sure: 0.17, hacim: 0.20, dalga: 'square', gecikme: 0.16 });
+    },
+
+    /* ==================== KELİMELİK SESLERİ ====================
+       Kullanıcı isteği: "Bonus puanlarda ses efekti ayrı olsun, hamle
+       oynama sesleri de olsun taş koyma ve kaldırma, isterlerse
+       kullanıcılar sesleri kapatabilirler."
+       Kapatma zaten var: oda başlığındaki #gvSoundBtn ana ses anahtarını
+       çevirir, sesAcik() kapalıyken buradaki hiçbir ses çalmaz. Okey'in
+       bakalit taşından farklı bir malzeme hedeflendi: Kelimelik taşı AHŞAP
+       — daha alçak, daha kısa yankılı, "tok" bir vuruş. */
+
+    /* TAHTAYA TAŞ KOYMA: ahşap harfin kareye oturuşu. Kısa bir tırnak
+       sesi + hemen sönen alçak gövde: masaya değil, tahtaya konuyor. */
+    klTas: function () {
+      gurultu({ f0: 4200, f1: 1200, sure: 0.030, hacim: 0.26, tip: 'bandpass',
+                q: 1.2, atak: 0.001 });                                       // ahşabın "tık"ı
+      ton({ f0: 320, f1: 168, sure: 0.070, hacim: 0.26, dalga: 'triangle' });  // taşın gövdesi
+      ton({ f0: 760, f1: 520, sure: 0.045, hacim: 0.10, dalga: 'sine' });      // üst tını
+    },
+
+    /* TAŞI GERİ ALMA: aynı malzeme ama TERS yönde — kalkış hissi için
+       frekans yukarı süpürülür ve ses belirgin şekilde daha kısık. */
+    klGeri: function () {
+      gurultu({ f0: 1500, f1: 3400, sure: 0.035, hacim: 0.12, tip: 'bandpass',
+                q: 1.0, atak: 0.003 });
+      ton({ f0: 240, f1: 430, sure: 0.060, hacim: 0.13, dalga: 'triangle' });
+    },
+
+    /* HAMLE ONAYLANDI: sade, iki notalı yükselen onay (do→sol). Sık
+       duyulacağı için kısa ve alçak tutuldu. */
+    klOnay: function () {
+      ton({ f0: 1046, f1: 1046, sure: 0.11, hacim: 0.17, dalga: 'sine' });
+      ton({ f0: 1568, f1: 1568, sure: 0.20, hacim: 0.15, dalga: 'sine', gecikme: 0.09 });
+    },
+
+    /* BONUS KARE: onaydan AYRI ve açıkça daha parlak bir ses (kullanıcı
+       "bonus puanlarda ses efekti ayrı olsun" dedi). Üç notalı yükselen
+       arpej + ince bir parıltı; H²/K³ kareleri kullanıldığında çalar. */
+    klBonus: function () {
+      ton({ f0: 1318, f1: 1318, sure: 0.10, hacim: 0.18, dalga: 'triangle' });              // mi
+      ton({ f0: 1760, f1: 1760, sure: 0.10, hacim: 0.18, dalga: 'triangle', gecikme: 0.08 }); // la
+      ton({ f0: 2637, f1: 2637, sure: 0.26, hacim: 0.16, dalga: 'sine', gecikme: 0.16 });     // mi (üst)
+      gurultu({ f0: 7200, f1: 3000, sure: 0.22, hacim: 0.055, tip: 'bandpass',
+                q: 2.2, gecikme: 0.16, atak: 0.02 });                                         // parıltı
+    },
+
+    /* BİNGO (yedi taşın tamamı): bonustan da büyük, beş notalı yükseliş.
+       Oyunun en nadir ve en değerli anı olduğu için en gösterişli ses. */
+    klBingo: function () {
+      var notalar = [1046, 1318, 1568, 2093, 2637];
+      for (var i = 0; i < notalar.length; i++) {
+        ton({ f0: notalar[i], f1: notalar[i], sure: i === notalar.length - 1 ? 0.42 : 0.12,
+              hacim: 0.17, dalga: 'triangle', gecikme: i * 0.075 });
+      }
+      ton({ f0: 3136, f1: 3136, sure: 0.50, hacim: 0.07, dalga: 'sine', gecikme: 0.30 });
+      gurultu({ f0: 8000, f1: 2400, sure: 0.45, hacim: 0.06, tip: 'bandpass',
+                q: 2.0, gecikme: 0.30, atak: 0.05 });
+    },
+
+    /* HAMLE REDDEDİLDİ: alçalan iki ton — "olmadı" hissi. Ceza gibi
+       duyulmaması için kısık tutuldu. */
+    klRed: function () {
+      ton({ f0: 420, f1: 420, sure: 0.11, hacim: 0.16, dalga: 'square' });
+      ton({ f0: 280, f1: 196, sure: 0.22, hacim: 0.15, dalga: 'square', gecikme: 0.10 });
     }
   };
 

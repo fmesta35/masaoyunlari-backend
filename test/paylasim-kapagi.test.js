@@ -103,4 +103,30 @@ assert.ok(fs.existsSync(path.join(KOK, 'tools', 'kapak-paylasim.py')),
   'tools/kapak-paylasim.py bulunmalı — kapak yeniden üretilebilir kalmalı');
 console.log('  ✓ 5) üretim betiği (tools/kapak-paylasim.py) yerinde');
 
-console.log('OK paylaşım kapağı (' + (zorunlu.length + 9) + ' kontrol)');
+
+/* ---- 7) ETİKETLER ROBOTUN OKUYACAĞI İLK BAYTLARDA MI?
+ * Kullanıcı raporu: "www.masaoyunlari.com.tr linkini paylaştığımda WhatsApp'ta,
+ * Instagram'da link paylaşımı web site görseli gelmiyor." Etiketlerin hepsi
+ * doğruydu — ama <head>'in SONUNDAYDI: önlerinde ~1570 satırlık gömülü CSS
+ * vardı ve og:image dosyanın ~85 KB içinde başlıyordu. WhatsApp/Facebook
+ * robotları sayfanın tamamını indirmez; ilk birkaç on KB'yi okuyup bırakır.
+ * Bu yüzden etiketler GÖRÜLMÜYORDU. Düzeltme etiketleri <title>'ın hemen
+ * altına taşıdı. Bu kontrol, ileride biri <head>'in başına yeniden büyük
+ * bir <style> koyarsa hatanın SESSİZCE geri gelmesini engeller. */
+const ROBOT_BUTCESI = 20 * 1024;      // güvenli sınır; gerçek robotlar daha fazlasını okur
+for (const ad of ['og:title', 'og:description', 'og:image', 'og:url', 'twitter:card', 'twitter:image']) {
+  const re = new RegExp('<meta\\s+(?:property|name)="' + ad.replace(/[:]/g, '[:]') + '"');
+  const yer = Buffer.byteLength(html.slice(0, html.search(re)), 'utf8');
+  assert.ok(yer >= 0 && yer < ROBOT_BUTCESI,
+    ad + ' sayfanın ' + Math.round(yer / 1024) + '. KB\'sinde — önizleme robotları buraya kadar ' +
+    'okumaz. Etiketler <head>\'in EN BAŞINDA, büyük <style> bloklarından ÖNCE durmalı.');
+}
+/* Taşıma sırasında eski blok silinmeli: iki og:image varsa robot hangisini
+   okuyacağını bilmez ve eski/yanlış kapak çıkabilir. */
+for (const ad of ['og:image', 'og:url', 'og:title', 'twitter:card']) {
+  const say = (html.match(new RegExp('<meta\\s+(?:property|name)="' + ad.replace(/[:]/g, '[:]') + '"', 'g')) || []).length;
+  assert.strictEqual(say, 1, ad + ' etiketi ' + say + ' kez geçiyor — tam olarak 1 kez olmalı');
+}
+console.log('  ✓ 6) etiketler ilk 20 KB içinde ve tekrarsız (robot bütçesi)');
+
+console.log('OK paylaşım kapağı (' + (zorunlu.length + 19) + ' kontrol)');

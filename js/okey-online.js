@@ -392,7 +392,9 @@
     </div>`;
 
     const meTurn = ok.turnIndex === 0 ? ' turn' : '';
-    const meLabel = isSpectator ? '👁️ İzleyici' : 'Sen • ' + esc(playerName(map.anchor));
+    const meLabel = isSpectator
+      ? (mySeat !== null ? '👁️ ' + esc(playerName(map.anchor)) + ' izleniyor' : '👁️ İzleyici')
+      : 'Sen • ' + esc(playerName(map.anchor));
     const meClock = (mySeat !== null && gs.clockMs)
       ? `<span class="ok-pclock" data-okey-clock="${map.anchor}">🕐 ${fmt(gs.clockMs[map.anchor])}</span>` : '';
     h += `<div class="ok-me${meTurn}"><div class="ok-me-ava">👤</div><div class="ok-me-name">${meLabel} ${meClock}${turnChip(0)}</div></div>`;
@@ -962,7 +964,12 @@
       if (payload.isSpectator) {
         isSpectator = true;
         window.__gvIsSpectator = true;
-        mySeat = null;
+        /* KOLTUK SEÇEREK İZLEME (bkz. js/izleyici.js): izleyici bir oyuncu
+           seçtiyse sunucu O KOLTUĞUN paketini yollar ve seat alanında
+           koltuğu bildirir. Tahtayı o oyuncunun gözünden çizebilmek için
+           mySeat'e yazılır; hamle yapmayı engelleyen tek şart isSpectator
+           olduğu için kontrol açılmaz. Seçim yoksa null = tarafsız. */
+        mySeat = (typeof payload.seat === 'number') ? payload.seat : null;
       } else {
         isSpectator = false;
         if (typeof payload.seat === 'number') mySeat = payload.seat;
@@ -977,7 +984,10 @@
       if (!payload || String(payload.roomId) !== String(roomId) || !isOkeyRoom()) return;
       if (!payload.gameState || payload.gameState.kind !== 'okey') return;
       if (payload.isSpectator) { isSpectator = true; window.__gvIsSpectator = true; }
+      /* İzleyicide seat NULL da anlamlıdır (izlenen oyuncu izni kaldırdı →
+         tarafsız görünüme dön); oyuncuda null yoksayılır. */
       if (typeof payload.seat === 'number') mySeat = payload.seat;
+      else if (isSpectator && payload.seat === null) mySeat = null;
       apply(payload.gameState, 'gameStateUpdated');
     });
 

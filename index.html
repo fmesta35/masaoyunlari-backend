@@ -4,6 +4,47 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no,viewport-fit=cover">
 <title>Masa Oyunları - Çok Oyunculu Oyun Platformu</title>
+
+<!-- ==========================================================
+     SEO + LİNK PAYLAŞIM KAPAĞI (WhatsApp / Instagram / X / Facebook)
+     ----------------------------------------------------------
+     NEDEN EN ÜSTTE? Bu etiketler eskiden <head>'in SONUNDAYDI: önlerinde
+     ~1570 satırlık (onlarca KB) gömülü CSS vardı. WhatsApp ve benzeri
+     önizleme robotları sayfanın TAMAMINI indirmez — ilk birkaç on KB'yi
+     okuyup <meta> aramayı bırakır. Etiketler o eşiğin GERİSİNDE kaldığı
+     için robot og:image'ı hiç görmüyor ve paylaşımda görsel çıkmıyordu
+     (kullanıcı raporu: "linki paylaştığımda whatsappta instagramda
+     web site görseli gelmiyor"). Çözüm: meta etiketleri <head>'in ilk
+     bloğuna, stillerden ÖNCE almak. Bu sıralama ayrıca Facebook/X için
+     de önerilen biçimdir.
+     Görsel değişirse WhatsApp/Facebook önbelleğini tazelemek için dosya
+     adını değiştirmek ya da Facebook Sharing Debugger'dan "Scrape Again"
+     demek gerekir.
+     ========================================================== -->
+<meta name="description" content="Masa Oyunları - Türkiye'nin en popüler çok oyunculu masa oyunları platformu. Okey, Tavla, Satranç, Dama, 101 Okey, Çanak ve daha fazlası ücretsiz oynayın!">
+<meta name="keywords" content="okey, tavla, satranç, dama, okey 101, çanak, masa oyunları, online oyun, multiplayer oyun, bedava oyun">
+<meta name="author" content="Masa Oyunları">
+<meta name="robots" content="index, follow">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Masa Oyunları">
+<meta property="og:locale" content="tr_TR">
+<meta property="og:title" content="Masa Oyunları — Okey, 101 Okey, Tavla, Satranç ve 10 oyun daha">
+<meta property="og:description" content="Arkadaşlarınla gerçek masalarda ücretsiz oyna: Okey, 101 Okey, Tavla, Satranç, Kelimelik, Bilardo, Amiral Battı, Pişti, Batak ve daha fazlası. Üyelik ücretsiz, Türkçe.">
+<meta property="og:image" content="https://www.masaoyunlari.com.tr/assets/og-kapak.jpg">
+<meta property="og:image:secure_url" content="https://www.masaoyunlari.com.tr/assets/og-kapak.jpg">
+<meta property="og:image:type" content="image/jpeg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Masa Oyunları — Okey, 101 Okey, Tavla, Satranç, Kelimelik, Bilardo, Amiral Battı ve Pişti">
+<meta property="og:url" content="https://www.masaoyunlari.com.tr/">
+<!-- X (Twitter) büyük görselli kart: og etiketlerini okumaz, kendi ad alanını ister. -->
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Masa Oyunları — Okey, 101 Okey, Tavla, Satranç ve 10 oyun daha">
+<meta name="twitter:description" content="Arkadaşlarınla gerçek masalarda ücretsiz oyna. Üyelik ücretsiz, Türkçe.">
+<meta name="twitter:image" content="https://www.masaoyunlari.com.tr/assets/og-kapak.jpg">
+<meta name="twitter:image:alt" content="Masa Oyunları paylaşım kapağı">
+<link rel="canonical" href="https://www.masaoyunlari.com.tr/">
+
 <style>
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 :root{
@@ -1469,28 +1510,19 @@ html{scrollbar-gutter:stable}
 
 /* ===================== KELİMELİK ===================================== */
 .kl-wrap{width:100%;display:flex;flex-direction:column;align-items:stretch}
-.kl-durum{background:var(--card);border:1px solid var(--border);border-radius:var(--r);
-  padding:7px 10px;margin-bottom:8px;font-size:.9em;display:flex;align-items:center;gap:10px}
-.kl-durum-metin{flex:1;min-width:0;text-align:center}
-.kl-durum b{color:var(--warning)}
-.kl-arac{display:flex;gap:5px;align-items:center;flex:0 0 auto}
-.kl-olcek-et{font-size:.74em;color:var(--text2);min-width:52px;text-align:center}
-.kl-arac .btn{min-height:30px;padding:4px 9px;font-size:.8em}
-.kl-skor{display:flex;align-items:center;justify-content:center;gap:12px;flex-wrap:wrap;
-  margin-bottom:8px;font-size:.84em;color:var(--text2)}
-.kl-sk{padding:3px 10px;border-radius:999px;border:1px solid var(--border);background:var(--card)}
-.kl-sk.aktif{border-color:var(--accent);color:var(--text);box-shadow:0 0 12px rgba(0,206,201,.25)}
-.kl-sk b{color:var(--warning);font-family:var(--mono,monospace)}
-.kl-torba,.kl-pas,.kl-saat{font-size:.92em}
-.kl-saat{font-weight:700;color:var(--accent)}
+/* Tahtanın ÜSTÜNDEKİ bilgi şeritleri (durum, skor, torba) ve yakınlaştırma
+   kumandası KALDIRILDI (kullanıcı isteği: "oyun üzerindeki bilgiler kalksın,
+   harita yakınlaştırma - ve + kısımları kalksın"). Sıra/süre/skor yan
+   paneldeki süre kartlarında ve "Sen vs Rakip" panosunda; torba ve üst üste
+   pas bilgisi hamle listesinin altındaki tek satırda. Böylece tahta sayfa
+   aşağı kaydırılmadan en büyük hâline ulaşır. */
+.kl-yan-durum{margin-top:6px;padding:7px 10px;background:var(--bg2,rgba(255,255,255,.04));
+  border:1px solid var(--border);border-radius:10px;font-size:.8em;color:var(--text2);text-align:center}
+.kl-yan-durum b{color:var(--warning)}
 .kl-kutu{background:linear-gradient(180deg,#232840,#151827);border:1px solid var(--border);
-  border-radius:16px;padding:8px;box-shadow:0 16px 40px rgba(0,0,0,.42);margin:0 auto;max-width:100%;
-  overflow:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;scrollbar-width:thin}
-.kl-kutu::-webkit-scrollbar{width:8px;height:8px}
-.kl-kutu::-webkit-scrollbar-thumb{background:#3a4162;border-radius:6px}
+  border-radius:16px;padding:8px;box-shadow:0 16px 40px rgba(0,0,0,.42);margin:0 auto;max-width:100%}
 .kl-tahta{display:grid;grid-template-columns:repeat(15,1fr);gap:2px;width:100%;aspect-ratio:1/1;
-  background:#0d1018;border-radius:10px;padding:4px;touch-action:manipulation}
-.kl-tahta.yakin{width:auto;aspect-ratio:auto}
+  background:#0d1018;border-radius:10px;padding:4px;touch-action:none}
 .kl-hc{position:relative;border-radius:3px;background:#1e2333;display:grid;place-items:center;
   font-size:calc(var(--hc) * .30);font-weight:800;color:rgba(255,255,255,.6);line-height:1;
   user-select:none;-webkit-user-select:none;cursor:pointer;overflow:hidden}
@@ -1527,8 +1559,12 @@ html{scrollbar-gutter:stable}
 .kl-rt.kullanildi .pv{opacity:0}
 .kl-rt.takas{outline:3px solid var(--danger);outline-offset:-3px}
 .kl-rt.joker{color:#7a3b8f}
+.kl-rt.surukleniyor{opacity:.28}
 .kl-hayalet{position:fixed;z-index:2147483000;pointer-events:none;opacity:.92;
-  transform:translate(-50%,-50%) scale(1.06)}
+  transform:translate(-50%,-50%) scale(1.06);touch-action:none}
+/* Hücre vurgusu sürüklerken daha belirgin: parmak taşın altını görmüyor. */
+.kl-hc.hedef{outline:3px solid var(--accent);outline-offset:-3px;
+  box-shadow:inset 0 0 14px rgba(0,206,201,.45)}
 .kl-kumanda{display:flex;gap:6px;flex-wrap:wrap;justify-content:center;margin-top:9px}
 /* joker seçimi ve kelime bildirimi — tam ekranda da görünsün diye
    __gvKaplamaKati() ile #pg-room'un içine eklenir (bkz. GV_FS_KAPLAMALAR). */
@@ -1552,14 +1588,9 @@ html{scrollbar-gutter:stable}
   .kl-kumanda::-webkit-scrollbar{display:none}
   .kl-kumanda .btn{flex:0 0 auto}
   .kl-kumanda .btn .uz{display:none}
-  .kl-olcek-et{min-width:0;font-size:.7em}
 }
 /* Yatay telefon: tahtaya yer açmak için şeritler sıkışır. */
 @media(max-height:480px) and (orientation:landscape){
-  .kl-durum{padding:4px 7px;margin-bottom:5px;font-size:.76em}
-  .kl-durum-metin{display:none}
-  .kl-arac{margin-left:auto}
-  .kl-skor{margin-bottom:5px;font-size:.74em;gap:7px}
   .kl-istaka-kutu{padding:4px;margin-top:5px;border-radius:10px}
   .kl-istaka{min-height:38px;gap:4px}
   .kl-rt{width:clamp(28px,4.6vw,38px);font-size:clamp(14px,2.6vw,19px)}
@@ -1571,47 +1602,8 @@ html{scrollbar-gutter:stable}
 #pg-room.gv-fs .kl-wrap{max-width:none;width:100%;height:100%;max-height:100%;min-height:0;
   display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:0}
 #pg-room.gv-fs .kl-kutu{flex:0 0 auto;margin:0 auto}
-#pg-room.gv-fs .kl-durum,#pg-room.gv-fs .kl-skor,
 #pg-room.gv-fs .kl-istaka-kutu,#pg-room.gv-fs .kl-kumanda{width:100%;flex:0 0 auto}
 </style>
-<!-- SEO Meta Tags -->
-<meta name="description" content="Masa Oyunları - Türkiye'nin en popüler çok oyunculu masa oyunları platformu. Okey, Tavla, Satranç, Dama, 101 Okey, Çanak ve daha fazlası ücretsiz oynayın!">
-<meta name="keywords" content="okey, tavla, satranç, dama, okey 101, çanak, masa oyunları, online oyun, multiplayer oyun, bedava oyun">
-<meta name="author" content="Masa Oyunları">
-<meta name="robots" content="index, follow">
-
-<!-- ==========================================================
-     LİNK PAYLAŞIM KAPAĞI (WhatsApp / Instagram / X / Facebook)
-     ----------------------------------------------------------
-     ESKİ DURUM: og:image olarak "assets/images/og-image.jpg" yazıyordu
-     ama O DOSYA YOKTU; üstelik yol GÖRECELİYDİ — WhatsApp ve diğer
-     önizleme robotları MUTLAK URL ister. og:url da eski bir alan adını
-     (gameverse.com) gösteriyordu. Bu yüzden link paylaşımlarında hiçbir
-     görsel çıkmıyordu.
-     YENİ: 1200x630'luk gerçek kapak (assets/og-kapak.jpg — üretimi
-     tools/kapak-paylasim.py) ve mutlak adresler. Görseli değiştirince
-     WhatsApp/Facebook önbelleğini tazelemek için dosya adını değiştirmek
-     ya da Facebook Sharing Debugger'dan "Scrape Again" demek gerekir.
-     ========================================================== -->
-<meta property="og:type" content="website">
-<meta property="og:site_name" content="Masa Oyunları">
-<meta property="og:locale" content="tr_TR">
-<meta property="og:title" content="Masa Oyunları — Okey, 101 Okey, Tavla, Satranç ve 9 oyun daha">
-<meta property="og:description" content="Arkadaşlarınla gerçek masalarda ücretsiz oyna: Okey, 101 Okey, Tavla, Satranç, Bilardo, Amiral Battı, Pişti, Batak ve daha fazlası. Üyelik ücretsiz, Türkçe.">
-<meta property="og:image" content="https://www.masaoyunlari.com.tr/assets/og-kapak.jpg">
-<meta property="og:image:secure_url" content="https://www.masaoyunlari.com.tr/assets/og-kapak.jpg">
-<meta property="og:image:type" content="image/jpeg">
-<meta property="og:image:width" content="1200">
-<meta property="og:image:height" content="630">
-<meta property="og:image:alt" content="Masa Oyunları — Okey, 101 Okey, Tavla, Satranç, Bilardo, Amiral Battı ve Pişti">
-<meta property="og:url" content="https://www.masaoyunlari.com.tr/">
-<!-- X (Twitter) büyük görselli kart: og etiketlerini okumaz, kendi ad alanını ister. -->
-<meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="Masa Oyunları — Okey, 101 Okey, Tavla, Satranç ve 9 oyun daha">
-<meta name="twitter:description" content="Arkadaşlarınla gerçek masalarda ücretsiz oyna. Üyelik ücretsiz, Türkçe.">
-<meta name="twitter:image" content="https://www.masaoyunlari.com.tr/assets/og-kapak.jpg">
-<meta name="twitter:image:alt" content="Masa Oyunları paylaşım kapağı">
-<link rel="canonical" href="https://www.masaoyunlari.com.tr/">
 
 <!-- Favicon & PWA -->
 <link rel="icon" type="image/png" sizes="32x32" href="assets/icons/favicon-32x32.png">
@@ -4195,7 +4187,7 @@ function toggleFullscreen(){
    Hepsi tam ekranda #pg-room'un içine taşınır, çıkışta gövdeye döner. */
 const GV_FS_KAPLAMALAR =
   '.modal-bg,#toastWrap,.gvlg-overlay,.gv-rematch-ask,.gv-deniz-cam,.ok-drag-ghost,.bs-drag-ghost,' +
-  '.kl-joker-ov,.kl-hayalet';
+  '.kl-joker-ov,.kl-hayalet,.gv-izle-ov';
 /* Yeni kaplamalar DOĞRU ebeveyne eklensin diye ortak yardımcı:
    tam ekranda #pg-room, değilse <body>. */
 window.__gvKaplamaKati = function(){
@@ -5928,6 +5920,10 @@ GV.init();
 <script src="js/board-fit.js?v=20260927a" defer></script>
 <!-- Pes et + rövanş/yeniden oyna: dört bitiş ekranının ortak mantığı -->
 <script src="js/rematch.js?v=20260927d" defer></script>
+<!-- İZLEYİCİ SİSTEMİ: koltuk seçerek izleme pop-up'ı + oyuncunun
+     "İzleyiciye İzin Ver / İznini Kaldır" düğmesi (okey, 101 okey,
+     pişti, batak, amiral battı). Oyundan bağımsız çalışır. -->
+<script src="js/izleyici.js?v=20261004a" defer></script>
 <!-- Kullanıcıyı bildir (şikayet) + kişisel susturma -->
 <script src="js/report.js?v=20260920a" defer></script></body>
 </html>

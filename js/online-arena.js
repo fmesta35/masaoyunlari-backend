@@ -198,7 +198,14 @@
     }
     active.state = p.gameState;
     active.roomId = rid;
-    if (p.seat !== undefined && p.seat !== null) active.seat = p.seat;
+    /* KOLTUK SEÇEREK İZLEME (pişti / batak / amiral battı — bkz.
+       js/izleyici.js): izleyici bir oyuncu seçtiyse sunucu O KOLTUĞUN
+       paketini ve seat'ini yollar; adaptör tahtayı o gözden çizer.
+       İzleyicide seat NULL da anlamlıdır (izlenen oyuncu izni kaldırdı →
+       tarafsız görünüm), bu yüzden izleyici için null DA yazılır; oyuncuda
+       null yoksayılır (eski davranış: ara paketler koltuğu silmesin). */
+    if (p.isSpectator) active.seat = (typeof p.seat === 'number') ? p.seat : null;
+    else if (p.seat !== undefined && p.seat !== null) active.seat = p.seat;
     active.isSpectator = !!p.isSpectator;
     paint(!!yeniMac);
     syncStrip();

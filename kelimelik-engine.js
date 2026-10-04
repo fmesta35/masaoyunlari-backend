@@ -396,13 +396,18 @@ function play(st, seat, konumlar) {
   for (const t of temiz) st.board[t.r][t.c] = { harf: t.harf, joker: t.joker };
   const puan = hamlePuani(st, s.kelimeler, s.yeni, temiz.length);
   const bingo = temiz.length === ISTAKA;
+  /* Bu hamlede H²/H³/K²/K³ ya da merkez karesi KULLANILDI mı? İstemci bunu
+     kendi hesaplayabilirdi ama o zaman bonus desenini de taşımak gerekirdi;
+     tek satırlık bilgiyi sunucu söylüyor. Ses efekti (klBonus) ve ileride
+     hamle kaydındaki gösterim buna bakar. */
+  const bonus = temiz.some(t => !!BONUS[t.r][t.c]);
   st.scores[seat] += puan;
   st.racks[seat] = rack;
   doldur(st, seat);
   st.lastSquares = temiz.map(t => [t.r, t.c]);
   st.passStreak[seat] = 0; st.totalPasses = 0;
   st.moves++;
-  st.history.push({ seat, tur: 'move', puan, bingo,
+  st.history.push({ seat, tur: 'move', puan, bingo, bonus,
                     kelimeler: s.kelimeler.map(k => k.metin) });
 
   /* Bitiş: torba boş ve oyuncunun eli bitti. */
@@ -411,10 +416,10 @@ function play(st, seat, konumlar) {
     const kalan = st.racks[r].reduce((t, h) => t + harfPuani(h), 0);
     st.scores[r] -= kalan; st.scores[seat] += kalan;
     bitir(st, kazananSeat(st), 'tiles_out');
-    return { ok: true, puan, bingo, bitti: true };
+    return { ok: true, puan, bingo, bonus, bitti: true };
   }
   st.turn = 1 - seat;
-  return { ok: true, puan, bingo, kelimeler: s.kelimeler.map(k => k.metin) };
+  return { ok: true, puan, bingo, bonus, kelimeler: s.kelimeler.map(k => k.metin) };
 }
 
 /* PAS — elle, otomatik ya da süre aşımıyla tek yerden geçer. */

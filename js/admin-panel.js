@@ -24,15 +24,38 @@
   // is_founder sütunu). Bu değişken yalnız ek/yedek eşleşme içindir.
   const ADMIN_EMAIL = String(window.__gvAdminEmail || '').toLowerCase();
 
-  // Standart hazır-masa (10 masa) açan oyunlar; okey sabit 18 masa;
-  // diğerleri (kart oyunları vb.) yalnız görünürlük yönetilir.
-  const STANDARD = ['chess', 'tavla', 'okey', 'okey101', 'pisti', 'batak', 'dama', 'turkdamasi', 'reversi', 'gomoku', 'connect4', 'bilardo', 'battleship'];
-  const FIXED = [];
-  const TYPE_DEFS = [
+  /* HANGİ OYUNA MASA EKLENİP ÇIKARILABİLİR?
+     Bu liste eskiden BURADA sabitti; yeni bir oyun eklendiğinde panelde
+     elle güncellenmediği için oyun "hazır masa yok" diye görünüyor ve
+     + Masa / − Masa / Düzenle düğmeleri hiç çıkmıyordu (kullanıcı raporu:
+     Kelimelik satırında yalnız "Görünür" vardı). Artık şema SUNUCUDAN
+     (/api/admin/tables → sema) okunur; aşağıdakiler yalnız sunucuya
+     ulaşılamadığında kullanılan yedektir. */
+  let STANDARD = ['chess', 'tavla', 'okey', 'okey101', 'pisti', 'batak', 'dama', 'turkdamasi', 'reversi', 'gomoku', 'connect4', 'bilardo', 'battleship', 'kelimelik'];
+  let FIXED = [];
+  let TYPE_DEFS = [
     { type: 'fast', label: '⚡ Hızlı (10 dk)', duration: 10 },
     { type: 'normal', label: '♟️ Normal (15 dk)', duration: 15 },
     { type: 'thinker', label: '🧠 Düşünen (20 dk)', duration: 20 }
   ];
+  /* Sunucudan gelen şemayı uygula (masa yönetimi olan oyunlar, taban
+     numaraları, masa tipleri). */
+  function semayiUygula(sema) {
+    if (!sema || typeof sema !== 'object') return;
+    if (Array.isArray(sema.standart) && sema.standart.length) STANDARD = sema.standart.slice();
+    if (Array.isArray(sema.sabit)) FIXED = sema.sabit.slice();
+    if (sema.tabanlar && typeof sema.tabanlar === 'object') Object.assign(BASE, sema.tabanlar);
+    if (Array.isArray(sema.tipler) && sema.tipler.length) {
+      const ETIKET = { fast: '⚡ Hızlı', normal: '♟️ Normal', thinker: '🧠 Düşünen' };
+      const gorulen = [];
+      sema.tipler.forEach(t => {
+        if (gorulen.some(x => x.type === t.type)) return;
+        gorulen.push({ type: t.type, label: (ETIKET[t.type] || t.label || t.type) +
+          ' (' + t.durationMinutes + ' dk)', duration: t.durationMinutes });
+      });
+      if (gorulen.length) TYPE_DEFS = gorulen;
+    }
+  }
   const TYPE_LABEL = { fast: '⚡ Hızlı', normal: '♟️ Normal', thinker: '🧠 Düşünen' };
 
   let settingsCache = null;   // panelin düzenlediği yapılandırma
@@ -106,12 +129,20 @@
   // mergeIntoDefault() kaynağa bakmaksızın aynı kodu kullanabilsin.
   async function fetchSettings() {
     if (isYoncuPage()) {
+      /* Kalıcı ayar Yöncü PHP'de; masa ŞEMASI (hangi oyunun masası var,
+         taban numaraları, masa tipleri) ise Render'dadır. Şema alınamazsa
+         yedek liste kullanılır, panel yine çalışır. */
+      try {
+        const sema = await api(BACKEND + '/api/admin/tables', null, 'GET');
+        if (sema && sema.ok) semayiUygula(sema.sema);
+      } catch (_) {}
       const r = await api('/api/admin.php?action=gamesGet', null, 'GET');
       if (r.ok) return (r.settings && typeof r.settings === 'object') ? r.settings : null;
       return null; // PHP'de kayıt yoksa sunucudaki varsayılanlar geçerli
     }
     const r = await api(BACKEND + '/api/admin/tables', null, 'GET');
     if (!r.ok || !r.games) return null;
+    semayiUygula(r.sema);
     const out = Object.assign({}, r.games);
     if (r.popular && typeof r.popular === 'object') out._popular = r.popular;
     return out;
@@ -141,12 +172,15 @@
   }
 
   // Varsayılan ayarlar (sunucudakiyle aynı kalıp):
-  const BASE = { chess: 101, tavla: 201, dama: 401, turkdamasi: 501, reversi: 601, gomoku: 701, connect4: 801, bilardo: 921, okey: 301, okey101: 331, pisti: 341, batak: 361, battleship: 1001 };
+  const BASE = { chess: 101, tavla: 201, dama: 401, turkdamasi: 501, reversi: 601, gomoku: 701, connect4: 801, bilardo: 921, okey: 301, okey101: 331, pisti: 341, batak: 361, battleship: 1001, kelimelik: 1101 };
+  /* Taban numarası bilinmeyen (sunucu şeması gelmemiş) bir oyun için bile
+     masa adı üretilebilsin; yoksa "Masa #NaN" yazıyordu. */
+  function tabanOf(gid) { return Number(BASE[gid]) > 0 ? Number(BASE[gid]) : 1; }
   function defaultTables(gid) {
     const out = [];
     for (const t of TYPE_DEFS) {
       const n = (t.type === 'fast' ? 4 : t.type === 'normal' ? 3 : 3);
-      for (let k = 0; k < n; k++) out.push({ name: `${t.label} Masa #${BASE[gid] + out.length}`, type: t.type, durationMinutes: t.duration });
+      for (let k = 0; k < n; k++) out.push({ name: `${t.label} Masa #${tabanOf(gid) + out.length}`, type: t.type, durationMinutes: t.duration });
     }
     return out;
   }
@@ -1204,7 +1238,7 @@
     if (act === 'addTable') {
       cfg.tables = cfg.tables || [];
       const n = cfg.tables.length;
-      const d = defaultTables(gid)[n] || { name: `Masa #${BASE[gid] + n}`, type: 'normal', durationMinutes: 15 };
+      const d = defaultTables(gid)[n] || { name: `Masa #${tabanOf(gid) + n}`, type: 'normal', durationMinutes: 15 };
       cfg.tables.push({ name: d.name, type: d.type, durationMinutes: d.duration });
       paintTableRows(gid);
       updateTableCount(gid);

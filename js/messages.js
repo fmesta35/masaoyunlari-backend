@@ -65,6 +65,16 @@
     torbada_yetersiz: '🎒 Torbada o kadar taş yok — daha az harf seçin.',
     secim_yok:        '🔤 Değiştirmek için hiç harf seçmediniz.',
 
+    // ---- İzleyici (koltuk seçerek izleme) ----
+    /* Kullanıcı isteği: izleyici bir oyuncu seçer ve onun ekranından izler;
+       oyuncu izni kaldırırsa seçilemez ve izleyen varsa odadan çıkarılır.
+       Sunucunun kısa kodları (bkz. server.js 'spectateSeat' /
+       'spectatorEjected') burada tek cümlelik Türkçeye çevrilir. */
+    not_allowed:        '⛔ Bu oyuncu izleyicilere kapalı — izin veren bir oyuncu seçin.',
+    no_seat:            '🪑 O koltukta oyuncu yok — listeden birini seçin.',
+    unsupported:        '👁️ Bu oyunda oyuncu seçerek izleme yok; masayı tarafsız izliyorsunuz.',
+    permission_revoked: '🚫 İzlediğiniz oyuncu izleyici iznini kapattı — lobiye yönlendiriliyorsunuz.',
+
     // ---- Amiral Battı (Battleship) ----
     bad_seat: '🔌 Masayla bağlantı kurulamadı. Sayfayı yenileyip tekrar deneyin.',
     wrong_phase: '🚫 Bu işlem şu anki oyun aşamasında yapılamaz.',
