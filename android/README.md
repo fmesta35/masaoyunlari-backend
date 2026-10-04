@@ -34,6 +34,15 @@ derle.bat
 
 (ya da PowerShell'de: `powershell -ExecutionPolicy Bypass -File .\derle.ps1`)
 
+Gözetimsiz derleme (parola sorulmasın, anahtar kendiliğinden üretilsin):
+
+```cmd
+powershell -ExecutionPolicy Bypass -File .\derle.ps1 -OtomatikAnahtar
+```
+
+Bu kipte parola **ekrana yazılmaz**; `keystore\PAROLA-GIZLI-TUT.txt`
+dosyasına kaydedilir.
+
 Betik sırayla:
 
 1. **JDK 17**'yi bulur, yoksa `winget` ile kurar.

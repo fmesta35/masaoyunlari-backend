@@ -17,6 +17,13 @@
 #  Windows-1254 ile okuyup Turkce harfleri bozabiliyor ve betik calismiyor.
 # ============================================================================
 
+# -OtomatikAnahtar : imza anahtari YOKSA parolayi sormadan, kriptografik
+#   olarak guclu rastgele bir parola URETIR ve keystore.properties ile
+#   keystore\PAROLA-GIZLI-TUT.txt dosyalarina yazar. Gozetimsiz derleme
+#   (ornegin uzaktan calistirma) icindir; parola ekrana YAZILMAZ.
+#   Bu dosyalarin yedegini almak SIZE aittir.
+param([switch]$OtomatikAnahtar)
+
 $ErrorActionPreference = "Continue"
 $root = $PSScriptRoot
 Set-Location $root
@@ -155,12 +162,20 @@ if (-not (Test-Path $keyFile)) {
     Write-Host "uygulamaya BIR DAHA guncelleme yukleyemezsiniz. Olustuktan sonra" -ForegroundColor Yellow
     Write-Host "keystore klasorunun yedegini cevrimdisi bir yerde saklayin." -ForegroundColor Yellow
     Write-Host ""
-    $p1 = Read-Host "Anahtar parolasi belirleyin (en az 6 karakter)" -AsSecureString
-    $p2 = Read-Host "Parolayi tekrar girin" -AsSecureString
-    $s1 = [Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropServices.Marshal]::SecureStringToBSTR($p1))
-    $s2 = [Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropServices.Marshal]::SecureStringToBSTR($p2))
-    if ($s1 -ne $s2) { Err "Parolalar ayni degil."; exit 1 }
-    if ($s1.Length -lt 6) { Err "Parola en az 6 karakter olmali."; exit 1 }
+    if ($OtomatikAnahtar) {
+        # Rastgele, guclu parola. Ekrana yazilmaz; yalnizca dosyaya gider.
+        $bayt = New-Object byte[] 24
+        [System.Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($bayt)
+        $s1 = ([Convert]::ToBase64String($bayt) -replace '[^A-Za-z0-9]', '').Substring(0, 24)
+        Info "Parola otomatik uretildi (ekrana yazilmaz)."
+    } else {
+        $p1 = Read-Host "Anahtar parolasi belirleyin (en az 6 karakter)" -AsSecureString
+        $p2 = Read-Host "Parolayi tekrar girin" -AsSecureString
+        $s1 = [Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropServices.Marshal]::SecureStringToBSTR($p1))
+        $s2 = [Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropServices.Marshal]::SecureStringToBSTR($p2))
+        if ($s1 -ne $s2) { Err "Parolalar ayni degil."; exit 1 }
+        if ($s1.Length -lt 6) { Err "Parola en az 6 karakter olmali."; exit 1 }
+    }
 
     New-Item -ItemType Directory -Force -Path $keyDir | Out-Null
     & "$jdkHome\bin\keytool.exe" -genkeypair -v `
@@ -177,8 +192,24 @@ if (-not (Test-Path $keyFile)) {
         "keyAlias=$keyAlias",
         "keyPassword=$s1"
     ) | Set-Content -Path $propFile -Encoding ASCII
+    # Parolayi ayrica okunakli bir not dosyasina yaz: keystore.properties
+    # teknik bir dosya, kullanici yedeklerken ne oldugunu bilsin.
+    @(
+        "MASA OYUNLARI - ANDROID IMZA ANAHTARI",
+        "=====================================",
+        "Bu dosyayi ve yanindaki .keystore dosyasini CEVRIMDISI bir yerde",
+        "saklayin. Kaybederseniz Play'deki uygulamaya bir daha guncelleme",
+        "yukleyemezsiniz; yeni paket adiyla sifirdan uygulama acmaniz gerekir.",
+        "",
+        "Anahtar dosyasi : masaoyunlari-release.keystore",
+        "Takma ad (alias): $keyAlias",
+        "Parola          : $s1",
+        "",
+        "Bu klasor .gitignore ile depo disinda tutulur; GitHub'a gitmez."
+    ) | Set-Content -Path "$keyDir\PAROLA-GIZLI-TUT.txt" -Encoding UTF8
     $s1 = $null; $s2 = $null
     Ok "Imza anahtari olusturuldu: $keyFile"
+    Write-Host "     Parola: keystore\PAROLA-GIZLI-TUT.txt" -ForegroundColor Yellow
     Write-Host "     Yedegini alin! keystore/ ve keystore.properties depoya GIRMEZ (.gitignore)." -ForegroundColor Yellow
 } else {
     Ok "Imza anahtari zaten var: $keyFile"
