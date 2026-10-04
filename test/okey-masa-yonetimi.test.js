@@ -145,6 +145,15 @@ async function main() {
   assert.ok(/sema\.duzenlenebilir/.test(kod), 'liste sunucudan okunmalı');
   assert.ok(/ekleDugmesiTazele/.test(kod),
     'üst sınıra gelince "➕ Masa" kilitlenmeli, masa silinince açılmalı');
+  /* ⚠ GERİLEME KORUMASI: panel sunucudan gelen ayarları kendi
+     varsayılanlarıyla birleştirirken masa listesini yalnız STANDARD
+     listesindeki oyunlar için koruyordu. Okey ve 101 okey o listede
+     olmadığı için sunucudan gelen 18 ve 6 masa ATILIYOR, satırda
+     "0 masa" yazıyordu. */
+  assert.ok(!/STANDARD\.includes\(gid\) && Array\.isArray\(src\.tables\)/.test(kod),
+    'birleştirme masa listesini STANDARD listesine göre süzmemeli');
+  assert.ok(/duzenlenirMi\(gid\) && Array\.isArray\(src\.tables\)/.test(kod),
+    'masası düzenlenebilen HER oyunun listesi birleştirmede korunmalı');
   console.log('  ✓ 6) panel kodu okey/101 okey\'e masa düğmelerini ve kişi/el sütunlarını çiziyor');
 
   server.close();

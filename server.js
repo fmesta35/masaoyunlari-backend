@@ -329,6 +329,57 @@ const ADMIN_EMAIL = String(process.env.GV_ADMIN_EMAIL || '').trim().toLowerCase(
 const ALL_GAMES = ['chess', 'tavla', 'okey', 'okey101', 'pisti', 'batak',
   'dama', 'turkdamasi', 'reversi', 'gomoku', 'connect4', 'bilardo', 'battleship', 'kelimelik'];
 
+/* ===================== HAMLE SÜRESİ (masa başına) =====================
+   Kullanıcı isteği: "kurucu panelinde masa düzenlemeler bölümünde oyun
+   süresi ayarlanabildiği gibi hamle süreleri de düzenlenebilsin... Hamle
+   süreleri ilgili oyundaki tüm oyuncular için geçerli olacak."
+
+   TASARIM: hamle süresi artık MASANIN bir alanı (room.moveLimitMs).
+   Kurucu masa satırında saniye olarak girer; girmezse oyunun varsayılanı
+   kullanılır. Masadaki herkes aynı süreyi görür, çünkü süre oyuncuya değil
+   ODAYA bağlı — durum paketleri bunu moveLimitOf(room) üzerinden okur.
+
+   SATRANÇ ve TAVLA'da hamle başına süre YOKTUR (ana saat vardır); bu iki
+   oyunda alan hiç gösterilmez ve değer yok sayılır. */
+const HAMLE_SURESI_YOK = ['chess', 'tavla'];
+const HAMLE_SN_MIN = 5;
+const HAMLE_SN_MAX = 600;
+
+function hamleSaniyeTemizle(v) {
+  const n = Math.floor(Number(v));
+  if (!Number.isFinite(n) || n <= 0) return 0;              // 0 = varsayılanı kullan
+  return Math.max(HAMLE_SN_MIN, Math.min(HAMLE_SN_MAX, n));
+}
+
+/* Bir oyunun hamle süresi VARSAYILANI (ms). Kurucu masaya özel değer
+   girmediğinde bu kullanılır — yani eski davranış birebir korunur. */
+function varsayilanHamleMs(gameId, durationMinutes) {
+  if (HAMLE_SURESI_YOK.includes(gameId)) return null;
+  if (gameId === 'kelimelik') {
+    /* Kelimelik'te ana saat yok; masa tipi hamle süresini belirler:
+       ⚡ 10 dk → 30 sn · ♟️ 15 dk → 45 sn · 🧠 20 dk → 60 sn */
+    return ({ 10: 30000, 15: 45000, 20: 60000 })[durationMinutes] || 45000;
+  }
+  if (gameId === 'okey' || gameId === 'okey101') return OKEY_TURN_MS;
+  if (gameId === 'pisti') return PISTI_TURN_MS;
+  return MOVE_FORFEIT_MS;
+}
+function varsayilanHamleSn(gameId, durationMinutes) {
+  const ms = varsayilanHamleMs(gameId, durationMinutes);
+  return ms ? Math.round(ms / 1000) : 0;
+}
+
+/* Bir masanın GERÇEK hamle süresi (ms): kurucunun girdiği değer, yoksa
+   oyunun varsayılanı. Satranç/tavlada her zaman null — oraya değer
+   girilmiş olsa bile yok sayılır (o oyunlarda hamle başına süre yok).
+   TEK YERDEN hesaplanır: createRoom ve applyPresetConfig aynı kuralı
+   uygulasın diye (ayrı yazıldığında satranca süre sızıyordu). */
+function odaHamleMs(gameId, moveSeconds, durationMinutes) {
+  if (HAMLE_SURESI_YOK.includes(gameId)) return null;
+  const sn = hamleSaniyeTemizle(moveSeconds);
+  return sn > 0 ? sn * 1000 : varsayilanHamleMs(gameId, durationMinutes);
+}
+
 const PRESET_TYPES = [
   ...Array(4).fill({ type: 'fast', label: '⚡ Hızlı', durationMinutes: 10 }),
   ...Array(3).fill({ type: 'normal', label: '♟️ Normal', durationMinutes: 15 }),
@@ -382,7 +433,11 @@ function defaultTablesFor(gameId) {
   const base = PRESET_GAME_BASES[gameId];
   const out = [];
   for (const t of PRESET_TYPES) {
-    out.push({ name: `${t.label} Masa #${base + out.length}`, type: t.type, durationMinutes: t.durationMinutes });
+    out.push({ name: `${t.label} Masa #${base + out.length}`, type: t.type,
+               durationMinutes: t.durationMinutes,
+               /* Panel boş kutu yerine GERÇEK değeri göstersin diye varsayılan
+                  hamle süresi de yazılır (kurucu üstüne yazabilir). */
+               moveSeconds: varsayilanHamleSn(gameId, t.durationMinutes) });   // 0 = o oyunda yok
   }
   return out;
 }
@@ -417,7 +472,7 @@ function normPresetConfig(raw) {
          kimliğini alıyordu; iki masa aynı odaya çöküyordu. Artık kimliksiz
          satıra, oyuna ayrılmış aralıktan indekse karşılık gelen benzersiz
          kimlik verilir (bkz. CARD_TABLE_RANGE). */
-      const t = src.tables.slice(0, cardTableLimit(g)).map((x,i) => { const d=defs[i]||{}; x=x&&typeof x==='object'?x:{}; return {id:String(x.id||d.id||(bas+i)),name:String(x.name||d.name||('Masa #'+(bas+i))).slice(0,60),type:(x.type==='fast'||x.type==='thinker')?x.type:'normal',durationMinutes:clampDuration(x.durationMinutes,d.durationMinutes||10),maxPlayers:Math.max(2,Math.min(Number(x.maxPlayers||d.maxPlayers||2),4)),rounds:Number(x.rounds||d.rounds)||undefined}; });
+      const t = src.tables.slice(0, cardTableLimit(g)).map((x,i) => { const d=defs[i]||{}; x=x&&typeof x==='object'?x:{}; return {id:String(x.id||d.id||(bas+i)),name:String(x.name||d.name||('Masa #'+(bas+i))).slice(0,60),type:(x.type==='fast'||x.type==='thinker')?x.type:'normal',durationMinutes:clampDuration(x.durationMinutes,d.durationMinutes||10),moveSeconds:hamleSaniyeTemizle(x.moveSeconds!==undefined?x.moveSeconds:d.moveSeconds),maxPlayers:Math.max(2,Math.min(Number(x.maxPlayers||d.maxPlayers||2),4)),rounds:Number(x.rounds||d.rounds)||undefined}; });
       if (t.length) cfg[g].tables=t;
     }
     // ⚠ HATA DÜZELTMESİ: pisti/batak HEM yukarıdaki "yönetilen kart oyunu"
@@ -441,7 +496,12 @@ function normPresetConfig(raw) {
         return {
           name: String(x.name || d.name).slice(0, 60),
           type: (x.type === 'fast' || x.type === 'thinker') ? x.type : 'normal',
-          durationMinutes: clampDuration(x.durationMinutes, d.durationMinutes)
+          durationMinutes: clampDuration(x.durationMinutes, d.durationMinutes),
+          /* 0 ya da geçersiz → oyunun varsayılanı kullanılır (bkz. createRoom).
+             Satranç/tavlada hamle süresi kavramı yok: her zaman 0 saklanır. */
+          moveSeconds: HAMLE_SURESI_YOK.includes(g)
+            ? 0
+            : hamleSaniyeTemizle(x.moveSeconds !== undefined ? x.moveSeconds : d.moveSeconds)
         };
       });
       if (t.length) cfg[g].tables = t;
@@ -512,13 +572,13 @@ function cardPresetTables(gameId, startId) {
   for (const [players, rounds] of combos) for(let n=0;n<2;n++){const rid=String(id++);out.push({id:rid,gameId,maxPlayers:players,durationMinutes:rounds===1?10:rounds===3?15:20,rounds,name:`${players} Kişilik • ${rounds} El — Masa #${rid}`});}
   return out;
 }
-function managedCardTables(gameId) { const out=[]; let id=gameId==='okey'?301:gameId==='okey101'?331:gameId==='pisti'?341:361; const combos=gameId==='okey'?[[2,3],[2,5],[2,7],[3,3],[3,5],[3,7],[4,3],[4,5],[4,7]]:gameId==='okey101'?[[2,10],[2,20],[3,10],[3,20],[4,10],[4,20]]:gameId==='pisti'?[[2,1],[2,3],[2,5],[3,1],[3,3],[3,5],[4,1],[4,3],[4,5]]:[[4,3],[4,5],[4,7]];for(const [players,rounds] of combos)for(let n=0;n<(gameId==='okey101'?1:2);n++){const rid=String(id++);out.push({id:rid,gameId,maxPlayers:players,rounds,durationMinutes:gameId==='okey101'?rounds:(rounds===3?(gameId==='okey'?10:15):(rounds===5?15:20)),type:rounds<=1?'fast':rounds>=7?'thinker':'normal',name:`${players} Kişilik • ${rounds}${gameId==='okey101'?' dk':' El'} — Masa #${rid}`})}return out;}
+function managedCardTables(gameId) { const out=[]; let id=gameId==='okey'?301:gameId==='okey101'?331:gameId==='pisti'?341:361; const combos=gameId==='okey'?[[2,3],[2,5],[2,7],[3,3],[3,5],[3,7],[4,3],[4,5],[4,7]]:gameId==='okey101'?[[2,10],[2,20],[3,10],[3,20],[4,10],[4,20]]:gameId==='pisti'?[[2,1],[2,3],[2,5],[3,1],[3,3],[3,5],[4,1],[4,3],[4,5]]:[[4,3],[4,5],[4,7]];for(const [players,rounds] of combos)for(let n=0;n<(gameId==='okey101'?1:2);n++){const rid=String(id++);const sure=gameId==='okey101'?rounds:(rounds===3?(gameId==='okey'?10:15):(rounds===5?15:20));out.push({id:rid,gameId,maxPlayers:players,rounds,durationMinutes:sure,moveSeconds:varsayilanHamleSn(gameId,sure),type:rounds<=1?'fast':rounds>=7?'thinker':'normal',name:`${players} Kişilik • ${rounds}${gameId==='okey101'?' dk':' El'} — Masa #${rid}`})}return out;}
 function presetTablesFromConfig(cfg) {
   const out = [];
   for (const g of STANDARD_PRESET_GAMES) {
     const gc = cfg[g] || {};
     if (gc.visible === false) continue;
-    if (g === 'pisti' || g === 'batak') { const defs=Array.isArray(gc.tables)&&gc.tables.length?gc.tables:managedCardTables(g); defs.forEach(t=>out.push({id:String(t.id),gameId:g,maxPlayers:Number(t.maxPlayers)||2,durationMinutes:clampDuration(t.durationMinutes,10),rounds:g==='pisti'?Number(t.rounds)||1:undefined,name:String(t.name||('Masa #'+t.id)).slice(0,60)})); continue; }
+    if (g === 'pisti' || g === 'batak') { const defs=Array.isArray(gc.tables)&&gc.tables.length?gc.tables:managedCardTables(g); defs.forEach(t=>out.push({id:String(t.id),gameId:g,maxPlayers:Number(t.maxPlayers)||2,durationMinutes:clampDuration(t.durationMinutes,10),moveSeconds:hamleSaniyeTemizle(t.moveSeconds),rounds:g==='pisti'?Number(t.rounds)||1:undefined,name:String(t.name||('Masa #'+t.id)).slice(0,60)})); continue; }
     const base = PRESET_GAME_BASES[g];
     (gc.tables && gc.tables.length ? gc.tables : defaultTablesFor(g)).forEach((t, i) => {
       out.push({
@@ -527,11 +587,12 @@ function presetTablesFromConfig(cfg) {
         maxPlayers: g === 'batak' ? 4 : (g === 'pisti' ? 2 : 2),
         rounds: (g === 'pisti' ? [1,3,5][i % 3] : undefined),
         durationMinutes: clampDuration(t.durationMinutes, 10),
+        moveSeconds: hamleSaniyeTemizle(t.moveSeconds),
         name: String(t.name || `Masa #${base + i}`).slice(0, 60)
       });
     });
   }
-  for (const g of ['okey','okey101']) { const gc=cfg[g]||{}; if(gc.visible===false || (!okeyEngine && process.env.GV_OKEY_PRESETS!=='1')) continue; const defs=Array.isArray(gc.tables)&&gc.tables.length?gc.tables:managedCardTables(g); defs.forEach((t,i)=>out.push({id:String(t.id||((g==='okey'?301:331)+i)),gameId:g,maxPlayers:Number(t.maxPlayers)||2,durationMinutes:clampDuration(t.durationMinutes,10),rounds:g==='okey'?Number(t.rounds)||3:undefined,name:String(t.name||('Masa #'+(t.id||i))).slice(0,60)})); }
+  for (const g of ['okey','okey101']) { const gc=cfg[g]||{}; if(gc.visible===false || (!okeyEngine && process.env.GV_OKEY_PRESETS!=='1')) continue; const defs=Array.isArray(gc.tables)&&gc.tables.length?gc.tables:managedCardTables(g); defs.forEach((t,i)=>out.push({id:String(t.id||((g==='okey'?301:331)+i)),gameId:g,maxPlayers:Number(t.maxPlayers)||2,durationMinutes:clampDuration(t.durationMinutes,10),moveSeconds:hamleSaniyeTemizle(t.moveSeconds),rounds:g==='okey'?Number(t.rounds)||3:undefined,name:String(t.name||('Masa #'+(t.id||i))).slice(0,60)})); }
   return out;
 }
 // OKEY: yetkili sunucu motoru (okey-engine.js) bu repoya eklendiği anda masalar
@@ -595,7 +656,8 @@ function seedPresetTables() {
       existing.isPreset = true;
       continue;
     }
-    const room = createRoom(t.id, t.gameId, t.maxPlayers || 2, t.durationMinutes, { name: t.name, rounds: t.rounds });
+    const room = createRoom(t.id, t.gameId, t.maxPlayers || 2, t.durationMinutes,
+      { name: t.name, rounds: t.rounds, moveSeconds: t.moveSeconds });
     room.isPreset = true;
   }
 }
@@ -618,7 +680,8 @@ function applyPresetConfig(raw) {
   for (const t of desired) {
     const existing = rooms.get(t.id);
     if (!existing) {
-      const room = createRoom(t.id, t.gameId, t.maxPlayers || 2, t.durationMinutes, { name: t.name, rounds: t.rounds });
+      const room = createRoom(t.id, t.gameId, t.maxPlayers || 2, t.durationMinutes,
+        { name: t.name, rounds: t.rounds, moveSeconds: t.moveSeconds });
       room.isPreset = true;
       touchedGames.add(t.gameId);
     } else if (existing.players.length === 0 && !(existing.spectators || []).length) {
@@ -631,6 +694,14 @@ function applyPresetConfig(raw) {
         existing.durationMinutes = t.durationMinutes;
         existing.whiteTimeMs = t.durationMinutes * 60 * 1000;
         existing.blackTimeMs = t.durationMinutes * 60 * 1000;
+        touchedGames.add(t.gameId);
+      }
+      /* HAMLE SÜRESİ de canlı güncellenir. Süre değişince oyunun varsayılanı
+         da değişebildiği için (kelimelik 10/15/20 dk → 30/45/60 sn) bu
+         hesap durationMinutes atandıktan SONRA yapılır. */
+      const istenenHamle = odaHamleMs(t.gameId, t.moveSeconds, existing.durationMinutes);
+      if (Number(existing.moveLimitMs || 0) !== Number(istenenHamle || 0)) {
+        existing.moveLimitMs = istenenHamle;
         touchedGames.add(t.gameId);
       }
     }
@@ -755,12 +826,11 @@ function createRoom(id, gameId, maxPlayers, durationMinutes, meta) {
     turnStartedAt: null,
     moveStartedAt: null,
     moveWarned: false,
-    /* Kelimelik'te masa tipi HAMLE SÜRESİNİ belirler (ana saat yoktur):
-       ⚡ Hızlı 10 dk → 30 sn · ♟️ Normal 15 dk → 45 sn · 🧠 Düşünen 20 dk → 60 sn
-       (kullanıcı isteği; önceki değerler 30/60/90 sn idi — uzun süreler
-       masaları gereğinden fazla uzatıyordu.) */
-    moveLimitMs: (gameId === 'kelimelik')
-      ? ({ 10: 30000, 15: 45000, 20: 60000 }[duration] || 45000) : null,
+    /* HAMLE SÜRESİ: hazır masalarda kurucunun girdiği değer (meta.moveSeconds),
+       yoksa oyunun varsayılanı. Masadaki HERKES için geçerlidir; durum
+       paketleri bunu moveLimitOf(room) ile okur, okey kendi tur sayacına
+       (turnDeadlineMs) bunu yazar, kelimelik motoru turnLimitMs olarak alır. */
+    moveLimitMs: odaHamleMs(gameId, meta.moveSeconds, duration),
     result: null,
     lastMove: null
   };
@@ -918,6 +988,9 @@ function publicRoom(room) {
     maxPlayers: room.maxPlayers,
     duration: room.durationMinutes,
     durationMinutes: room.durationMinutes,
+    /* Masanın hamle süresi (sn). Kurucu paneli masa başına ayarlayabiliyor;
+       oyuncu masaya oturmadan önce lobide de görebilsin. */
+    moveSeconds: Number(room.moveLimitMs) > 0 ? Math.round(Number(room.moveLimitMs) / 1000) : null,
     status: room.status,
     players: room.players.map(publicPlayer),
     spectators: spectators.map(publicSpectator),
@@ -944,6 +1017,9 @@ function publicLobbyRoom(room) {
     isPrivate: !!room.isPrivate,
     duration: room.durationMinutes,
     durationMinutes: room.durationMinutes,
+    /* Masanın hamle süresi (sn). Kurucu paneli masa başına ayarlayabiliyor;
+       oyuncu masaya oturmadan önce lobide de görebilsin. */
+    moveSeconds: Number(room.moveLimitMs) > 0 ? Math.round(Number(room.moveLimitMs) / 1000) : null,
     // Okey masaları: maç el sayısı (lobi "🀄 X El" rozeti basar)
     rounds: room.okeyMaxRounds || (room.gameId === 'pisti' ? room.cardRounds : null)
   };
@@ -1588,7 +1664,9 @@ function startOkey(room) {
     // Koltuk başına ANA süre (masa süresi 10/15/20 dk, herkesinki ayrı).
     clockMs: Object.fromEntries(seats.map(s => [s, room.durationMinutes * 60 * 1000])),
     clockStartedAt: now(),
-    turnDeadlineMs: OKEY_TURN_MS,
+    /* Tur sayacı MASANIN hamle süresinden gelir (kurucu paneli masa başına
+       ayarlayabiliyor); masaya değer girilmemişse varsayılan OKEY_TURN_MS. */
+    turnDeadlineMs: Number(room.moveLimitMs) > 0 ? Number(room.moveLimitMs) : OKEY_TURN_MS,
     turnStartedAt: now(),
     strikes: Object.fromEntries(seats.map(s => [s, 0])),
     between: null   // eller arası bekleme zamanlayıcısı
@@ -4330,6 +4408,12 @@ app.get('/api/admin/tables', async (req, res) => {
       kartSinir: Object.fromEntries(MANAGED_CARD_GAMES.map(g => [g, cardTableLimit(g)])),
       tabanlar: PRESET_GAME_BASES,
       tipler: PRESET_TYPES.map(t => ({ type: t.type, label: t.label, durationMinutes: t.durationMinutes })),
+      /* HAMLE SÜRESİ alanı: hangi oyunlarda gösterilmeyeceği, oyun başına
+         varsayılan saniye ve kabul edilen aralık. Panel bu bilgiyi kendi
+         içinde tutmaz — yeni oyun eklenince kendiliğinden doğru davranır. */
+      hamleYok: HAMLE_SURESI_YOK,
+      hamleSinir: { min: HAMLE_SN_MIN, max: HAMLE_SN_MAX },
+      hamleVarsayilan: Object.fromEntries(ALL_GAMES.map(g => [g, varsayilanHamleSn(g, 15)])),
       tumOyunlar: ALL_GAMES
     }
   });

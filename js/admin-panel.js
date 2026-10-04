@@ -53,6 +53,17 @@
   };
   function duzenlenirMi(gid) { return DUZENLENEBILIR.includes(gid); }
   function kartMi(gid) { return KART_MASALARI.includes(gid); }
+
+  /* HAMLE SÜRESİ — kullanıcı isteği: "masa düzenlemeler bölümünde oyun
+     süresi ayarlanabildiği gibi hamle süreleri de düzenlenebilsin...
+     ilgili oyundaki tüm oyuncular için geçerli olacak."
+     Satranç ve tavlada hamle başına süre yoktur (ana saat vardır), orada
+     kutu hiç çizilmez. Liste ve varsayılanlar SUNUCUDAN gelir. */
+  let HAMLE_YOK = ['chess', 'tavla'];
+  let HAMLE_SINIR = { min: 5, max: 600 };
+  let HAMLE_VARSAYILAN = {};
+  function hamleVarMi(gid) { return !HAMLE_YOK.includes(gid); }
+  function hamleVarsayilani(gid) { return Number(HAMLE_VARSAYILAN[gid]) || 60; }
   let TYPE_DEFS = [
     { type: 'fast', label: '⚡ Hızlı (10 dk)', duration: 10 },
     { type: 'normal', label: '♟️ Normal (15 dk)', duration: 15 },
@@ -69,6 +80,9 @@
       : STANDARD.concat(FIXED);
     if (Array.isArray(sema.kartMasalari) && sema.kartMasalari.length) KART_MASALARI = sema.kartMasalari.slice();
     if (sema.kartSinir && typeof sema.kartSinir === 'object') Object.assign(KART_SINIR, sema.kartSinir);
+    if (Array.isArray(sema.hamleYok)) HAMLE_YOK = sema.hamleYok.slice();
+    if (sema.hamleSinir && typeof sema.hamleSinir === 'object') Object.assign(HAMLE_SINIR, sema.hamleSinir);
+    if (sema.hamleVarsayilan && typeof sema.hamleVarsayilan === 'object') HAMLE_VARSAYILAN = Object.assign({}, sema.hamleVarsayilan);
     if (sema.tabanlar && typeof sema.tabanlar === 'object') Object.assign(BASE, sema.tabanlar);
     if (Array.isArray(sema.tipler) && sema.tipler.length) {
       const ETIKET = { fast: '⚡ Hızlı', normal: '♟️ Normal', thinker: '🧠 Düşünen' };
@@ -213,7 +227,13 @@
     const cfg = {};
     const games = (window.GAMES && Object.keys(window.GAMES)) || STANDARD;
     for (const g of games) {
+      /* "Taban ID + indeks" şemalı oyunlar için istemci varsayılan masa
+         listesi üretebilir. Okey / 101 Okey gibi kendi kombinasyon şeması
+         olan oyunlarda ÜRETEMEZ — onların masaları yalnız sunucudan gelir,
+         burada boş dizi bırakılır (mergeIntoDefault sunucunun listesini
+         yazar). */
       if (STANDARD.includes(g)) cfg[g] = { visible: true, tables: defaultTables(g) };
+      else if (duzenlenirMi(g)) cfg[g] = { visible: true, tables: [] };
       else cfg[g] = { visible: true };
     }
     // Popüler Oyun Sıralaması: varsayılan 'auto' (gerçek oynanma sayısına
@@ -254,7 +274,11 @@
       if (!src || typeof src !== 'object') { out[gid] = base; continue; }
       const merged = Object.assign({}, base);
       if (typeof src.visible === 'boolean') merged.visible = src.visible;
-      if (STANDARD.includes(gid) && Array.isArray(src.tables) && src.tables.length) merged.tables = src.tables;
+      /* ⚠ HATA: burada eskiden yalnız STANDARD listesine bakılıyordu; okey ve
+         101 okey o listede olmadığı için SUNUCUDAN GELEN 18 ve 6 masa
+         atılıyor, panel "0 masa" gösteriyordu. Artık masası düzenlenebilen
+         HER oyunun listesi korunur. */
+      if (duzenlenirMi(gid) && Array.isArray(src.tables) && src.tables.length) merged.tables = src.tables;
       out[gid] = merged;
     }
     out._popular = normPopular(fetched._popular);
@@ -1215,40 +1239,88 @@
     if (!wrap) return;
     const cfg = settingsCache[gid] || { tables: [] };
     /* Okey / 101 Okey / Pişti / Batak masalarını ayıran şey adı değil KİŞİ
-       SAYISI ve EL SAYISIDIR; o yüzden bu oyunlarda iki sütun daha çizilir.
-       (Kurucu "4 kişilik 5 el" masası ekleyebilsin diye — eskiden bu
-       oyunların satırı hiç açılmıyordu.) */
+       SAYISI ve EL SAYISIDIR; o yüzden bu oyunlarda iki sütun daha çizilir. */
     const sut = kartMi(gid) ? KART_SUTUN[gid] : null;
-    const kutu = 'padding:7px 8px;border-radius:8px;border:1px solid var(--border);background:var(--bg3);color:var(--text);font-size:.82em';
-    wrap.innerHTML = (cfg.tables || []).map((t, i) => `
-      <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
-        <input data-edit="name" data-gid="${gid}" data-i="${i}" value="${esc(t.name)}" style="flex:2;min-width:150px;padding:7px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg3);color:var(--text);font-size:.85em">
-        ${sut && sut.kisi ? `<select data-edit="kisi" data-gid="${gid}" data-i="${i}" style="${kutu}" title="Kaç kişilik masa">
-          ${sut.kisi.map(n => `<option value="${n}" ${Number(t.maxPlayers) === n ? 'selected' : ''}>${n} kişi</option>`).join('')}
-        </select>` : ''}
-        ${sut && sut.el ? `<select data-edit="el" data-gid="${gid}" data-i="${i}" style="${kutu}" title="Maç kaç elde biter">
-          ${sut.el.map(n => `<option value="${n}" ${Number(t.rounds) === n ? 'selected' : ''}>${n} ${sut.elEtiket}</option>`).join('')}
-        </select>` : ''}
-        <select data-edit="type" data-gid="${gid}" data-i="${i}" style="${kutu}">
-          ${TYPE_DEFS.map(td => `<option value="${td.type}" ${t.type === td.type ? 'selected' : ''}>${td.label}</option>`).join('')}
-        </select>
-        <input data-edit="dur" data-gid="${gid}" data-i="${i}" type="number" min="1" max="240" value="${Number(t.durationMinutes) || 15}" style="width:64px;${kutu}" title="Süre (dk)">
-        <button type="button" data-act="delRow" data-gid="${gid}" data-i="${i}" style="border:none;background:rgba(255,118,117,.12);color:#ff7675;border-radius:8px;padding:7px 10px;cursor:pointer" title="Bu masayı sil">🗑</button>
-      </div>`).join('');
+    const hamle = hamleVarMi(gid);
+    const vars = hamleVarsayilani(gid);
+
+    /* DÜZEN: alanlar eskiden tek sıraya dizilip dar panelde alt alta
+       kayıyor ve hangi kutunun ne olduğu anlaşılmıyordu (kullanıcı
+       ekran görüntüsü). Artık her masa kendi kutusunda, alanlar
+       etiketli ve otomatik sarmalanan bir ızgarada duruyor. */
+    const etiketli = (etiket, ic) =>
+      `<label style="display:flex;flex-direction:column;gap:3px;min-width:0">
+         <span style="font-size:.68em;color:var(--text3);letter-spacing:.3px">${etiket}</span>
+         ${ic}
+       </label>`;
+    const kutu = 'padding:7px 8px;border-radius:8px;border:1px solid var(--border);background:var(--bg3);color:var(--text);font-size:.82em;width:100%';
+
+    wrap.innerHTML = (cfg.tables || []).map((t, i) => {
+      const hamleDeger = Number(t.moveSeconds) > 0 ? Number(t.moveSeconds) : '';
+      return `
+      <div style="border:1px solid var(--border);border-radius:10px;padding:9px 10px;background:var(--bg)">
+        <!-- Masa adı KENDİ SATIRINDA: altı alan + sil düğmesi tek sıraya
+             sığmıyor, panel dar olduğu için düğme alta kayıp satırı
+             bozuyordu. Ad üstte, ayarlar altta tek sıra hâlinde durur. -->
+        <div style="margin-bottom:7px">${etiketli('MASA ADI',
+          `<input data-edit="name" data-gid="${gid}" data-i="${i}" value="${esc(t.name)}" style="${kutu}">`)}</div>
+        <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">
+          ${sut && sut.kisi ? `<div style="flex:1;min-width:78px">${etiketli('KİŞİ',
+            `<select data-edit="kisi" data-gid="${gid}" data-i="${i}" style="${kutu}">
+               ${sut.kisi.map(n => `<option value="${n}" ${Number(t.maxPlayers) === n ? 'selected' : ''}>${n} kişi</option>`).join('')}
+             </select>`)}</div>` : ''}
+          ${sut && sut.el ? `<div style="flex:1;min-width:76px">${etiketli(sut.elEtiket.toUpperCase(),
+            `<select data-edit="el" data-gid="${gid}" data-i="${i}" style="${kutu}">
+               ${sut.el.map(n => `<option value="${n}" ${Number(t.rounds) === n ? 'selected' : ''}>${n} ${sut.elEtiket}</option>`).join('')}
+             </select>`)}</div>` : ''}
+          <div style="flex:2;min-width:140px">${etiketli('MASA TİPİ',
+            `<select data-edit="type" data-gid="${gid}" data-i="${i}" style="${kutu}">
+               ${TYPE_DEFS.map(td => `<option value="${td.type}" ${t.type === td.type ? 'selected' : ''}>${td.label}</option>`).join('')}
+             </select>`)}</div>
+          <div style="flex:1;min-width:72px">${etiketli('OYUN (DK)',
+            `<input data-edit="dur" data-gid="${gid}" data-i="${i}" type="number" min="1" max="240" value="${Number(t.durationMinutes) || 15}" style="${kutu}" title="Koltuk başına toplam oyun süresi (dakika)">`)}</div>
+          ${hamle ? `<div style="flex:1;min-width:84px">${etiketli('HAMLE (SN)',
+            `<input data-edit="hamle" data-gid="${gid}" data-i="${i}" type="number" min="${HAMLE_SINIR.min}" max="${HAMLE_SINIR.max}" value="${hamleDeger}" placeholder="${vars}" style="${kutu}" title="Bir hamle için tanınan süre (saniye). Boş bırakılırsa oyunun varsayılanı (${vars} sn) kullanılır. Masadaki TÜM oyuncular için geçerlidir.">`)}</div>`
+            : `<div style="flex:1;min-width:84px">${etiketli('HAMLE (SN)',
+            `<input disabled value="—" style="${kutu};opacity:.4" title="Bu oyunda hamle başına süre yoktur; ana saat kullanılır.">`)}</div>`}
+          <button type="button" data-act="delRow" data-gid="${gid}" data-i="${i}" style="flex:0 0 auto;border:none;background:rgba(255,118,117,.12);color:#ff7675;border-radius:8px;padding:9px 11px;cursor:pointer;align-self:flex-end" title="Bu masayı sil">🗑</button>
+        </div>
+      </div>`;
+    }).join('');
+
     wrap.querySelectorAll('[data-edit]').forEach(inp => {
       inp.addEventListener('change', () => {
         const g = inp.getAttribute('data-gid');
         const i = Number(inp.getAttribute('data-i'));
         const t = (settingsCache[g] || {}).tables && (settingsCache[g].tables[i]);
         if (!t) return;
-        if (inp.getAttribute('data-edit') === 'name') t.name = inp.value.slice(0, 60);
-        if (inp.getAttribute('data-edit') === 'kisi') t.maxPlayers = Math.min(4, Math.max(2, Number(inp.value) || 2));
-        if (inp.getAttribute('data-edit') === 'el') t.rounds = Math.max(1, Number(inp.value) || 1);
-        if (inp.getAttribute('data-edit') === 'dur') t.durationMinutes = Math.min(240, Math.max(1, Math.floor(Number(inp.value) || 15)));
-        if (inp.getAttribute('data-edit') === 'type') {
+        const alan = inp.getAttribute('data-edit');
+        if (alan === 'name') t.name = inp.value.slice(0, 60);
+        if (alan === 'kisi') t.maxPlayers = Math.min(4, Math.max(2, Number(inp.value) || 2));
+        if (alan === 'el') t.rounds = Math.max(1, Number(inp.value) || 1);
+        if (alan === 'dur') {
+          t.durationMinutes = Math.min(240, Math.max(1, Math.floor(Number(inp.value) || 15)));
+        }
+        if (alan === 'hamle') {
+          /* BOŞ bırakmak "oyunun varsayılanını kullan" demektir (0 yollanır);
+             sunucu sınırların dışına taşan değeri de kendi kırpar. */
+          const ham = String(inp.value).trim();
+          if (!ham) { t.moveSeconds = 0; inp.value = ''; }
+          else {
+            const n = Math.min(HAMLE_SINIR.max, Math.max(HAMLE_SINIR.min, Math.floor(Number(ham) || 0)));
+            t.moveSeconds = n;
+            inp.value = String(n);
+          }
+        }
+        if (alan === 'type') {
           t.type = inp.value;
           const td = TYPE_DEFS.find(x => x.type === inp.value);
-          if (td) t.durationMinutes = td.duration;
+          if (td) {
+            t.durationMinutes = td.duration;
+            /* Süre kutusu da anında değişsin: masa tipi süreyi belirler. */
+            const sureKutu = document.querySelector(`[data-edit="dur"][data-gid="${g}"][data-i="${i}"]`);
+            if (sureKutu) sureKutu.value = String(td.duration);
+          }
         }
       });
     });
@@ -1308,12 +1380,16 @@
           name: `${kisi} Kişilik${el && sut.elEtiket ? ` • ${el} ${sut.elEtiket}` : ''} — Yeni Masa`,
           type: son.type || 'normal',
           durationMinutes: Number(son.durationMinutes) || 15,
+          moveSeconds: Number(son.moveSeconds) || 0,
           maxPlayers: kisi,
           rounds: el
         });
       } else {
         const d = defaultTables(gid)[n] || { name: `Masa #${tabanOf(gid) + n}`, type: 'normal', duration: 15 };
-        cfg.tables.push({ name: d.name, type: d.type, durationMinutes: d.duration || d.durationMinutes || 15 });
+        const sonT = cfg.tables[n - 1] || {};
+        cfg.tables.push({ name: d.name, type: d.type,
+          durationMinutes: d.duration || d.durationMinutes || 15,
+          moveSeconds: Number(sonT.moveSeconds) || 0 });
       }
       paintTableRows(gid);
       updateTableCount(gid);
