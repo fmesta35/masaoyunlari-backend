@@ -11,6 +11,7 @@
  *    POST ?action=reset      {token,password}              → {ok,message}
  *    GET  ?action=me         (Bearer)                      → {ok,user} / 401
  *    POST ?action=logout     (Bearer)                      → {ok}
+ *    POST ?action=deleteAccount (Bearer) {password}        → {ok,message}
  *    GET  ?action=mail-status                              → {configured,lastError}
  *    GET  ?action=selftest                                  → tablo/mail adım adım teşhis
  */
@@ -202,6 +203,81 @@ if ($action === 'logout') {
         $pdo->prepare("DELETE FROM gv_sessions WHERE token = ?")->execute(array($t));
     }
     gv_json(array('ok' => true));
+}
+
+/* ---- HESAP SİLME (üyenin kendisi siler) --------------------------------
+ * POST ?action=deleteAccount  (Bearer)  {password}  → {ok,message}
+ *
+ * Node tarafındaki POST /api/auth/delete-account ucuyla BİREBİR aynı
+ * sözleşme (bkz. server-auth.js). Silme ANINDA ve KALICIDIR; geri alma
+ * yoktur. İki kapı: geçerli oturum + hesabın parolası yeniden yazılmalı
+ * (açık kalmış bir oturumu ele geçiren hesabı sildiremesin).
+ *
+ * gv_matches tek satırda İKİ oyuncuyu birden tutar; satırı silmek rakibin
+ * geçmişini de silerdi. Bu yüzden satır KALIR, yalnız silinen üyenin
+ * kimliği (id ve ad) satırdan çıkarılır; satırda tanımlı başka üye
+ * kalmazsa satır tamamen silinir. Aynı mantık gv_reports için de geçerli:
+ * bir BAŞKASI hakkındaki inceleme kaybolmasın, kimlik düşsün.
+ */
+if ($action === 'deleteAccount') {
+    $tok = gv_bearer();
+    $u = gv_user_by_token($tok);
+    if (!$u) gv_json(array('ok' => false, 'error' => 'Oturum geçersiz. Yeniden giriş yapın.'), 401);
+
+    $password = strval($in['password'] ?? '');
+    if ($password === '' || !password_verify($password, $u['pass_hash'])) {
+        gv_json(array('ok' => false, 'error' => 'Parola hatalı. Hesap silinmedi.'), 403);
+    }
+    // Kurucu hesabı silinemez: silinirse Kurucu Paneli'ne giriş kalmaz.
+    if (gv_is_founder($u)) {
+        gv_json(array('ok' => false, 'error' => 'Kurucu hesabı bu yoldan silinemez.'), 403);
+    }
+
+    $uid = intval($u['id']);
+    $pdo = gv_pdo();
+    $pdo->beginTransaction();
+    try {
+        // Maç kayıtları: satır kalır, kimlik düşer.
+        $q = $pdo->prepare("SELECT id, players FROM gv_matches WHERE players LIKE ?");
+        $q->execute(array('%"id":' . $uid . '%'));
+        $yaz = $pdo->prepare("UPDATE gv_matches SET players = ? WHERE id = ?");
+        $silSatir = $pdo->prepare("DELETE FROM gv_matches WHERE id = ?");
+        foreach ($q->fetchAll() as $m) {
+            $dizi = json_decode($m['players'], true);
+            if (!is_array($dizi)) continue;
+            $bulundu = false;
+            foreach ($dizi as $p) { if (isset($p['id']) && intval($p['id']) === $uid) { $bulundu = true; break; } }
+            if (!$bulundu) continue;   // LIKE yanlış eşleşmesi (örn. 7 ararken 17)
+            $yeni = array(); $kalanVar = false;
+            foreach ($dizi as $p) {
+                if (isset($p['id']) && intval($p['id']) === $uid) {
+                    $yeni[] = array('id' => null, 'name' => 'Silinmiş kullanıcı',
+                                    'won' => !empty($p['won']));
+                } else {
+                    $yeni[] = $p;
+                    if (isset($p['id']) && $p['id'] !== null) $kalanVar = true;
+                }
+            }
+            if ($kalanVar) $yaz->execute(array(json_encode($yeni, JSON_UNESCAPED_UNICODE), $m['id']));
+            else $silSatir->execute(array($m['id']));
+        }
+        // Şikayetler: satır kalır, kimlik düşer.
+        $pdo->prepare("UPDATE gv_reports SET reporter_uid = NULL, reporter_name = 'Silinmiş kullanıcı' WHERE reporter_uid = ?")->execute(array($uid));
+        $pdo->prepare("UPDATE gv_reports SET reported_uid = NULL, reported_name = 'Silinmiş kullanıcı' WHERE reported_uid = ?")->execute(array($uid));
+        // Yalnız bu üyeye ait olan her şey: tamamen silinir.
+        $pdo->prepare("DELETE FROM gv_score_events WHERE user_id = ?")->execute(array($uid));
+        $pdo->prepare("DELETE FROM gv_sanctions WHERE user_id = ?")->execute(array($uid));
+        $pdo->prepare("DELETE FROM gv_friends WHERE user_id = ? OR friend_id = ?")->execute(array($uid, $uid));
+        $pdo->prepare("DELETE FROM gv_friend_requests WHERE from_id = ? OR to_id = ?")->execute(array($uid, $uid));
+        $pdo->prepare("DELETE FROM gv_chat WHERE uid = ?")->execute(array($uid));
+        $pdo->prepare("DELETE FROM gv_sessions WHERE user_id = ?")->execute(array($uid));
+        $pdo->prepare("DELETE FROM gv_users WHERE id = ?")->execute(array($uid));
+        $pdo->commit();
+    } catch (Exception $e) {
+        $pdo->rollBack();
+        gv_json(array('ok' => false, 'error' => 'Silme sırasında sunucu hatası. Lütfen tekrar deneyin.'), 500);
+    }
+    gv_json(array('ok' => true, 'message' => 'Hesabınız ve verileriniz kalıcı olarak silindi.'));
 }
 
 if ($action === 'mail-status') {

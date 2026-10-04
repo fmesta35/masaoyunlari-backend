@@ -26,7 +26,17 @@ karakter sınırlarını burada denetler; metni değiştirirsen testi çalışt�
 > veri türleri işaretlenir, (3) `gizlilik-politikasi.html` dosyasındaki
 > **4.1 Reklam** bölümü reklam sağlayıcısının adıyla doldurulur. Mağaza
 > metinlerinde de "reklam yok" ifadesi bırakılmaz — yanlış beyan Play
-> politikası ihlalidir.
+> politikası ihlalidir. Dördüncü yer: **Uygulama içeriği → Reklam Kimliği**
+> beyanı "Hayır"dan **"Evet"e** çevrilir. Bu şart: Google Mobile Ads SDK'sı
+> `com.google.android.gms.permission.AD_ID` iznini kendi kitaplık
+> manifestinden ANA manifeste otomatik birleştirir; beyan "Hayır"da kalırsa
+> Play o sürümü yayına almaz.
+
+**Uygulama içeriği → Reklam Kimliği → "Uygulamanız reklam kimliği kullanıyor
+mu?"** → bugün **Hayır**. Dayanağı: `android/app/build.gradle` içindeki tek
+bağımlılık `androidx.appcompat`; Google Mobile Ads, Firebase, analitik ya da
+Play Services bağımlılığı yok. `AndroidManifest.xml` yalnızca `INTERNET`,
+`ACCESS_NETWORK_STATE` ve `WAKE_LOCK` istiyor, `AD_ID` izni yok.
 | Web sitesi | https://www.masaoyunlari.com.tr |
 | E-posta | info@masaoyunlari.com.tr |
 | Gizlilik politikası | https://www.masaoyunlari.com.tr/gizlilik-politikasi.html |
@@ -153,8 +163,13 @@ https://www.masaoyunlari.com.tr/hesap-silme.html
 > ve gizlilik politikasının 6. ve 7. maddelerinde duruyor.
 >
 > **Silme türü** sorulursa: *"Hesap silme talebi ve veri silme talebi"*
-> seçeneği işaretlenir — kullanıcı hesabını tamamen kapattırabildiği gibi,
-> hesabı dururken yalnız oyun geçmişinin silinmesini de isteyebiliyor.
+> seçeneği işaretlenir — hesap silindiğinde ona bağlı veriler de siliniyor.
+>
+> Silme **uygulama içinden, kullanıcının kendisi tarafından** yapılıyor
+> (Profil → "Hesap Silme Hakkında" → Hesabımı Sil → parola + onay), e-posta
+> ile talep edip beklemeye gerek yok. Google, uygulama içi silme yolunu
+> e-posta ile talepten üstün sayıyor. Silme **anında ve kalıcıdır**; geri
+> alma penceresi yoktur.
 
 | Veri türü | Toplanıyor | Zorunlu | Amaç |
 |---|---|---|---|

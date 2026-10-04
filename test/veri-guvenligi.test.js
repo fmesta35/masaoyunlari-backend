@@ -96,11 +96,21 @@ async function main() {
   const sv = sayfa.govde;
   assert.ok(!/<script/i.test(sv),
     'silme sayfası JavaScript çalıştırmamalı: Play incelemecisi ve robotu düz HTML okur');
-  assert.ok(!/giriş yap|oturum aç|parolanız/i.test(sv),
-    'silme sayfası üye girişi istememeli; incelemeci hesapsız açabilmeli');
-  assert.ok(/hesap silme/i.test(sv), 'sayfa hesap silmeyi açıkça anlatmalı');
-  assert.ok(/info@masaoyunlari\.com\.tr/.test(sv), 'talep için iletişim adresi olmalı');
-  assert.ok(/30\s*gün/.test(sv), 'talebin karşılanma süresi yazmalı');
+  /* Sayfanın KENDİSİ giriş duvarının arkasında olmamalı: Play incelemecisi
+     hesapsız açıp okuyabilmeli. (Metinde "giriş yap" geçmesi normaldir —
+     silme adımları anlatılıyor; aranan şey sayfada form/parola alanı
+     OLMAMASI ve içeriğin doğrudan gelmesi.) */
+  assert.ok(!/<form|<input|type="password"/i.test(sv),
+    'silme sayfasında form ya da parola alanı olmamalı; o adım uygulamada');
+  assert.ok(sv.length > 3000, 'sayfa içeriği doğrudan gelmeli (giriş duvarı arkasında değil)');
+  assert.ok(/hesap silme|hesabımı sil/i.test(sv), 'sayfa hesap silmeyi açıkça anlatmalı');
+  assert.ok(/info@masaoyunlari\.com\.tr/.test(sv), 'destek için iletişim adresi olmalı');
+  /* Play'in asıl aradığı: kullanıcı silmeyi NEREDEN başlatıyor. Silme
+     uygulama içinden yapılıyor, sayfanın altındaki düğme oraya götürüyor. */
+  assert.ok(/href="\/\?hesap-sil=1"/.test(sv),
+    'sayfanın altında uygulamadaki silme onayına götüren düğme olmalı');
+  assert.ok(/anında/i.test(sv) && /geri alınamaz|geri alınama/i.test(sv),
+    'silmenin anında ve geri alınamaz olduğu yazmalı');
   assert.ok(/12\s*ay/.test(sv),
     'saklanan kayıtların (log) süresi de yazmalı — Play "silinen" ve "saklanan" ayrımını ister');
   assert.ok(/12\s*ay/.test(politikaMetni),
@@ -113,8 +123,13 @@ async function main() {
 
   // ---------- 3) BAĞLANTI HER YERDE AYNI ----------
   const indexHtml = fs.readFileSync(path.join(KOK, 'index.html'), 'utf8');
+  /* Bağlantı alt bilgiden PROFİL sayfasına taşındı (kullanıcı isteği):
+     silme yalnız giriş yapmış kişiyi ilgilendiriyor. Play'in şartı
+     "uygulama içinden erişilebilir olsun" — profil de uygulama içidir. */
   assert.ok(/href="\/hesap-silme\.html"/.test(indexHtml),
-    'silme bağlantısı uygulama içinden (alt bilgi) erişilebilir olmalı');
+    'silme bağlantısı uygulama içinden erişilebilir olmalı');
+  assert.ok(/Hesap Silme Hakkında/.test(indexHtml),
+    'bağlantı profil sayfasında "Hesap Silme Hakkında" başlığıyla durmalı');
   const politika = (await al(BASE, '/gizlilik-politikasi.html')).govde;
   assert.ok(/href="\/hesap-silme\.html"/.test(politika),
     'gizlilik politikası silme sayfasına bağlanmalı');

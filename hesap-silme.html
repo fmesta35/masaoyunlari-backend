@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Hesap ve Veri Silme — Masa Oyunları</title>
-<meta name="description" content="Masa Oyunları hesabınızın ve ilişkili verilerinizin silinmesini nasıl talep edersiniz: adım adım yol, silinen veriler, saklanan veriler ve süreler.">
+<meta name="description" content="Masa Oyunları hesabınızı ve verilerinizi uygulamadan kendiniz nasıl kalıcı olarak silersiniz: adım adım yol, silinen veriler, geriye kalan teknik kayıtlar ve süreleri.">
 <meta name="robots" content="index, follow">
 <meta name="theme-color" content="#0a0a1a">
 <link rel="canonical" href="https://www.masaoyunlari.com.tr/hesap-silme.html">
@@ -62,50 +62,61 @@
   <a class="geri" href="/">← Siteye dön</a>
 </header>
 
-<h1>Hesap ve Veri Silme Talebi</h1>
-<p class="tarih">Son güncelleme: 4 Ekim 2026 · Uygulama: Masa Oyunları
+<h1>Hesap ve Veri Silme</h1>
+<p class="tarih">Son güncelleme: 4 Ekim 2026 &middot; Uygulama: Masa Oyunları
 (<code>tr.com.masaoyunlari.oyun</code>)</p>
 
 <div class="kutu uyari">
-  <p><strong>Tek adımda silme:</strong> hesabınızda kayıtlı e-posta adresinden
-  <a href="mailto:info@masaoyunlari.com.tr?subject=Hesap%20silme%20talebi&amp;body=Kullan%C4%B1c%C4%B1%20ad%C4%B1m%3A%20%0AHesab%C4%B1m%C4%B1n%20ve%20t%C3%BCm%20verilerimin%20silinmesini%20talep%20ediyorum.">info@masaoyunlari.com.tr</a>
-  adresine <strong>"Hesap silme talebi"</strong> konulu bir ileti gönderin;
-  iletide yalnızca <strong>kullanıcı adınızı</strong> yazmanız yeterlidir.
-  Kimlik belgesi, telefon numarası ya da başka hiçbir bilgi istemiyoruz.</p>
-  <p>Talebiniz en geç <strong>30 gün</strong> içinde yerine getirilir ve işlem
-  tamamlandığında aynı adrese bilgi verilir.</p>
+  <p><strong>Hesabını kendin silersin.</strong> Kimseden izin almana, bize
+  e-posta yazıp cevap beklemene gerek yok. Giriş yaptıktan sonra
+  <strong>Profil</strong> sayfanın altındaki <strong>"Hesap Silme Hakkında"</strong>
+  bağlantısıyla bu sayfaya gelir, en alttaki <strong>Hesabımı Sil</strong>
+  düğmesine basarsın.</p>
+  <p>Onayladığın anda hesabın ve verilerin <strong>kalıcı olarak</strong>
+  silinir. İşlem <strong>geri alınamaz</strong>; bekleme süresi yoktur.</p>
 </div>
 
-<h2>1. Nasıl talep edilir</h2>
+<h2>1. Nasıl silinir</h2>
 <ul>
-  <li><strong>Doğrulama:</strong> talebi hesabınıza kayıtlı e-posta adresinden
-      göndermeniz, hesabın size ait olduğunun doğrulanması için yeterlidir.
-      Başka bir adresten gelen talepleri, hesabı korumak amacıyla
-      karşılamayız.</li>
-  <li><strong>Konu:</strong> "Hesap silme talebi".</li>
-  <li><strong>İçerik:</strong> kullanıcı adınız. Dilerseniz silmeden önce
-      <strong>verilerinizin bir kopyasını</strong> da aynı iletide
-      isteyebilirsiniz; kopyayı silme işleminden önce göndeririz.</li>
+  <li>Hesabınla <strong>giriş yap</strong>.</li>
+  <li>Üst sağdaki adına dokunup <strong>Profil</strong> sayfanı aç.</li>
+  <li>Kartın altındaki <strong>"Hesap Silme Hakkında"</strong> bağlantısına
+      tıkla — bu sayfa açılır.</li>
+  <li>Sayfanın en altındaki <strong>Hesabımı Sil</strong> düğmesine bas.</li>
+  <li>Açılan pencerede <strong>parolanı</strong> yaz ve silmenin geri
+      alınamayacağını onayla. Parola, oturumu açık unutulmuş bir cihazı eline
+      geçiren birinin hesabını sildirmesini engellemek için isteniyor.</li>
 </ul>
 <p>Aynı yol hem web sitesi (masaoyunlari.com.tr) hem de Google Play'deki
 <strong>Masa Oyunları</strong> Android uygulaması için geçerlidir; ikisi aynı
 hesabı kullanır.</p>
 
 <h2>2. Silinen veriler</h2>
-<p>Hesabınız silindiğinde aşağıdakiler <strong>kalıcı olarak</strong> silinir;
+<p>Onayladığın anda aşağıdakiler <strong>kalıcı olarak</strong> silinir;
 geri getirilemez:</p>
 <ul>
-  <li>Kullanıcı adınız ve e-posta adresiniz</li>
-  <li>Parola özetiniz (bcrypt özeti — parolanın kendisi zaten saklanmaz)</li>
-  <li>Profil bilgileriniz, seviyeniz, puanlarınız ve rütbeniz</li>
-  <li>Arkadaş listeniz ve gönderdiğiniz/aldığınız davetler</li>
-  <li>Maç kayıtlarınız ve istatistikleriniz</li>
-  <li>Oyun içi sohbet iletileriniz</li>
+  <li>Kullanıcı adın ve e-posta adresin</li>
+  <li>Parola özetin (bcrypt özeti — parolanın kendisi zaten saklanmıyor)</li>
+  <li>Profilin, seviyen, puanların ve rütben</li>
+  <li>Arkadaş listen ve gönderdiğin/aldığın davetler</li>
+  <li>Tüm oturumların (bütün cihazlardan çıkış yapılır)</li>
+  <li>Sohbet iletilerin</li>
+  <li>Varsa sana uygulanmış sohbet kısıtlaması kayıtları</li>
 </ul>
 
-<h2>3. Saklanan veriler ve süresi</h2>
-<p>Hesabınızdan geriye yalnızca <strong>kimliğinizi taşımayan teknik kayıtlar</strong>
-kalır; bunlar sizi tanımak için değil, hizmetin güvenliği için tutulur:</p>
+<h2>3. Maç kayıtlarına ne oluyor?</h2>
+<p>Bir maç kaydı tek satırda <strong>iki oyuncuyu birden</strong> tutar.
+O satırı tamamen silseydik <strong>rakibinin</strong> geçmişi ve puanı da
+bozulurdu. Bu yüzden satır yerinde kalır, ama senin kimliğin
+(kullanıcı numaran ve adın) satırdan <strong>çıkarılır</strong>: rakibin
+geçmişinde o maç "Silinmiş kullanıcı" olarak görünür ve o satırdan sana
+geri dönülemez. Satırda tanımlı başka üye kalmıyorsa satır tamamen silinir.
+Senin <strong>puan kayıtların</strong> ise doğrudan silinir, yani
+sıralamalardan tamamen düşersin.</p>
+
+<h2>4. Geriye kalanlar ve süresi</h2>
+<p>Hesabından geriye yalnızca <strong>kimliğini taşımayan teknik kayıtlar</strong>
+kalır; bunlar seni tanımak için değil, hizmetin güvenliği için tutulur:</p>
 <table>
   <tr><th>Kayıt</th><th>Neden tutulur</th><th>Süre</th></tr>
   <tr>
@@ -114,33 +125,46 @@ kalır; bunlar sizi tanımak için değil, hizmetin güvenliği için tutulur:</
     <td>En çok <strong>12 ay</strong>; süresi dolunca silinir</td>
   </tr>
   <tr>
-    <td>Devam eden bir şikâyet incelemesine konu sohbet iletisi</td>
-    <td>İnceleme sonuçlanana kadar</td>
-    <td>İnceleme biter bitmez silinir</td>
+    <td>Bir <strong>başkası</strong> hakkındaki şikâyet incelemesinde
+        adının geçtiği kayıt</td>
+    <td>İnceleme kaybolmasın diye satır kalır, kimliğin düşer</td>
+    <td>Kimlik bağı silme anında kopar</td>
   </tr>
 </table>
-<p>Sohbet kısıtlaması gibi hesaba bağlı yaptırım kayıtları hesapla
-<strong>birlikte</strong> silinir. Yasal olarak saklanması zorunlu bir kayıt
-bulunmadığı sürece hesabınızdan geriye kişisel veri kalmaz. Aynı süreler
+<p>Yasal olarak saklanması zorunlu bir kayıt bulunmadığı sürece hesabından
+geriye kişisel veri kalmaz. Aynı süreler
 <a href="/gizlilik-politikasi.html">Gizlilik Politikası</a>'nın 5. maddesinde
 de yazılıdır.</p>
-
-<h2>4. Yalnız verilerin silinmesi (hesabı kapatmadan)</h2>
-<p>Hesabınızı kapatmak istemiyor, yalnızca maç geçmişinizin ve
-istatistiklerinizin silinmesini istiyorsanız bunu da aynı adresten talep
-edebilirsiniz. Bu durumda giriş bilgileriniz korunur, oyun geçmişiniz
-sıfırlanır.</p>
 
 <h2>5. Üye olmadan oynayanlar</h2>
 <p>Ziyaretçi olarak oynarken hiçbir kişisel bilgi istemiyoruz; silinecek bir
 hesap da oluşmuyor. Ziyaretçi takma adı yalnızca o oturum boyunca sunucunun
-belleğinde durur, siz ayrıldığınızda kaybolur.</p>
+belleğinde durur, sen ayrıldığında kaybolur.</p>
 
-<h2>6. Sorularınız</h2>
-<p>Silme süreciyle ilgili her soru için
+<h2>6. Verilerinin bir kopyası</h2>
+<p>Silmeden önce verilerinin bir kopyasını istersen
+<a href="mailto:info@masaoyunlari.com.tr?subject=Veri%20kopyas%C4%B1%20talebi">info@masaoyunlari.com.tr</a>
+adresine hesabında kayıtlı e-posta adresinden yazman yeterli. Bu bir KVKK/GDPR
+hakkıdır ve en geç 30 gün içinde karşılanır. <strong>Silme için</strong> bize
+yazmana gerek yok — onu aşağıdaki düğmeyle kendin yaparsın.</p>
+
+<h2>7. Bir sorun mu var?</h2>
+<p>Hesabını silmek yerine bir sorunun çözülmesini istiyorsan (giriş yapamıyor,
+haksız bir kısıtlama aldığını düşünüyor ya da başka bir destek gerekiyorsa)
+önce bize yaz:
 <a href="mailto:info@masaoyunlari.com.tr">info@masaoyunlari.com.tr</a>.
-Hangi verileri neden işlediğimizin tamamı
-<a href="/gizlilik-politikasi.html">Gizlilik Politikası</a> sayfasındadır.</p>
+Çoğu sorun hesabını kaybetmeden çözülüyor.</p>
+
+<div class="kutu uyari" style="margin-top:34px;text-align:center">
+  <p style="margin-bottom:14px"><strong>Kararlıysan:</strong> aşağıdaki düğme
+  seni uygulamadaki onay penceresine götürür. Parolanı yazıp onayladığında
+  hesabın <strong>anında ve kalıcı olarak</strong> silinir.</p>
+  <p><a href="/?hesap-sil=1" style="display:inline-block;padding:13px 26px;
+     border-radius:11px;background:#d63031;color:#fff;font-weight:700;
+     text-decoration:none">🗑️ Hesabımı Sil</a></p>
+  <p style="margin-top:12px;font-size:.88em">Giriş yapmadıysan önce giriş
+  penceresi açılır — hesabı yalnızca sahibi silebilir.</p>
+</div>
 
 <footer>
   © 2026 Masa Oyunları · <a href="/">Ana sayfa</a> ·

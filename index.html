@@ -2271,6 +2271,19 @@ body.gv-app input,body.gv-app textarea,body.gv-app .chat-msgs,body.gv-app .moves
           <button class="btn btn-o" onclick="GV.showModal('changePasswordModal')">🔑 Parolamı Değiştir</button>
           <button class="btn btn-d" onclick="GV.logout()">🚪 Çıkış Yap</button>
         </div>
+        <!-- HESAP SİLME: alt bilgiden kaldırılıp buraya alındı. Silme yalnız
+             GİRİŞ YAPMIŞ kişiyi ilgilendiriyor; her sayfanın altında durması
+             hem gereksizdi hem de ziyaretçiye anlamsız geliyordu. Bağlantı
+             kartın sağ altında, sessiz bir not olarak duruyor — yanlışlıkla
+             basılacak bir yerde değil. Açılan sayfanın en altındaki düğme
+             kişiyi buradaki onay penceresine geri getirir. -->
+        <div style="margin-top:18px;padding-top:14px;border-top:1px solid var(--border);
+                    text-align:right">
+          <a href="/hesap-silme.html" style="color:var(--text3);font-size:.82em;
+             text-decoration:none;border-bottom:1px dotted var(--text3)">
+            Hesap Silme Hakkında
+          </a>
+        </div>
       </div>
     </div>
 
@@ -2328,7 +2341,6 @@ body.gv-app input,body.gv-app textarea,body.gv-app .chat-msgs,body.gv-app .moves
             <h4>İLETİŞİM</h4>
             <a href="mailto:info@masaoyunlari.com.tr">✉️ info@masaoyunlari.com.tr</a>
             <a href="/gizlilik-politikasi.html">🔏 Gizlilik Politikası</a>
-            <a href="/hesap-silme.html">🗑️ Hesap Silme</a>
           </div>
         </div>
       </div>
@@ -2471,6 +2483,44 @@ body.gv-app input,body.gv-app textarea,body.gv-app .chat-msgs,body.gv-app .moves
       <input type="password" id="newPass">
     </div>
     <button class="btn btn-p btn-full" onclick="GV.submitChangePassword()">Parolayı Güncelle</button>
+  </div>
+</div>
+
+<!-- HESAP SİLME ONAYI — işlem ANINDA ve KALICI, geri alma yok. Bu yüzden
+     iki kapı var: hesabın parolası yeniden yazılır (açık kalmış bir oturumu
+     ele geçiren biri hesabı sildiremesin) ve "geri alınamaz" uyarısı ayrıca
+     işaretlenir. Sunucu da aynı iki şartı bağımsızca doğrular. -->
+<div class="modal-bg" id="deleteAccountModal">
+  <div class="modal" style="max-width:420px;">
+    <button class="modal-x" onclick="GV.hideModal('deleteAccountModal')">✕</button>
+    <h2>🗑️ Hesabını Sil</h2>
+    <div class="kutu-uyari" style="margin:14px 0;padding:12px 14px;border-radius:10px;
+         background:rgba(255,118,117,.10);border:1px solid rgba(255,118,117,.35);
+         color:var(--text2);font-size:.9em;line-height:1.6">
+      Hesabın, puanların, arkadaş listen ve maç geçmişin
+      <strong style="color:var(--text)">anında ve kalıcı olarak</strong> silinir.
+      Bu işlemin geri dönüşü yoktur; aynı kullanıcı adıyla yeniden kayıt
+      olman gerekir.
+    </div>
+    <div class="fg">
+      <label>Güvenlik için parolanı yaz:</label>
+      <input type="password" id="delAccPass" autocomplete="current-password">
+    </div>
+    <label style="display:flex;gap:9px;align-items:flex-start;margin:4px 0 16px;
+           font-size:.88em;color:var(--text2);cursor:pointer">
+      <!-- Genel "input{width:100%}" kuralı onay kutusunu da 370px yapıyordu ve
+           yazı pencerenin dışına taşıyordu; ölçü burada açıkça sabitleniyor. -->
+      <input type="checkbox" id="delAccOnay"
+             style="width:17px;height:17px;flex:none;margin:3px 0 0;padding:0">
+      <span style="min-width:0">Hesabımın ve verilerimin kalıcı olarak
+            silineceğini, geri alınamayacağını anladım.</span>
+    </label>
+    <button class="btn btn-d btn-full" id="delAccBtn"
+            onclick="GV.submitDeleteAccount()">Hesabımı Kalıcı Olarak Sil</button>
+    <p style="margin-top:12px;font-size:.82em;color:var(--text3);text-align:center">
+      Silmek istemiyor, bir sorun için destek arıyorsan:
+      <a href="mailto:info@masaoyunlari.com.tr" style="color:var(--accent)">info@masaoyunlari.com.tr</a>
+    </p>
   </div>
 </div>
 
@@ -2750,6 +2800,8 @@ function init(){
   // bildirim atma. Yalnızca gerçek misafir bu bildirimi görür.
   let __tok = null; try { __tok = localStorage.getItem('gv-auth-token'); } catch (_) {}
   if (!__tok) toast(`${st.user.name} olarak bağlandınız! 🎮`,'info');
+  // /?hesap-sil=1 ile gelindiyse silme onay penceresini aç (bkz. hesap-silme.html).
+  hesapSilmeyiAc();
 }
 
 function checkAuthState(){
@@ -2788,6 +2840,53 @@ function submitForgotPassword(){
 function submitChangePassword(){
   hideModal('changePasswordModal');
   toast('🔒 Parolanız güncellendi!', 'success');
+}
+
+/* HESAP SİLME — kullanıcının kendisi siler, e-posta trafiği yok.
+   Sunucu (POST /api/auth/delete-account) parolayı bağımsızca doğrular;
+   buradaki denetimler yalnız kullanıcıya hızlı geri bildirim içindir. */
+async function submitDeleteAccount(){
+  const alan = document.getElementById('delAccPass');
+  const onay = document.getElementById('delAccOnay');
+  const dugme = document.getElementById('delAccBtn');
+  const parola = alan ? alan.value : '';
+  if(!parola) return toast('Devam etmek için parolanı yaz.', 'warning');
+  if(onay && !onay.checked) return toast('Silmenin geri alınamayacağını onaylaman gerekiyor.', 'warning');
+  if(!window.GVAuth || !GVAuth.api) return toast('Üyelik servisine ulaşılamadı.', 'error');
+
+  if(dugme){ dugme.disabled = true; dugme.textContent = 'Siliniyor...'; }
+  let c;
+  try { c = await GVAuth.api('/api/auth/delete-account', { password: parola }); }
+  catch(_){ c = { ok:false, error:'Sunucuya ulaşılamadı.' }; }
+  if(dugme){ dugme.disabled = false; dugme.textContent = 'Hesabımı Kalıcı Olarak Sil'; }
+
+  if(!c || !c.ok){
+    return toast('⚠️ ' + ((c && c.error) || 'Hesap silinemedi.'), 'error', 6000);
+  }
+  if(alan) alan.value = '';
+  if(onay) onay.checked = false;
+  hideModal('deleteAccountModal');
+  // Oturum sunucuda zaten düştü; yerel jetonu da temizleyip ziyaretçiye dön.
+  try { GV.logout(); } catch(_){}
+  toast('Hesabın ve verilerin kalıcı olarak silindi. Bizi tercih ettiğin için teşekkürler.', 'success', 9000);
+}
+
+/* Silme sayfasının en altındaki düğme buraya /?hesap-sil=1 ile döner.
+   Giriş yoksa önce giriş istenir — silme ancak hesabın sahibi yapabilir. */
+function hesapSilmeyiAc(){
+  try {
+    if(!/[?&]hesap-sil=1/.test(location.search)) return;
+    history.replaceState(null, '', location.pathname);   // adres temiz kalsın
+    setTimeout(function(){
+      if(st.isGuest){
+        toast('Hesabını silmek için önce giriş yapmalısın.', 'warning', 7000);
+        showModal('loginModal');
+      } else {
+        page('profile');
+        showModal('deleteAccountModal');
+      }
+    }, 900);
+  } catch(_){}
 }
 
 function logout(){
@@ -5726,6 +5825,7 @@ return {
   submitRegister,
   submitForgotPassword,
   submitChangePassword,
+  submitDeleteAccount,
   logout,
   openFriendProfile,
   searchFriends,

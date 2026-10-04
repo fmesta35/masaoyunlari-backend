@@ -76,6 +76,8 @@ const MAP = {
   'POST /api/auth/reset': '/auth.php?action=reset',
   'GET /api/auth/me': '/auth.php?action=me',
   'POST /api/auth/logout': '/auth.php?action=logout',
+  // Hesap silme: kullanıcı kendi hesabını siler (parola ile doğrular).
+  'POST /api/auth/delete-account': '/auth.php?action=deleteAccount',
   'GET /api/auth/mail-status': '/auth.php?action=mail-status',
   'GET /api/users/search': '/social.php?action=search',
   'GET /api/friends': '/social.php?action=friends',

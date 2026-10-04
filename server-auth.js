@@ -407,6 +407,79 @@ function installAuth(app, deps) {
     res.json({ ok: true });
   });
 
+  /* ---- HESAP SİLME (kullanıcının kendisi siler) ----------------------
+   * Kullanıcı isteği: "info@masaoyunlari.com.tr'ye direkt yönlendirip iş
+   * yükü çıkarmayalım, silmek isteyen silsin."  Google Play'in "Veri
+   * güvenliği" formu da uygulama İÇİNDEN silme yolu olmasını ayrıca
+   * ödüllendiriyor (e-posta ile talep en alt seviye cevap).
+   *
+   * Silme ANINDA ve KALICIDIR; geri alma penceresi yoktur. Bu yüzden iki
+   * kapı var: (1) geçerli oturum, (2) hesabın PAROLASI yeniden yazılmalı —
+   * açık bırakılmış bir oturumu ele geçiren biri hesabı sildiremesin.
+   *
+   * MAÇ KAYITLARI tek satırda İKİ oyuncuyu birden tutar. Satırı silmek
+   * rakibin geçmişini de silerdi; bu yüzden satır KALIR ama silinen üyenin
+   * kimliği (id ve ad) satırdan çıkarılır. Geriye dönülüp o satırdan kişiye
+   * ulaşılamaz. Satırda tanımlı başka üye kalmıyorsa satır tamamen silinir.
+   * Aynı mantık şikayet kayıtlarında da uygulanır: bir başkası hakkındaki
+   * inceleme kaybolmasın diye satır durur, silinen üyenin kimliği düşer.  */
+  app.post('/api/auth/delete-account', (req, res) => {
+    try {
+      const u = authFromReq(req);
+      if (!u) return res.status(401).json({ ok: false, error: 'Oturum geçersiz. Yeniden giriş yapın.' });
+
+      const tam = db.prepare('SELECT * FROM users WHERE id = ?').get(u.id);
+      if (!tam) return res.status(404).json({ ok: false, error: 'Hesap bulunamadı.' });
+
+      const parola = String((req.body && req.body.password) || '');
+      if (!parola || !bcrypt.compareSync(parola, tam.pass_hash)) {
+        return res.status(403).json({ ok: false, error: 'Parola hatalı. Hesap silinmedi.' });
+      }
+      /* Kurucu hesabı silinemez: silinirse Kurucu Paneli'ne giriş kalmaz
+         ve site yönetilemez hale gelir. */
+      if (isFounderUser(tam)) {
+        return res.status(403).json({ ok: false, error: 'Kurucu hesabı bu yoldan silinemez.' });
+      }
+
+      const uid = Number(u.id);
+      const sil = db.transaction(() => {
+        // Maç kayıtları: satır kalır, kimlik düşer (bkz. yukarıdaki not).
+        const maclar = db.prepare('SELECT id, players FROM matches WHERE players LIKE ?')
+          .all('%"id":' + uid + '%');
+        const yazMac = db.prepare('UPDATE matches SET players = ? WHERE id = ?');
+        const silMac = db.prepare('DELETE FROM matches WHERE id = ?');
+        for (const m of maclar) {
+          let dizi;
+          try { dizi = JSON.parse(m.players); } catch (_) { continue; }
+          if (!Array.isArray(dizi)) continue;
+          if (!dizi.some(p => Number(p && p.id) === uid)) continue;   // LIKE yanlış eşleşmesi
+          const yeni = dizi.map(p => (Number(p && p.id) === uid
+            ? { id: null, name: 'Silinmiş kullanıcı', won: !!(p && p.won) }
+            : p));
+          if (yeni.every(p => p.id == null)) silMac.run(m.id);
+          else yazMac.run(JSON.stringify(yeni), m.id);
+        }
+        // Şikayetler: başkası hakkındaki inceleme kaybolmasın, kimlik düşsün.
+        db.prepare("UPDATE reports SET reporter_uid = NULL, reporter_name = 'Silinmiş kullanıcı' WHERE reporter_uid = ?").run(uid);
+        db.prepare("UPDATE reports SET reported_uid = NULL, reported_name = 'Silinmiş kullanıcı' WHERE reported_uid = ?").run(uid);
+        // Yalnız bu üyeye ait olan her şey: tamamen silinir.
+        db.prepare('DELETE FROM score_events WHERE user_id = ?').run(uid);
+        db.prepare('DELETE FROM sanctions WHERE user_id = ?').run(uid);
+        db.prepare('DELETE FROM friends WHERE user_id = ? OR friend_id = ?').run(uid, uid);
+        db.prepare('DELETE FROM friend_requests WHERE from_id = ? OR to_id = ?').run(uid, uid);
+        db.prepare('DELETE FROM sessions WHERE user_id = ?').run(uid);
+        db.prepare('DELETE FROM users WHERE id = ?').run(uid);
+      });
+      sil();
+
+      console.log('[HESAP SİLİNDİ] #' + uid + ' — kullanıcının kendi talebiyle, kalıcı.');
+      res.json({ ok: true, message: 'Hesabınız ve verileriniz kalıcı olarak silindi.' });
+    } catch (e) {
+      console.error('hesap silme hatası:', e);
+      res.status(500).json({ ok: false, error: 'Silme sırasında sunucu hatası. Lütfen tekrar deneyin.' });
+    }
+  });
+
   // ---- Profil + oyun geçmişi ----
   app.get('/api/users/:id/profile', (req, res) => {
     try {
