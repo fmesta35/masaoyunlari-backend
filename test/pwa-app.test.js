@@ -101,8 +101,14 @@ async function main() {
     beforeParse(w) { w.GV_BACKEND_URL = BASE; w.fetch = (...a) => fetch(...a); }
   });
   const win = dom.window;
+  /* KARARSIZ TEST DÜZELTMESİ: bekleme bütçesi 20 sn idi ve tüm takım
+     birlikte koşarken (yüzün üzerinde dosya, aynı anda birkaç sunucu +
+     jsdom) sayfanın betikleri bazen bu sürede yüklenemiyordu; test tek
+     başına her seferinde geçerken takımda rastgele düşüyordu. Bütçe
+     yükseltildi — başarılı durumda beklemeyi uzatmaz, yalnız yüklü
+     makinede nefes payı bırakır. */
   const t0 = Date.now();
-  while (!win.GVApp && Date.now() - t0 < 20000) await new Promise(r => setTimeout(r, 120));
+  while (!win.GVApp && Date.now() - t0 < 60000) await new Promise(r => setTimeout(r, 120));
   assert.ok(win.GVApp, 'window.GVApp kurulmalı (uygulama katmanı yüklendi)');
   assert.strictEqual(typeof win.GVApp.install, 'function', 'GVApp.install() kurulum çağrısı olmalı');
   assert.strictEqual(win.GVApp.isApp, false, 'normal tarayıcıda uygulama kipi KAPALI olmalı');

@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Masa Oyunları — kendi WebView'i içinde çalışan tam ekran Android uygulaması.
+
+  TWA (Trusted Web Activity) BİLEREK KULLANILMADI: TakasVarmi projesinde
+  denendi ve Google Play incelemesi "gerçek bir uygulama değil, tarayıcı
+  sekmesi" gerekçesiyle reddetti. Burada site doğrudan MainActivity'nin
+  kendi WebView bileşeninde açılıyor.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- Oyun sırasında ekranın sönmemesi için (site navigator.wakeLock
+         kullanıyor; WebView'de desteklenmediği durumda native bayrak
+         devreye giriyor — bkz. MainActivity.ekraniAcikTut). -->
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+
+    <application
+        android:allowBackup="true"
+        android:largeHeap="true"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:label="@string/appName"
+        android:theme="@style/AppTheme"
+        android:enableOnBackInvokedCallback="true">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:launchMode="singleTask"
+            android:screenOrientation="unspecified"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden|keyboard|navigation|uiMode|density|layoutDirection|fontScale|locale"
+            android:theme="@style/AppTheme">
+
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+
+            <!-- masaoyunlari.com.tr bağlantıları (paylaşılan bir masa linki
+                 gibi) tarayıcı yerine doğrudan uygulamada açılsın. Doğrulama
+                 sitedeki /.well-known/assetlinks.json ile yapılır; o dosyadaki
+                 paket adı ve SHA-256 parmak izi doğru olmazsa Android bu
+                 filtreyi yok sayar (uygulama yine çalışır, sadece linkler
+                 tarayıcıya gider). -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" android:host="@string/hostName" />
+                <data android:scheme="https" android:host="@string/hostNameAlt" />
+            </intent-filter>
+        </activity>
+
+    </application>
+</manifest>

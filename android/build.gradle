@@ -1,0 +1,16 @@
+// Masa Oyunları — Android proje kök derleme dosyası.
+buildscript {
+    repositories {
+        google()
+        mavenCentral()
+    }
+    dependencies {
+        // Google Play 31 Ağustos 2026'dan beri API 36 hedefini zorunlu
+        // tutuyor; API 36 için Google'ın istediği en düşük AGP sürümü 8.9.
+        classpath 'com.android.tools.build:gradle:8.13.0'
+    }
+}
+
+task clean(type: Delete) {
+    delete rootProject.buildDir
+}

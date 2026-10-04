@@ -1,0 +1,15 @@
+# Derleme çıktıları ve yerel araçlar depoya girmez.
+build/
+.gradle/
+_tools/
+local.properties
+
+# ⚠ İMZA ANAHTARI ASLA DEPOYA GİRMEZ.
+# Kaybedilirse uygulamaya bir daha güncelleme yüklenemez; çalınırsa başkası
+# sizin adınıza güncelleme yayımlayabilir. Yedeğini çevrimdışı tutun.
+keystore.properties
+keystore/
+*.keystore
+*.jks
+*.aab
+*.apk

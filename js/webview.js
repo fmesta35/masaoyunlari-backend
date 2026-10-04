@@ -17,6 +17,12 @@
  *  E) Oyun sırasında ekranın sönmesi engellenir (Wake Lock)
  *  F) Kısayol/derin bağlantı: /?game=okey doğrudan o oyunun lobisini açar
  *  G) "Uygulamayı yükle" düğmesi (yalnız tarayıcıda, kurulabilir durumda)
+ *
+ *  KENDİ ANDROID UYGULAMAMIZ: android/ klasöründeki native WebView kabuğu
+ *  (bkz. android/README.md — Play, TWA'yı "tarayıcı sekmesi" diye reddettiği
+ *  için TWA kullanılmıyor). Kabuk, kullanıcı ajanına "MasaOyunlariApp/<sürüm>"
+ *  imzasını ekler ve window.MasaOyunlariApp köprüsünü tanımlar; bu modül
+ *  uygulama kipini ve ekran kilidini oradan da tanır.
  */
 (function () {
   'use strict';
@@ -34,10 +40,21 @@
   var twa = String(document.referrer || '').indexOf('android-app://') === 0;
   // Saf WebView: Android UA'sında "; wv" işareti bulunur.
   var webview = /\bwv\b/.test(ua) || /Version\/[\d.]+ Chrome\//.test(ua) === false && /Android/.test(ua) && !/Chrome\//.test(ua);
+  /* KENDİ ANDROID UYGULAMAMIZ (android/ klasöründeki WebView kabuğu) kullanıcı
+     ajanına "MasaOyunlariApp/<sürüm>" imzasını ekliyor ve bir JS köprüsü
+     (window.MasaOyunlariApp) tanımlıyor. UA imzalarına bel bağlamak kırılgan —
+     WebView sürümleri "; wv" işaretini taşımayabiliyor — bu yüzden KESİN
+     ölçüt köprünün varlığı. */
+  var kopru = null;
+  try { kopru = window.MasaOyunlariApp || null; } catch (_) { kopru = null; }
+  var nativeApp = !!(kopru && typeof kopru.setKeepScreenOn === 'function') ||
+                  /MasaOyunlariApp\//.test(ua);
+  if (nativeApp) webview = true;
   var uygulama = standalone || twa || webview;
 
   var API = window.GVApp = {
     standalone: standalone, twa: twa, webview: webview, isApp: uygulama,
+    nativeApp: nativeApp,
     platform: /Android/i.test(ua) ? 'android' : /iPhone|iPad|iPod/i.test(ua) ? 'ios' : 'web'
   };
 
@@ -135,14 +152,26 @@
 
   // ------------------------------------------- E) oyun sırasında ekran açık
   var kilit = null;
+  /* Android WebView'de Screen Wake Lock API çoğu sürümde YOK. Kendi
+     uygulamamızda bu durumda native köprüye düşüyoruz: MainActivity
+     pencereye FLAG_KEEP_SCREEN_ON ekliyor. Tarayıcıda köprü olmadığı için
+     eski davranış aynen sürüyor. */
+  function nativeEkran(acik) {
+    if (!kopru || typeof kopru.setKeepScreenOn !== 'function') return false;
+    try { kopru.setKeepScreenOn(!!acik); return true; } catch (_) { return false; }
+  }
   function kilitAl() {
-    if (!uygulama || kilit || !nav.wakeLock || !nav.wakeLock.request) return;
+    if (!uygulama || kilit) return;
+    if (!nav.wakeLock || !nav.wakeLock.request) { nativeEkran(true); return; }
     nav.wakeLock.request('screen').then(function (k) {
       kilit = k;
       k.addEventListener('release', function () { kilit = null; });
-    }).catch(function () { kilit = null; });
+    }).catch(function () { kilit = null; nativeEkran(true); });
   }
-  function kilitBirak() { if (kilit) { try { kilit.release(); } catch (_) {} kilit = null; } }
+  function kilitBirak() {
+    if (kilit) { try { kilit.release(); } catch (_) {} kilit = null; }
+    nativeEkran(false);
+  }
   function odadaMi() {
     var oda = document.getElementById('pg-room');
     return !!(oda && oda.classList.contains('active'));

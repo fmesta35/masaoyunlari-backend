@@ -1,0 +1,78 @@
+// Masa Oyunları — kendi WebView'i içinde çalışan Android uygulama modülü.
+//
+// NEDEN TWA DEĞİL? TakasVarmi projesinde önce TWA (Trusted Web Activity)
+// denendi ve Google Play incelemesi onu "gerçek bir uygulama değil, tarayıcı
+// sekmesi" diyerek REDDETTİ. Bu yüzden burada en baştan native bir WebView
+// uygulaması kuruluyor: androidbrowserhelper / Chrome Custom Tabs hiç yok.
+apply plugin: 'com.android.application'
+
+def keystorePropertiesFile = rootProject.file("keystore.properties")
+def keystoreProperties = new Properties()
+if (keystorePropertiesFile.exists()) {
+    keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
+}
+
+android {
+    // Paket adı Play Console'da bir kez belirlenir ve ASLA değiştirilemez.
+    // .well-known/assetlinks.json ile BİREBİR aynı olmak zorunda; aksi halde
+    // App Links doğrulanmaz. (test/android-uygulama.test.js bunu denetler.)
+    namespace 'tr.com.masaoyunlari.oyun'
+    compileSdk 36
+
+    defaultConfig {
+        applicationId "tr.com.masaoyunlari.oyun"
+        // Android 5.0 ve üstü: WebView'de modern JS/WebAudio/WebSocket var.
+        minSdkVersion 21
+        // Google Play 31 Ağustos 2026'dan beri API 36 hedefini zorunlu tutuyor.
+        targetSdkVersion 36
+        // versionCode HER yüklemede artmalı; aynı değer iki kez yüklenemez ve
+        // üretim sürümü tüm test kanallarındakinden büyük olmalı.
+        versionCode 1
+        versionName "1.0.0"
+    }
+
+    signingConfigs {
+        release {
+            if (keystorePropertiesFile.exists()) {
+                storeFile file(keystoreProperties['storeFile'])
+                storePassword keystoreProperties['storePassword']
+                keyAlias keystoreProperties['keyAlias']
+                keyPassword keystoreProperties['keyPassword']
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            signingConfig signingConfigs.release
+            // Uygulamada iş mantığı yok (hepsi sitede); küçültme hem gereksiz
+            // hem de WebView köprüsünü bozma riski taşır.
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    // MainActivity sürüm adını BuildConfig.VERSION_NAME üzerinden okuyor
+    // (kullanıcı ajanına ekleniyor). AGP 8'den beri bu sınıf varsayılan
+    // olarak ÜRETİLMİYOR, açıkça istenmesi gerekiyor.
+    buildFeatures {
+        buildConfig true
+    }
+}
+
+dependencies {
+    implementation 'androidx.appcompat:appcompat:1.7.0'
+}
+
+// Tamamen Java; androidx kütüphaneleri iki ayrı kotlin-stdlib varyantı
+// getirip "Duplicate class kotlin.collections.jdk8..." hatasına yol açıyor.
+// 1.8'den beri jdk7/jdk8 modülleri birleşik kotlin-stdlib'in içinde.
+configurations.all {
+    exclude group: 'org.jetbrains.kotlin', module: 'kotlin-stdlib-jdk7'
+    exclude group: 'org.jetbrains.kotlin', module: 'kotlin-stdlib-jdk8'
+}

@@ -1,0 +1,19 @@
+/* Masa Oyunları — Android uygulaması (kendi WebView'i içinde çalışır).
+   Bkz. android/README.md: neden TWA değil de WebView olduğu orada anlatılıyor. */
+pluginManagement {
+    repositories {
+        google()
+        mavenCentral()
+        gradlePluginPortal()
+    }
+}
+dependencyResolutionManagement {
+    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+
+rootProject.name = "MasaOyunlari"
+include ':app'

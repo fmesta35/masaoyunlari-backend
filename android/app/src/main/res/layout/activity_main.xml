@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  decorRoot: gerçek pencere kökü — kenardan kenara (edge-to-edge) çizim için
+  kendi başına dolgu UYGULAMAZ. Android 16 (API 36) hedefleyen uygulamalarda
+  sistem edge-to-edge çizimi ZORUNLU kılıyor; içeriği durum/gezinme çubuğunun
+  altında bırakmamak için dolguyu MainActivity çalışma zamanında ekliyor.
+-->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/decorRoot"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/backgroundColor">
+
+    <FrameLayout
+        android:id="@+id/contentRoot"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent">
+
+        <!-- AŞAĞI ÇEKİP YENİLEME BİLEREK YOK: oyun masasında yanlışlıkla
+             sayfayı yenilemek maçı koparır. Site (js/webview.js) bu jesti
+             zaten kapatıyor; native tarafta da hiç eklenmiyor. -->
+        <WebView
+            android:id="@+id/webview"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:visibility="invisible" />
+
+        <!-- Çevrimdışı / sayfa yüklenemedi ekranı -->
+        <LinearLayout
+            android:id="@+id/offlineView"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:orientation="vertical"
+            android:gravity="center"
+            android:background="@color/backgroundColor"
+            android:padding="32dp"
+            android:visibility="gone">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="📡"
+                android:textSize="52sp"
+                android:layout_marginBottom="16dp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/offlineTitle"
+                android:textSize="19sp"
+                android:textStyle="bold"
+                android:textColor="@color/textColor"
+                android:layout_marginBottom="8dp" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/offlineMessage"
+                android:textSize="14sp"
+                android:textColor="@color/textMuted"
+                android:gravity="center"
+                android:layout_marginBottom="24dp" />
+
+            <Button
+                android:id="@+id/retryButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/retryButton"
+                android:textColor="#FFFFFF"
+                android:backgroundTint="@color/colorPrimary"
+                android:paddingStart="28dp"
+                android:paddingEnd="28dp" />
+
+        </LinearLayout>
+
+        <!-- Açılış (splash) ekranı: ilk sayfa yüklenene kadar görünür -->
+        <LinearLayout
+            android:id="@+id/splashView"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:orientation="vertical"
+            android:gravity="center"
+            android:background="@color/backgroundColor">
+
+            <ImageView
+                android:layout_width="140dp"
+                android:layout_height="140dp"
+                android:src="@drawable/splash_logo"
+                android:contentDescription="@string/appName" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/appName"
+                android:textSize="20sp"
+                android:textStyle="bold"
+                android:textColor="@color/textColor"
+                android:layout_marginTop="18dp" />
+
+        </LinearLayout>
+
+    </FrameLayout>
+</FrameLayout>

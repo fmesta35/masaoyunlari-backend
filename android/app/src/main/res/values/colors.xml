@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Sitenin marka renkleri (index.html --bg / theme-color ile aynı):
+     koyu lacivert zemin + mor vurgu. Açılış ekranı ile sayfanın arka planı
+     aynı olsun ki geçişte beyaz "çakma" olmasın. -->
+<resources>
+    <color name="colorPrimary">#6C5CE7</color>
+    <color name="colorPrimaryDark">#5A4BD1</color>
+    <color name="backgroundColor">#0A0A1A</color>
+    <color name="textColor">#EEF0F8</color>
+    <color name="textMuted">#9AA0BF</color>
+</resources>

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="appName">Masa Oyunları</string>
+    <!-- Uygulamanın açtığı adres. ?source=app parametresi, sitenin kendi
+         ölçümünde uygulamadan gelen oturumları ayırt etmesini sağlar. -->
+    <string name="launchUrl">https://www.masaoyunlari.com.tr/?source=app</string>
+    <string name="hostName">www.masaoyunlari.com.tr</string>
+    <string name="hostNameAlt">masaoyunlari.com.tr</string>
+
+    <string name="offlineTitle">Bağlantı yok</string>
+    <string name="offlineMessage">Masa Oyunları gerçek rakiplere karşı oynanır, bu yüzden internet bağlantısı gerekir. Bağlantını kontrol edip tekrar dene.</string>
+    <string name="retryButton">Tekrar Dene</string>
+    <string name="exitHint">Çıkmak için geri tuşuna tekrar bas.</string>
+</resources>
