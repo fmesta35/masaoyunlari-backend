@@ -3,6 +3,7 @@ build/
 .gradle/
 _tools/
 local.properties
+derleme-log.txt
 
 # ⚠ İMZA ANAHTARI ASLA DEPOYA GİRMEZ.
 # Kaybedilirse uygulamaya bir daha güncelleme yüklenemez; çalınırsa başkası

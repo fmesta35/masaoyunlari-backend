@@ -93,9 +93,14 @@ android\app\build\outputs\bundle\release\app-release.aab
 
 ### 3.3 `assetlinks.json`'u doldurun
 
-Play Console → **Yayın → Kurulum → Uygulama imzalama** sayfasındaki
-**SHA-256 sertifika parmak izini** kopyalayıp `.well-known/assetlinks.json`
-içindeki yer tutucunun yerine yazın ve siteye yükleyin:
+`.well-known/assetlinks.json` içinde **yükleme (upload) anahtarının**
+parmak izi zaten dolu — `android\derle.ps1` ile üretilen anahtarınki.
+
+Play App Signing kullanıldığında Google uygulamayı **kendi anahtarıyla
+yeniden imzalar**; bu yüzden Play Console → **Yayın → Kurulum → Uygulama
+imzalama** sayfasındaki **"Uygulama imzalama sertifikası" SHA-256 parmak
+izini** de aynı listeye EKLEYİN (ikisi birden durur) ve dosyayı siteye
+yükleyin:
 
 ```json
 [{
@@ -103,13 +108,15 @@ içindeki yer tutucunun yerine yazın ve siteye yükleyin:
   "target": {
     "namespace": "android_app",
     "package_name": "tr.com.masaoyunlari.oyun",
-    "sha256_cert_fingerprints": ["AA:BB:CC:... (Play'den kopyalanan)"]
+    "sha256_cert_fingerprints": [
+      "BB:70:39:B7:9B:B3:4F:39:2A:44:82:42:BB:77:5A:42:DC:C9:2A:24:9A:30:B6:A1:CC:EE:AF:88:76:C9:00:E9",
+      "AA:BB:CC:... (Play Console'daki uygulama imzalama parmak izi)"
+    ]
   }
 }]
 ```
 
-Play App Signing kullanıyorsanız listeye **hem yükleme (upload) hem uygulama
-imzalama** parmak izini ekleyin. Dosyanın
+Dosyanın
 `https://www.masaoyunlari.com.tr/.well-known/assetlinks.json` adresinde
 yayında olması gerekir (Yöncü'de yeri: `public_html/.well-known/`).
 

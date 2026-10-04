@@ -81,10 +81,22 @@ async function main() {
     'eski paket adı (…​.twa) hiçbir yerde kalmamalı — yanlış ad adres çubuğunu gizletmez');
   console.log('  ✓ 3) paket adı assetlinks ve rehberde tutarlı: ' + PAKET);
 
-  // ---------- 4) parmak izi alanı yerinde ----------
+  // ---------- 4) parmak izi ----------
+  /* Depodaki değer artık YER TUTUCU DEĞİL: android\derle.ps1 ile üretilen
+     YÜKLEME (upload) anahtarının gerçek parmak izi. Play App Signing
+     kullanıldığında Google uygulamayı KENDİ anahtarıyla yeniden imzalar;
+     o yüzden Play Console'daki "uygulama imzalama" parmak izi de bu listeye
+     EKLENMELİ (ikisi birden durabilir). Buradaki kontrol, listedeki her
+     girdinin gerçekten SHA-256 parmak izi biçiminde olmasını şart koşar —
+     yarım bırakılmış bir yer tutucu sessizce yayına çıkmasın. */
   const izler = links[0].target.sha256_cert_fingerprints;
-  assert.ok(Array.isArray(izler) && izler.length === 1, 'tam bir parmak izi alanı bulunmalı');
-  console.log('  ✓ 4) SHA-256 parmak izi alanı hazır (Play Console\'dan doldurulacak)');
+  assert.ok(Array.isArray(izler) && izler.length >= 1 && izler.length <= 2,
+    'bir ya da iki parmak izi bulunmalı (yükleme anahtarı + Play imzalama)');
+  for (const iz of izler) {
+    assert.ok(/^([0-9A-F]{2}:){31}[0-9A-F]{2}$/.test(iz),
+      'parmak izi 32 baytlık SHA-256 biçiminde olmalı — ' + iz);
+  }
+  console.log('  ✓ 4) SHA-256 parmak izi geçerli biçimde (' + izler.length + ' adet)');
 
   // ---------- 5) mağaza görselleri ----------
   const gorseller = [

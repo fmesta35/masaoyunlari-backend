@@ -28,6 +28,20 @@ $ErrorActionPreference = "Continue"
 $root = $PSScriptRoot
 Set-Location $root
 
+# Java .properties dosyalari ISO-8859-1 okunur; Turkce "i" (U+0131) orada
+# YOK. -Encoding ASCII ile yazilinca karakter "?" olur ve yol bozulur
+# (kullanici klasoru C:\Users\Faz_l -> Gradle SDK'yi ve imza anahtarini
+# bulamaz). Dogrusu Java'nin kendi kacis bicimi: ASCII disi her karakter
+# \uXXXX olarak yazilir.
+function JavaProp($metin) {
+    $sb = New-Object System.Text.StringBuilder
+    foreach ($ch in $metin.ToCharArray()) {
+        if ([int]$ch -lt 128) { [void]$sb.Append($ch) }
+        else { [void]$sb.AppendFormat('\u{0:x4}', [int]$ch) }
+    }
+    return $sb.ToString()
+}
+
 function Ok($m)   { Write-Host "OK   $m" -ForegroundColor Green }
 function Info($m) { Write-Host "->   $m" -ForegroundColor Cyan }
 function Err($m)  { Write-Host "HATA $m" -ForegroundColor Red }
@@ -185,12 +199,12 @@ if (-not (Test-Path $keyFile)) {
         -dname "CN=Masa Oyunlari, OU=Masa Oyunlari, O=masaoyunlari.com.tr, L=Istanbul, C=TR" | Out-Null
     if (-not (Test-Path $keyFile)) { Err "Anahtar olusturulamadi."; exit 1 }
 
-    $yol = $keyFile -replace '\\', '/'
+    $yol = JavaProp ($keyFile -replace '\\', '/')
     @(
         "storeFile=$yol",
-        "storePassword=$s1",
+        "storePassword=$(JavaProp $s1)",
         "keyAlias=$keyAlias",
-        "keyPassword=$s1"
+        "keyPassword=$(JavaProp $s1)"
     ) | Set-Content -Path $propFile -Encoding ASCII
     # Parolayi ayrica okunakli bir not dosyasina yaz: keystore.properties
     # teknik bir dosya, kullanici yedeklerken ne oldugunu bilsin.
@@ -222,7 +236,7 @@ if (-not (Test-Path $keyFile)) {
 }
 
 # --------------------------------------------------------------- 5) local.properties
-$sdkYol = $androidSdk -replace '\\', '/'
+$sdkYol = JavaProp ($androidSdk -replace '\\', '/')
 "sdk.dir=$sdkYol" | Set-Content -Path "$root\local.properties" -Encoding ASCII
 
 # ------------------------------------------------------------------ 6) Derle

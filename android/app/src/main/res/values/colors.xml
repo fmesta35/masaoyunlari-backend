@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Sitenin marka renkleri (index.html --bg / theme-color ile aynı):
+<!-- Sitenin marka renkleri (index.html gövde zemini ve theme-color ile aynı):
      koyu lacivert zemin + mor vurgu. Açılış ekranı ile sayfanın arka planı
      aynı olsun ki geçişte beyaz "çakma" olmasın. -->
 <resources>
