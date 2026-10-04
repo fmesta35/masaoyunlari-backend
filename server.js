@@ -71,6 +71,15 @@ app.get('/.well-known/assetlinks.json', (_req, res) => {
   res.set('Content-Type', 'application/json');
   res.sendFile(nodePath.join(__dirname, '.well-known', 'assetlinks.json'));
 });
+/* GİZLİLİK POLİTİKASI — Google Play BAŞVURU ŞARTI: mağaza kaydında herkese
+   açık bir gizlilik politikası adresi verilmek zorunda ve o adres uygulama
+   içinden de erişilebilir olmalı. Ayrı bir HTML sayfası olarak duruyor
+   (tek sayfalık uygulamanın içine gömülseydi Play'in robotu göremezdi:
+   metin JavaScript çalışmadan ekrana gelmiyor). */
+app.get('/gizlilik-politikasi.html', (_req, res) => {
+  res.set('Content-Type', 'text/html; charset=utf-8');
+  res.sendFile(nodePath.join(__dirname, 'gizlilik-politikasi.html'));
+});
 
 app.get(['/', '/index.html'], (_req, res) => {
   res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
@@ -335,8 +344,33 @@ const PRESET_GAME_BASES = {
   battleship: 1001, kelimelik: 1101
 };
 const STANDARD_PRESET_GAMES = Object.keys(PRESET_GAME_BASES);
-// Hazır masası SABİT olan oyunlar (panel yalnızca görünürlük yönetir):
+/* Okey ve 101 Okey'in hazır masaları "taban ID + indeks" şemasını DEĞİL,
+   kendi (kişi sayısı × el/süre) kombinasyon şemasını kullanır; bu yüzden
+   STANDARD listesinde değiller. Eskiden panel bunu "yapı sabit" sayıp
+   yalnız görünürlük düğmesi gösteriyordu (kullanıcı raporu: "okey ve 101
+   okey'in masa düzenlerinde masa artırma ve eksiltme düzeltme ayarları
+   yok"). Artık kurucu bunların da masasını ekleyip çıkarabiliyor; sunucu
+   tarafı zaten destekliyordu (bkz. normPresetConfig). */
 const FIXED_PRESET_GAMES = ['okey', 'okey101'];
+
+/* Masa satırı kişi sayısı ve el sayısı da taşıyan oyunlar. Panel bunlara
+   ek sütun çizer; normPresetConfig bu alanları korur. */
+const MANAGED_CARD_GAMES = ['okey', 'okey101', 'pisti', 'batak'];
+
+/* Bu oyunların masa kimlikleri için AYRILMIŞ aralıklar. Kurucu varsayılan
+   masa sayısının üstüne masa eklediğinde yeni kimlik buradan verilir;
+   aralıklar çakışmadığı için iki oyunun masası asla aynı odaya düşmez.
+   (Aralığın uzunluğu aynı zamanda o oyunun masa sayısı üst sınırıdır.) */
+const CARD_TABLE_RANGE = {
+  okey:    [301, 330],   // varsayılan 18 masa (301-318) + 12 boş
+  okey101: [331, 340],   // varsayılan  6 masa (331-336) +  4 boş
+  pisti:   [341, 360],   // varsayılan 18 masa (341-358) +  2 boş
+  batak:   [361, 400]    // varsayılan  6 masa (361-366) + 34 boş
+};
+function cardTableLimit(g) {
+  const r = CARD_TABLE_RANGE[g];
+  return r ? (r[1] - r[0] + 1) : 40;
+}
 
 function clampDuration(v, dflt) {
   const n = Math.floor(Number(v));
@@ -374,10 +408,16 @@ function normPresetConfig(raw) {
     if (!src || typeof src !== 'object') continue;
     if (typeof src.visible === 'boolean') cfg[g].visible = src.visible;
     if (typeof src.online === 'boolean') cfg[g].online = src.online;
-    const isManagedCardGame = ['okey','okey101','pisti','batak'].includes(g);
+    const isManagedCardGame = MANAGED_CARD_GAMES.includes(g);
     if (isManagedCardGame && Array.isArray(src.tables)) {
       const defs = managedCardTables(g);
-      const t = src.tables.slice(0, 40).map((x,i) => { const d=defs[i]||defs[defs.length-1]||{}; x=x&&typeof x==='object'?x:{}; return {id:String(x.id||d.id||''),name:String(x.name||d.name||('Masa #'+(i+1))).slice(0,60),type:(x.type==='fast'||x.type==='thinker')?x.type:'normal',durationMinutes:clampDuration(x.durationMinutes,d.durationMinutes||10),maxPlayers:Math.max(2,Math.min(Number(x.maxPlayers||d.maxPlayers||2),g==='batak'?4:4)),rounds:Number(x.rounds||d.rounds)||undefined}; });
+      const bas = (CARD_TABLE_RANGE[g] || [1])[0];
+      /* ⚠ KİMLİK ÇAKIŞMASI: eskiden varsayılandan FAZLA masa eklendiğinde
+         `defs[defs.length-1]` kullanılıyor ve yeni masa SON varsayılanın
+         kimliğini alıyordu; iki masa aynı odaya çöküyordu. Artık kimliksiz
+         satıra, oyuna ayrılmış aralıktan indekse karşılık gelen benzersiz
+         kimlik verilir (bkz. CARD_TABLE_RANGE). */
+      const t = src.tables.slice(0, cardTableLimit(g)).map((x,i) => { const d=defs[i]||{}; x=x&&typeof x==='object'?x:{}; return {id:String(x.id||d.id||(bas+i)),name:String(x.name||d.name||('Masa #'+(bas+i))).slice(0,60),type:(x.type==='fast'||x.type==='thinker')?x.type:'normal',durationMinutes:clampDuration(x.durationMinutes,d.durationMinutes||10),maxPlayers:Math.max(2,Math.min(Number(x.maxPlayers||d.maxPlayers||2),4)),rounds:Number(x.rounds||d.rounds)||undefined}; });
       if (t.length) cfg[g].tables=t;
     }
     // ⚠ HATA DÜZELTMESİ: pisti/batak HEM yukarıdaki "yönetilen kart oyunu"
@@ -716,9 +756,11 @@ function createRoom(id, gameId, maxPlayers, durationMinutes, meta) {
     moveStartedAt: null,
     moveWarned: false,
     /* Kelimelik'te masa tipi HAMLE SÜRESİNİ belirler (ana saat yoktur):
-       ⚡ Hızlı 10 dk → 30 sn · ♟️ Normal 15 dk → 60 sn · 🧠 Düşünen 20 dk → 90 sn */
+       ⚡ Hızlı 10 dk → 30 sn · ♟️ Normal 15 dk → 45 sn · 🧠 Düşünen 20 dk → 60 sn
+       (kullanıcı isteği; önceki değerler 30/60/90 sn idi — uzun süreler
+       masaları gereğinden fazla uzatıyordu.) */
     moveLimitMs: (gameId === 'kelimelik')
-      ? ({ 10: 30000, 15: 60000, 20: 90000 }[duration] || 60000) : null,
+      ? ({ 10: 30000, 15: 45000, 20: 60000 }[duration] || 45000) : null,
     result: null,
     lastMove: null
   };
@@ -1090,7 +1132,7 @@ function turnSeatOf(room) {
   if (room.cardGame) return room.cardGame.turn;
   return null;
 }
-/* Hamle süresi masaya göre değişebilir (Kelimelik: ⚡30 sn · ♟️60 sn · 🧠90 sn).
+/* Hamle süresi masaya göre değişebilir (Kelimelik: ⚡30 sn · ♟️45 sn · 🧠60 sn).
    room.moveLimitMs kuruluşta atanır; atanmamışsa eski davranış sürer. */
 function moveLimitOf(room) {
   if (room && Number(room.moveLimitMs) > 0) return Number(room.moveLimitMs);
@@ -4277,6 +4319,15 @@ app.get('/api/admin/tables', async (req, res) => {
     sema: {
       standart: STANDARD_PRESET_GAMES,
       sabit: FIXED_PRESET_GAMES,
+      /* Masası eklenip çıkarılabilen ve düzenlenebilen BÜTÜN oyunlar.
+         Panelin düğmeleri buna bakar; 'sabit' listesi yalnızca "taban ID +
+         indeks" şemasını KULLANMAYAN oyunları (okey / 101 okey) işaretler.
+         Eskiden panel 'sabit' olanlara hiç düğme çizmiyordu. */
+      duzenlenebilir: STANDARD_PRESET_GAMES.concat(FIXED_PRESET_GAMES),
+      /* Satırında kişi sayısı / el sayısı da taşıyan oyunlar. */
+      kartMasalari: MANAGED_CARD_GAMES,
+      /* Her birinin masa sayısı üst sınırı (ayrılmış kimlik aralığı kadar). */
+      kartSinir: Object.fromEntries(MANAGED_CARD_GAMES.map(g => [g, cardTableLimit(g)])),
       tabanlar: PRESET_GAME_BASES,
       tipler: PRESET_TYPES.map(t => ({ type: t.type, label: t.label, durationMinutes: t.durationMinutes })),
       tumOyunlar: ALL_GAMES

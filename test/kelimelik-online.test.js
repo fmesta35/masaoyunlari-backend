@@ -48,7 +48,7 @@ async function main() {
     assert.notDeepStrictEqual(pa.gameState.rack, pb.gameState.rack);
     assert.ok(!('racks' in pa.gameState), 'iki ıstaka birden gönderilmemeli');
     assert.ok(!('bagTiles' in pa.gameState), 'torbanın içeriği gönderilmemeli');
-    assert.strictEqual(pa.gameState.turnLimitMs, 60000, '15 dk masa → 60 sn hamle');
+    assert.strictEqual(pa.gameState.turnLimitMs, 45000, '15 dk masa → 45 sn hamle');
     a.disconnect(); b.disconnect();
   }
 
@@ -60,7 +60,7 @@ async function main() {
   }
   {
     const { a, b, pa } = await masaAc(url, 'kl-dusunen', 20);
-    assert.strictEqual(pa.gameState.turnLimitMs, 90000, '20 dk masa → 90 sn hamle');
+    assert.strictEqual(pa.gameState.turnLimitMs, 60000, '20 dk masa → 60 sn hamle');
     a.disconnect(); b.disconnect();
   }
 

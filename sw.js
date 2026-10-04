@@ -17,7 +17,7 @@
  */
 'use strict';
 
-const SURUM = 'gv-v1-20261004a';
+const SURUM = 'gv-v1-20261004b';
 const KABUK = 'gv-kabuk-' + SURUM;
 const VARLIK = 'gv-varlik-' + SURUM;
 
@@ -68,15 +68,22 @@ self.addEventListener('fetch', e => {
     (e.request.headers.get('accept') || '').includes('text/html');
 
   if (htmlMi) {
-    // ÖNCE AĞ: yeni dağıtım anında görünsün.
+    /* ÖNCE AĞ: yeni dağıtım anında görünsün.
+       KABUK olarak YALNIZ kök belge saklanır. Eskiden HER html yanıtı '/'
+       anahtarıyla yazılıyordu; gizlilik politikası gibi ayrı bir sayfa
+       açıldığında uygulama kabuğunun yerine O SAYFA geçiyordu ve ağ
+       koptuğunda kullanıcı oyun yerine politika metnini görüyordu. */
+    const kokMu = url.pathname === '/' || url.pathname === '/index.html';
     e.respondWith(
       fetch(e.request)
         .then(cev => {
-          const kopya = cev.clone();
-          caches.open(KABUK).then(c => c.put('/', kopya)).catch(() => {});
+          if (kokMu && cev && cev.status === 200) {
+            const kopya = cev.clone();
+            caches.open(KABUK).then(c => c.put('/', kopya)).catch(() => {});
+          }
           return cev;
         })
-        .catch(() => caches.match('/').then(c => c || caches.match(e.request)))
+        .catch(() => caches.match(e.request).then(c => c || caches.match('/')))
     );
     return;
   }

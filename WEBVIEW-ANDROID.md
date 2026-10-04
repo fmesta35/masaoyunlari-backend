@@ -46,22 +46,61 @@ zaman günceldir — mağazaya yeni sürüm yüklemeden site güncellenir.
 
 ## 3. Yapılacaklar
 
-### 3.1 Paket adını seç (bir kez, geri dönüşü yok)
-Örnek: `tr.com.masaoyunlari.twa`
+### 3.1 Paket adı — SEÇİLDİ
 
-### 3.2 Uygulamayı paketle (Bubblewrap)
+```
+tr.com.masaoyunlari.oyun
+```
+
+Bir daha **asla değişmez**: Play'de uygulamanın kalıcı kimliği budur.
+`.well-known/assetlinks.json` ve `PLAY-MAGAZA.md` bu ada göre doldurulmuştur.
+
+> Mağazada **"Masa Oyunları"** diye arandığında çıkması paket adına değil,
+> mağaza adına ve açıklamadaki kelimelere bağlıdır. İkisi de
+> `PLAY-MAGAZA.md` içinde hazır.
+
+### 3.2 `.aab` dosyasını üret — PWABuilder (önerilen yol)
+
+1. <https://www.pwabuilder.com> adresini aç.
+2. Kutuya `https://www.masaoyunlari.com.tr` yaz, **Start** de.
+   PWABuilder manifest'i, servis çalışanını ve HTTPS'i denetler.
+3. **Package for stores → Android → Generate Package** de.
+4. Açılan formu şöyle doldur:
+
+   | Alan | Değer |
+   |---|---|
+   | Package ID | `tr.com.masaoyunlari.oyun` |
+   | App name | `Masa Oyunları` |
+   | Short name | `Masa Oyunları` |
+   | App version / Version code | `1.0.0` / `1` |
+   | Host | `www.masaoyunlari.com.tr` |
+   | Start URL | `/` |
+   | Theme / Background color | `#0a0a1a` |
+   | Display mode | `standalone` |
+   | Signing key | **Create new** (PWABuilder üretsin) |
+   | Include source code | işaretle (ileride Bubblewrap'e geçebilmek için) |
+
+5. İnen zip'in içinde şunlar olur:
+   - `app-release-signed.aab` → **Play Console'a yüklenecek dosya**
+   - `signing.keystore` + `signing-key-info.txt` → **imza anahtarı**
+   - `assetlinks.json` → içindeki SHA-256 parmak izi 3.3'te kullanılacak
+
+> ⚠️ **`signing.keystore` ve parolasını kaybetme.** Kaybedersen bu
+> uygulamaya bir daha güncelleme yükleyemezsin; yeni paket adıyla sıfırdan
+> uygulama açman gerekir. Bir yedeğini çevrimdışı sakla.
+
+**Alternatif (kendi bilgisayarında, Bubblewrap):**
 
 ```bash
 npm i -g @bubblewrap/cli
 bubblewrap init --manifest https://www.masaoyunlari.com.tr/manifest.json
-# Sorular: paket adı, uygulama adı, tema rengi (#0a0a1a), yönelim (any)
+# Sorular: paket adı (tr.com.masaoyunlari.oyun), uygulama adı (Masa Oyunları),
+#          tema rengi (#0a0a1a), yönelim (any)
 bubblewrap build
 ```
 
-Çıktı: `app-release-signed.aab` → Play Console'a bu dosya yüklenir.
-
-> Alternatif: https://www.pwabuilder.com adresine site adresini girip
-> "Android → Generate" demek de aynı işi arayüzden yapar.
+Bubblewrap JDK ve Android SDK'yı kendisi indirir (birkaç GB).
+Çıktı yine `app-release-signed.aab`.
 
 ### 3.3 `assetlinks.json`'u doldur (adres çubuğu bunun için gizlenir)
 
@@ -74,7 +113,7 @@ Play Console → **Yayın → Kurulum → Uygulama imzalama** sayfasındaki
   "relation": ["delegate_permission/common.handle_all_urls"],
   "target": {
     "namespace": "android_app",
-    "package_name": "tr.com.masaoyunlari.twa",
+    "package_name": "tr.com.masaoyunlari.oyun",
     "sha256_cert_fingerprints": ["AA:BB:CC:... (Play'den kopyalanan)"]
   }
 }]
@@ -90,12 +129,33 @@ Yöncü'de yeri: `public_html/.well-known/assetlinks.json`
 Doğrulama: https://developers.google.com/digital-asset-links/tools/generator
 
 ### 3.4 Play Console mağaza kaydı
-- Uygulama simgesi 512×512 (`assets/icons/icon-512.png`)
-- Özellik grafiği 1024×500
-- En az 2 telefon ekran görüntüsü (tablet ekranları da eklenirse iyi olur)
-- Gizlilik politikası bağlantısı: `https://www.masaoyunlari.com.tr/gizlilik-politikasi.html`
-- İçerik derecelendirme anketi ve "Veri güvenliği" formu (üyelik e-posta
-  topluyor: **Kişisel bilgiler → E-posta adresi** olarak beyan edin)
+
+Bütün metinler ve form cevapları **`PLAY-MAGAZA.md`** dosyasında hazır:
+mağaza adı, kısa/uzun açıklama, "Veri güvenliği" tablosu ve içerik
+derecelendirme anketinin madde madde cevapları. Oradan kopyala.
+
+Görseller depoda hazır:
+
+| Alan | Dosya |
+|---|---|
+| Uygulama simgesi 512×512 | `assets/icons/icon-512.png` |
+| Özellik grafiği 1024×500 | `assets/play/ozellik-grafigi-1024x500.png` |
+| Telefon ekranları (6 adet, 1080×1920) | `assets/play/ekran/*.png` |
+
+Gizlilik politikası (Play'in **zorunlu** tuttuğu alan):
+`https://www.masaoyunlari.com.tr/gizlilik-politikasi.html`
+
+### 3.5 Yayın akışı
+
+1. Play Console → **Uygulama oluştur** (ad: Masa Oyunları, Oyun, Ücretsiz)
+2. **Test → Kapalı test** sürümü oluştur, `.aab` dosyasını yükle
+3. **Yayın → Kurulum → Uygulama imzalama** sayfasındaki SHA-256 parmak izini
+   al, 3.3'teki gibi `assetlinks.json`'a yaz ve siteye yükle
+4. Mağaza kaydını doldur (3.4), içerik derecelendirme ve Veri güvenliği
+   formlarını gönder
+5. Kapalı testte uygulamayı aç: **adres çubuğu görünmüyorsa** assetlinks
+   doğrulanmış demektir. Görünüyorsa parmak izi ya da paket adı yanlıştır
+6. **Üretim**e yükselt. İlk incelemenin birkaç gün sürmesi normaldir
 
 ---
 
