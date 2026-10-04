@@ -81,6 +81,15 @@ app.get('/gizlilik-politikasi.html', (_req, res) => {
   res.sendFile(nodePath.join(__dirname, 'gizlilik-politikasi.html'));
 });
 
+/* HESAP SİLME SAYFASI — Google Play "Veri güvenliği" formu, hesap açılabilen
+   her uygulamadan hesabın ve ilişkili verilerin silinmesini talep etmek için
+   AYRI BİR ADRES ister (e-posta tek başına yetmiyor; form bir URL istiyor).
+   Politika gibi düz HTML: Play'in incelemecisi JavaScript çalıştırmadan okur. */
+app.get('/hesap-silme.html', (_req, res) => {
+  res.set('Content-Type', 'text/html; charset=utf-8');
+  res.sendFile(nodePath.join(__dirname, 'hesap-silme.html'));
+});
+
 app.get(['/', '/index.html'], (_req, res) => {
   res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
   res.sendFile(nodePath.join(__dirname, 'index.html'));

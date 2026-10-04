@@ -2011,6 +2011,7 @@ body.gv-app input,body.gv-app textarea,body.gv-app .chat-msgs,body.gv-app .moves
 .gv-play-txt small{font-size:.62em;opacity:.82;letter-spacing:.6px;text-transform:uppercase}
 .gv-play-txt b{font-size:.98em}
 .gv-foot-cols{display:flex;gap:40px;flex-wrap:wrap}
+.gv-foot-col{min-width:150px}
 .gv-foot-col h4{font-size:.78em;letter-spacing:1px;color:var(--text3);margin-bottom:10px}
 .gv-foot-col button,.gv-foot-col a{display:block;background:none;border:0;padding:5px 0;
   color:var(--text2);font-size:.9em;cursor:pointer;text-decoration:none;text-align:left}
@@ -2021,7 +2022,13 @@ body.gv-app input,body.gv-app textarea,body.gv-app .chat-msgs,body.gv-app .moves
 @media(max-width:800px){
   .gv-footer{margin-top:22px;padding:20px 14px calc(16px + env(safe-area-inset-bottom,0px))}
   .gv-foot-in{gap:18px}
-  .gv-foot-cols{gap:26px}
+  /* Telefonda iki sütun yan yana: alt alta dizilince alt bilgi gereğinden
+     uzun oluyordu. Izgara "auto 1fr": KEŞFET içeriği kadar yer kaplar,
+     kalan genişliği İLETİŞİM alır — e-posta adresi tek satıra sığsın diye
+     (eskiden ✉️ simgesi tek başına üstte kalıyordu). */
+  .gv-foot-cols{display:grid;grid-template-columns:auto 1fr;gap:18px 22px}
+  .gv-foot-col{min-width:0}
+  .gv-foot-col a{overflow-wrap:anywhere}
   .gv-foot-bottom{justify-content:center;text-align:center}
   .gv-play{width:100%;justify-content:center}
 }
@@ -2311,16 +2318,17 @@ body.gv-app input,body.gv-app textarea,body.gv-app .chat-msgs,body.gv-app .moves
             <button onclick="GV.page('lb')">🏆 Sıralama</button>
             <button onclick="GV.page('ranks')">🏅 Rütbeler</button>
           </div>
-          <div class="gv-foot-col">
-            <h4>YASAL</h4>
-            <!-- Google Play, mağaza kaydındaki gizlilik politikası adresinin
-                 UYGULAMA İÇİNDEN de erişilebilir olmasını istiyor; bağlantı
-                 bu yüzden alt bilgide duruyor. -->
-            <a href="/gizlilik-politikasi.html">🔏 Gizlilik Politikası</a>
-          </div>
+          <!-- İLETİŞİM ve YASAL TEK SÜTUNDA: ayrı bir "Yasal" sütunu tek
+               bağlantı için fazla genişti ve telefonda üç sütun alt alta
+               kayıp alt bilgiyi uzatıyordu. Gizlilik politikası bağlantısı
+               iletişim başlığının altında duruyor — Google Play, mağaza
+               kaydındaki politika adresinin UYGULAMA İÇİNDEN de
+               erişilebilir olmasını istiyor, bu şart korunuyor. -->
           <div class="gv-foot-col">
             <h4>İLETİŞİM</h4>
             <a href="mailto:info@masaoyunlari.com.tr">✉️ info@masaoyunlari.com.tr</a>
+            <a href="/gizlilik-politikasi.html">🔏 Gizlilik Politikası</a>
+            <a href="/hesap-silme.html">🗑️ Hesap Silme</a>
           </div>
         </div>
       </div>

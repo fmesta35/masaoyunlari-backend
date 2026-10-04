@@ -16,10 +16,21 @@ karakter sınırlarını burada denetler; metni değiştirirsen testi çalışt�
 | Uygulama türü | Oyun |
 | Kategori | Tahta Oyunları (Board) |
 | Etiketler | okey, tahta oyunu, kart oyunu, kelime oyunu, çok oyunculu |
-| Ücretlendirme | Ücretsiz, uygulama içi satın alma YOK, reklam YOK |
+| Ücretlendirme | Ücretsiz, uygulama içi satın alma YOK; **şu an reklam yok** |
+
+> **Reklam beyanı:** ilk yayında uygulamada reklam bulunmadığı için Play
+> Console'daki "Reklamlar" bölümünde **"Hayır, uygulamam reklam içermiyor"**
+> seçilir. İleride Google reklam/banner eklendiğinde ÜÇ yer birlikte
+> güncellenmelidir: (1) bu beyan "Evet, reklam içeriyor" olarak
+> değiştirilir, (2) "Veri güvenliği" formunda reklam kimliği ve ilgili
+> veri türleri işaretlenir, (3) `gizlilik-politikasi.html` dosyasındaki
+> **4.1 Reklam** bölümü reklam sağlayıcısının adıyla doldurulur. Mağaza
+> metinlerinde de "reklam yok" ifadesi bırakılmaz — yanlış beyan Play
+> politikası ihlalidir.
 | Web sitesi | https://www.masaoyunlari.com.tr |
 | E-posta | info@masaoyunlari.com.tr |
 | Gizlilik politikası | https://www.masaoyunlari.com.tr/gizlilik-politikasi.html |
+| Hesap/veri silme adresi | https://www.masaoyunlari.com.tr/hesap-silme.html |
 
 > **"Masa Oyunları" diye arandığında çıkması** paket adına değil, yukarıdaki
 > **mağaza adına** ve açıklamalardaki kelimelere bağlıdır. Paket adı yalnızca
@@ -56,7 +67,7 @@ OYUNLAR
 
 NEDEN BURADA OYNANIR
 • Tamamen ücretsiz. Jeton yok, enerji yok, "devam etmek için öde" yok.
-• Reklam yok. Oyunun ortasında video izlemezsin.
+• Oyunun ortasında zorunlu video reklam yok; maçın akışı kesilmez.
 • Üyelik şart değil. Ziyaretçi olarak hemen oynamaya başlayabilirsin.
 • Türkçe. Arayüz, kurallar ve sözlük baştan sona Türkçe hazırlandı.
 • Hileye kapalı. Bütün oyun kuralları sunucuda işler; rakibinin taşlarını
@@ -113,11 +124,37 @@ Görseller yeniden üretilecekse:
 
 ## 5. "Veri güvenliği" formu — hazır cevaplar
 
-**Uygulamanız veri topluyor veya paylaşıyor mu?** → Evet, topluyor.
-**Verileri üçüncü taraflarla paylaşıyor musunuz?** → Hayır.
-**Aktarım sırasında şifreleniyor mu?** → Evet (HTTPS).
-**Kullanıcı verisinin silinmesini talep edebiliyor mu?** → Evet
-(`https://www.masaoyunlari.com.tr/gizlilik-politikasi.html` — 6. madde).
+**Uygulamanız veri topluyor veya paylaşıyor mu?** → **Evet**, topluyor.
+
+**Verileri üçüncü taraflarla paylaşıyor musunuz?** → **Hayır**.
+
+**Uygulamanızın topladığı tüm kullanıcı verileri aktarım sırasında
+şifreleniyor mu?** → **Evet**.
+
+> Bu cevabın dayanağı: istemcideki bütün adresler `https://` ile başlar
+> (`js/config.js` içindeki Render adresi dahil), canlı oyun bağlantısı
+> `wss://` üzerinden kurulur, Yöncü'deki PHP uç noktaları `GV_AUTH_API`
+> ile yine `https://` adresinden çağrılır. Depoda düz `http://` ile çalışan
+> tek bir uç nokta yoktur; `test/veri-guvenligi.test.js` bunu her çalıştırmada
+> denetler, yani cevap ileride yanlışa düşmez.
+
+**Kullanıcılar hesaplarının ve ilişkili verilerinin silinmesini talep
+edebiliyor mu?** → **Evet**. Forma girilecek adres:
+
+```
+https://www.masaoyunlari.com.tr/hesap-silme.html
+```
+
+> Play, bu alanda **ayrı ve herkese açık bir bağlantı** ister; politikanın
+> içindeki bir madde numarası yeterli sayılmaz. `hesap-silme.html` sayfası
+> talebin nasıl yapılacağını, silinen verileri, saklanan kayıtları ve
+> sürelerini tek sayfada yazar. Sayfa üye girişi istemez — incelemeci de
+> açabilsin diye. Bağlantı ayrıca sitenin alt bilgisinde (İLETİŞİM sütunu)
+> ve gizlilik politikasının 6. ve 7. maddelerinde duruyor.
+>
+> **Silme türü** sorulursa: *"Hesap silme talebi ve veri silme talebi"*
+> seçeneği işaretlenir — kullanıcı hesabını tamamen kapattırabildiği gibi,
+> hesabı dururken yalnız oyun geçmişinin silinmesini de isteyebiliyor.
 
 | Veri türü | Toplanıyor | Zorunlu | Amaç |
 |---|---|---|---|

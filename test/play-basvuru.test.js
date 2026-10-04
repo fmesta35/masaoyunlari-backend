@@ -151,6 +151,45 @@ async function main() {
   console.log('  ✓ 7) mağaza metinleri sınırlar içinde (ad ' + baslik.trim().length +
               ', kısa ' + kisaUz + ', uzun ' + uzun.trim().length + ' karakter)');
 
+  /* ---------- 8) REKLAM BEYANI TUTARLI MI ----------
+   * Kullanıcı isteği: "google reklam ve bannerları ileride ekleyeceğim".
+   * Politikada ve mağaza metninde "reklam göstermiyoruz" gibi KOŞULSUZ bir
+   * söz vermek, reklam eklendiği gün yanlış beyana dönüşür — Play'de bu
+   * doğrudan politika ihlalidir. O yüzden cümleler TARİHE BAĞLI olmalı ve
+   * reklam eklenirse ne yapılacağı yazmalı. Bu madde o dili kilitler. */
+  assert.ok(/bu politikanın yayımlandığı tarihte[\s\S]{0,160}reklam/i.test(govde),
+    'reklam cümlesi tarihe bağlanmalı ("bu politikanın yayımlandığı tarihte..."); ' +
+    'koşulsuz "reklam göstermiyoruz" sözü reklam eklenince yanlış beyan olur');
+  assert.ok(/reklamlar[\s\S]{0,40}yayına girmeden önce/i.test(govde),
+    'reklam eklenirse politikanın ÖNCEDEN güncelleneceği sözü politikada olmalı');
+  assert.ok(/4\.1\s*Reklam/i.test(govde),
+    'politikada ayrı bir "4.1 Reklam" bölümü olmalı (sağlayıcı adı oraya yazılacak)');
+  assert.ok(/sat(mıyoruz|ılmaz)/i.test(govde),
+    'veri satmama sözü korunmalı — bu söz reklam eklendiğinde de geçerli kalıyor');
+  assert.ok(!/reklam\s+göstermiyoruz/i.test(govde),
+    'politikada koşulsuz "reklam göstermiyoruz" ifadesi bulunmamalı');
+  assert.ok(!/^\s*[•\-*]\s*Reklam yok/im.test(m),
+    'mağaza uzun açıklamasında koşulsuz "Reklam yok" maddesi bulunmamalı');
+  assert.ok(/Veri güvenliği/i.test(m) && /Reklamlar/i.test(m),
+    'PLAY-MAGAZA.md reklam eklenince güncellenecek yerleri (reklam beyanı + ' +
+    'Veri güvenliği formu) listelemeli');
+  console.log('  ✓ 8) reklam beyanı tarihe bağlı; ileride reklam eklenince ne yapılacağı yazılı');
+
+  /* ---------- 9) ALT BİLGİDE POLİTİKA BAĞLANTISI İLETİŞİM SÜTUNUNDA ----------
+   * Tek bağlantı için ayrı "YASAL" sütunu hem webde boş duruyordu hem de
+   * telefonda alt bilgiyi uzatıyordu. Bağlantı İLETİŞİM başlığının altına
+   * taşındı; Play'in "politika uygulama içinden erişilebilir olmalı" şartı
+   * 6. maddede ayrıca denetleniyor, burada da sütun düzeni korunuyor. */
+  assert.ok(!/<h4>\s*YASAL\s*<\/h4>/i.test(indexHtml),
+    'ayrı "YASAL" sütunu kaldırıldı; bağlantı İLETİŞİM sütununda duruyor');
+  const iletisimSutunu = (indexHtml.match(
+    /<h4>İLETİŞİM<\/h4>[\s\S]{0,400}?<\/div>/) || [])[0] || '';
+  assert.ok(/gizlilik-politikasi\.html/.test(iletisimSutunu),
+    'gizlilik politikası bağlantısı İLETİŞİM sütununun içinde olmalı');
+  assert.ok(/grid-template-columns:auto 1fr/.test(indexHtml),
+    'telefonda alt bilgi iki sütun yan yana kalmalı (e-posta tek satıra sığsın)');
+  console.log('  ✓ 9) alt bilgi: politika bağlantısı İLETİŞİM sütununda, telefonda iki sütun');
+
   server.close();
   console.log('OK Play başvurusu: politika, hesap silme, paket adı, görseller, metinler');
   process.exit(0);
