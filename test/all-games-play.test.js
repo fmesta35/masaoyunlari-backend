@@ -185,12 +185,16 @@ async function main() {
     const mi = payloads.findIndex(p => p.gameState.turn === p.seat);
     assert.ok(mi >= 0, g + ': başlayan koltuk');
     const before = payloads[mi].gameState.myHand.length;
-    assert.strictEqual(before, 15, g + ': başlayan 15 taşla açar');
+    /* 101 Okey gerçek kurallara geçti: başlayan 22, diğerleri 21 taş alır.
+       Klasik okey 14/15 ile devam ediyor (kullanıcı kararı). */
+    const beklenen = (g === 'okey101') ? 22 : 15;
+    assert.strictEqual(before, beklenen, g + ': başlayan ' + beklenen + ' taşla açar');
     const tile = payloads[mi].gameState.myHand[0];
     const ups = cl.map(s => once(s, 'gameStateUpdated', 8000));
     cl[mi].emit('okeyDiscard', { roomId: id, tileId: tile.id });
     const after = await Promise.all(ups);
-    assert.strictEqual(after[mi].gameState.myHand.length, 14, g + ': atıştan sonra 14 taş');
+    assert.strictEqual(after[mi].gameState.myHand.length, beklenen - 1,
+      g + ': atıştan sonra ' + (beklenen - 1) + ' taş');
     const seatOfMi = payloads[mi].seat;
     after.forEach((a, i) => assert.strictEqual((a.gameState.discardPiles[seatOfMi] || []).length, 1,
       g + ': atılan taş tüm masada görünmeli (istemci ' + i + ')'));

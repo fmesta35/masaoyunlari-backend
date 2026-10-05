@@ -171,6 +171,29 @@ async function main() {
   }
   console.log('  ✓ 5) klasik okey dokunulmadan duruyor (14/15, eski paket)');
 
+  /* ---------- 6) ARAYÜZ: masa, El Aç ve kurallar yerinde ----------
+     Sunucu doğru çalışsa bile arayüz eski kalırsa oyun oynanamaz; üç
+     bağlantı noktası burada yazılı. */
+  const istemci = fs.readFileSync(path.join(__dirname, '..', 'js', 'okey-online.js'), 'utf8');
+  assert.ok(/function gercek101/.test(istemci), 'istemci gerçek 101 kuralını paketten anlamalı');
+  assert.ok(/ok101-masa/.test(istemci), 'masadaki açık perler çizilmeli');
+  assert.ok(/_ok101Ac/.test(istemci) && /_ok101Isle/.test(istemci),
+    'El Aç ve işleme işleyicileri bulunmalı');
+  assert.ok(/okFinishZone/.test(istemci) && /!gercek101\(gs\)/.test(istemci),
+    '"ORTAYA BİTİR" bölgesi 101\'de çizilmemeli (bitiş ayrı eylem değil)');
+  const acPenceresi = fs.readFileSync(path.join(__dirname, '..', 'js', 'okey101-ac.js'), 'utf8');
+  assert.ok(/GVOkey101Ac/.test(acPenceresi), 'açma penceresi dışa açılmalı');
+  const sayfa = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
+  assert.ok(/js\/okey101-ac\.js/.test(sayfa), 'açma penceresi sayfaya bağlanmalı');
+  assert.ok(/ok101-masa\{/.test(sayfa), 'masadaki perlerin stili olmalı');
+  /* Kurallar metni OYUNUN kurallarını anlatmalı; eski metin "14 taşını
+     101 puana ulaştır" diyordu ve artık yanlış. */
+  assert.ok(/22<\/b>, diğerlerine <b>21/.test(sayfa), 'kurallar 22/21 dağıtımını anlatmalı');
+  assert.ok(/toplamı en az 101/.test(sayfa), 'kurallar el açma eşiğini anlatmalı');
+  assert.ok(/İşleme/.test(sayfa), 'kurallar işlemeyi anlatmalı');
+  assert.ok(/ceza puanı/i.test(sayfa), 'kurallar ceza puanını anlatmalı');
+  console.log('  ✓ 6) arayüz bağlantıları ve kurallar metni yeni oyuna göre');
+
   for (const s of acik) { try { s.close(); } catch (_) {} }
   server.close();
   console.log('OK 101 okey sunucu akışı: motor seçimi, paket, açma, işleme, klasik korundu');

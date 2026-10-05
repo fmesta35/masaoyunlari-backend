@@ -37,6 +37,23 @@
     early_eight:    '🎱 Önce kendi gruplarınızı bitirmelisiniz; 8 numara en sona kalır.',
     must_draw:      '🀄 Önce yerden ya da desteden taş çekmelisiniz.',
     must_discard:   '🀄 Elinizde fazla taş var — bir taş atmalısınız.',
+
+    /* 101 OKEY (gerçek kurallar). Bu metinler oyuncunun gördüğü TEK
+       açıklama: sunucu isteği reddettiğinde neden reddettiğini burada
+       anlatıyoruz, yoksa oyuncu düğmenin çalışmadığını sanıyor. */
+    draw_first:       '🀄 Önce taş çekmelisiniz.',
+    already_opened:   '🎴 Zaten açtınız — artık taşlarınızı masadaki perlere işleyebilirsiniz.',
+    not_opened:       '🎴 Önce elinizi açmalısınız (perlerin toplamı en az 101 ya da 5 çift).',
+    no_melds:         '🎴 Açmak için en az bir per kurmalısınız.',
+    below_101:        '💯 Perlerinizin toplamı 101\'e ulaşmıyor — açamazsınız.',
+    bad_meld:         '🚫 Geçersiz per: aynı renkte ardışık en az 3 taş ya da aynı sayının farklı renklerinden 3-4 taş olmalı.',
+    bad_pairs:        '👯 Geçersiz çift: her çift aynı renk ve aynı sayıdan iki taş olmalı.',
+    need_discard_tile:'🀄 Elinizin tamamını koyamazsınız — atacak en az bir taş kalmalı.',
+    tile_not_in_hand: '🚫 O taş elinizde değil.',
+    duplicate_tile:   '🚫 Aynı taşı iki perde birden kullanamazsınız.',
+    no_meld:          '🚫 Masada öyle bir per yok.',
+    pairs_locked:     '👯 Çift açılışına taş işlenemez.',
+    empty_pile:       '🀄 Alınacak atık taş yok — desteden çekin.',
     no_discard:     '🀄 Atılacak taş yok.',
     tile_not_found: '🀄 O taş elinizde görünmüyor — masayı yenileyin.',
     not_a_win_hand: '🀄 Bu el bitmiş sayılmıyor — perler ve seriler tamamlanmalı.',

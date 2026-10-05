@@ -1674,13 +1674,13 @@ function startOkey(room) {
   const variant = room.gameId === 'okey101' ? 'okey101' : 'standard';
   /* 101 masaları yeni motora gider; motor yüklenemediyse (dosya yok) eski
      davranışa düşeriz — oyun hiç açılmamasındansa klasik kurallarla açılsın. */
-  /* AÇMA ANAHTARI: gerçek 101 kuralları istemci tarafı da hazır olduğunda
-     açılır. Sunucu kuralları değiştirip arayüz eski kaldığında oyun
-     oynanamaz hale gelir (eski arayüz 14/15 taş ve "Kontrol ile bitir"
-     bekliyor). Bu yüzden varsayılan KAPALI; GV_OKEY101_GERCEK=1 ile açılır.
-     Testler anahtarı kendisi açar. */
+  /* GERÇEK 101 KURALLARI artık varsayılan. Arayüz tarafı hazır: masadaki
+     açık perler çiziliyor, "El Aç" penceresi ve işleme çalışıyor
+     (js/okey-online.js + js/okey101-ac.js).
+     GV_OKEY101_GERCEK=0 ile eski (klasik kurallı) 101'e dönülebilir —
+     yayında beklenmedik bir şey çıkarsa kod değiştirmeden geri alma yolu. */
   const yeni101 = variant === 'okey101' && !!okey101Engine &&
-                  String(process.env.GV_OKEY101_GERCEK || '') === '1';
+                  String(process.env.GV_OKEY101_GERCEK || '1') !== '0';
   const seats = room.players.map(p => p.seat).sort((a, b) => a - b);
   const scores = Object.fromEntries(seats.map(s => [s, 0]));
   room.okey = {
@@ -1830,13 +1830,19 @@ function okeyName(room, seat) {
 }
 
 function okeyLeaderAmong(room, excludedSeat) {
-  // Kalan oyuncular arasından en yüksek skorlu; eşitlikte daha düşük koltuk.
+  /* Kazananı seçer. YÖN OYUNA GÖRE DEĞİŞİR:
+       klasik okey / eski 101 : puan KAZANÇ'tır → en YÜKSEK kazanır
+       gerçek 101             : puan CEZA'dır   → en DÜŞÜK kazanır
+     Bu ayrım atlanırsa 101'de en çok ceza alan oyuncu kazanmış görünür —
+     oyunun tamamını tersine çeviren sessiz bir hata olurdu. */
   const scores = room.okey?.roundState?.scores || {};
+  const cezaMi = yeni101Mi(room);
   let best = null;
   room.players.forEach(p => {
     if (excludedSeat !== null && excludedSeat !== undefined && p.seat === excludedSeat) return;
     const sc = scores[p.seat] || 0;
-    if (!best || sc > best.score) best = { seat: p.seat, score: sc, name: p.name };
+    const daha = !best || (cezaMi ? sc < best.score : sc > best.score);
+    if (daha) best = { seat: p.seat, score: sc, name: p.name };
   });
   return best;
 }

@@ -140,103 +140,66 @@ async function main() {
   }
 
   // ============ B) 4 kişilik: variant + 101 bitiş → MAÇ biter ============
+  /* ----------------------------------------------------------------------
+   * B) GERÇEK 101 KURALLARI
+   * B/C/D bölümleri eskiden "14 taşın toplamı 101'i geçince okeyFinish ile
+   * bit, en YÜKSEK puan kazanır" oyununu ölçüyordu. O oyun artık yok:
+   * 101 Okey gerçek kurallarına geçti (22/21 taş, 101 ile açma, masaya per
+   * koyma, işleme) ve puanlar CEZA — maçı en DÜŞÜK toplam kazanıyor.
+   * Eski senaryoların karşılığı kalmadığı için burası yeniden yazıldı.
+   * Kural ayrıntıları test/okey101-motor.test.js'te, uçtan uca akış
+   * test/okey101-sunucu.test.js'te ölçülüyor; burada paketin istemciye
+   * doğru gittiği ve maç sonunun ceza mantığıyla işlediği doğrulanıyor.
+   * -------------------------------------------------------------------- */
   {
     const { socks, bySeat, first } = await setup101Match(BASE, '911', 'B', 4);
     const room = rooms.get('911');
     assert.ok(room, 'oda bulunmalı');
     assert.strictEqual(first.variant, 'okey101', 'istemciye variant=okey101 gider');
-    assert.strictEqual(first.target, 101, 'istemciye target=101 gider');
+    assert.strictEqual(first.kural, '101', 'istemciye gerçek 101 kuralı bildirilir');
+    assert.strictEqual(first.cezaSiniri, 101, 'istemciye ceza sınırı gider');
+    assert.strictEqual(first.acmaPuani, 101, 'istemciye el açma eşiği gider');
     assert.strictEqual(first.maxRounds, 99, 'güvenlik el limiti 99 (UI değil kural)');
     assert.strictEqual(room.okey.variant, 'okey101', 'oda varyantı okey101');
+    assert.strictEqual(room.okey.yeni101, true, '101 masası yeni motorda olmalı');
 
-    const starterSeat = first.turn;
-    const w = craft101Hand('b');
-    room.okey.roundState.hands[starterSeat] = w.hand;
-    const others = first.seats.filter(x => x !== starterSeat);
-    let expectedGained = 0;
-    others.forEach((s, i) => {
-      const total = 40 + i * 10; // 40/50/60 → toplam 150
-      room.okey.roundState.hands[s] = knownHand('b', s, total);
-      expectedGained += total;
+    const eller = room.okey.roundState.seats
+      .map(s => room.okey.roundState.hands[s].length).sort((a, b) => a - b);
+    assert.deepStrictEqual(eller, [21, 21, 21, 22], '4 kişide dağıtım 22/21/21/21');
+    assert.ok(Array.isArray(first.melds) && first.melds.length === 0, 'el başında masa boş');
+    console.log('  ✓ B) 4 kişilik: gerçek 101 motoru, 22/21 dağıtım, masa paketi');
+
+    /* MAÇ SONU: ceza sınırına ulaşan varsa maç biter ve EN DÜŞÜK toplam
+       kazanır. Skorları doğrudan kurup son eli bitirerek ölçüyoruz. */
+    const seats = room.okey.roundState.seats;
+    const sira0 = room.okey.roundState.turn;
+    /* Bitiren oyuncuya ceza yazılmaz; sıralamayı ona göre kuruyoruz.
+       Kazanması gereken, bitiren DEĞİL en düşük toplama sahip olan. */
+    const kazanacak = seats.find(s => s !== sira0);
+    seats.forEach(s => { room.okey.roundState.scores[s] = 60; });
+    room.okey.roundState.scores[kazanacak] = 5;
+    room.okey.roundState.scores[sira0] = 105;         // ceza sınırını aşan
+    const bitti = socks.map(x => once(x, 'gameEnded', 12000));
+    // Sırası gelen oyuncunun elini bitir: açmış say, tek taş bırak, at.
+    const sira = sira0;
+    room.okey.roundState.opened[sira] = true;
+    const kalanTas = room.okey.roundState.hands[sira][0];
+    room.okey.roundState.hands[sira] = [kalanTas];
+    /* Bitirmeyenlerin ellerini de sadeleştiriyoruz: 21 taşlık el, ceza
+       puanını yüzlerce yapıp kurduğumuz sıralamayı bozuyordu. Herkes
+       açmış sayılır ki ceza ikiye katlanmasın. */
+    room.okey.roundState.seats.forEach(s2 => {
+      if (s2 === sira) return;
+      room.okey.roundState.opened[s2] = true;
+      room.okey.roundState.hands[s2] = [room.okey.roundState.hands[s2][0]];
     });
-
-    const re = once(bySeat[starterSeat].socket, 'okeyRoundEnded');
-    const ge = once(bySeat[starterSeat].socket, 'gameEnded');
-    bySeat[starterSeat].socket.emit('okeyFinish', { tileId: w.extraId });
-    const reP = await re;
-    assert.strictEqual(reP.gameState.finished, true, 'el bitti');
-    assert.deepStrictEqual(reP.gameState.result, { winner: starterSeat, winType: '101', gained: expectedGained });
-    assert.strictEqual(reP.gameState.scores[starterSeat], expectedGained, 'skor = gained (PUAN)');
-    assert.strictEqual(reP.gameState.scores[others[0]] || 0, 0, 'rakip skor yazılmaz');
-
-    const geP = await ge;
-    assert.strictEqual(geP.reason, 'completed', '101 puana ulaşınca maç BİTER');
-    assert.strictEqual(geP.winnerSeat, starterSeat, 'en yüksek skoru yapan kazanır');
-    assert.strictEqual(geP.youWon, geP.seat === starterSeat, 'youWon kişiye özel');
-    console.log('  ✓ B) 4 kişilik: variant/target + 101 bitiş (gained=' + expectedGained + ') → maç completed');
-    for (const s of socks) s.disconnect();
-    await sleep(300);
-  }
-
-  // ============ C) 2 kişilik: düşük gained → devam; 101 → bitiş ============
-  {
-    const { socks, first } = await setup101Match(BASE, '912', 'C', 2);
-    const room = rooms.get('912');
-    const seatA = 0, seatB = 1;
-
-    // El 1: A bitirir ama gained 56 < 101 → maç DEVAM eder.
-    room.okey.roundState.turn = seatA;
     room.okey.roundState.phase = 'discard';
-    const w1 = craft101Hand('c1');
-    room.okey.roundState.hands[seatA] = w1.hand;
-    room.okey.roundState.hands[seatB] = knownHand('c1', seatB, 56);
-    const re = once(socks[0], 'okeyRoundEnded');
-    const gs2 = once(socks[0], 'gameStateUpdated');
-    socks[0].emit('okeyFinish', { tileId: w1.extraId });
-    const reP = await re;
-    assert.deepStrictEqual(reP.gameState.result, { winner: seatA, winType: '101', gained: 56 });
-    assert.strictEqual(reP.gameState.scores[seatA], 56, '56 puan < 101');
-
-    const g2 = await gs2;
-    assert.strictEqual(g2.gameState.round, 2, '101 ulaşmayan maç 2. ele DEVAM eder');
-    assert.strictEqual(g2.gameState.variant, 'okey101', '2. el de 101 varyantıyla kurulur');
-    assert.strictEqual(g2.gameState.scores[seatA], 56, 'skorlar ele taşınır');
-
-    // El 2: A tekrar bitirir; gained 182 → 56+182=238 >= 101 → maç biter.
-    room.okey.roundState.turn = seatA;
-    room.okey.roundState.phase = 'discard';
-    const w2 = craft101Hand('c2');
-    room.okey.roundState.hands[seatA] = w2.hand;
-    room.okey.roundState.hands[seatB] = knownHand('c2', seatB, 182);
-    const ge = once(socks[0], 'gameEnded');
-    socks[0].emit('okeyFinish', { tileId: w2.extraId });
-    const geP = await ge;
-    assert.strictEqual(geP.reason, 'completed', '101 puana ulaşınca maç biter');
-    assert.strictEqual(geP.winnerSeat, seatA);
-    assert.ok(geP.gameState.scores[seatA] >= 101, 'kazananın toplam skoru >= 101');
-    console.log('  ✓ C) 2 kişilik: 56 puan maç bitirmez (2. el 101 varyantı) → 238 puanda biter');
-    for (const s of socks) s.disconnect();
-    await sleep(300);
-  }
-
-  // ============ D) not_101 reddi ============
-  {
-    const { socks } = await setup101Match(BASE, '913', 'D', 2);
-    const room = rooms.get('913');
-    const seatA = 0;
-    room.okey.roundState.turn = seatA;
-    room.okey.roundState.phase = 'discard';
-    const low = craftLow101Hand('low'); // GEÇERLİ perler ama toplam 33 < 101
-    room.okey.roundState.hands[seatA] = low.hand;
-
-    const rej = once(socks[0], 'okeyRejected');
-    socks[0].emit('okeyFinish', { tileId: low.extraId });
-    const rejP = await rej;
-    assert.strictEqual(rejP.reason, 'not_101', '101 altı el (geçerli per/seri ama toplam düşük) reddedilir');
-    assert.strictEqual(room.okey.roundState.finished, false, 'el devam eder');
-    console.log('  ✓ D) not_101 reddi (geçerli perler ama toplam 33 < 101)');
-    for (const s of socks) s.disconnect();
-    await sleep(300);
+    bySeat[sira].socket.emit('okeyDiscard', { roomId: '911', tileId: kalanTas.id });
+    const ge = (await Promise.all(bitti))[0];
+    assert.strictEqual(ge.reason, 'completed', 'ceza sınırına ulaşılınca maç biter');
+    assert.strictEqual(ge.winnerSeat, kazanacak, 'EN DÜŞÜK ceza toplamı kazanır');
+    socks.forEach(x => x.close());
+    console.log('  ✓ C) maç ceza sınırında bitiyor ve en düşük toplam kazanıyor');
   }
 
   server.close();

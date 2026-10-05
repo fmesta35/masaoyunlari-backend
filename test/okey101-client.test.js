@@ -92,14 +92,23 @@ async function main() {
 
   for (const c of clients) {
     const d = c.win.document;
+    /* Başlık yeni oyuna göre değişti: puanlar ceza olduğu için "Hedef 101"
+       tersini düşündürüyordu, yerine "Ceza sınırı 101" yazıyor. */
     const hdr = [...d.querySelectorAll('#boardArea .okey-table > div')]
-      .map(x => x.textContent).find(t => t.includes('OKEY 101')) || '';
-    assert.ok(hdr.includes('OKEY 101'), 'başlık OKEY 101: ' + hdr);
-    assert.ok(hdr.includes('Hedef 101'), 'başlıkta hedef 101: ' + hdr);
+      .map(x => x.textContent).find(t => t.includes('101 OKEY')) || '';
+    assert.ok(hdr.includes('101 OKEY'), 'başlık 101 OKEY: ' + hdr);
+    assert.ok(hdr.includes('Ceza sınırı 101'), 'başlıkta ceza sınırı: ' + hdr);
     assert.ok(hdr.includes('(4 Kişilik)'), 'başlıkta kişi sayısı: ' + hdr);
     const ok = c.win.st.boards.okey;
     assert.strictEqual(ok.variant, 'okey101', 'state variant=okey101');
-    assert.strictEqual(ok.target, 101, 'state target=101');
+    /* Eski "target" (14 taşın ulaşması gereken puan) kavramı kalktı: gerçek
+       101'de puan CEZA'dır, eşik de el AÇMA eşiğidir. Ekrandaki karşılığı
+       yukarıda "Ceza sınırı 101" olarak denetleniyor. */
+    const masa = d.querySelector('.ok101-masa');
+    assert.ok(masa, 'masadaki açık perler alanı çizilmeli');
+    const acDugme = [...d.querySelectorAll('.ok-act')].find(b => /El Aç/.test(b.textContent));
+    assert.ok(acDugme, '"El Aç" düğmesi olmalı (101\'de "Kontrol" yok)');
+    assert.ok(!d.getElementById('okFinishZone'), '101\'de "ORTAYA BİTİR" bölgesi olmamalı');
   }
   const hdrTxt = [...clients[0].win.document.querySelectorAll('#boardArea .okey-table > div')]
     .map(x => x.textContent).find(t => t.includes('OKEY 101')) || '';

@@ -1968,6 +1968,84 @@ body.gv-app{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none
 body.gv-app input,body.gv-app textarea,body.gv-app .chat-msgs,body.gv-app .moves{
   -webkit-user-select:text;user-select:text}
 
+/* ---------- 9b-2) 101 OKEY: MASADAKİ AÇIK PERLER + AÇMA PENCERESİ ----------
+   Masada 2-4 oyuncunun perleri birikiyor. Taşlar ıstakadakiyle aynı boyda
+   çizilince telefonda taşıyordu; burada ölçü clamp() ile ekrana göre esner
+   ve alan yalnız DİKEY kaydırılır (yatay kaydırma masayı bozuyor). */
+.ok101-masa{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
+  width:min(92%,760px);max-height:46%;overflow-y:auto;overflow-x:hidden;
+  display:flex;flex-wrap:wrap;gap:6px;justify-content:center;align-content:flex-start;
+  padding:6px;z-index:3;scrollbar-width:thin}
+.ok101-bos{color:rgba(255,255,255,.5);font-size:.8em;padding:10px}
+.ok101-per{display:flex;align-items:center;gap:2px;padding:4px 6px;border-radius:9px;
+  background:rgba(0,0,0,.28);border:1px solid rgba(255,255,255,.14)}
+.ok101-per.islenir{border-color:#2ecc71;cursor:pointer}
+.ok101-per.islenir:hover{background:rgba(46,204,113,.18)}
+.ok101-per-ad{font-size:.58em;color:rgba(255,255,255,.72);margin-right:3px;
+  max-width:62px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* Masa taşı: ıstaka taşının küçük kardeşi. clamp tabanı telefonda okunur
+   kalsın diye 15px; üst sınır masaüstünde ıstakaya yaklaşmasın diye 24px. */
+.ok101-t{position:relative;display:inline-flex;align-items:center;justify-content:center;
+  width:clamp(15px,2.1vw,24px);height:clamp(21px,3vw,34px);border-radius:4px;
+  background:linear-gradient(145deg,#fdfbf3,#e8e2d0);box-shadow:0 1px 2px rgba(0,0,0,.45);
+  font-weight:800;font-size:clamp(9px,1.25vw,14px);line-height:1}
+.ok101-t>i{position:absolute;bottom:2px;width:3px;height:3px;border-radius:50%;background:currentColor}
+.ok101-t.t-red{color:#c0392b}.ok101-t.t-black{color:#2d3436}
+.ok101-t.t-blue{color:#2563eb}.ok101-t.t-yellow{color:#d68910}
+.ok101-t.is-okey{outline:2px solid #f1c40f;outline-offset:-2px}
+
+/* AÇMA PENCERESİ */
+.ok101a-ov{position:fixed;inset:0;z-index:3000;background:rgba(5,6,16,.78);
+  display:flex;align-items:center;justify-content:center;padding:14px;
+  backdrop-filter:blur(3px)}
+.ok101a-kutu{width:min(560px,100%);max-height:92vh;overflow-y:auto;background:var(--card);
+  border:1px solid var(--border);border-radius:16px;padding:14px}
+.ok101a-bas{display:flex;align-items:center;justify-content:space-between;
+  font-size:1.05em;margin-bottom:10px}
+.ok101a-x{width:34px;height:34px;border-radius:10px;border:1px solid var(--border);
+  background:var(--bg3);color:var(--text);cursor:pointer;font-size:1em}
+.ok101a-kip{display:flex;gap:6px;margin-bottom:10px}
+.ok101a-sek{flex:1;padding:9px 6px;border-radius:10px;border:1px solid var(--border);
+  background:var(--bg3);color:var(--text2);font-size:.82em;cursor:pointer}
+.ok101a-sek.etkin{background:var(--accent);color:#06121a;border-color:transparent;font-weight:700}
+.ok101a-ozet{padding:9px 11px;border-radius:10px;background:rgba(255,255,255,.05);
+  border:1px solid var(--border);font-size:.92em;margin-bottom:10px}
+.ok101a-ozet.tamam{border-color:#2ecc71;color:#2ecc71}
+.ok101a-perler{display:flex;flex-direction:column;gap:6px;margin-bottom:10px}
+.ok101a-bos{color:var(--text3);font-size:.82em;padding:4px 2px}
+.ok101a-per,.ok101a-sepet{display:flex;align-items:center;gap:3px;flex-wrap:wrap;
+  padding:7px 9px;border-radius:11px;border:1px solid var(--border);background:var(--bg3)}
+.ok101a-sepet{border-style:dashed;margin-bottom:10px}
+.ok101a-sepet.dolu{border-style:solid;border-color:var(--accent)}
+.ok101a-per-no,.ok101a-et{font-size:.62em;color:var(--text3);letter-spacing:.5px;margin-right:4px}
+.ok101a-per-p{margin-left:auto;font-size:.78em;color:var(--accent);font-weight:700;padding:0 6px}
+.ok101a-ipucu{font-size:.78em;color:var(--text3)}
+.ok101a-geri,.ok101a-ok{margin-left:6px;padding:6px 10px;border-radius:9px;
+  border:1px solid var(--border);background:var(--bg2);color:var(--text);cursor:pointer;font-size:.78em}
+.ok101a-ok:disabled{opacity:.4;cursor:default}
+.ok101a-el{display:flex;flex-wrap:wrap;gap:4px;padding:8px;border-radius:11px;
+  background:rgba(0,0,0,.22);min-height:48px}
+/* Pencere taşı parmakla seçilecek: dokunma hedefi masadakinden büyük. */
+.ok101a-t{position:relative;width:30px;height:42px;border-radius:6px;border:0;cursor:pointer;
+  background:linear-gradient(145deg,#fdfbf3,#e8e2d0);box-shadow:0 1px 3px rgba(0,0,0,.45);
+  font-weight:800;font-size:15px;line-height:1;padding:0}
+.ok101a-t>i{position:absolute;left:50%;transform:translateX(-50%);bottom:4px;
+  width:4px;height:4px;border-radius:50%;background:currentColor}
+.ok101a-t.t-red{color:#c0392b}.ok101a-t.t-black{color:#2d3436}
+.ok101a-t.t-blue{color:#2563eb}.ok101a-t.t-yellow{color:#d68910}
+.ok101a-t.is-okey{outline:2px solid #f1c40f;outline-offset:-2px}
+.ok101a-t.sec{transform:translateY(-3px);box-shadow:0 4px 8px rgba(0,0,0,.5)}
+.ok101a-alt{display:flex;align-items:center;gap:10px;margin-top:12px}
+.ok101a-not{flex:1;font-size:.74em;color:var(--text3)}
+.ok101a-ac{padding:11px 22px;border-radius:11px;border:0;cursor:pointer;font-weight:800;
+  background:linear-gradient(135deg,#2ecc71,#27ae60);color:#06130b}
+.ok101a-ac:disabled{opacity:.4;cursor:default;background:var(--bg3);color:var(--text3)}
+@media(max-width:560px){
+  .ok101a-t{width:27px;height:38px;font-size:14px}
+  .ok101a-alt{flex-direction:column;align-items:stretch}
+  .ok101a-ac{width:100%}
+}
+
 /* ---------- 9c) ANA SAYFA CANLI SAYAÇ ŞERİDİ ----------
    Karşılama kutusunun içinde, sunucudan gelen gerçek sayılar. */
 /* KARŞILAMA BAŞLIĞI — uzun kullanıcı adları dar ekranda kutudan taşıyordu
@@ -2658,7 +2736,7 @@ const RULES={
   dama:`<div class="rules-content"><h3>🎯 İngiliz Daması — Amaç</h3><p>Rakibin tüm taşlarını almak ya da hareket edemez duruma düşürmek.</p><h3>📋 Nasıl Oynanır</h3><p>8x8 tahtanın yalnızca koyu karelerinde oynanır; her oyuncunun 12 taşı 3 sıra halinde dizilir. Taşlar çapraz olarak yalnızca İLERİ yönde hareket eder. Rakip taşının hemen ardındaki boş kareye çapraz atlayarak o taş alınır (yeme mümkünse yeme ZORUNLUDUR, başka hamle oynanamaz). Karşı kenara ulaşan taş "dama" (kral) olur ve artık çapraz her iki yöne de hareket/yeme yapabilir.</p><h3>⚙️ Bu Platformda</h3><p>Bir hamlede yalnız TEK taş alınır — art arda zincirleme çoklu yeme (aynı hamlede birden fazla taş atlamak) uygulanmıyor; ikinci yemeyi bir sonraki sıranda ayrı bir hamle olarak yaparsın.</p></div>`,
   turkdamasi:`<div class="rules-content"><h3>🎯 Türk Daması — Amaç</h3><p>Rakibin tüm taşlarını almak ya da hareket edemez duruma düşürmek.</p><h3>📋 Nasıl Oynanır</h3><p>8x8 tahtanın TÜM kareleri kullanılır (yalnızca koyu kareler değil); her oyuncunun 16 taşı 2 sıra halinde dizilir. Taşlar düz çizgide (yatay/dikey) hareket eder — çapraz hareket YOKTUR. Rakip taşının hemen ardındaki boş kareye düz çizgide atlayarak o taş alınır (yeme mümkünse zorunludur). Karşı kenara ulaşan taş damaya (kale gibi) dönüşür ve o yönlerde istediği kadar kare kayarak hareket edip uzaktan da yeme yapabilir.</p><h3>⚙️ Bu Platformda</h3><p>Yemede de, İngiliz Damasında olduğu gibi, bir hamlede yalnız TEK taş alınır; zincirleme çoklu yeme uygulanmıyor.</p></div>`,
   okey:`<div class="rules-content"><h3>🎯 Amaç</h3><p>Elindeki 14 taşı gruplar (per/seri) halinde dizip elini ilk açan oyuncu olmak.</p><h3>📋 Nasıl Oynanır</h3><ul><li>106 taş kullanılır: 4 renkte 1'den 13'e kadar ikişer taş (104 taş) + 2 sahte okey.</li><li>Başlangıçta bir "gösterge" taşı açılır; bu taş kimseye dağıtılmaz ve kimse tarafından alınamaz. Göstergenin bir fazlası, aynı renkte, "okey" (joker) taşı olur — sahte okeyler de bu değeri taşır ve istenen taş yerine kullanılabilir.</li><li>Sırayla ya desteden ya da ortadaki atık yığınından bir taş çekilir, ardından bir taş atılır.</li><li>Elindeki 14 taşı aynı sayıdan farklı renklerde üçlü/dörtlü gruplara ("per"), aynı renkte ardışık sayı dizilerine ("seri") ya da 7 çifte ayırabilen oyuncu elini açıp biter.</li></ul></div>`,
-  okey101:`<div class="rules-content"><h3>🎯 101 Okey — Amaç</h3><p>Elindeki 14 taşı GEÇERLİ per/serilere ayırıp toplam değerleri en az 101 puan yapmak (ya da 7 çift ile özel bir bitiş yapmak — bu durumda puan şartı aranmaz).</p><h3>📋 Nasıl Oynanır</h3><p>Klasik Okey ile aynı 106 taşlık desteyle oynanır (4 renk × 1-13 × 2 + 2 sahte okey), gösterge/okey belirleme kuralı da aynıdır.</p><h3>⚙️ Klasik Okey'den Farkları</h3><ul><li>13'ten 1'e dönüşümlü seriler (örn. 12-13-1) 101'de GEÇERSİZDİR.</li><li>Gerçek okey (joker) taşını bitiriş hamlesi DIŞINDA, sıradan bir atış olarak açığa atmak 101 puan cezası getirir — bu ağır taş sıradaki (sağdaki) oyuncunun eline geçebilir.</li></ul></div>`,
+  okey101:`<div class="rules-content"><h3>🎯 101 Okey — Amaç</h3><p>Elindeki taşları geçerli perler hâlinde <b>masaya açmak</b>, taşlarını eritmek ve el sonunda elinde <b>en az ceza puanı</b> kalan oyuncu olmak. 101'de amaç yüksek puan toplamak değil, <b>düşük tutmaktır</b>.</p><h3>🀄 Deste ve dağıtım</h3><p>106 taş: 4 renk × 1-13 × iki kopya + 2 sahte okey. Gösterge desteden çekilir; <b>okey</b>, göstergenin bir üstüdür (gösterge 13 ise aynı rengin 1'i). Sahte okeyler göstergenin yerine geçer ve <b>joker değildir</b>.</p><p>Başlayan oyuncuya <b>22</b>, diğerlerine <b>21</b> taş dağıtılır. Başlayan çekmeden bir taş atarak oyunu açar. Masa 2, 3 ya da 4 kişiliktir; eşli oyun yoktur, herkes kendi puanı için oynar.</p><h3>📋 Sıra nasıl işler</h3><p>Taş al (ortadaki desteden <b>ya da</b> bir önceki oyuncunun attığı taştan) → istersen aç/işle → bir taş at.</p><h3>💯 El açma (en az 101)</h3><p>Masaya ilk kez taş koyarken kurduğun perlerin <b>toplamı en az 101</b> olmalıdır. Örnek: 🔴10-11-12 (33) + 🔵7-8-9 (24) + 🟡12-🔴12-🔵12 (36) + ⚫4-5-6 (15) = <b>108</b> → açılabilir.</p><p><b>Per nedir?</b> <i>Seri</i>: aynı renkte ardışık en az 3 taş. <i>Küt</i>: aynı sayının farklı renklerinden 3 ya da 4 taş.</p><p>Alternatif: <b>5 çift</b> ile de açabilirsin; bu yolda puan şartı aranmaz.</p><h3>🔗 İşleme</h3><p>Açtıktan sonra uyan taşlarını masadaki <b>kendi ya da başkasının</b> perlerine ekleyebilirsin. Açmadan işleme yapılamaz.</p><h3>🏁 Bitiş ve puanlama</h3><p>Taşlarının tamamını masaya koyup <b>son taşını attığında</b> el biter. Bitirene ceza yazılmaz; diğerlerinin elinde kalan taşların değeri ceza puanı olarak eklenir. Maç, bir oyuncunun ceza toplamı <b>101'e ulaşınca</b> biter ve <b>en düşük</b> toplama sahip oyuncu kazanır.</p><h3>⚙️ Bu platformun kural seti</h3><p>101 Okey'in bazı ayrıntıları platformdan platforma değişir; burada şu kurallar geçerlidir:</p><ul><li>Bir perde <b>en fazla 1 okey</b> kullanılabilir.</li><li>13'ten 1'e dönüşlü seri <b>geçersizdir</b> (12-13-1 olmaz).</li><li>Bir kütte aynı renk iki kez bulunamaz.</li><li>Elde kalan gerçek okeyin cezası <b>50</b>'dir.</li><li><b>Hiç açmamış</b> oyuncunun el cezası <b>ikiye katlanır</b>.</li><li>Açarken elinin tamamını koyamazsın; atacak en az bir taş kalmalıdır.</li><li>Deste biterse el berabere kapanır, kimseye ceza yazılmaz.</li></ul><p>Klasik <b>Okey</b> masaları bu kurallarla oynanmaz; orada eski düzen (14/15 taş, eli tek seferde bitirme) sürüyor.</p></div>`,
   pisti:`<div class="rules-content"><h3>🎯 Amaç</h3><p>Masadaki kartları toplayarak oyun sonunda en yüksek puanı almak.</p><h3>📋 Nasıl Oynanır</h3><p>Standart 52 kartlık deste ile 2-4 oyuncu oynar. Başlangıçta ortaya 4 kart açılır ve her oyuncuya sırayla 4'er kart dağıtılır (eller boşaldıkça deste bitene kadar bu tekrarlanır). Sırası gelen oyuncu elinden bir kart atar: attığı kart, ortadaki üstteki kartla AYNI değerdeyse ya da bir VALE ise, masadaki bütün kartları toplar. Eşleşme yoksa kart yalnızca ortaya eklenir ve sıra rakibe geçer.</p><h3>⚙️ Bu Platformda</h3><ul><li>Klasik pişti oyununun aksine, masayı tek kartken eşleştirip süpürmenin bonus puanı ("pişti") bu sürümde AYRICA ödüllendirilmiyor — her toplama aynı şekilde puanlanır.</li><li>Puanlama: topladığın Aslar ve Valeler 1'er puan, Karo 10 tek başına 3 puan, Sinek 2 tek başına 2 puan değerindedir. Oyun sonunda en çok kart toplayan oyuncuya (tek bir oyuncu en çoksa) ek 3 puan bonus verilir.</li></ul></div>`,
   batak:`<div class="rules-content"><h3>🎯 Amaç</h3><p>İhale ettiğin (söz verdiğin) sayıda eli alarak puan kazanmak.</p><h3>📋 Nasıl Oynanır</h3><p>Standart 52 kartlık deste ile 4 oyuncu oynar, herkese 13'er kart dağıtılır. Sırayla oyuncular ya bir sayı söyleyerek ("ihale") o sayıda el alacağını taahhüt eder ya da pas geçer; her yeni ihale bir öncekinden yüksek olmalıdır. En yüksek ihaleyi veren oyuncu koz rengini belirler ve oyunu açar (13 ihale edilirse pazarlık anında biter). Elde açılan renkten kart varsa o renk oynanmak zorundadır; koz her zaman diğer renkleri yener.</p><h3>⚙️ Bu Platformda</h3><ul><li>Puanlama BİREYSELDİR — sabit 2'ye 2 takım yoktur. İhale sahibi taahhüdüne ulaşır ya da geçerse (aldığı el sayısı + ihale) kadar puan kazanır, ulaşamazsa ihale sayısı kadar puan KAYBEDER. Diğer üç oyuncu ise yalnızca kendi aldıkları el sayısı kadar puan alır.</li><li>Bir maçta tek bir el oynanır.</li></ul></div>`,
   reversi:`<div class="rules-content"><h3>🎯 Reversi — Amaç</h3><p>Tahtada oyun bitiminde en çok kendi renginde taşa sahip olmak.</p><h3>📋 Nasıl Oynanır</h3><p>8x8 tahta; başlangıçta ortadaki 4 kareye çapraz olacak şekilde 2 siyah, 2 beyaz taş yerleştirilir, siyah başlar. Bir hamlede, düz bir çizgide (yatay/dikey/çapraz) arada rakip taşları bırakıp kendi taşınla o hattı iki uçtan kapatman gerekir; bu şekilde araya sıkışan TÜM rakip taşlar kendi rengine döner. En az bir taş çevirmeyen hamle oynanamaz; oynanacak hamlen yoksa sıra otomatik olarak rakibe geçer.</p><h3>🏁 Kazanma</h3><p>Her iki oyuncu da hamle yapamaz duruma gelince oyun biter; tahtada daha çok taşı olan kazanır.</p></div>`,
@@ -6032,7 +6110,10 @@ GV.init();
 <script src="js/move-clock.js?v=20260908a" defer></script>
 <script src="js/chess-online.js?v=20260908d" defer></script>
 <script src="js/tavla-online.js?v=20260908d" defer></script>
-<script src="js/okey-online.js?v=20260908d" defer></script>
+<script src="js/okey-online.js?v=20261005a" defer></script>
+<!-- 101 Okey el açma penceresi: okey-online.js zaten büyük, açma akışı
+     (çok adımlı per kurma) ayrı dosyada duruyor. -->
+<script src="js/okey101-ac.js?v=20261005a" defer></script>
 <script src="js/online-arena.js?v=20260927d" defer></script>
 <script src="js/card-online.js?v=20260904b" defer></script>
 <script src="js/dama-online.js?v=20260908b" defer></script>

@@ -312,6 +312,10 @@
   // ---------- Tablo çizimi (yerel dOkey işaretlemesiyle birebir + isim/saat) ----------
   function tileColor(t) { return t.isFJ ? (t.dc || 't-red') : t.c; }
 
+  /* Gerçek 101 kuralları mı? Sunucu paketinde kural:'101' varsa evet.
+     Eski sunucuya bağlanan istemci bu alanı görmez ve klasik akışta kalır. */
+  function gercek101(gs) { return !!(gs && gs.kural === '101'); }
+
   function drawTable(area, ok) {
     const gs = ok._gs;
     const map = ok._map;
@@ -336,7 +340,11 @@
     const sTxt = map.activePositions().map(p => POS_LABEL[p] + ':' + ok.scores[p]).join(' | ');
     // 101 varyantında el limiti yoktur (maç 101 puana ulaşana kadar sürer);
     // skorlar PUAN olarak gösterilir.
-    const hdrTxt = ok.variant === 'okey101'
+    /* 101'de puanlar CEZA'dır: amaç yüksek değil DÜŞÜK toplam. Başlıkta
+       "Hedef 101" yazmak tersini düşündürüyordu. */
+    const hdrTxt = gercek101(gs)
+      ? `🔢 101 OKEY • El ${ok.currentRound} (${map.N} Kişilik) • Ceza sınırı ${gs.cezaSiniri || 101} — `
+      : ok.variant === 'okey101'
       ? `🔢 OKEY 101 • El ${ok.currentRound} (${map.N} Kişilik) • Hedef ${ok.target || 101} — `
       : `El ${ok.currentRound}/${ok.maxRounds} (${map.N} Kişilik) • `;
     h += `<div class="ok-scoreline">${hdrTxt}<span style="color:var(--gold)">${sTxt}</span></div>`;
@@ -360,8 +368,40 @@
     h += '<div class="ok-center">';
     h += `<div class="ok-deck" onmousedown="GV._okPointerDown(event, 'deck')" ontouchstart="GV._okPointerDown(event, 'deck')"><span class="ok-deck-cnt">${ok.deck.length}</span><div class="ok-deck-t"></div><div class="ok-deck-t"></div><div class="ok-deck-t"></div></div>`;
     h += `<div class="ok-indicator" style="border:2px solid #b8a878"><span class="ind-label">GÖSTERGE</span><div class="ok-num" style="color:${iC}">${ok.indicator ? ok.indicator.n : '-'}</div><div class="ok-dot" style="background:${iC}"></div></div>`;
-    h += '<div class="ok-finish-zone" id="okFinishZone" onclick="GV._okZoneClick(\'finish\')"><span style="font-size:0.75em;font-weight:800;color:#f1c40f;">🏆 ORTAYA BİTİR</span></div>';
+    /* GERÇEK 101: bitiş ayrı bir eylem değil (taşlar masaya konur, son taş
+       atılır) — "ORTAYA BİTİR" bölgesi bu yüzden 101'de çizilmez. */
+    if (!gercek101(gs)) {
+      h += '<div class="ok-finish-zone" id="okFinishZone" onclick="GV._okZoneClick(\'finish\')"><span style="font-size:0.75em;font-weight:800;color:#f1c40f;">🏆 ORTAYA BİTİR</span></div>';
+    }
     h += '</div>';
+
+    /* MASADAKİ AÇIK PERLER (yalnız gerçek 101). Oyunun bütün bilgisi burada:
+       kim ne açtı, nereye işlenebilir. Taşlar ıstakadakinden KÜÇÜK çizilir —
+       masada 4 oyuncunun perleri birikiyor, ıstaka ölçüsünde çizilse telefonda
+       taşıyor. Ölçü clamp() ile ekrana göre esner, kaydırma yalnız dikey. */
+    if (gercek101(gs)) {
+      const perler = Array.isArray(gs.melds) ? gs.melds : [];
+      h += '<div class="ok101-masa" id="ok101Masa">';
+      if (!perler.length) {
+        h += '<div class="ok101-bos">Masa boş — açan olmadı</div>';
+      } else {
+        perler.forEach(m => {
+          const sahip = (m.seat === mySeat) ? 'Sen' : esc(playerName(m.seat));
+          const benimSira = ok.myTurn && gs.opened && gs.opened[mySeat];
+          const tiklanir = benimSira && m.tur !== 'cift';
+          h += '<div class="ok101-per' + (tiklanir ? ' islenir' : '') + '" data-meld="' + esc(m.id) + '"' +
+               (tiklanir ? ' onclick="GV._ok101Isle(\'' + esc(m.id) + '\')"' : '') +
+               ' title="' + esc(sahip) + ' açtı' + (tiklanir ? ' — seçili taşı buraya işlemek için tıkla' : '') + '">';
+          h += '<span class="ok101-per-ad">' + esc(sahip) + '</span>';
+          m.tiles.forEach(t => {
+            h += '<span class="ok101-t ' + tileColor(t) + (t.isOkey ? ' is-okey' : '') + '">' +
+                 '<b>' + (t.n || '') + '</b><i></i></span>';
+          });
+          h += '</div>';
+        });
+      }
+      h += '</div>';
+    }
 
     h += '<div class="ok-throw-zone" id="okThrowZone" onclick="GV._okZoneClick(\'throw\')"><span class="ok-throw-label">📤 TAŞ AT</span><span class="ok-throw-empty">Sürükle</span></div>';
 
@@ -385,8 +425,12 @@
       h += '</div>';
     });
 
+    /* 101'de "Kontrol" (14 taşım per mi?) kavramı yok; onun yerine EL AÇ. */
+    const ilkDugme = gercek101(gs)
+      ? `<button class="ok-act" onclick="GV._ok101Ac()"${(gs.opened && gs.opened[mySeat]) ? ' disabled title="Zaten açtın — taşları perlere işleyebilirsin"' : ''}>🎴 El Aç</button>`
+      : '<button class="ok-act" onclick="GV._okCheck()">✅ Kontrol</button>';
     h += `<div class="ok-actions"${isSpectator ? ' style="display:none"' : ''}>
-      <button class="ok-act" onclick="GV._okCheck()">✅ Kontrol</button>
+      ${ilkDugme}
       <button class="ok-act" onclick="GV._okSort()">🔄 Sırala</button>
       <button class="ok-act" style="background:linear-gradient(135deg,#e74c3c,#c0392b);border-color:#8b1a1a" onclick="GV._okSurrender()">🏳️ Pes Et</button>
     </div>`;
@@ -806,6 +850,38 @@
     socket?.emit('okeyDiscard', { roomId, tileId: t.id });
   }
 
+  /* ---------- GERÇEK 101: EL AÇMA ve İŞLEME ----------
+     Açma, masa üstünde yapılamayacak kadar çok adımlı bir iş (birden fazla
+     per kurup toplamı 101'e taşımak gerekiyor), bu yüzden kendi penceresinde
+     yapılıyor: taşlara dokunarak per kur → "Peri Bitir" → bir sonrakini kur →
+     "Aç". Pencere, toplam puanı canlı gösteriyor; oyuncu 101'e ulaşıp
+     ulaşmadığını göndermeden ÖNCE görüyor. Doğrulamanın tamamı yine
+     sunucuda (okey101-engine) — pencere yalnız yardımcı. */
+  function ok101Elim() {
+    const gs = gameState;
+    return (gs && Array.isArray(gs.myHand)) ? gs.myHand.slice() : [];
+  }
+  function ok101Puan(tiles) {
+    /* Pencerede gösterilen tahmini puan. Okeyin temsil ettiği sayı sunucuda
+       hesaplanır; burada okey, perdeki en büyük doğal taş kadar sayılır —
+       yalnız gösterim, karar sunucunun. */
+    if (!tiles.length) return 0;
+    const ok = gameState && gameState.realOkey;
+    const dogal = tiles.filter(t => !(ok && !t.isFJ && t.c === ok.c && t.n === ok.n));
+    const okeyAdedi = tiles.length - dogal.length;
+    const toplam = dogal.reduce((a, t) => a + (Number(t.n) || 0), 0);
+    const enB = dogal.reduce((a, t) => Math.max(a, Number(t.n) || 0), 0);
+    return toplam + okeyAdedi * enB;
+  }
+  function onlineOpen(gruplar, cift) {
+    if (!onlineActive()) return;
+    socket?.emit('okey101Open', { roomId, gruplar, cift: !!cift });
+  }
+  function onlineAdd(meldId, tileId) {
+    if (!onlineActive()) return;
+    socket?.emit('okey101Add', { roomId, meldId, tileId });
+  }
+
   function onlineFinish(sh, sl) {
     if (!onlineActive()) return;
     const t = rackTile(sh, sl);
@@ -851,6 +927,41 @@
     window.GV._okDiscardTile = function (sh, sl) { if (onlineActive()) return onlineDiscard(sh, sl); return orig.discard && orig.discard(sh, sl); };
     window.GV._okTryFinishGame = function (sh, sl) { if (onlineActive()) return onlineFinish(sh, sl); return orig.finish && orig.finish(sh, sl); };
     window.GV._okCheck = function () { if (onlineActive()) return onlineCheck(); return orig.check && orig.check(); };
+
+    /* El Aç düğmesi: pencereyi js/okey101-ac.js açar (ayrı dosya, bu dosya
+       zaten büyük). Dosya yüklenmemişse oyun kilitlenmesin diye uyarı. */
+    window.GV._ok101Ac = function () {
+      if (!onlineActive()) return;
+      if (!gercek101(gameState)) return;
+      if (gameState.opened && gameState.opened[gameState.mySeat]) {
+        toast('🎴 Zaten açtın — taşını seçip masadaki bir pere dokunarak işleyebilirsin.', 'info');
+        return;
+      }
+      if (!myTurnNow()) { toast('⏳ Sıra sizde değil!', 'warning'); return; }
+      if (gameState.phase !== 'discard') { toast('🀄 Önce taş çekmelisin.', 'warning'); return; }
+      if (!window.GVOkey101Ac) { toast('⚠️ Açma penceresi yüklenemedi, sayfayı yenileyin.', 'error'); return; }
+      window.GVOkey101Ac.ac({
+        eller: ok101Elim(),
+        realOkey: gameState.realOkey,
+        acmaPuani: gameState.acmaPuani || 101,
+        ciftAdedi: gameState.ciftAdedi || 5,
+        puanla: ok101Puan,
+        gonder: onlineOpen
+      });
+    };
+
+    /* İŞLEME: ıstakadan bir taş seçili olmalı; sonra masadaki pere dokun. */
+    window.GV._ok101Isle = function (meldId) {
+      if (!onlineActive() || !gercek101(gameState)) return;
+      if (!myTurnNow()) { toast('⏳ Sıra sizde değil!', 'warning'); return; }
+      if (!(gameState.opened && gameState.opened[gameState.mySeat])) {
+        toast('🎴 Önce elini açmalısın (en az 101).', 'warning'); return;
+      }
+      const sec = (window.GV && GV._okSelected) ? GV._okSelected() : null;
+      const t = sec ? rackTile(sec.sh, sec.sl) : null;
+      if (!t) { toast('👆 Önce ıstakadan işlemek istediğin taşa dokun.', 'info'); return; }
+      onlineAdd(meldId, t.id);
+    };
     window.GV._okSort = function () {
       const r = orig.sort && orig.sort();
       if (onlineActive()) resyncIdsFromBoard();
