@@ -607,6 +607,19 @@ function presetTablesFromConfig(cfg) {
 // (Motor yokken masalar tohumlanmaz: kimse hazır basıp takılı kalmaz.)
 let okeyEngine = null;
 try { okeyEngine = require('./okey-engine.js'); } catch (_) { /* motor henüz yok */ }
+/* 101 OKEY AYRI MOTOR: gerçek 101 kuralları (22/21 taş, 101 ile açma,
+   masaya per koyma, işleme, ceza puanı) klasik okeyden tamamen farklı bir
+   oyun. Kullanıcı kararı: "Okey klasik kalsın, 101 değişsin" — bu yüzden
+   okey-engine.js'e HİÇ dokunulmadı, 101 masaları bu motora bağlandı. */
+let okey101Engine = null;
+try { okey101Engine = require('./okey101-engine.js'); } catch (_) {}
+
+/* Odanın hangi kural motorunu kullandığı TEK yerden sorulur; aşağıdaki
+   bütün dallar (çekme, atma, zaman aşımı, bot, el sonu) buna bakar. */
+function okeyMotoru(room) {
+  return (room && room.okey && room.okey.yeni101) ? okey101Engine : okeyEngine;
+}
+function yeni101Mi(room) { return !!(room && room.okey && room.okey.yeni101); }
 
 // OKEY hazır masaları: (2/3/4 kişilik) × (3/5/7 el), her kombinasyondan
 // 2 masa = 18 masa. El sayısını üye masa kurarken seçebilir; hazır masalarda
@@ -1659,11 +1672,23 @@ function startOkey(room) {
   room.result = null;
   room.lastMove = null;
   const variant = room.gameId === 'okey101' ? 'okey101' : 'standard';
+  /* 101 masaları yeni motora gider; motor yüklenemediyse (dosya yok) eski
+     davranışa düşeriz — oyun hiç açılmamasındansa klasik kurallarla açılsın. */
+  /* AÇMA ANAHTARI: gerçek 101 kuralları istemci tarafı da hazır olduğunda
+     açılır. Sunucu kuralları değiştirip arayüz eski kaldığında oyun
+     oynanamaz hale gelir (eski arayüz 14/15 taş ve "Kontrol ile bitir"
+     bekliyor). Bu yüzden varsayılan KAPALI; GV_OKEY101_GERCEK=1 ile açılır.
+     Testler anahtarı kendisi açar. */
+  const yeni101 = variant === 'okey101' && !!okey101Engine &&
+                  String(process.env.GV_OKEY101_GERCEK || '') === '1';
   const seats = room.players.map(p => p.seat).sort((a, b) => a - b);
   const scores = Object.fromEntries(seats.map(s => [s, 0]));
   room.okey = {
     variant,
-    roundState: okeyEngine.startRound(1, seats, scores, undefined, undefined, variant),
+    yeni101,
+    roundState: yeni101
+      ? okey101Engine.startRound(1, seats, scores, undefined, undefined)
+      : okeyEngine.startRound(1, seats, scores, undefined, undefined, variant),
     currentRound: 1,
     // Okey 101'de el limiti kullanılmaz (maç 101 puanda biter); standartta
     // oda bazlı el sayısı (masayı kuran / hazır masa tanımı belirler).
@@ -1720,6 +1745,19 @@ function buildOkeyState(room, forSeat) {
     result: st8.result,
     matchResult: room.result || null
   };
+  /* GERÇEK 101: masadaki açık perler ve kimin açtığı HERKESE açıktır —
+     oyunun bütün bilgisi orada. Klasik okeyde bu alanlar hiç gönderilmez,
+     eski istemci de etkilenmez. */
+  if (yeni101Mi(room)) {
+    state.kural = '101';
+    state.melds = (st8.melds || []).map(m => ({
+      id: m.id, seat: m.seat, tur: m.tur, tiles: m.tiles.slice()
+    }));
+    state.opened = Object.assign({}, st8.opened);
+    state.acmaPuani = okey101Engine.ACMA_PUANI;
+    state.ciftAdedi = okey101Engine.CIFT_ACMA_ADEDI;
+    state.cezaSiniri = Number(room.okeyTarget) > 0 ? Number(room.okeyTarget) : okey101Engine.CEZA_SINIRI;
+  }
   // Kendi eli yalnızca sahibine gider.
   if (forSeat !== null && forSeat !== undefined && st8.hands[forSeat]) {
     state.mySeat = forSeat;
@@ -1868,7 +1906,14 @@ function okeyRoundFinished(room) {
   //  - standart : el limiti (masa tanımı / OKEY_MAX_ROUNDS)
   //  - okey101  : bir oyuncu 101 puana ulaştı (veya güvenlik el limiti)
   let matchOver;
-  if (is101) {
+  if (yeni101Mi(room)) {
+    /* GERÇEK 101: puanlar CEZA'dır, motor el sonunda zaten ekledi. Maç,
+       biri ceza sınırına ulaşınca biter ve EN DÜŞÜK toplam kazanır. */
+    const sinir = Number(room.okeyTarget) > 0 ? Number(room.okeyTarget) : okey101Engine.CEZA_SINIRI;
+    const mac = okey101Engine.macBittiMi(ok.roundState.scores, ok.roundState.seats, sinir);
+    ok.macSonucu = mac || null;
+    matchOver = !!mac || ok.currentRound >= ok.maxRounds;
+  } else if (is101) {
     const target = okeyEngine.OKEY101_TARGET || 101;
     const someoneReached = Object.keys(ok.roundState.scores).some(
       s => (ok.roundState.scores[s] || 0) >= target);
@@ -1888,8 +1933,10 @@ function okeyRoundFinished(room) {
     if (room.players.length !== room.maxPlayers) { endOkeyMatch(room, 'player_left', null); return; }
     ok.currentRound += 1;
     // Varyant KORUNUR: okey101 masasında 2. el de 101 varyantıyla kurulur.
-    ok.roundState = okeyEngine.startRound(ok.currentRound, ok.roundState.seats, ok.roundState.scores,
-      undefined, undefined, ok.roundState.variant || ok.variant);
+    ok.roundState = yeni101Mi(room)
+      ? okey101Engine.startRound(ok.currentRound, ok.roundState.seats, ok.roundState.scores)
+      : okeyEngine.startRound(ok.currentRound, ok.roundState.seats, ok.roundState.scores,
+          undefined, undefined, ok.roundState.variant || ok.variant);
     ok.clockStartedAt = now();
     ok.turnStartedAt = now();
     touchMoveTimer(room);
@@ -1922,15 +1969,23 @@ function okeyClockTick(room) {
     }
     // Otomatik oyna: çekme aşamasındaysa desteden çek; sonra okey OLMAYAN
     // ilk taşı at (yoksa ilk taşı).
+    const M = okeyMotoru(room);
     if (ok.roundState.phase === 'draw') {
-      const r = okeyEngine.drawFromDeck(ok.roundState, turnSeat);
+      const r = M.drawFromDeck(ok.roundState, turnSeat);
       if (r.ok && r.deckEmpty) { okeyRoundFinished(room); return; }
     }
     ok.clockStartedAt = now(); // çekim süresini tur sahibine yazdık
     const hand = ok.roundState.hands[turnSeat] || [];
-    const nonOkey = hand.find(t => !okeyEngine.isRealOkeyTile(t, ok.roundState.realOkey));
+    /* Okey taşını otomatik atmıyoruz: elin en değerli taşı o, süresi
+       dolan oyuncuyu bir de ondan etmeyelim. İki motorda okey denetimi
+       ayrı adlarla duruyor. */
+    const okeyMi = t => (M === okey101Engine)
+      ? okey101Engine.isOkey(t, ok.roundState.realOkey)
+      : okeyEngine.isRealOkeyTile(t, ok.roundState.realOkey);
+    const nonOkey = hand.find(t => !okeyMi(t));
     const tile = nonOkey || hand[0];
-    if (tile) okeyEngine.discard(ok.roundState, turnSeat, tile.id);
+    if (tile) M.discard(ok.roundState, turnSeat, tile.id);
+    if (ok.roundState.finished) { okeyRoundFinished(room); return; }
     ok.turnStartedAt = now();
     touchMoveTimer(room);
     emitOkeyState(room, 'okeyAutoPlayed');
@@ -2051,6 +2106,35 @@ function aiSirasiMi(room, seat) {
 function aiOyna(room, bot) {
   if (!rooms.get(room.id) || room.status !== 'playing' || !bot.aiControlled) return;
   if (!aiSirasiMi(room, bot.seat)) return;
+
+  /* GERÇEK 101: ai.okeyHamle klasik okeyin "eli bitir" mantığına göre
+     yazıldı (okeyEngine.finish çağırıyor); 101'de o eylem yok. Bot burada
+     kuralına uygun ama iddiasız oynar: çek, açabiliyorsa aç, en pahalı
+     taşı at. Amaç masayı kilitlememek — insan oyuncunun yerini geçici
+     doldurduğu için güçlü oynaması gerekmiyor. */
+  if (yeni101Mi(room) && room.okey.roundState) {
+    const st8 = room.okey.roundState;
+    if (st8.phase === 'draw') {
+      let r = okey101Engine.drawFromPrev(st8, bot.seat);
+      if (!r.ok) r = okey101Engine.drawFromDeck(st8, bot.seat);
+      if (r.ok && r.deckEmpty) { okeyRoundFinished(room); return; }
+    }
+    const el = (st8.hands || {})[bot.seat] || [];
+    if (el.length > 1) {
+      /* En pahalı taşı at ama okeyi elde tut (en değerli joker odur). */
+      let aday = null;
+      for (const t of el) {
+        if (okey101Engine.isOkey(t, st8.realOkey)) continue;
+        if (!aday || (Number(t.n) || 0) > (Number(aday.n) || 0)) aday = t;
+      }
+      okey101Engine.discard(st8, bot.seat, (aday || el[0]).id);
+    }
+    room.okey.turnStartedAt = now();
+    touchMoveTimer(room);
+    if (st8.finished) { okeyRoundFinished(room); return; }
+    emitOkeyState(room, 'okeyAutoPlayed');
+    return;
+  }
 
   if (room.okey && room.okey.roundState) {
     const st8 = room.okey.roundState;
@@ -3731,22 +3815,51 @@ io.on('connection', socket => {
     const room = rooms.get(roomId);
     if (!room) return;
     const source = (data && data.source) === 'prev' ? 'prev' : 'deck';
+    const M = okeyMotoru(room);
     okeyAct(room, socket, (st8, seat) =>
-      source === 'prev' ? okeyEngine.drawFromPrev(st8, seat) : okeyEngine.drawFromDeck(st8, seat));
+      source === 'prev' ? M.drawFromPrev(st8, seat) : M.drawFromDeck(st8, seat));
   });
 
   socket.on('okeyDiscard', data => {
     const roomId = socket.roomId || (data && String(data.roomId));
     const room = rooms.get(roomId);
     if (!room || !data || !data.tileId) return;
-    okeyAct(room, socket, (st8, seat) => okeyEngine.discard(st8, seat, String(data.tileId)));
+    okeyAct(room, socket, (st8, seat) => okeyMotoru(room).discard(st8, seat, String(data.tileId)));
   });
 
   socket.on('okeyFinish', data => {
     const roomId = socket.roomId || (data && String(data.roomId));
     const room = rooms.get(roomId);
     if (!room || !data || !data.tileId) return;
+    /* KLASİK okeye özgü: "14 taşım per, 15.'yi atıp bitiyorum". Gerçek
+       101'de bitiş ayrı bir eylem değil — oyuncu taşlarını masaya koyar ve
+       son taşını atar; bu yüzden 101 masasında bu olay yok sayılır. */
+    if (yeni101Mi(room)) return;
     okeyAct(room, socket, (st8, seat) => okeyEngine.finish(st8, seat, String(data.tileId)));
+  });
+
+  /* ---------- GERÇEK 101 OKEY: EL AÇMA ve İŞLEME ----------
+     gruplar: [[tileId, ...], ...]  ·  cift: 5 çiftle açılış mı
+     Doğrulamanın tamamı motorda; sunucu yalnız girdiyi temizler. İstemciye
+     güvenilmez: taşlar oyuncunun elinde mi, toplam 101'e ulaşıyor mu,
+     perler geçerli mi — hepsi okey101-engine.js'te sınanır. */
+  socket.on('okey101Open', data => {
+    const room = rooms.get(socket.roomId || (data && String(data.roomId)));
+    if (!room || !yeni101Mi(room) || !data) return;
+    const gruplar = (Array.isArray(data.gruplar) ? data.gruplar : [])
+      .slice(0, 12)
+      .map(g => (Array.isArray(g) ? g : []).slice(0, 14).map(x => String(x)))
+      .filter(g => g.length >= 2);
+    if (!gruplar.length) return;
+    okeyAct(room, socket, (st8, seat) =>
+      okey101Engine.openMelds(st8, seat, gruplar, !!data.cift));
+  });
+
+  socket.on('okey101Add', data => {
+    const room = rooms.get(socket.roomId || (data && String(data.roomId)));
+    if (!room || !yeni101Mi(room) || !data || !data.meldId || !data.tileId) return;
+    okeyAct(room, socket, (st8, seat) =>
+      okey101Engine.addToMeld(st8, seat, String(data.meldId), String(data.tileId)));
   });
 
   // ---------- YAPAY ZEKÂDAN KOLTUĞU GERİ ALMA ----------
