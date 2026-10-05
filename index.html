@@ -2046,6 +2046,25 @@ body.gv-app input,body.gv-app textarea,body.gv-app .chat-msgs,body.gv-app .moves
   .ok101a-ac{width:100%}
 }
 
+/* ---------- 9b-3) MASA OYLAMASI PENCERESİ ---------- */
+.mo-ov{position:fixed;inset:0;z-index:3200;background:rgba(5,6,16,.8);
+  display:flex;align-items:center;justify-content:center;padding:16px;backdrop-filter:blur(3px)}
+.mo-kutu{width:min(430px,100%);background:var(--card);border:1px solid var(--border);
+  border-radius:16px;padding:18px;text-align:center}
+.mo-bas{font-size:1.12em;font-weight:800;margin-bottom:10px}
+.mo-metin{color:var(--text2);font-size:.92em;line-height:1.55;margin:0 0 10px}
+.mo-metin b{color:var(--text)}
+.mo-dugmeler{display:flex;gap:10px;margin:14px 0 10px}
+.mo-evet,.mo-hayir{flex:1;padding:12px;border-radius:12px;border:0;cursor:pointer;
+  font-weight:800;font-size:.95em}
+.mo-evet{background:linear-gradient(135deg,#2ecc71,#27ae60);color:#06130b}
+.mo-hayir{background:var(--bg3);color:var(--text2);border:1px solid var(--border)}
+.mo-bekle{padding:12px;border-radius:12px;background:var(--bg3);color:var(--text2);
+  font-size:.88em;margin:14px 0 10px}
+.mo-alt{display:flex;justify-content:space-between;font-size:.8em;color:var(--accent)}
+.mo-not{margin-top:8px;font-size:.74em;color:var(--text3)}
+@media(max-width:480px){ .mo-dugmeler{flex-direction:column} }
+
 /* ---------- 9c) ANA SAYFA CANLI SAYAÇ ŞERİDİ ----------
    Karşılama kutusunun içinde, sunucudan gelen gerçek sayılar. */
 /* KARŞILAMA BAŞLIĞI — uzun kullanıcı adları dar ekranda kutudan taşıyordu
@@ -6114,6 +6133,9 @@ GV.init();
 <!-- 101 Okey el açma penceresi: okey-online.js zaten büyük, açma akışı
      (çok adımlı per kurma) ayrı dosyada duruyor. -->
 <script src="js/okey101-ac.js?v=20261005a" defer></script>
+<!-- Masa oylaması: 3-4 kişilik masada biri çıkınca el sonunda
+     "eksik kişiyle devam edelim mi" penceresi. -->
+<script src="js/masa-oylama.js?v=20261005a" defer></script>
 <script src="js/online-arena.js?v=20260927d" defer></script>
 <script src="js/card-online.js?v=20260904b" defer></script>
 <script src="js/dama-online.js?v=20260908b" defer></script>

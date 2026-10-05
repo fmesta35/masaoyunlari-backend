@@ -117,6 +117,11 @@ try {
 const MAX_ROOM_PLAYERS = 2;
 // Okey 4 kişilik oynanır; diğerleri ikişer kişilik kalır.
 const MAX_PLAYERS_BY_GAME = { okey: 4, okey101: 4, pisti: 4, batak: 4 };
+/* Oyunun EN AZ kaç kişiyle oynanabildiği. Bir oyuncu ayrılıp masa küçülünce
+   "devam edelim mi" oylamasında buna bakılır: batak 3 kişinin altına
+   inemez (ihale/koz mantığı iki kişilik değildir), diğerleri 2'ye iner. */
+const MIN_PLAYERS_BY_GAME = { okey: 2, okey101: 2, pisti: 2, batak: 3 };
+function minOyuncu(gameId) { return MIN_PLAYERS_BY_GAME[gameId] || 2; }
 const ONLINE_CARD_GAMES = new Set(['pisti', 'batak']);
 const ONLINE_BOARD_GAMES = new Set(['dama','turkdamasi','reversi']);
 // Amiral Battı 2 kişilik oynanır (MAX_ROOM_PLAYERS varsayılanı yeterli),
@@ -889,6 +894,7 @@ function resetRoomToWaiting(room) {
   if (room.okey && room.okey.between) { clearTimeout(room.okey.between); }
   room.okey = null; // okey el/maç durumu tamamen temizlenir
   room.rematch = null; // bekleyen rövanş oylaması varsa düşer
+  masaOylamasiTemizle(room); // bekleyen "eksik kişiyle devam" oylaması da
   room.result = null;
   room.lastMove = null;
   room.turnStartedAt = null;
@@ -1933,6 +1939,14 @@ function okeyRoundFinished(room) {
     endOkeyMatch(room, 'completed', null);
     return;
   }
+  /* EL BİTTİ VE MASADA BOT VAR: kullanıcı isteği — "çıkan oyuncunun yerini
+     o EL için bot sürdürsün, el bitince herkese oylama sunulsun". Bot
+     koltuğu burada kalkıyor; devam kararını masadaki insanlar veriyor. */
+  if (aiKoltuklari(room).length && insanKoltuklari(room).length >= 1) {
+    masaOylamasiBaslat(room);
+    return;
+  }
+
   ok.between = setTimeout(() => {
     ok.between = null;
     if (room.status !== 'playing') return; // arada maç bitmişse
@@ -2032,6 +2046,139 @@ function aiOyunuDestekliyor(room) {
 
 function aiKoltuklari(room) {
   return (room.players || []).filter(p => p && p.aiControlled);
+}
+function insanKoltuklari(room) {
+  return (room.players || []).filter(p => p && !p.aiControlled);
+}
+
+/* ===========================================================================
+ * MASA OYLAMASI — "eksik kişiyle devam edelim mi?"
+ * ===========================================================================
+ * Kullanıcı isteği: "çıkan oyuncu yerini o elde geçerli olmak üzere bir bot
+ * devam ettirsin. Ardından o el bittikten sonra tüm oyunculara oylama
+ * sunulsun; devam et oylanırsa kalan kişi sayısı kurallarına göre devam
+ * ederler, oylama başarısız olursa herkes lobiye yönlendirilir."
+ *
+ * KARAR KURALI: masadaki İNSANLARIN HEPSİ "devam" demeli. Çoğunluk
+ * seçilseydi, devam etmek istemeyen oyuncu kendi istemediği bir maça
+ * bağlanmış olurdu; oysa ayrılmak serbest ve maliyetsiz olmalı. Süre
+ * dolarsa "hayır" sayılır — yanıt vermeyen biri masayı sonsuza kadar
+ * bekletemesin.
+ *
+ * Oylama BAŞARILIYSA bot koltukları kalkar, masa küçülür ve kalan kişi
+ * sayısının kurallarıyla yeni el başlar (4→3, 3→2). Oyunun alt sınırının
+ * altına inilecekse (batak 3) oylama anlamsızdır: maç orada biter.
+ * ======================================================================== */
+const MASA_OYLAMA_MS = Math.max(5000, Number(process.env.GV_MASA_OYLAMA_MS) || 30000);
+
+function masaOylamasiYayinla(room) {
+  const o = room.masaOylama;
+  if (!o) return;
+  const insanlar = insanKoltuklari(room);
+  const ortak = {
+    roomId: room.id,
+    ayrilanlar: o.ayrilanlar,
+    yeniKisi: o.yeniKisi,
+    enAz: minOyuncu(room.gameId),
+    bitis: o.bitis,
+    kalanMs: Math.max(0, o.bitis - now()),
+    oyVerenler: insanlar.filter(p => o.votes[p.seat] === true).map(p => p.seat),
+    gereken: insanlar.length
+  };
+  insanlar.forEach(p => emitToPlayer(p, 'masaOylamasi', Object.assign({}, ortak, {
+    seat: p.seat, senOyVerdin: o.votes[p.seat] === true
+  })));
+  (room.spectators || []).forEach(sp => emitToPlayer(sp, 'masaOylamasi',
+    Object.assign({}, ortak, { seat: null, senOyVerdin: false, isSpectator: true })));
+}
+
+function masaOylamasiBaslat(room) {
+  if (!room || room.masaOylama) return;
+  const botlar = aiKoltuklari(room);
+  const insanlar = insanKoltuklari(room);
+  if (!botlar.length || !insanlar.length) return;
+  const yeniKisi = insanlar.length;
+
+  /* Alt sınırın altına düşülüyorsa oylamaya gerek yok: oyun o kişi sayısıyla
+     oynanamaz. Masada tek insan kaldıysa da aynı — rakipsiz maç olmaz. */
+  if (yeniKisi < minOyuncu(room.gameId) || yeniKisi < 2) {
+    if (room.okey) endOkeyMatch(room, 'player_left', botlar[0].seat);
+    return;
+  }
+
+  room.masaOylama = {
+    votes: {},
+    ayrilanlar: botlar.map(p => p.aiOriginalName || p.name || 'Oyuncu'),
+    yeniKisi,
+    bitis: now() + MASA_OYLAMA_MS,
+    timer: setTimeout(() => masaOylamasiBitir(room, false), MASA_OYLAMA_MS)
+  };
+  console.log(`[ODA #${room.id}] masa oylaması başladı — ${yeniKisi} kişiyle devam?`);
+  masaOylamasiYayinla(room);
+}
+
+function masaOylamasiOyVer(room, seat, evet) {
+  const o = room && room.masaOylama;
+  if (!o) return;
+  const p = (room.players || []).find(x => x.seat === seat && !x.aiControlled);
+  if (!p) return;
+  if (!evet) return masaOylamasiBitir(room, false);
+  o.votes[seat] = true;
+  const insanlar = insanKoltuklari(room);
+  if (insanlar.every(x => o.votes[x.seat] === true)) return masaOylamasiBitir(room, true);
+  masaOylamasiYayinla(room);
+}
+
+function masaOylamasiTemizle(room) {
+  if (room && room.masaOylama && room.masaOylama.timer) clearTimeout(room.masaOylama.timer);
+  if (room) room.masaOylama = null;
+}
+
+function masaOylamasiBitir(room, devam) {
+  if (!room || !room.masaOylama) return;
+  const yeniKisi = room.masaOylama.yeniKisi;
+  masaOylamasiTemizle(room);
+  io.to(room.id).emit('masaOylamaSonucu', { roomId: room.id, devam: !!devam, yeniKisi });
+
+  if (!devam) {
+    /* Oylama geçmedi: maç biter, herkes lobiye. Kazanan, o ana kadarki
+       skorlara göre belirlenir (okeyLeaderAmong oyuna göre yön seçiyor). */
+    if (room.okey) endOkeyMatch(room, 'vote_failed', null);
+    else { room.status = 'finished'; emitRoom(room); scheduleRoomReset(room); }
+    return;
+  }
+
+  /* DEVAM: bot koltukları kalkar, masa küçülür, kalan kişi sayısının
+     kurallarıyla YENİ EL başlar. Koltuk numaraları yeniden verilir ki
+     motorun sıra döngüsü boşluksuz olsun. */
+  const botlar = aiKoltuklari(room);
+  botlar.forEach(p => { if (p.aiTimer) { clearTimeout(p.aiTimer); p.aiTimer = null; } });
+  room.players = insanKoltuklari(room);
+  room.players.forEach((p, i) => { p.seat = i; p.isReady = true; });
+  room.maxPlayers = yeniKisi;
+  console.log(`[ODA #${room.id}] oylama geçti — ${yeniKisi} kişiyle devam ediliyor.`);
+
+  if (room.okey) {
+    const ok = room.okey;
+    const seats = room.players.map(p => p.seat);
+    /* Puanlar SIFIRDAN başlar: koltuklar yeniden numaralandığı için eski
+       skorları taşımak yanlış kişiye yazmak demek olurdu. */
+    const scores = Object.fromEntries(seats.map(s => [s, 0]));
+    ok.currentRound += 1;
+    ok.roundState = yeni101Mi(room)
+      ? okey101Engine.startRound(ok.currentRound, seats, scores)
+      : okeyEngine.startRound(ok.currentRound, seats, scores,
+          undefined, undefined, ok.roundState.variant || ok.variant);
+    ok.clockMs = Object.fromEntries(seats.map(s => [s, room.durationMinutes * 60 * 1000]));
+    ok.clockStartedAt = now();
+    ok.turnStartedAt = now();
+    ok.strikes = Object.fromEntries(seats.map(s => [s, 0]));
+    touchMoveTimer(room);
+    emitRoom(room);
+    emitOkeyState(room, 'gameStarted');
+    return;
+  }
+  emitRoom(room);
 }
 
 // Koltuğu yapay zekâya devret.
@@ -3859,6 +4006,15 @@ io.on('connection', socket => {
     if (!gruplar.length) return;
     okeyAct(room, socket, (st8, seat) =>
       okey101Engine.openMelds(st8, seat, gruplar, !!data.cift));
+  });
+
+  /* MASA OYLAMASI: eksik kişiyle devam edelim mi? (bkz. masaOylamasiBaslat) */
+  socket.on('masaOyla', data => {
+    const room = rooms.get(socket.roomId || (data && String(data.roomId)));
+    if (!room || !room.masaOylama) return;
+    const p = (room.players || []).find(x => x.id === socket.id && !x.aiControlled);
+    if (!p) return;
+    masaOylamasiOyVer(room, p.seat, !!(data && data.evet));
   });
 
   socket.on('okey101Add', data => {
