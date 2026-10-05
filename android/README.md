@@ -24,13 +24,28 @@ hedef Android sürümü ya da bu klasördeki kabuk kodu.
 
 ---
 
-## Tek komutla derleme
+## Tek komutla derleme (hem .aab hem .apk)
 
-`android` klasöründe bir CMD penceresi açıp:
+`android` klasöründe **`derle.bat`** dosyasına çift tıklayın (ya da CMD'den):
 
 ```cmd
 derle.bat
 ```
+
+Tek çalıştırmada **iki dosya birden** çıkar:
+
+| Dosya | Nereye | Yol |
+|---|---|---|
+| `.aab` | Google Play Console | `app\build\outputs\bundle\release\app-release.aab` |
+| `.apk` | Telefona doğrudan kurulum | `app\build\outputs\apk\release\app-release.apk` |
+
+İkisi **aynı Gradle çalışmasından, aynı kaynaklardan ve aynı imza
+anahtarından** çıkar; böylece telefonda denediğiniz uygulama mağazaya
+gidenle birebir aynıdır. Ayrı ayrı üretmek, arada kod değişirse
+"denediğim sürüm bu değilmiş" tuzağını doğuruyordu.
+
+Yalnız birini isterseniz: **`derle-apk.bat`** (sadece APK, daha hızlı) ya da
+**`derle-aab.bat`** (sadece mağaza paketi).
 
 (ya da PowerShell'de: `powershell -ExecutionPolicy Bypass -File .\derle.ps1`)
 
@@ -43,26 +58,23 @@ powershell -ExecutionPolicy Bypass -File .\derle.ps1 -OtomatikAnahtar
 Bu kipte parola **ekrana yazılmaz**; `keystore\PAROLA-GIZLI-TUT.txt`
 dosyasına kaydedilir.
 
-### Telefonunuzda denemek için: `.apk`
+### Neden iki ayrı dosya?
 
-Play Console `.aab` ister, ama **`.aab` bir telefona kurulamaz** — o, mağazanın
-her cihaza özel APK üretmesi için kullandığı bir kaynak paketidir, indirilip
-çalıştırılan bir dosya değildir. Uygulamayı kendi telefonunuzda denemek için:
+**`.aab` bir telefona kurulamaz.** O, mağazanın her cihaza özel APK üretmesi
+için kullandığı bir kaynak paketidir; indirilip çalıştırılan bir dosya
+değildir. Play Console da yalnızca `.aab` kabul eder. Bu yüzden ikisi birden
+üretiliyor.
 
-```cmd
-derle-apk.bat
-```
-
-Çıktı: `app\build\outputs\apk\release\app-release.apk`
-
-APK ile AAB **aynı imza anahtarıyla** imzalanır, yani denediğiniz uygulama
-mağazaya gidenle birebir aynı davranır. Dosyayı telefona USB, e-posta ya da
-WhatsApp ile gönderip dokunmanız yeterli; Android "bilinmeyen kaynak" uyarısı
-verirse, dosyayı açtığınız uygulamaya (Dosyalar / Chrome / WhatsApp) bir kerelik
-kurulum izni verin.
+APK'yi telefona USB, e-posta ya da WhatsApp ile gönderip dokunmanız yeterli;
+Android "bilinmeyen kaynak" uyarısı verirse, dosyayı açtığınız uygulamaya
+(Dosyalar / Chrome / WhatsApp) bir kerelik kurulum izni verin.
 
 > Paket adı mağaza sürümüyle aynı olduğu için ikisi telefonda bir arada
 > duramaz. Play'den kurmadan önce bu APK'yi kaldırın.
+
+> Kabuk kodu (bu klasör) her değiştiğinde `versionCode` artırılmalıdır —
+> Play aynı numarayı iki kez kabul etmez. Yalnız SİTE değiştiyse yeni
+> derlemeye gerek yoktur; uygulama siteyi canlı yükler.
 
 Betik sırayla:
 

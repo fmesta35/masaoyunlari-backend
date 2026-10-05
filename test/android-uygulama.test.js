@@ -46,7 +46,7 @@ for (const f of ['android/settings.gradle', 'android/build.gradle', 'android/gra
                  'android/app/src/main/res/layout/activity_main.xml',
                  'android/app/src/main/res/values/strings.xml',
                  'android/README.md', 'android/derle.ps1', 'android/derle.bat',
-                 'android/derle-apk.bat']) {
+                 'android/derle-apk.bat', 'android/derle-aab.bat']) {
   assert.ok(fs.existsSync(path.join(KOK, f)), 'eksik dosya: ' + f);
 }
 const appGradle = oku('android/app/build.gradle');
@@ -208,10 +208,23 @@ assert.ok(/android-sdk/.test(ps1), 'betik kurulu SDK\'yı aramalı (gereksiz GB 
    ve derle-apk.bat var; ikisi de AYNI imza yapılandırmasını kullanır, yani
    denenen uygulama mağazaya gidenle aynı davranır. */
 const batApk = oku('android/derle-apk.bat');
+const batAab = oku('android/derle-aab.bat');
 assert.ok(!/[^\x00-\x7F]/.test(batApk), 'derle-apk.bat ASCII olmalı');
+assert.ok(!/[^\x00-\x7F]/.test(batAab), 'derle-aab.bat ASCII olmalı');
 assert.ok(/\$Apk/.test(ps1) && /assembleRelease/.test(ps1),
   'betik -Apk anahtarıyla telefona kurulabilen APK de üretmeli');
 assert.ok(/-Apk/.test(batApk), 'derle-apk.bat betiği -Apk anahtarıyla çağırmalı');
+assert.ok(/-Aab/.test(batAab), 'derle-aab.bat betiği -Aab anahtarıyla çağırmalı');
+/* VARSAYILAN = İKİSİ BİRDEN. Ayrı ayrı üretilirse arada kod değişince
+   telefonda denenen sürüm ile mağazaya giden paket farklı olabiliyordu;
+   tek Gradle çalışması bunu imkânsız kılıyor. */
+assert.ok(/\$aabYap = \(-not \$Apk\) -or \$Aab/.test(ps1) &&
+          /\$apkYap = \(-not \$Aab\) -or \$Apk/.test(ps1),
+  'anahtarsız çalıştırmada hem .aab hem .apk üretilmeli');
+assert.ok(/& \$gradleBat @gorevler/.test(ps1),
+  'iki çıktı TEK Gradle çalışmasından gelmeli (aynı kaynak, aynı imza)');
+assert.ok(!/-Apk/.test(oku('android/derle.bat')) && !/-Aab/.test(oku('android/derle.bat')),
+  'derle.bat anahtarsız çağırmalı ki ikisini birden üretsin');
 assert.ok(/signingConfig signingConfigs\.release/.test(appGradle),
   'release yapısı imzalı olmalı; yoksa assembleRelease imzasız APK üretir ve kurulmaz');
 console.log('  ✓ 10) derleme betikleri ASCII, parolayı sormuyor-gömmüyor, kurulu SDK\'yı arıyor; APK seçeneği var');

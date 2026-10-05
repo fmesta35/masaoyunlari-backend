@@ -23,11 +23,17 @@
 #   (ornegin uzaktan calistirma) icindir; parola ekrana YAZILMAZ.
 #   Bu dosyalarin yedegini almak SIZE aittir.
 #
-# -Apk : .aab YERINE, telefona dogrudan kurulabilen imzali app-release.apk
-#   uretir. Play Console .aab ister ama .aab telefona KURULAMAZ; uygulamayi
-#   kendi cihazinizda denemek icin APK gerekir. Ikisi de AYNI imza anahtariyla
-#   imzalanir, yani davranis birebir aynidir.
-param([switch]$OtomatikAnahtar, [switch]$Apk)
+# VARSAYILAN: tek calistirmada HEM .aab HEM .apk uretilir.
+#   .aab  -> Play Console'a yuklenir (magaza baska bir dosya kabul etmez)
+#   .apk  -> telefona dogrudan kurulur (.aab bir cihaza KURULAMAZ)
+# Ikisi ayni Gradle calismasindan, ayni kaynaklardan ve AYNI imza
+# anahtarindan cikar; boylece telefonda denediginiz uygulama ile magazaya
+# giden paket birebir ayni olur. Ayri ayri uretmek, arada kod degisirse
+# "denedigim surum bu degilmis" tuzagini doguruyordu.
+#
+# -Apk : YALNIZ .apk uret (hizli; sadece telefonda denemek icin)
+# -Aab : YALNIZ .aab uret (yalnizca magazaya yukleyecekseniz)
+param([switch]$OtomatikAnahtar, [switch]$Apk, [switch]$Aab)
 
 $ErrorActionPreference = "Continue"
 $root = $PSScriptRoot
@@ -52,7 +58,13 @@ function Info($m) { Write-Host "->   $m" -ForegroundColor Cyan }
 function Err($m)  { Write-Host "HATA $m" -ForegroundColor Red }
 
 Write-Host ""
-$hedefAd = if ($Apk) { ".apk (telefona kurulum)" } else { ".aab (Play Console)" }
+# Hicbiri verilmediyse IKISI birden.
+$aabYap = (-not $Apk) -or $Aab
+$apkYap = (-not $Aab) -or $Apk
+if ($Apk -and $Aab) { $aabYap = $true; $apkYap = $true }
+$hedefAd = if ($aabYap -and $apkYap) { ".aab + .apk" }
+           elseif ($apkYap) { ".apk (telefona kurulum)" }
+           else { ".aab (Play Console)" }
 Write-Host "=== Masa Oyunlari - Android $hedefAd derleme ===" -ForegroundColor Yellow
 Write-Host ""
 
@@ -248,43 +260,53 @@ $sdkYol = JavaProp ($androidSdk -replace '\\', '/')
 # ------------------------------------------------------------------ 6) Derle
 Write-Host ""
 Info "Derleniyor (ilk derleme bagimliliklari indirir, birkac dakika surer)..."
-if ($Apk) {
-    & $gradleBat assembleRelease --no-daemon --warning-mode=none
-} else {
-    & $gradleBat bundleRelease --no-daemon --warning-mode=none
-}
+$gorevler = @()
+if ($aabYap) { $gorevler += "bundleRelease" }
+if ($apkYap) { $gorevler += "assembleRelease" }
+# Tek Gradle calismasi: iki cikti da AYNI derlemeden gelir.
+& $gradleBat @gorevler --no-daemon --warning-mode=none
 $kod = $LASTEXITCODE
 
-if ($Apk) {
-    $cikti = "$root\app\build\outputs\apk\release\app-release.apk"
-} else {
-    $cikti = "$root\app\build\outputs\bundle\release\app-release.aab"
-}
+$aabYol = "$root\app\build\outputs\bundle\release\app-release.aab"
+$apkYol = "$root\app\build\outputs\apk\release\app-release.apk"
+$bekleyen = @()
+if ($aabYap) { $bekleyen += $aabYol }
+if ($apkYap) { $bekleyen += $apkYol }
+# @(...) : tek sonucta da DIZI dondur, .Count her durumda calissin.
+$eksik = @($bekleyen | Where-Object { -not (Test-Path $_) })
+
 Write-Host ""
-if ($kod -eq 0 -and (Test-Path $cikti)) {
-    $mb = [math]::Round((Get-Item $cikti).Length / 1MB, 2)
-    if ($Apk) {
-        Ok "BITTI. Telefona kuracaginiz dosya:"
-        Write-Host "     $cikti  ($mb MB)" -ForegroundColor Green
+if ($kod -eq 0 -and $eksik.Count -eq 0) {
+    Ok "BITTI."
+    Write-Host ""
+    if ($aabYap) {
+        $mb = [math]::Round((Get-Item $aabYol).Length / 1MB, 2)
+        Write-Host "  PLAY CONSOLE'A YUKLENECEK (.aab):" -ForegroundColor Green
+        Write-Host "     $aabYol  ($mb MB)" -ForegroundColor Green
         Write-Host ""
+    }
+    if ($apkYap) {
+        $mb = [math]::Round((Get-Item $apkYol).Length / 1MB, 2)
+        Write-Host "  TELEFONA KURULACAK (.apk):" -ForegroundColor Green
+        Write-Host "     $apkYol  ($mb MB)" -ForegroundColor Green
+        Write-Host ""
+    }
+    if ($apkYap) {
         Write-Host "Telefona nasil kurulur:" -ForegroundColor Cyan
-        Write-Host "  1) Dosyayi USB kablosuyla, e-postayla ya da WhatsApp ile telefona gonderin." -ForegroundColor Cyan
+        Write-Host "  1) APK'yi USB kablosuyla, e-postayla ya da WhatsApp ile telefona gonderin." -ForegroundColor Cyan
         Write-Host "  2) Telefonda dosyaya dokunun. Android 'bilinmeyen kaynak' uyarisi verirse" -ForegroundColor Cyan
         Write-Host "     'Ayarlar'a gidip o uygulamaya (Dosyalar / Chrome / WhatsApp) kurulum" -ForegroundColor Cyan
         Write-Host "     izni verin; bu izin yalnizca o uygulama icin gecerlidir." -ForegroundColor Cyan
-        Write-Host "  3) Play'den kurulan surumle AYNI paket adini tasidigi icin ikisi bir arada" -ForegroundColor Cyan
-        Write-Host "     duramaz. Play surumunu kurduktan sonra bu APK'yi kaldirmaniz gerekir." -ForegroundColor Cyan
+        Write-Host "  3) Play surumuyle AYNI paket adini tasidigi icin ikisi bir arada duramaz;" -ForegroundColor Cyan
+        Write-Host "     Play'den kurmadan once bu APK'yi kaldirin." -ForegroundColor Cyan
         Write-Host ""
-        Write-Host "NOT: Play Console'a bu dosya YUKLENMEZ. Magaza .aab ister:" -ForegroundColor Yellow
-        Write-Host "     derle.bat (parametresiz) calistirin." -ForegroundColor Yellow
-    } else {
-        Ok "BITTI. Play Console'a yukleyeceginiz dosya:"
-        Write-Host "     $cikti  ($mb MB)" -ForegroundColor Green
-        Write-Host ""
+    }
+    if ($aabYap) {
         Write-Host "Sonraki adim: Play Console > Uygulama imzalama sayfasindaki SHA-256" -ForegroundColor Cyan
         Write-Host "parmak izini .well-known/assetlinks.json icine yazip siteye yukleyin." -ForegroundColor Cyan
     }
-    try { Start-Process (Split-Path $cikti) } catch { }
+    $ac = if ($aabYap) { Split-Path $aabYol } else { Split-Path $apkYol }
+    try { Start-Process $ac } catch { }
 } else {
     Err "Derleme basarisiz (cikis kodu $kod). Yukaridaki kirmizi satirlari gonderin."
     exit 1
