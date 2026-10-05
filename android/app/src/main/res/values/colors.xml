@@ -6,7 +6,7 @@
     <color name="colorPrimary">#6C5CE7</color>
     <color name="colorPrimaryDark">#5A4BD1</color>
     <color name="backgroundColor">#0A0A1A</color>
-    <!-- Sitedeki üst barın rengi (index.html --bg2). WebView durum
+    <!-- Sitedeki üst barın rengi (index.html'deki bg2 değişkeni). WebView durum
          çubuğunun altına kadar çizdiğinde bu hiç görünmez; çizemediği
          ender durumda (JS kapalı) kalan şerit SİYAH değil üst barın
          rengi olsun, boşluk gibi durmasın. -->

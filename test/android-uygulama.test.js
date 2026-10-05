@@ -234,6 +234,41 @@ assert.ok(/signingConfig signingConfigs\.release/.test(appGradle),
   'release yapısı imzalı olmalı; yoksa assembleRelease imzasız APK üretir ve kurulmaz');
 console.log('  ✓ 10) derleme betikleri ASCII, parolayı sormuyor-gömmüyor, kurulu SDK\'yı arıyor; APK seçeneği var');
 
+/* ---------- 10b) XML YORUMLARINDA "--" OLMAMALI ----------
+ * XML belirtiminde çift tire bir yorumun İÇİNDE geçemez. Android'in kaynak
+ * birleştiricisi (mergeReleaseResources) bunu hata sayıp derlemeyi
+ * durduruyor: 'The string "--" is not permitted within comments'. Bu tuzağa
+ * bu projede iki kez düşüldü; ikisinde de sebep yoruma bir CSS değişkeni
+ * adının (--bg gibi) yazılmasıydı ve hata ancak kullanıcının bilgisayarında,
+ * dakikalar süren derlemenin sonunda görüldü. Artık burada yakalanıyor. */
+function xmlDosyalari(dizin, biriktir) {
+  for (const ad of fs.readdirSync(dizin)) {
+    const tam = path.join(dizin, ad);
+    const d = fs.statSync(tam);
+    if (d.isDirectory()) { if (ad !== 'build' && ad !== '.gradle') xmlDosyalari(tam, biriktir); }
+    else if (ad.endsWith('.xml')) biriktir.push(tam);
+  }
+  return biriktir;
+}
+const xmller = xmlDosyalari(path.join(AND, 'app/src'), []);
+assert.ok(xmller.length >= 5, 'android XML dosyaları bulunmalı');
+for (const dosya of xmller) {
+  const icerik = fs.readFileSync(dosya, 'utf8');
+  for (const m of icerik.match(/<!--[\s\S]*?-->/g) || []) {
+    const govde = m.slice(4, -3);
+    assert.ok(!govde.includes('--'),
+      path.relative(AND, dosya) + ': XML yorumunun içinde "--" var — Android ' +
+      'kaynak birleştiricisi derlemeyi bu yüzden durdurur. Yorumda CSS ' +
+      'değişkeni adı geçecekse tireleri yazmayın.\n  ...' +
+      govde.replace(/\s+/g, ' ').trim().slice(0, 70) + '...');
+  }
+  // Yarım kalmış yorum da aynı hataya yol açar.
+  const ac = (icerik.match(/<!--/g) || []).length;
+  const kapa = (icerik.match(/-->/g) || []).length;
+  assert.strictEqual(ac, kapa, path.relative(AND, dosya) + ': yorum açma/kapama sayısı tutmuyor');
+}
+console.log('  ✓ 10b) ' + xmller.length + ' XML dosyasının yorumları geçerli (çift tire yok)');
+
 // ---------- 11) kaynak atıfları çözülüyor mu ----------
 /* Java'daki R.id.x / R.string.y ve XML'deki @drawable/z gibi atıfların
    hepsi GERÇEKTEN var mı? Tek harflik bir yazım hatası derlemeyi kırar ve
