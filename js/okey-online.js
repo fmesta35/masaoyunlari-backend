@@ -850,6 +850,13 @@
     if (isSpectator) return toast('👁️ İzleyicisiniz — taş çekemezsiniz.', 'info');
     if (!myTurnNow()) return toast('⏳ Sıra sizde değil!', 'warning');
     if (gameState.phase !== 'draw') return toast('📤 Taş atmalısınız!', 'warning');
+    /* 101 KURALI: açmadan yerden (soldaki oyuncunun attığından) taş alınmaz.
+       Sunucu da reddediyor; burada da durdurulması oyuncuya anında ve net
+       bir sebep göstermek için — taş gidip geri gelmiyor. */
+    if (source === 'prev' && gercek101(gameState) &&
+        !(gameState.opened && gameState.opened[gameState.mySeat])) {
+      return toast('🎴 Açmadan yerden taş alamazsın — önce elini aç (en az 101 ya da 5 çift). Desteden çekebilirsin.', 'warning');
+    }
     socket?.emit('okeyDraw', { roomId, source });
   }
 
@@ -870,6 +877,20 @@
   function ok101Elim() {
     const gs = gameState;
     return (gs && Array.isArray(gs.myHand)) ? gs.myHand.slice() : [];
+  }
+  /* ISTAKANIN İKİ RAFI, GÖZ GÖZ. Oyuncunun dizilimi (hangi taşlar yan yana,
+     nerede boşluk var) açma penceresinin otomatik algılamasının girdisidir.
+     Yerel tahta modeli taşıyamazsa elin tamamı tek sıra olarak döner —
+     o zaman algılama bir şey bulamaz, elle kurma yolu açık kalır. */
+  function ok101Raflar() {
+    const ok = (window.st && st.boards && st.boards.okey) || null;
+    if (!ok || !Array.isArray(ok.rack)) return [ok101Elim()];
+    const elde = {};
+    ok101Elim().forEach(t => { elde[t.id] = t; });
+    /* Üst raf önce: oyuncu perlerini genelde yukarıdan aşağı dizer. Yerel
+       taş nesnesi yerine SUNUCUNUN taşı kullanılır (okey/sahte okey
+       bayrakları orada doğrudur). */
+    return [1, 0].map(sh => (ok.rack[sh] || []).map(t => (t && elde[t.id]) ? elde[t.id] : null));
   }
   function ok101Puan(tiles) {
     /* Pencerede gösterilen tahmini puan. Okeyin temsil ettiği sayı sunucuda
@@ -952,6 +973,11 @@
       if (!window.GVOkey101Ac) { toast('⚠️ Açma penceresi yüklenemedi, sayfayı yenileyin.', 'error'); return; }
       window.GVOkey101Ac.ac({
         eller: ok101Elim(),
+        /* ISTAKANIN DİZİLİMİ: üst ve alt raf, boş gözleriyle birlikte.
+           Açma penceresi bu dizilimden perleri kendiliğinden çıkarır
+           (kullanıcı isteği: "tahtasında sıraladığı perlere göre otomatik
+           algılayan ... El Açma seçeneği"). */
+        raflar: ok101Raflar(),
         realOkey: gameState.realOkey,
         acmaPuani: gameState.acmaPuani || 101,
         ciftAdedi: gameState.ciftAdedi || 5,

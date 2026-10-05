@@ -54,6 +54,9 @@
     no_meld:          '🚫 Masada öyle bir per yok.',
     pairs_locked:     '👯 Çift açılışına taş işlenemez.',
     empty_pile:       '🀄 Alınacak atık taş yok — desteden çekin.',
+    /* 101 kuralı: açmadan yerden taş alınmaz (klasik Okey'de bu kısıt yok). */
+    acmadan_yerden_alinmaz:
+      '🎴 Açmadan yerden taş alınmaz — önce elinizi açın (en az 101 ya da 5 çift). Şimdilik desteden çekebilirsiniz.',
     no_discard:     '🀄 Atılacak taş yok.',
     tile_not_found: '🀄 O taş elinizde görünmüyor — masayı yenileyin.',
     not_a_win_hand: '🀄 Bu el bitmiş sayılmıyor — perler ve seriler tamamlanmalı.',

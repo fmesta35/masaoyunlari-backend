@@ -243,8 +243,15 @@ console.log('  ✓ 11) atacak taş bırakmadan açılamıyor');
   assert.strictEqual(st.turn, 1, 'sıra sonraki koltuğa geçmeli');
   assert.strictEqual(st.phase, 'draw', 'yeni oyuncu önce çeker');
   const once = st.hands[1].length;
+  /* 101 KURALI (kullanıcı raporu): açmadan yerden taş alınmaz. Önce
+     reddedildiğini, sonra açmış oyuncuda çalıştığını ölçüyoruz. */
+  const red = E.drawFromPrev(st, 1);
+  assert.strictEqual(red.ok, false, 'açmamış oyuncu yerden taş alamamalı');
+  assert.strictEqual(red.reason, 'acmadan_yerden_alinmaz', 'ret sebebi açık olmalı');
+  assert.strictEqual(st.hands[1].length, once, 'reddedilen almada el değişmemeli');
+  st.opened[1] = true;                       // bu oyuncu daha önce açmış say
   const d = E.drawFromPrev(st, 1);
-  assert.ok(d.ok && d.from === 0, '1. koltuk, 0. koltuğun attığını alabilmeli');
+  assert.ok(d.ok && d.from === 0, 'açmış oyuncu 0. koltuğun attığını alabilmeli');
   assert.strictEqual(st.hands[1].length, once + 1, 'taş ele eklenmeli');
   assert.strictEqual(E.drawFromDeck(st, 1).reason, 'must_discard', 'iki kez çekilemez');
   assert.strictEqual(E.drawFromPrev(st, 2).reason, 'not_your_turn', 'sırası olmayan çekemez');

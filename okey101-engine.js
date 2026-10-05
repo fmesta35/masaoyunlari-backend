@@ -253,6 +253,13 @@ function drawFromPrev(state, seat) {
   if (state.finished) return { ok: false, reason: 'round_over' };
   if (state.turn !== seat) return { ok: false, reason: 'not_your_turn' };
   if (state.phase !== 'draw') return { ok: false, reason: 'must_discard' };
+  /* 101 KURALI: AÇMADAN YERDEN TAŞ ALINMAZ.
+     Soldaki oyuncunun attığı taşı ancak EL AÇMIŞ oyuncu alabilir; henüz
+     açmamış oyuncunun tek seçeneği ortadaki desteden çekmektir. Bu kural
+     101'i klasik okeyden ayıran temel kısıtlardan biridir: açılmadan yerden
+     toplamak, oyuncunun elini bedavaya tamamlamasını sağlardı.
+     (Klasik Okey masalarında bu kısıt YOKTUR — okey-engine.js'e dokunulmadı.) */
+  if (!state.opened[seat]) return { ok: false, reason: 'acmadan_yerden_alinmaz' };
   const prev = prevSeatOf(state, seat);
   const pile = state.discardPiles[prev] || [];
   if (!pile.length) return { ok: false, reason: 'empty_pile' };
