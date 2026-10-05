@@ -27,8 +27,11 @@ android {
         targetSdkVersion 36
         // versionCode HER yüklemede artmalı; aynı değer iki kez yüklenemez ve
         // üretim sürümü tüm test kanallarındakinden büyük olmalı.
-        versionCode 1
-        versionName "1.0.0"
+        // 2 (1.0.1): simge kadrajı ve durum çubuğu payı düzeltildi — kabuk
+        // kodu değiştiği için yeni derleme şart, yeni derleme de yeni
+        // versionCode ister (Play aynı numarayı iki kez kabul etmez).
+        versionCode 2
+        versionName "1.0.1"
     }
 
     signingConfigs {

@@ -58,6 +58,12 @@ public class MainActivity extends AppCompatActivity {
     private WebView webView;
     private View splashView;
     private View offlineView;
+    private View contentRoot;
+    /* Sistem çubuklarının son ölçüleri (piksel). Sayfa bu değerleri CSS
+       değişkeni olarak alıp ÜST BARI durum çubuğunun ALTINA kadar boyayınca
+       native dolgu kalkar; sayfa bunu yapamazsa dolgu yerinde kalır. */
+    private int insetSol, insetUst, insetSag, insetAlt;
+    private boolean sayfaInsetleriUyguluyor = false;
 
     private boolean loadFailed = false;
     /** İki kez geri = çık. Sitenin kendi geri yönetimi bittiğinde devreye girer. */
@@ -149,11 +155,56 @@ public class MainActivity extends AppCompatActivity {
     private void setupEdgeToEdge() {
         WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
         View decorRoot = findViewById(R.id.decorRoot);
-        View contentRoot = findViewById(R.id.contentRoot);
+        contentRoot = findViewById(R.id.contentRoot);
         ViewCompat.setOnApplyWindowInsetsListener(decorRoot, (v, insets) -> {
             Insets bars = insets.getInsets(WindowInsetsCompat.Type.systemBars());
-            contentRoot.setPadding(bars.left, bars.top, bars.right, bars.bottom);
+            insetSol = bars.left; insetUst = bars.top;
+            insetSag = bars.right; insetAlt = bars.bottom;
+            dolguUygula();
+            insetleriSayfayaYolla();
             return insets;
+        });
+    }
+
+    /* Durum çubuğu şeridinin RENGİ: WebView durum çubuğunun altına kadar
+       çizdiğinde bu görünmez; çizemezse (eski sürüm, JS kapalı) sitenin
+       zemin rengiyle aynı kalsın ki siyah bir şerit oluşmasın. */
+    private void dolguUygula() {
+        if (contentRoot == null) return;
+        boolean s = sayfaInsetleriUyguluyor;
+        contentRoot.setPadding(s ? 0 : insetSol, s ? 0 : insetUst,
+                               s ? 0 : insetSag, s ? 0 : insetAlt);
+    }
+
+    /* Sistem çubuğu ölçülerini CSS değişkeni olarak sayfaya geçir.
+     *
+     * NEDEN: Eskiden WebView'e durum çubuğu yüksekliği kadar DOLGU veriliyordu;
+     * uygulama o şeridi hiç boyamadığı için telefonda üstte koyu bir bant
+     * kalıyor, arayüz aşağı itilmiş görünüyordu. Artık WebView tüm ekrana
+     * çiziyor, üst barın yüksekliğini sayfa kendisi artırıyor — bar kendi
+     * rengiyle durum çubuğunun arkasına kadar uzanıyor.
+     *
+     * GÜVENLİK AĞI: JS sonuç olarak "1" döndürmezse (eski WebView, hata,
+     * sitenin eski sürümü) native dolgu geri gelir. Böylece en kötü ihtimalde
+     * eski görünüme düşeriz, içerik ASLA durum çubuğunun altında kalmaz. */
+    private void insetleriSayfayaYolla() {
+        if (webView == null) return;
+        float d = getResources().getDisplayMetrics().density;
+        if (d <= 0) d = 1f;
+        String js = "(function(){try{var e=document.documentElement;"
+                + "if(!e||!e.style)return '0';var s=e.style;"
+                + "s.setProperty('--gv-ust'," + (insetUst / d) + "+'px');"
+                + "s.setProperty('--gv-alt'," + (insetAlt / d) + "+'px');"
+                + "s.setProperty('--gv-sol'," + (insetSol / d) + "+'px');"
+                + "s.setProperty('--gv-sag'," + (insetSag / d) + "+'px');"
+                + "return (window.GVWebView&&window.GVWebView.insetDestegi)?'1':'0';"
+                + "}catch(_){return '0';}})()";
+        webView.evaluateJavascript(js, deger -> {
+            boolean tamam = deger != null && deger.contains("1");
+            if (tamam != sayfaInsetleriUyguluyor) {
+                sayfaInsetleriUyguluyor = tamam;
+                dolguUygula();
+            }
         });
     }
 
@@ -249,11 +300,15 @@ public class MainActivity extends AppCompatActivity {
         public void onPageStarted(WebView view, String url, Bitmap favicon) {
             super.onPageStarted(view, url, favicon);
             loadFailed = false;
+            // Yeni belge: değişkenler sıfırlandı, dolguyu güvenli tarafa al.
+            if (sayfaInsetleriUyguluyor) { sayfaInsetleriUyguluyor = false; dolguUygula(); }
         }
 
         @Override
         public void onPageFinished(WebView view, String url) {
             super.onPageFinished(view, url);
+            // Sayfa yüklendi: CSS değişkenlerini hemen ver, sonra göster.
+            insetleriSayfayaYolla();
             if (!loadFailed) showContent();
         }
 

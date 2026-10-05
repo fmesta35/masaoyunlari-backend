@@ -29,7 +29,21 @@ RES = os.path.join(KOK, 'android', 'app', 'src', 'main', 'res')
 YOGUNLUK = {'mdpi': 48, 'hdpi': 72, 'xhdpi': 96, 'xxhdpi': 144, 'xxxhdpi': 192}
 # Uyarlanabilir simge katmanları 108dp; aynı yoğunluklarda 108/48 kat büyük.
 UYARLANABILIR = {k: int(round(v * 108 / 48)) for k, v in YOGUNLUK.items()}
-GUVENLI = 0.66          # logonun ön plan tuvalindeki oranı
+# ---- KONUNUN TUVALDEKİ ORANLARI ------------------------------------------
+# Launcher'lar simgeyi KENDİ maskesiyle kırpar ve çoğu (MIUI, One UI, Pixel)
+# kare simgeyi daireye oturtur. Konu tuvali doldurursa daire kenarları zarın
+# köşelerini ve tacı keser — telefonda "aşırı yakınlaştırılmış" görünür.
+# Bu yüzden her katmanda konuya NEFES PAYI bırakılıyor:
+#
+#   kare      0.60 → daire maskesi uygulansa bile köşeler dışarıda kalmaz
+#                    (0.60 * √2 = 0.85 < 1, yani kare tuvalin iç dairesine sığar)
+#   yuvarlak  0.56 → zaten daire; kenarla konu arasında görünür boşluk kalsın
+#   on plan   0.45 → uyarlanabilir simgede 108dp tuvalin yalnız ortadaki 66dp'si
+#                    (0.61) her launcher'da GÖRÜNÜR sayılır; 0.50 bunun içinde
+GUVENLI = 0.45          # uyarlanabilir simge ön planı
+KARE_ORAN = 0.60        # eski (API 25-) kare simge
+YUVARLAK_ORAN = 0.56    # eski yuvarlak simge
+KOSE_YARICAP = 0.22     # kare simgenin köşe yuvarlaklığı (kenarın oranı)
 MARKA = (108, 92, 231)  # #6C5CE7 — colors.xml colorPrimary ile aynı
 
 
@@ -124,17 +138,40 @@ def konu():
 
 
 def _yerlestir(kenar, oran, kaynak):
+    """Konuyu, en-boy oranını koruyarak `oran` kenarlı kutuya TAM oturt.
+
+    Eskiden Image.thumbnail kullanılıyordu; o yalnız KÜÇÜLTÜR. Kaynak konu
+    küçükse (bizimki 512'lik logodan ~206px çıkıyor) yüksek yoğunluklu
+    tuvallerde hedef kutuya hiç ulaşamıyor, simge yoğunluktan yoğunluğa
+    farklı boyda çıkıyordu. Açıkça ölçekleyerek her yoğunlukta aynı kadrajı
+    garanti ediyoruz."""
     tuval = Image.new('RGBA', (kenar, kenar), (0, 0, 0, 0))
-    ic = max(1, int(kenar * oran))
+    ic = max(1, int(round(kenar * oran)))
     k = kaynak.copy()
-    k.thumbnail((ic, ic), Image.LANCZOS)
+    olcek = min(ic / k.size[0], ic / k.size[1])
+    yeni = (max(1, int(round(k.size[0] * olcek))), max(1, int(round(k.size[1] * olcek))))
+    k = k.resize(yeni, Image.LANCZOS)
     tuval.alpha_composite(k, ((kenar - k.size[0]) // 2, (kenar - k.size[1]) // 2))
     return tuval
 
 
-def kare(kenar):
-    """Eski (API 25 ve altı) simge: markanın mor karesi, olduğu gibi."""
-    return kare_cerceve().convert('RGBA').resize((kenar, kenar), Image.LANCZOS)
+def _yuvarlak_kare_maske(kenar):
+    m = Image.new('L', (kenar, kenar), 0)
+    r = max(1, int(round(kenar * KOSE_YARICAP)))
+    ImageDraw.Draw(m).rounded_rectangle([0, 0, kenar - 1, kenar - 1], radius=r, fill=255)
+    return m
+
+
+def kare(konu_im, kenar):
+    """Eski (API 25 ve altı) kare simge: mor zemin + ortada nefes paylı zar.
+
+    Eskiden kaynak logodaki mor kare OLDUĞU GİBİ kullanılıyordu; zar tuvali
+    neredeyse dolduruyor, tacın ucu üst kenara değiyordu. Launcher simgeyi
+    daireye kırpınca zarın köşeleri ve taç kesiliyordu."""
+    tuval = Image.new('RGBA', (kenar, kenar), MARKA + (255,))
+    tuval.alpha_composite(_yerlestir(kenar, KARE_ORAN, konu_im))
+    tuval.putalpha(_yuvarlak_kare_maske(kenar))
+    return tuval
 
 
 def yuvarlak(konu_im, kenar):
@@ -142,7 +179,7 @@ def yuvarlak(konu_im, kenar):
        kırpmak köşelerdeki parlamayı kesiyor, bu yüzden zemin yeniden
        çiziliyor."""
     tuval = Image.new('RGBA', (kenar, kenar), MARKA + (255,))
-    tuval.alpha_composite(_yerlestir(kenar, 0.62, konu_im))
+    tuval.alpha_composite(_yerlestir(kenar, YUVARLAK_ORAN, konu_im))
     m = Image.new('L', (kenar, kenar), 0)
     ImageDraw.Draw(m).ellipse([0, 0, kenar - 1, kenar - 1], fill=255)
     tuval.putalpha(m)
@@ -175,7 +212,7 @@ if __name__ == '__main__':
     k = konu()
     sayac = 0
     for yog, kenar in YOGUNLUK.items():
-        yaz(kare(kenar), yog, 'ic_launcher')
+        yaz(kare(k, kenar), yog, 'ic_launcher')
         yaz(yuvarlak(k, kenar), yog, 'ic_launcher_round')
         a = UYARLANABILIR[yog]
         yaz(on_plan(k, a), yog, 'ic_launcher_foreground')
@@ -185,6 +222,6 @@ if __name__ == '__main__':
     # Açılış ekranı logosu (tek dosya, yoğunluktan bağımsız).
     d = os.path.join(RES, 'drawable-nodpi')
     os.makedirs(d, exist_ok=True)
-    kare(420).save(os.path.join(d, 'splash_logo.png'), optimize=True)
+    kare(k, 420).save(os.path.join(d, 'splash_logo.png'), optimize=True)
     sayac += 1
     print('yazildi:', sayac, 'dosya →', RES)

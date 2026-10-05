@@ -58,6 +58,17 @@
     platform: /Android/i.test(ua) ? 'android' : /iPhone|iPad|iPod/i.test(ua) ? 'ios' : 'web'
   };
 
+  /* NATIVE KABUĞA EL SIKIŞMA — insetDestegi.
+     Android kabuğu (MainActivity.insetleriSayfayaYolla) sistem çubuklarının
+     yüksekliğini --gv-ust / --gv-alt / --gv-sol / --gv-sag CSS değişkenleri
+     olarak veriyor; üst bar o kadar uzayıp durum çubuğunun ARKASINA kadar
+     kendi rengiyle boyanıyor. Kabuk, bu bayrağı görmeden WebView'e dolgu
+     vermeyi BIRAKMAZ: eski bir site sürümü yüklenirse içerik durum
+     çubuğunun altında kalmasın. Yani bayrağı silmek, telefonda üstte koyu
+     bir şerit geri getirir. */
+  window.GVWebView = window.GVWebView || {};
+  window.GVWebView.insetDestegi = true;
+
   function sinifla() {
     var b = document.body;
     if (!b) return;
