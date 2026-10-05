@@ -95,6 +95,46 @@ function sozluktekiMi(kelime) {
 }
 function sozlukBoyu() { sozlukYukle(); return SOZLUK.size; }
 
+/* ---------------------------------------------------------------- "BUNU MU?"
+ * Reddedilen kelimeye BİR harf uzaklıktaki sözlük kelimelerini bulur.
+ * Kullanıcı raporu: "MARMALAT kelimesi nasıl Türkçe olmaz" — doğrusu
+ * MARMELAT'tı ve sözlükte VAR. Oyuncu bunu göremediği için sözlüğü suçluyordu.
+ * Artık ret mesajı "bunu mu demek istedin" diye yazıyor.
+ * Tek harf değişimi / eksikliği / fazlalığı taranır: 7 harflik bir kelime için
+ * birkaç yüz küme sorgusu, yani ölçülemeyecek kadar hızlı.
+ */
+const TR_HARFLER = 'ABCÇDEFGĞHIİJKLMNOÖPRSŞTUÜVYZ'.split('');
+function benzerKelimeler(kelime, enCok) {
+  sozlukYukle();
+  const k = trBuyuk(String(kelime || ''));
+  const n = enCok || 3;
+  if (k.length < 2 || SOZLUK.has(k)) return [];
+  const bulunan = [];
+  const ekle = (w) => {
+    if (w !== k && SOZLUK.has(w) && bulunan.indexOf(w) === -1) bulunan.push(w);
+  };
+  // 1) bir harfi değiştir
+  for (let i = 0; i < k.length && bulunan.length < n * 4; i++) {
+    for (const h of TR_HARFLER) {
+      if (h === k[i]) continue;
+      ekle(k.slice(0, i) + h + k.slice(i + 1));
+    }
+  }
+  // 2) bir harfi çıkar
+  for (let i = 0; i < k.length; i++) ekle(k.slice(0, i) + k.slice(i + 1));
+  // 3) bir harf ekle
+  for (let i = 0; i <= k.length; i++) {
+    for (const h of TR_HARFLER) ekle(k.slice(0, i) + h + k.slice(i));
+  }
+  // 4) komşu iki harfi yer değiştir
+  for (let i = 0; i + 1 < k.length; i++) {
+    ekle(k.slice(0, i) + k[i + 1] + k[i] + k.slice(i + 2));
+  }
+  /* Aynı uzunlukta olanlar önce: yazım hatası genelde harf değişimidir. */
+  bulunan.sort((a, b) => Math.abs(a.length - k.length) - Math.abs(b.length - k.length));
+  return bulunan.slice(0, n);
+}
+
 /* ------------------------------------------------------------- YARDIMCI */
 function harfPuani(h) { return (HARFLER[h] && HARFLER[h].p) || 0; }
 function karistir(dizi) {
@@ -391,7 +431,16 @@ function play(st, seat, konumlar) {
   const s = kelimeleriTopla(st, temiz);
   if (s.hata) return { ok: false, reason: s.hata };
   const kotu = s.kelimeler.filter(k => !sozluktekiMi(k.metin)).map(k => k.metin);
-  if (kotu.length) return { ok: false, reason: 'sozlukte_yok', kelimeler: kotu };
+  if (kotu.length) {
+    /* Yakın yazımlar: "MARMALAT" reddedildiğinde oyuncuya MARMELAT önerilir. */
+    const oneri = {};
+    for (const w of kotu.slice(0, 3)) {
+      const y = benzerKelimeler(w, 3);
+      if (y.length) oneri[w] = y;
+    }
+    return { ok: false, reason: 'sozlukte_yok', kelimeler: kotu,
+             oneriler: Object.keys(oneri).length ? oneri : null };
+  }
 
   for (const t of temiz) st.board[t.r][t.c] = { harf: t.harf, joker: t.joker };
   const puan = hamlePuani(st, s.kelimeler, s.yeni, temiz.length);
@@ -492,6 +541,6 @@ function otomatikPasGerekli(st) {
 module.exports = {
   N, ISTAKA, BINGO, PAS_SINIRI, HARFLER, BONUS, MERKEZ,
   init, play, pas, takas, pesEt, hamleVarMi, otomatikPasGerekli,
-  sozluktekiMi, sozlukYukle, sozlukBoyu, harfPuani, trBuyuk, trKucuk,
+  sozluktekiMi, sozlukYukle, sozlukBoyu, benzerKelimeler, harfPuani, trBuyuk, trKucuk,
   _hamleAra: hamleAra, _sozlukHamlesiAra: sozlukHamlesiAra, _kelimeleriTopla: kelimeleriTopla
 };

@@ -1607,12 +1607,32 @@ html{scrollbar-gutter:stable}
   .kl-kumanda{margin-top:5px;gap:4px}
   .kl-kumanda .btn{min-height:32px;padding:4px 8px;font-size:.74em}
 }
+/* ISTAKA + KUMANDA ortak sütunu. Dikeyde tahtanın altında normal akışta
+   durur; yatayda (aşağıdaki .kl-yatay) tahtanın yanına geçer. */
+.kl-sag{display:flex;flex-direction:column;min-width:0}
+/* ============ YATAY / ALÇAK EKRAN YERLEŞİMİ ============
+   Kullanıcı isteği: "tam ekran yaptığımda ve yatay görüntüye geçtiğimde
+   görüntü optimizasyonu korunamadı... yatay ve dikey otomatik optimizasyon."
+   Sınıfı JS ölçüyle ekler (js/kelimelik-online.js olcuYaz): tahta solda
+   yüksekliğin tamamını alır, ıstaka ve kumanda sağ sütuna geçer. Böylece
+   alçak ekranda tahta küçülüp okunmaz hale gelmez, ıstaka da tahtanın
+   üstüne binmez. */
+.kl-wrap.kl-yatay{flex-direction:row;align-items:flex-start;gap:10px;justify-content:center}
+.kl-wrap.kl-yatay .kl-kutu{flex:0 0 auto;margin:0}
+.kl-wrap.kl-yatay .kl-sag{flex:1 1 auto;justify-content:center;gap:8px;align-self:stretch}
+.kl-wrap.kl-yatay .kl-istaka-kutu{margin-top:0}
+/* Yan sütunda ıstaka iki sıraya sarabilir: 7 taş dar sütuna sığmayabilir. */
+.kl-wrap.kl-yatay .kl-istaka{flex-wrap:wrap;overflow:visible;min-height:0}
+.kl-wrap.kl-yatay .kl-kumanda{flex-wrap:wrap;overflow:visible;justify-content:center;margin-top:0}
+.kl-wrap.kl-yatay .kl-kumanda .btn{flex:0 0 auto}
 /* TAM EKRAN: tahta kutusu kendi ölçüsünü JS'te hesaplar (bkz.
    js/kelimelik-online.js olcuYaz), burada yalnız sarmalayıcı esnetilir. */
 #pg-room.gv-fs .kl-wrap{max-width:none;width:100%;height:100%;max-height:100%;min-height:0;
   display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:0}
+#pg-room.gv-fs .kl-wrap.kl-yatay{flex-direction:row;align-items:center;justify-content:center;gap:10px}
 #pg-room.gv-fs .kl-kutu{flex:0 0 auto;margin:0 auto}
 #pg-room.gv-fs .kl-istaka-kutu,#pg-room.gv-fs .kl-kumanda{width:100%;flex:0 0 auto}
+#pg-room.gv-fs .kl-wrap.kl-yatay .kl-kutu{margin:0}
 </style>
 
 <!-- Favicon & PWA -->

@@ -4001,6 +4001,9 @@ io.on('connection', socket => {
     const konumlar = Array.isArray(data && data.konumlar) ? data.konumlar.slice(0, 7) : [];
     const r = kelimelikEngine.play(room.kelimelik, p.seat, konumlar);
     if (!r.ok) return klRed(room, r.reason, { kelimeler: r.kelimeler || null,
+      /* Yakın yazımlar: "MARMALAT" reddedilince oyuncuya MARMELAT önerilir
+         (kullanıcı raporu). Kelime gerçekten yoksa alan boş gelir. */
+      oneriler: r.oneriler || null,
       gameState: kelimelikState(room, p.seat) });
     klSonrasi(room);
   });

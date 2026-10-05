@@ -180,7 +180,22 @@
         if (bekleyen.length) { gecici = bekleyen.slice(); bekleyen = []; }
         if (p && Array.isArray(p.kelimeler) && p.kelimeler.length) {
           sonRet = p.kelimeler.slice(0, 5);
-          uyar('📖 Sözlükte yok: ' + sonRet.join(', ') + ' — 📣 Kelime Bildir ile iletebilirsin.', 'warning');
+          /* "BUNU MU DEMEK İSTEDİN" — kullanıcı raporu: "MARMALAT kelimesi
+             nasıl Türkçe olmaz". Doğrusu MARMELAT'tı ve sözlükte VARDI; oyuncu
+             bunu göremediği için sözlüğü eksik sanıyordu. Sunucu yakın yazımları
+             da yolluyor (kelimelik-engine.js benzerKelimeler). */
+          var oneriMetin = '';
+          if (p.oneriler) {
+            var parcalar = [];
+            for (var w in p.oneriler) {
+              if (!Object.prototype.hasOwnProperty.call(p.oneriler, w)) continue;
+              var liste = p.oneriler[w] || [];
+              if (liste.length) parcalar.push(liste.join(' / '));
+            }
+            if (parcalar.length) oneriMetin = ' Bunu mu demek istedin: ' + parcalar.join(' · ') + '?';
+          }
+          uyar('📖 Sözlükte yok: ' + sonRet.join(', ') + '.' + oneriMetin +
+               ' 📣 Kelime Bildir ile iletebilirsin.', 'warning');
         } else {
           /* ÖNCEDEN: sözlük dışı sebeplerde (temas yok, arada boşluk, tek hat
              değil…) HİÇBİR açıklama gösterilmiyordu — taşlar geri dönüyor,
@@ -231,6 +246,14 @@
       }
       h += '</div></div>';
 
+      /* ISTAKA + KUMANDA ortak sarıcıda.
+         Kullanıcı isteği: "mobilde tam ekran yaptığımda ve yatay görüntüye
+         geçtiğimde görüntü optimizasyonu korunamadı... yatay ve dikey
+         otomatik optimizasyon." Alçak/geniş ekranda bu sarıcı tahtanın ALTINA
+         değil YANINA geçer (bkz. olcuYaz → kl-yatay); dikeyde eskisi gibi
+         alt alta durur. */
+      h += '<div class="kl-sag">';
+
       /* ıstaka */
       h += '<div class="kl-istaka-kutu"><div class="kl-istaka">';
       if (m.isSpectator) {
@@ -261,6 +284,7 @@
           '<button class="btn kl-bildir" type="button"' + (sonRet.length ? '' : ' disabled') + '>📣<span class="uz"> Kelime Bildir</span></button>' +
           '</div>';
       }
+      h += '</div>';            // .kl-sag
       return h + '</div>';
     },
 
@@ -283,24 +307,63 @@
          zaman kalan alana TAM OTURUR; sayfa aşağı kaydırılmadan en büyük
          hâlinde görünür. Tam ekranda da aynı hesap geçerli, oraya daha çok
          yer kaldığı için tahta kendiliğinden büyür. */
-      function gorunurY() { return window.visualViewport ? window.visualViewport.height : window.innerHeight; }
+      function gorunurY() {
+        var vv = window.visualViewport;
+        return Math.max(200, Math.round((vv && vv.height) ? vv.height : (window.innerHeight || 600)));
+      }
+      function olc(sec) {
+        var e = root.querySelector(sec);
+        return e ? e.getBoundingClientRect().height : 0;
+      }
+      /* TEK ÖLÇÜ YERİ — dikey ve yatay, normal ve tam ekran.
+         ÖLÇÜLEN HATA: yükseklik bütçesi tahtanın o anki EKRAN KONUMUNDAN
+         (getBoundingClientRect().top) çıkarılıyordu. Bu değer hem sayfa
+         kaydırmasına hem de bir önceki ölçüye bağlı olduğu için, telefonda
+         sayfa biraz kayınca bütçe şişiyor, tahta kendi kutusundan taşıp
+         ıstakanın üstüne biniyordu (kullanıcı raporu: "harfler oyun alanının
+         içerisinde kalıyor"). Artık bütçe boardArea'nın KENDİ kutusundan
+         okunuyor ve ekranın altıyla sınırlanıyor.
+
+         YATAY YERLEŞİM: ekran genişse ve alçaksa (telefon yatay, tam ekran)
+         tahtayı ıstakanın üstüne koymak tahtayı okunmaz hale getiriyordu.
+         O durumda ıstaka ve kumanda tahtanın YANINA geçer, tahta yüksekliğin
+         tamamını kullanır. */
       function olcuYaz() {
         if (!tahta || !kutu) return;
+        var sarici = root.querySelector('.kl-wrap') || root;
         var alan = document.getElementById('boardArea');
-        var g = alan ? alan.clientWidth : 600;
-        var alti = 0;
-        ['.kl-istaka-kutu', '.kl-kumanda'].forEach(function (sec) {
-          var e = root.querySelector(sec);
-          if (e) alti += e.getBoundingClientRect().height + 8;
-        });
-        var ust = kutu.getBoundingClientRect().top;
-        var y = gorunurY() - ust - alti - 10;
-        var kenar = Math.max(150, Math.min(Math.max(150, g), Math.max(150, y)));
+        var ar = alan ? alan.getBoundingClientRect() : null;
+        var g = Math.max(160, ar ? ar.width : 600);
+        /* Kullanılabilir yükseklik: boardArea'nın üst kenarından ekranın
+           altına kadar (alanın kendi yüksekliği daha küçükse o geçerli). */
+        var y = gorunurY() - (ar ? Math.max(0, ar.top) : 0) - 8;
+        if (ar && ar.height > 40) y = Math.min(y, ar.height - 4);
+        y = Math.max(160, y);
+
+        /* Yatay yerleşim eşiği: genişlik yüksekliğin 1.3 katından fazlaysa VE
+           yükseklik 560 px'in altındaysa yan yana dizilim kazandırır. */
+        var yatay = (g > y * 1.3) && (y < 560);
+        if (sarici.classList.contains('kl-yatay') !== yatay) {
+          sarici.classList.toggle('kl-yatay', yatay);
+        }
+
+        var kenar;
+        if (yatay) {
+          /* Tahta yüksekliğin tamamını alır; genişliğin en çok %64'ü ona,
+             kalanı ıstaka + kumanda sütununa. */
+          kenar = Math.min(y, g * 0.64);
+        } else {
+          var alti = olc('.kl-istaka-kutu') + olc('.kl-kumanda') + 18;
+          kenar = Math.min(g, y - alti);
+        }
+        kenar = Math.max(150, Math.floor(kenar));
         kutu.style.width = kenar + 'px';
         var hc = ((kenar - 18) - 8 - (N - 1) * 2) / N;
         tahta.style.setProperty('--hc', Math.max(4, hc).toFixed(2) + 'px');
         /* Hücre 17 px'in altındaysa puan rakamı ve bonus etiketi okunmuyor. */
         tahta.classList.toggle('ufak', hc < 17);
+        /* Teşhis/test: hangi yerleşimde, hangi ölçüyle çizildi. */
+        window.__gvKelimelikOlcu = { yatay: yatay, kenar: kenar, hc: hc, g: g, y: y };
       }
       olcuYaz();
       requestAnimationFrame(olcuYaz);
@@ -309,9 +372,22 @@
         window.removeEventListener('resize', root.__klOlcu);
         window.removeEventListener('orientationchange', root.__klOlcu);
       }
-      root.__klOlcu = function () { setTimeout(olcuYaz, 60); };
+      root.__klOlcu = function () { olcuYaz(); setTimeout(olcuYaz, 60); setTimeout(olcuYaz, 260); };
       window.addEventListener('resize', root.__klOlcu);
       window.addEventListener('orientationchange', root.__klOlcu);
+      /* Telefon tarayıcısında adres çubuğu açılıp kapandıkça GERÇEK görünür
+         alan değişir ama 'resize' her zaman tetiklenmez; tam ekrana girip
+         çıkmak da öyle. visualViewport bunların hepsini bildirir. */
+      if (window.visualViewport) {
+        if (root.__klVV) {
+          window.visualViewport.removeEventListener('resize', root.__klVV);
+          window.visualViewport.removeEventListener('scroll', root.__klVV);
+        }
+        root.__klVV = root.__klOlcu;
+        window.visualViewport.addEventListener('resize', root.__klVV);
+        window.visualViewport.addEventListener('scroll', root.__klVV);
+      }
+      document.addEventListener('fullscreenchange', root.__klOlcu);
 
       if (m.isSpectator) return;
 
