@@ -60,6 +60,14 @@
     return null;
   }
   function kareOku(s, r, c) { return taslakta(r, c) || s.board[r][c]; }
+  /* YALNIZ bu turda konmuş, henüz onaylanmamış taş (gecici). Sürüklenebilen
+     tek taş budur: 'bekleyen' sunucuya gönderilmiştir, tahtadaki eski taşlar
+     ise kalıcıdır. */
+  function taslakBul(r, c) {
+    for (var i = 0; i < gecici.length; i++)
+      if (gecici[i].r === r && gecici[i].c === c) return gecici[i];
+    return null;
+  }
   function istakaKullanildi(i) {
     var k;
     for (k = 0; k < gecici.length; k++) if (gecici[k].idx === i) return true;
@@ -173,6 +181,14 @@
         if (p && Array.isArray(p.kelimeler) && p.kelimeler.length) {
           sonRet = p.kelimeler.slice(0, 5);
           uyar('📖 Sözlükte yok: ' + sonRet.join(', ') + ' — 📣 Kelime Bildir ile iletebilirsin.', 'warning');
+        } else {
+          /* ÖNCEDEN: sözlük dışı sebeplerde (temas yok, arada boşluk, tek hat
+             değil…) HİÇBİR açıklama gösterilmiyordu — taşlar geri dönüyor,
+             oyuncu "kelimemi kabul etmedi" sanıyordu. Ortak sözlük taşıyıcı
+             (GVMsg) her sebebi Türkçe cümleye çevirir. */
+          var neden = (window.GVMsg && GVMsg.red) ? GVMsg.red(p && p.reason)
+                                                  : 'Bu hamle oyunun kurallarına uymuyor.';
+          uyar(neden, 'warning');
         }
         ses('klRed');
         try { if (window.GVArena) GVArena.repaint(); } catch (_) {}
@@ -195,6 +211,7 @@
 
     render: function (m) {
       var s = m.state;
+      bekleyeniTazele(s);          // onaylanan hamle bekleyenden düşsün
       var benim = !m.isSpectator && s.turn === m.seat && s.status === 'playing';
       var istaka = s.rack || [];
       var h = '<div class="kl-wrap">';
@@ -250,6 +267,11 @@
     bind: function (root, m) {
       var s = m.state;
       var benim = !m.isSpectator && s.turn === m.seat && s.status === 'playing';
+      /* Teşhis: bu çizimde sürükleme/tıklama açık mıydı? (testte ve hata
+         ayıklamada "neden tepki vermedi" sorusunu tek bakışta yanıtlar.) */
+      window.__gvKelimelikTani = { benim: benim, turn: s.turn, seat: m.seat,
+                                   izleyici: !!m.isSpectator, durum: s.status,
+                                   rack: (s.rack || []).join(',') };
       var tahta = root.querySelector('.kl-tahta');
       var kutu = root.querySelector('.kl-kutu');
 
@@ -378,6 +400,10 @@
       });
       root.querySelectorAll('.kl-hc').forEach(function (x) {
         x.addEventListener('click', function () {
+          /* Sürükleme gerçekten taşındıysa ardından gelen 'click' olayı
+             taşı hemen geri alıyordu (taş yeni karesine kondu, tıklama onu
+             ıstakaya geri gönderdi). O tıklamayı bir kez yutuyoruz. */
+          if (tiklamaYut) { tiklamaYut = false; return; }
           var r = Number(this.dataset.r), c = Number(this.dataset.c);
           if (geriAlKare(r, c)) return;
           if (s.board[r][c] || taslakta(r, c)) return;
@@ -393,48 +419,102 @@
          bırakma ıskalanmaz. Hayalet taş her çıkışta (up/cancel/kesinti)
          kaldırılır; artık ekranda asılı kalmaz. */
       var srk = null;
+      var tiklamaYut = false;        // sürüklemeden sonraki tek 'click'i yut
       function hayaletTemizle() {
         if (!srk) return;
         try { srk.el.remove(); } catch (_) {}
         try { srk.kaynak.classList.remove('surukleniyor'); } catch (_) {}
         try { if (srk.kaynak.releasePointerCapture) srk.kaynak.releasePointerCapture(srk.pid); } catch (_) {}
-        root.querySelectorAll('.kl-hc.hedef').forEach(function (h) { h.classList.remove('hedef'); });
+        root.querySelectorAll('.kl-hc.hedef, .kl-istaka.hedef').forEach(function (h) {
+          h.classList.remove('hedef');
+        });
         srk = null;
       }
-      root.querySelectorAll('.kl-rt').forEach(function (t) {
-        t.addEventListener('pointerdown', function (e) {
+
+      /* ORTAK SÜRÜKLEME BAŞLATICI.
+         Kullanıcı isteği: "harfi sürükleyerek yerleştirdikten sonra tekrar
+         sürükleyemiyorum, harfe dokunarak geri almam gerekiyor. Sürükle-bırak
+         hep düzgün çalışmalı hamle sırası sendeyse."
+         Bu yüzden sürükleme artık İKİ kaynaktan başlar:
+           kaynak 'istaka' → ıstakadaki harf (eski davranış)
+           kaynak 'tahta'  → tahtaya bu turda konmuş TASLAK taş; başka bir
+                             kareye taşınabilir ya da ıstakaya geri bırakılabilir.
+         Sunucuya gönderilmiş (onaylanmış) taşlar sürüklenmez. */
+      function suruklemeBasla(e, el, bilgi) {
+        e.preventDefault();
+        tiklamaYut = false;                   // yeni etkileşim: bayat bayrak kalmasın
+        hayaletTemizle();
+        var k = el.getBoundingClientRect();
+        var kl = el.cloneNode(true);
+        kl.className = 'kl-rt kl-hayalet';
+        kl.style.width = k.width + 'px'; kl.style.height = k.height + 'px';
+        (window.__gvKaplamaKati ? window.__gvKaplamaKati() : document.body).appendChild(kl);
+        srk = { tur: bilgi.tur, i: bilgi.i, g: bilgi.g || null,
+                el: kl, kaynak: el, tasindi: false, pid: e.pointerId };
+        el.classList.add('surukleniyor');
+        try { el.setPointerCapture(e.pointerId); } catch (_) {}
+        tasi(e.clientX, e.clientY);
+      }
+      function sureklemeHareket(e) {
+        if (!srk || srk.pid !== e.pointerId) return;
+        srk.tasindi = true;
+        e.preventDefault();
+        tasi(e.clientX, e.clientY);
+      }
+      function sureklemeBirak(e) {
+        if (!srk || srk.pid !== e.pointerId) return;
+        birak(e.clientX, e.clientY);
+      }
+      function suruklemeBagla(el, bilgiVer) {
+        el.addEventListener('pointerdown', function (e) {
           if (takasModu || !benim) return;
+          var bilgi = bilgiVer.call(this);
+          if (!bilgi) return;
+          suruklemeBasla(e, this, bilgi);
+        });
+        el.addEventListener('pointermove', sureklemeHareket);
+        el.addEventListener('pointerup', sureklemeBirak);
+        el.addEventListener('pointercancel', function () { hayaletTemizle(); });
+      }
+
+      // ISTAKADAKİ HARF → tahtaya
+      root.querySelectorAll('.kl-rt').forEach(function (t) {
+        suruklemeBagla(t, function () {
           var i = Number(this.dataset.i);
-          if (s.rack[i] == null || istakaKullanildi(i)) return;
-          e.preventDefault();
-          hayaletTemizle();
-          var k = this.getBoundingClientRect(), kl = this.cloneNode(true);
-          kl.className = 'kl-rt kl-hayalet';
-          kl.style.width = k.width + 'px'; kl.style.height = k.height + 'px';
-          (window.__gvKaplamaKati ? window.__gvKaplamaKati() : document.body).appendChild(kl);
-          srk = { i: i, el: kl, kaynak: this, tasindi: false, pid: e.pointerId };
-          this.classList.add('surukleniyor');
-          try { this.setPointerCapture(e.pointerId); } catch (_) {}
-          tasi(e.clientX, e.clientY);
+          if (s.rack[i] == null || istakaKullanildi(i)) return null;
+          return { tur: 'istaka', i: i };
         });
-        t.addEventListener('pointermove', function (e) {
-          if (!srk || srk.pid !== e.pointerId) return;
-          srk.tasindi = true;
-          e.preventDefault();
-          tasi(e.clientX, e.clientY);
+      });
+      // TAHTADAKİ TASLAK TAŞ → başka kareye ya da ıstakaya geri
+      root.querySelectorAll('.kl-hc').forEach(function (hc) {
+        suruklemeBagla(hc, function () {
+          var r = Number(this.dataset.r), c = Number(this.dataset.c);
+          var g = taslakBul(r, c);
+          if (!g) return null;                 // boş kare ya da onaylanmış taş
+          return { tur: 'tahta', i: g.idx, g: g };
         });
-        t.addEventListener('pointerup', function (e) {
-          if (!srk || srk.pid !== e.pointerId) return;
-          birak(e.clientX, e.clientY);
-        });
-        t.addEventListener('pointercancel', function () { hayaletTemizle(); });
       });
       function tasi(x, y) {
         if (!srk) return;
         srk.el.style.left = x + 'px'; srk.el.style.top = y + 'px';
+        root.querySelectorAll('.kl-hc.hedef, .kl-istaka.hedef').forEach(function (h) {
+          h.classList.remove('hedef');
+        });
         var hedef = altindakiHucre(x, y);
-        root.querySelectorAll('.kl-hc.hedef').forEach(function (h) { h.classList.remove('hedef'); });
-        if (hedef) hedef.classList.add('hedef');
+        if (hedef) { hedef.classList.add('hedef'); return; }
+        // Tahtadan sürüklenen taş ıstakanın üstünde de bırakılabilir (geri al).
+        if (srk.tur === 'tahta' && istakaUstunde(x, y)) {
+          var ist = root.querySelector('.kl-istaka');
+          if (ist) ist.classList.add('hedef');
+        }
+      }
+      /* İmlecin ıstakanın üstünde olup olmadığı: tahtadan sürüklenen taşı
+         ıstakaya geri bırakmak için. */
+      function istakaUstunde(x, y) {
+        var ist = root.querySelector('.kl-istaka');
+        if (!ist) return false;
+        var k = ist.getBoundingClientRect();
+        return x >= k.left && x <= k.right && y >= k.top && y <= k.bottom;
       }
       /* Hayalet taş imlecin ALTINDA durduğu için elementFromPoint onu
          döndürür; bu yüzden hayaleti bir an gizleyip altındaki hücreye
@@ -449,13 +529,41 @@
         var hc = alt && alt.closest ? alt.closest('.kl-hc') : null;
         if (!hc || !root.contains(hc)) return null;
         var r = Number(hc.dataset.r), c = Number(hc.dataset.c);
+        // Taşın KENDİ karesi geçerli hedeftir (yerinde bırakmak hamleyi bozmaz).
+        if (srk && srk.tur === 'tahta' && srk.g && srk.g.r === r && srk.g.c === c) return hc;
         return kareOku(s, r, c) ? null : hc;
       }
       function birak(x, y) {
-        var hedef = srk && srk.tasindi ? altindakiHucre(x, y) : null;
-        var i = srk ? srk.i : null;
+        if (!srk) return;
+        var tasindi = srk.tasindi, tur = srk.tur, i = srk.i, g = srk.g;
+        var hedef = tasindi ? altindakiHucre(x, y) : null;
+        var istakayaBirak = tasindi && tur === 'tahta' && !hedef && istakaUstunde(x, y);
         hayaletTemizle();
-        if (hedef && i != null) koy(Number(hedef.dataset.r), Number(hedef.dataset.c), i);
+        if (!tasindi) return;                 // parmak kıpırdamadı: tıklama işlesin
+        /* Taşıma oldu: hemen ardından gelen 'click' yutulur. Bayrak ASILI
+           KALMAMALI — tarayıcı o click'i pointerup ile aynı turda yollar,
+           bu yüzden bir sonraki tura kalan bayrak temizlenir; yoksa sürükleme
+           sonrası ilk normal tıklama da yutuluyordu. */
+        tiklamaYut = true;
+        setTimeout(function () { tiklamaYut = false; }, 0);
+        if (tur === 'istaka') {
+          if (hedef && i != null) koy(Number(hedef.dataset.r), Number(hedef.dataset.c), i);
+          return;
+        }
+        // --- tahtadaki taslak taş ---
+        if (istakayaBirak) { geriAlKare(g.r, g.c); return; }
+        if (!hedef) return;                   // tahta dışına bırakıldı: yerinde kalsın
+        var yr = Number(hedef.dataset.r), yc = Number(hedef.dataset.c);
+        if (yr === g.r && yc === g.c) return; // aynı kare: değişiklik yok
+        tasiTaslak(g, yr, yc);
+      }
+      /* TASLAK TAŞI BAŞKA KAREYE TAŞI — ıstakadan yeniden seçmeye gerek yok. */
+      function tasiTaslak(g, yr, yc) {
+        if (kareOku(s, yr, yc)) return;       // hedef dolu
+        tasKaldirDom(g);
+        g.r = yr; g.c = yc;
+        tasKoyDom(g);
+        ses('klTas');
       }
       /* Parmak/fare pencerenin dışında bırakılırsa da temizle. */
       if (root.__klIptal) window.removeEventListener('pointercancel', root.__klIptal);
@@ -513,6 +621,24 @@
 
   /* Sunucu durumu değiştiğinde bekleyen hamle yerine oturmuş demektir. */
   window.addEventListener('gv:kelimelikDurum', function () { bekleyen = []; });
+
+  /* ÖLÇÜLEN HATA: yukarıdaki 'gv:kelimelikDurum' olayını HİÇBİR YER yaymıyordu,
+     bu yüzden ONAYLANAN hamlenin taşları 'bekleyen' listesinde asılı kalıyordu.
+     Sonuçları: ıstakanın o gözleri kalıcı olarak "kullanıldı" görünüyor, oraya
+     gelen YENİ harfler ne tıklanabiliyor ne sürüklenebiliyor ve tahtada hayalet
+     taş kalıyordu (kullanıcı raporu: "harfi yerleştirdikten sonra tekrar
+     sürükleyemiyorum"). Artık her çizimde sunucu tahtasına bakılır: taş yerine
+     oturduysa bekleyenden düşer. Ret durumunda zaten kelimelikRejected taşları
+     taslağa geri alıyor. */
+  function bekleyeniTazele(s) {
+    if (!bekleyen.length || !s || !s.board) return;
+    var kalan = [];
+    for (var i = 0; i < bekleyen.length; i++) {
+      var g = bekleyen[i];
+      if (!(s.board[g.r] && s.board[g.r][g.c])) kalan.push(g);
+    }
+    bekleyen = kalan;
+  }
 
   /* KELİME BİLDİR — Kelimelik'te sözlükte olup oyunda çıkmayan kelimeler
      e-posta ile bildiriliyor. Bizde oyun içinden yönetici paneline düşer. */

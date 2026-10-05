@@ -124,6 +124,13 @@ async function main() {
   await bekle(() => oteki.GVArena.state().board[7][7] &&
     oteki.GVArena.state().board[7][7].harf === 'K', 12000, 'hamle rakip penceresine yansımalı');
   assert.strictEqual(sirali.__gvKelimelik.taslak().length, 0, 'onaydan sonra taslak temizlenmeli');
+  /* ÖLÇÜLEN HATA: onaylanan hamlenin taşları 'bekleyen' listesinde asılı
+     kalıyordu; ıstakanın o gözleri kalıcı olarak "kullanıldı" görünüyor,
+     oraya gelen YENİ harfler ne tıklanabiliyor ne sürüklenebiliyordu. */
+  await bekle(() => sirali.__gvKelimelik.bekleyen().length === 0, 10000,
+    'onaylanan hamle bekleyen listesinden düşmeli');
+  await bekle(() => sirali.document.querySelectorAll('#boardArea .kl-rt.kullanildi').length === 0,
+    10000, 'onaydan sonra ıstakada "kullanıldı" işareti kalmamalı');
   console.log('  ✓ 3) ıstakadan seçip tahtaya tıklayarak KEDİ kuruldu, 12 puan, rakibe yansıdı');
 
   /* 4b) HAMLE KAYDI — kullanıcı isteği: "Oyunlarda yapılan hamleler de
@@ -238,9 +245,141 @@ async function main() {
     8000, 'sırası olmayanın Onayla düğmesi kapalı olmalı');
   console.log('  ✓ 6) Pas Geç sunucuya ulaştı, üst üste pas sayacı arttı');
 
+  /* ===================================================================
+     8) SÜRÜKLE-BIRAK HER YÖNDE ÇALIŞIR
+     Kullanıcı isteği: "harfi sürükleyerek yerleştirdikten sonra tekrar
+     sürükleyemiyorum, harfe dokunarak geri almam gerekiyor. Sürükle-bırak
+     hep düzgün çalışmalı hamle sırası sendeyse."
+     Üç yön de ölçülür: ıstaka→tahta, tahta→tahta, tahta→ıstaka.
+     jsdom'da yerleşim (layout) yok; bu yüzden elementFromPoint ve ıstakanın
+     ölçüsü teste özel olarak sahteleniyor — ölçülen şey SÜRÜKLEME MANTIĞI.
+     =================================================================== */
+  oda.kelimelik.turn = sirali.GVArena.seat();
+  await istakaKur(oda, sirali, sirali.GVArena.seat(), ['A', 'L', 'M', 'A', 'S', 'T', 'R'], ODA);
+  /* Sürükleme yalnız SIRASI OLAN oyuncuda açıktır: istemci kendi sırasını
+     görene kadar bekle, yoksa pointerdown sessizce yok sayılır. */
+  await bekle(() => {
+    const q = sirali.GVArena.state();
+    return q && q.status === 'playing' && q.turn === sirali.GVArena.seat();
+  }, 10000, 'sıra sürükleyecek pencereye geçmeli');
+  sirali.GVArena.repaint();
+  await sleep(150);
+
+  const belge = sirali.document;
+  const ISTAKA_KUTU = { left: 1000, top: 1000, right: 1200, bottom: 1080, width: 200, height: 80 };
+  let noktaHedef = null;                       // elementFromPoint ne döndürsün
+  belge.elementFromPoint = function () { return noktaHedef; };
+  const istakaEl = belge.querySelector('#boardArea .kl-istaka');
+  assert.ok(istakaEl, 'ıstaka kutusu bulunmalı');
+  istakaEl.getBoundingClientRect = function () { return ISTAKA_KUTU; };
+
+  function hc(r, c) {
+    return belge.querySelector('#boardArea .kl-hc[data-r="' + r + '"][data-c="' + c + '"]');
+  }
+  function pe(win, el, tur, x, y) {
+    const ev = new win.PointerEvent(tur, { bubbles: true, cancelable: true, pointerId: 7,
+                                           clientX: x, clientY: y });
+    el.dispatchEvent(ev);
+  }
+  /* Bir sürükleme: kaynakta pointerdown → kıpırda → hedefte bırak.
+     hedefEl null ise "boşluğa bırakıldı" demektir. */
+  function surukle(kaynakEl, hedefEl, x, y) {
+    noktaHedef = null;
+    pe(sirali, kaynakEl, 'pointerdown', 10, 10);
+    noktaHedef = hedefEl;
+    pe(sirali, kaynakEl, 'pointermove', x, y);
+    pe(sirali, kaynakEl, 'pointerup', x, y);
+  }
+  /* Sunucudan gelen bir durum paketi tahtayı tam o sırada yeniden çizerse
+     elimizdeki düğüm eskimiş olur ve sürükleme boşa düşer (gerçek oyunda da
+     olabilecek bir yarış; testte kararlılık için öğeler tazelenip bir kez
+     daha denenir). */
+  async function surukleDene(kaynakVer, hedefVer, x, y, tamamMi, ne) {
+    for (let d = 0; d < 6; d++) {
+      const k = kaynakVer(), h = hedefVer();
+      if (k) surukle(k, h, x, y);
+      if (tamamMi()) return;
+      await sleep(150);
+    }
+    throw new Error('sürükleme sonuç vermedi: ' + ne);
+  }
+
+  // --- a) ISTAKA → TAHTA
+  const rackA = sirali.GVArena.state().rack;
+  const iA = Array.from(rackA).indexOf('A');
+  assert.ok(iA >= 0, 'A ıstakada olmalı');
+  await surukleDene(
+    () => belge.querySelector('#boardArea .kl-rt[data-i="' + iA + '"]'),
+    () => hc(9, 7), 300, 300,
+    () => sirali.__gvKelimelik.taslak().length === 1, 'ıstaka→tahta');
+  let taslak = sirali.__gvKelimelik.taslak();
+  assert.strictEqual(taslak.length, 1, 'sürükleyerek bırakılan taş taslağa girmeli');
+  assert.strictEqual(taslak[0].r + ',' + taslak[0].c, '9,7', 'taş bırakıldığı kareye konmalı');
+  assert.ok(hc(9, 7).querySelector('.kl-tas'), 'taş tahtada görünmeli');
+  assert.ok(belge.querySelector('#boardArea .kl-rt[data-i="' + iA + '"]').classList.contains('kullanildi'),
+    'ıstakadaki yeri kullanıldı olarak işaretlenmeli');
+
+  // --- b) TAHTA → TAHTA (asıl eksik olan davranış)
+  await surukleDene(() => hc(9, 7), () => hc(10, 7), 320, 340,
+    () => { const t = sirali.__gvKelimelik.taslak(); return t.length === 1 && t[0].r === 10; },
+    'tahta→tahta');
+  taslak = sirali.__gvKelimelik.taslak();
+  assert.strictEqual(taslak.length, 1, 'taşıma sırasında taş kaybolmamalı');
+  assert.strictEqual(taslak[0].r + ',' + taslak[0].c, '10,7', 'taş yeni kareye taşınmalı');
+  assert.strictEqual(hc(9, 7).querySelector('.kl-tas'), null, 'eski kare boşalmalı');
+  assert.ok(hc(10, 7).querySelector('.kl-tas'), 'yeni karede görünmeli');
+
+  /* Sürüklemenin ardından gelen 'click' taşı geri almamalı: eskiden
+     tıklama olayı aynı kareye düşüyor ve taş ıstakaya dönüyordu. */
+  tikla(sirali, hc(10, 7));
+  assert.strictEqual(sirali.__gvKelimelik.taslak().length, 1,
+    'sürüklemeden sonraki tıklama taşı geri almamalı');
+
+  // --- c) TAHTA → ISTAKA (geri al)
+  await surukleDene(() => hc(10, 7), () => null, 1100, 1040,
+    () => sirali.__gvKelimelik.taslak().length === 0, 'tahta→ıstaka');
+  await sleep(30);   // sürükleme sonrası "tıklamayı yut" bayrağı sönsün
+  assert.strictEqual(sirali.__gvKelimelik.taslak().length, 0,
+    'ıstakaya bırakılan taş taslaktan çıkmalı');
+  assert.strictEqual(hc(10, 7).querySelector('.kl-tas'), null, 'kare boşalmalı');
+  assert.ok(!belge.querySelector('#boardArea .kl-rt[data-i="' + iA + '"]').classList.contains('kullanildi'),
+    'ıstakadaki yer yeniden seçilebilir olmalı');
+  console.log('  ✓ 7) sürükle-bırak: ıstaka→tahta, tahta→tahta, tahta→ıstaka');
+
+  /* ===================================================================
+     9) SÖZLÜK DIŞI RET SEBEPLERİ DE AÇIKLANIR
+     Kullanıcı raporu: "kelime oyununda 'kemer'i kabul etmedi." Kelime
+     sözlükte VAR; reddin sebebi başkaydı ama istemci yalnız sözlük
+     reddinde mesaj gösterdiği için oyuncu sebebini hiç görmüyordu.
+     =================================================================== */
+  assert.ok(require('../kelimelik-engine.js').sozluktekiMi('KEMER'),
+    'KEMER sözlükte olmalı (kullanıcı raporu)');
+
+  const uyarilar = [];
+  const eskiToast = sirali.GV.toast;
+  sirali.GV.toast = function (t, tur) { uyarilar.push(String(t)); return eskiToast.call(this, t, tur); };
+
+  // Tahtadaki kelimelere DEĞMEYEN bir harf: sunucu 'temas_yok' döndürür.
+  const rackB = sirali.GVArena.state().rack;
+  const iB = Array.from(rackB).indexOf('M');
+  assert.ok(iB >= 0, 'M ıstakada olmalı');
+  await bekle(function () {
+    const rt = belge.querySelector('#boardArea .kl-rt[data-i="' + iB + '"]');
+    const kare = hc(0, 0);
+    if (!rt || !kare) return false;
+    tikla(sirali, rt);
+    tikla(sirali, kare);
+    return sirali.__gvKelimelik.taslak().length === 1;
+  }, 8000, 'uzak kareye taş konabilmeli · tanı: ' + JSON.stringify(sirali.__gvKelimelikTani));
+  tikla(sirali, belge.querySelector('#boardArea .kl-onay'));
+  await bekle(() => uyarilar.some(t => /değmeli|kural|hat|boşluk/i.test(t)), 10000,
+    'sözlük dışı ret sebebi de oyuncuya yazılmalı → ' + uyarilar.join(' | '));
+  sirali.GV.toast = eskiToast;
+  console.log('  ✓ 8) sözlük dışı ret sebepleri de cümle olarak gösteriliyor');
+
   for (const w of [A, B]) { try { w.close(); } catch (_) {} }
   server.close();
-  console.log('OK kelimelik istemci (jsdom): çizim, hamle, hamle kaydı, sesler, sözlük reddi, kelime bildir, sade görünüm, pas');
+  console.log('OK kelimelik istemci (jsdom): çizim, hamle, kayıt, sesler, sözlük reddi, kelime bildir, sade görünüm, pas, sürükle-bırak, ret sebepleri');
   process.exit(0);
 }
 main().catch(e => { console.error('❌ KELİMELİK İSTEMCİ HATASI:', e); process.exit(1); });
