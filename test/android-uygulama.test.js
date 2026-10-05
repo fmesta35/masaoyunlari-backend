@@ -115,7 +115,12 @@ console.log('  ✓ 4) açılış adresi ve App Link konakları tutarlı');
 
 // ---------- 5) simgeler ----------
 const YOG = ['mdpi', 'hdpi', 'xhdpi', 'xxhdpi', 'xxxhdpi'];
-const AD = ['ic_launcher', 'ic_launcher_round', 'ic_launcher_foreground', 'ic_launcher_monochrome'];
+/* ic_launcher_round ARTIK YOK: mor daire + saydam köşe demekti; kendi
+   tepsisini çizen launcher'larda (MIUI) köşeler koyu kalıyor, simge
+   "siyah kutu içinde mor madalyon" gibi görünüyordu. Daire isteyen
+   launcher artık ic_launcher'ı kullanıyor — API 26+ için uyarlanabilir
+   sürümü, zemini kenardan kenara mor. */
+const AD = ['ic_launcher', 'ic_launcher_foreground', 'ic_launcher_monochrome'];
 function pngOlcu(buf) {
   if (buf.length < 24 || buf.readUInt32BE(0) !== 0x89504E47) return null;
   return { g: buf.readUInt32BE(16), y: buf.readUInt32BE(20) };
@@ -130,7 +135,7 @@ for (const y of YOG) {
     say++;
   }
 }
-for (const x of ['ic_launcher.xml', 'ic_launcher_round.xml']) {
+for (const x of ['ic_launcher.xml']) {
   const p = path.join(AND, 'app/src/main/res/mipmap-anydpi-v26', x);
   assert.ok(fs.existsSync(p), 'uyarlanabilir simge eksik: ' + x);
   const içerik = fs.readFileSync(p, 'utf8');

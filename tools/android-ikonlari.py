@@ -30,20 +30,19 @@ YOGUNLUK = {'mdpi': 48, 'hdpi': 72, 'xhdpi': 96, 'xxhdpi': 144, 'xxxhdpi': 192}
 # Uyarlanabilir simge katmanları 108dp; aynı yoğunluklarda 108/48 kat büyük.
 UYARLANABILIR = {k: int(round(v * 108 / 48)) for k, v in YOGUNLUK.items()}
 # ---- KONUNUN TUVALDEKİ ORANLARI ------------------------------------------
-# Launcher'lar simgeyi KENDİ maskesiyle kırpar ve çoğu (MIUI, One UI, Pixel)
-# kare simgeyi daireye oturtur. Konu tuvali doldurursa daire kenarları zarın
-# köşelerini ve tacı keser — telefonda "aşırı yakınlaştırılmış" görünür.
-# Bu yüzden her katmanda konuya NEFES PAYI bırakılıyor:
+# Launcher simgeyi kendi maskesiyle kırpar; maske neredeyse her zaman bir
+# DAİREDİR (Pixel, One UI, MIUI yuvarlak kip). Bu yüzden ölçü KARE kutuya
+# göre değil, merkeze olan EN UZAK DOLU PİKSELİN YARIÇAPINA göre veriliyor:
+# zarın köşeleri ve tacın ucu dairenin içinde kaldığı sürece konu istediği
+# kadar büyük olabilir. Kare kutuya göre ölçmek, köşeleri boş olan bu
+# logoda gereksiz yere küçültüyordu.
 #
-#   kare      0.60 → daire maskesi uygulansa bile köşeler dışarıda kalmaz
-#                    (0.60 * √2 = 0.85 < 1, yani kare tuvalin iç dairesine sığar)
-#   yuvarlak  0.56 → zaten daire; kenarla konu arasında görünür boşluk kalsın
-#   on plan   0.45 → uyarlanabilir simgede 108dp tuvalin yalnız ortadaki 66dp'si
-#                    (0.61) her launcher'da GÖRÜNÜR sayılır; 0.50 bunun içinde
-GUVENLI = 0.45          # uyarlanabilir simge ön planı
-KARE_ORAN = 0.60        # eski (API 25-) kare simge
-YUVARLAK_ORAN = 0.56    # eski yuvarlak simge
-KOSE_YARICAP = 0.22     # kare simgenin köşe yuvarlaklığı (kenarın oranı)
+#   kare/yuvarlak 0.455 → tuvalin yarıçapı 0.5; %9 kenar payı bırakıyoruz
+#   on plan       0.300 → uyarlanabilir simgede 108dp tuvalin ortasındaki
+#                         66dp'lik daire (yarıçap 0.3055) HER launcher'da
+#                         görünür sayılır; tam ona oturuyoruz
+KONU_YARICAP = 0.455        # eski kare ve yuvarlak simgeler
+ON_PLAN_YARICAP = 0.300     # uyarlanabilir simge ön planı (66dp güvenli daire)
 MARKA = (108, 92, 231)  # #6C5CE7 — colors.xml colorPrimary ile aynı
 
 
@@ -137,59 +136,66 @@ def konu():
     return kare.crop(kare.getbbox() or (0, 0, kare.size[0], kare.size[1]))
 
 
-def _yerlestir(kenar, oran, kaynak):
-    """Konuyu, en-boy oranını koruyarak `oran` kenarlı kutuya TAM oturt.
+def _dolu_yaricap(im):
+    """Konunun merkezine olan en uzak DOLU pikselin uzaklığı (piksel).
 
-    Eskiden Image.thumbnail kullanılıyordu; o yalnız KÜÇÜLTÜR. Kaynak konu
-    küçükse (bizimki 512'lik logodan ~206px çıkıyor) yüksek yoğunluklu
-    tuvallerde hedef kutuya hiç ulaşamıyor, simge yoğunluktan yoğunluğa
-    farklı boyda çıkıyordu. Açıkça ölçekleyerek her yoğunlukta aynı kadrajı
-    garanti ediyoruz."""
+    Saydam köşeler sayılmaz; ölçü böylece gerçek siluete göre çıkar."""
+    en, boy = im.size
+    a = im.split()[3].load()
+    cx, cy = (en - 1) / 2.0, (boy - 1) / 2.0
+    enb = 0.0
+    for y in range(boy):
+        for x in range(en):
+            if a[x, y] > 24:
+                d = ((x - cx) ** 2 + (y - cy) ** 2) ** 0.5
+                if d > enb: enb = d
+    return max(enb, 1.0)
+
+
+def _yerlestir(kenar, yaricap_orani, kaynak):
+    """Konuyu, SİLUETİ verilen yarıçaplı dairenin içine TAM sığacak en büyük
+       boyda tuvalin ortasına koy.
+
+    Eskiden kare sınır kutusuna göre ölçekleniyordu; zarın köşeleri boş
+    olduğu için bu gereğinden küçük bir simge veriyordu. Artık ölçü konunun
+    merkezden en uzak dolu pikseline göre: daire maskesinde hiçbir şey
+    kesilmeden olabilecek en büyük görünüm."""
+    hedef = kenar * yaricap_orani
+    mevcut = _dolu_yaricap(kaynak)
+    olcek = hedef / mevcut
+    yeni = (max(1, int(round(kaynak.size[0] * olcek))),
+            max(1, int(round(kaynak.size[1] * olcek))))
+    k = kaynak.resize(yeni, Image.LANCZOS)
     tuval = Image.new('RGBA', (kenar, kenar), (0, 0, 0, 0))
-    ic = max(1, int(round(kenar * oran)))
-    k = kaynak.copy()
-    olcek = min(ic / k.size[0], ic / k.size[1])
-    yeni = (max(1, int(round(k.size[0] * olcek))), max(1, int(round(k.size[1] * olcek))))
-    k = k.resize(yeni, Image.LANCZOS)
     tuval.alpha_composite(k, ((kenar - k.size[0]) // 2, (kenar - k.size[1]) // 2))
     return tuval
 
 
-def _yuvarlak_kare_maske(kenar):
-    m = Image.new('L', (kenar, kenar), 0)
-    r = max(1, int(round(kenar * KOSE_YARICAP)))
-    ImageDraw.Draw(m).rounded_rectangle([0, 0, kenar - 1, kenar - 1], radius=r, fill=255)
-    return m
-
-
 def kare(konu_im, kenar):
-    """Eski (API 25 ve altı) kare simge: mor zemin + ortada nefes paylı zar.
+    """Eski (API 25 ve altı) kare simge: KENARDAN KENARA mor zemin + zar.
 
-    Eskiden kaynak logodaki mor kare OLDUĞU GİBİ kullanılıyordu; zar tuvali
-    neredeyse dolduruyor, tacın ucu üst kenara değiyordu. Launcher simgeyi
-    daireye kırpınca zarın köşeleri ve taç kesiliyordu."""
+    Köşeler SAYDAM OLMAMALI. Bir ara yuvarlatılmış maske uygulanmıştı; kendi
+    maskesini uygulamayan launcher'lar köşelerden duvar kâğıdını/koyu zemini
+    gösteriyor, simge "siyah çerçeveli" görünüyordu. Doğrusu: tuvali baştan
+    sona markanın moruyla doldurmak ve yuvarlatmayı launcher'a bırakmak."""
     tuval = Image.new('RGBA', (kenar, kenar), MARKA + (255,))
-    tuval.alpha_composite(_yerlestir(kenar, KARE_ORAN, konu_im))
-    tuval.putalpha(_yuvarlak_kare_maske(kenar))
+    tuval.alpha_composite(_yerlestir(kenar, KONU_YARICAP, konu_im))
     return tuval
 
 
-def yuvarlak(konu_im, kenar):
-    """Eski yuvarlak simge: mor daire + ortada zar. Mor kareyi daireye
-       kırpmak köşelerdeki parlamayı kesiyor, bu yüzden zemin yeniden
-       çiziliyor."""
-    tuval = Image.new('RGBA', (kenar, kenar), MARKA + (255,))
-    tuval.alpha_composite(_yerlestir(kenar, YUVARLAK_ORAN, konu_im))
-    m = Image.new('L', (kenar, kenar), 0)
-    ImageDraw.Draw(m).ellipse([0, 0, kenar - 1, kenar - 1], fill=255)
-    tuval.putalpha(m)
-    return tuval
+# NOT: ic_launcher_round ARTIK ÜRETİLMİYOR. Mor DAİRE + saydam köşeler
+# demekti; kendi tepsisini çizen launcher'larda (MIUI) köşeler koyu kalıyor,
+# simge "siyah kutu içinde mor madalyon" gibi görünüyordu. Manifestteki
+# android:roundIcon da kaldırıldı: daire isteyen launcher artık
+# @mipmap/ic_launcher'ı kullanır — API 26+ için o zaten uyarlanabilir
+# simgedir (zemin kenardan kenara mor), eskiler için de tam mor karedir.
+# Her iki yolda da koyu köşe oluşmaz.
 
 
 def on_plan(konu_im, kenar):
     """Uyarlanabilir simgenin ön planı: SAYDAM zemin, güvenli alana
        sığdırılmış zar. Zemini adaptive-icon XML'i (marka moru) veriyor."""
-    return _yerlestir(kenar, GUVENLI, konu_im)
+    return _yerlestir(kenar, ON_PLAN_YARICAP, konu_im)
 
 
 def tek_renk(konu_im, kenar):
@@ -213,11 +219,10 @@ if __name__ == '__main__':
     sayac = 0
     for yog, kenar in YOGUNLUK.items():
         yaz(kare(k, kenar), yog, 'ic_launcher')
-        yaz(yuvarlak(k, kenar), yog, 'ic_launcher_round')
         a = UYARLANABILIR[yog]
         yaz(on_plan(k, a), yog, 'ic_launcher_foreground')
         yaz(tek_renk(k, a), yog, 'ic_launcher_monochrome')
-        sayac += 4
+        sayac += 3
 
     # Açılış ekranı logosu (tek dosya, yoğunluktan bağımsız).
     d = os.path.join(RES, 'drawable-nodpi')

@@ -115,39 +115,69 @@ function konuKutusuRenk(im, zemin, tol) {
 const MOR = [108, 92, 231];
 
 // ---------- 1) SİMGE KADRAJI ----------
-/* Launcher maskeleri: Pixel/One UI daire, MIUI yuvarlak kare. Daire maskesi
-   en acımasızı — kare tuvalin iç dairesine sığmayan her şey kesilir. Konu
-   kutusunun KÖŞEGENİ tuval kenarını aşmamalı: oran * √2 <= 1 → oran <= .707.
-   Pratikte göze hoş gelen üst sınır .65; altında da simge kaybolmasın. */
-const SINIR = {
-  ic_launcher:            { alt: 0.50, ust: 0.66 },
-  ic_launcher_round:      { alt: 0.46, ust: 0.62 },
-  ic_launcher_foreground: { alt: 0.38, ust: 0.52 }   // 108dp tuval, 66dp güvenli alan
+/* Launcher maskesi neredeyse her zaman DAİREDİR. Ölçüt bu yüzden kare
+   sınır kutusu değil, merkeze olan EN UZAK DOLU PİKSELİN YARIÇAPI: zarın
+   köşeleri ve tacın ucu dairenin içinde kaldığı sürece konu istediği kadar
+   büyük olabilir. Kare kutuya bakmak, köşeleri boş olan bu logoda gereksiz
+   küçültme yapıyordu. */
+const YARICAP = {
+  ic_launcher:            { alt: 0.40, ust: 0.48 },   // tuval yarıçapı 0.5
+  ic_launcher_foreground: { alt: 0.26, ust: 0.3055 }  // 108dp'de 66dp güvenli daire
+};
+
+function enUzakYaricap(im, dolu) {
+  const cx = (im.en - 1) / 2, cy = (im.boy - 1) / 2;
+  let enb = 0;
+  for (let y = 0; y < im.boy; y++) {
+    for (let x = 0; x < im.en; x++) {
+      if (!dolu(im, x, y)) continue;
+      const d = Math.hypot(x - cx, y - cy);
+      if (d > enb) enb = d;
+    }
+  }
+  return enb;
+}
+
+const alfali = (im, x, y) => im.px[(y * im.en + x) * 4 + 3] > 24;
+const morDegil = (im, x, y) => {
+  const i = (y * im.en + x) * 4;
+  if (im.px[i + 3] < 8) return false;
+  return Math.abs(im.px[i] - MOR[0]) + Math.abs(im.px[i + 1] - MOR[1])
+       + Math.abs(im.px[i + 2] - MOR[2]) > 90;
 };
 
 for (const yog of ['mdpi', 'hdpi', 'xhdpi', 'xxhdpi', 'xxxhdpi']) {
-  for (const ad of Object.keys(SINIR)) {
+  for (const ad of Object.keys(YARICAP)) {
     const yol = path.join(RES, 'mipmap-' + yog, ad + '.png');
     assert.ok(fs.existsSync(yol), 'eksik simge: ' + yog + '/' + ad);
     const im = pngOku(yol);
-    const kutu = ad === 'ic_launcher_foreground'
-      ? konuKutusu(im, 24)
-      : konuKutusuRenk(im, MOR, 90);
-    assert.ok(kutu, yog + '/' + ad + ': konu bulunamadı (boş simge)');
-    const oran = Math.max(kutu.en, kutu.boy) / im.en;
-    const s = SINIR[ad];
-    assert.ok(oran <= s.ust,
-      yog + '/' + ad + ': konu çok büyük (' + oran.toFixed(3) + ' > ' + s.ust +
-      '). Launcher daire maskesi uygulayınca zarın köşeleri ve taç kesilir.');
-    assert.ok(oran >= s.alt,
-      yog + '/' + ad + ': konu çok küçük (' + oran.toFixed(3) + ' < ' + s.alt + ')');
-    /* Kenara değmemeli: değiyorsa kırpılmış demektir. */
-    const pay = Math.min(kutu.x0, kutu.y0, im.en - 1 - kutu.x1, im.boy - 1 - kutu.y1);
-    assert.ok(pay >= Math.floor(im.en * 0.08),
-      yog + '/' + ad + ': konu tuval kenarına çok yakın (' + pay + 'px) — kırpılma riski');
+    const dolu = ad === 'ic_launcher_foreground' ? alfali : morDegil;
+    const r = enUzakYaricap(im, dolu) / im.en;
+    const s = YARICAP[ad];
+    assert.ok(r <= s.ust, yog + '/' + ad + ': konu dışarı taşıyor (yarıçap ' +
+      r.toFixed(3) + ' > ' + s.ust + '). Daire maskesinde zarın köşesi/taç kesilir.');
+    assert.ok(r >= s.alt, yog + '/' + ad + ': konu gereğinden küçük (yarıçap ' +
+      r.toFixed(3) + ' < ' + s.alt + ') — boşuna yer harcanıyor');
+  }
+  /* KÖŞELER SAYDAM OLMAMALI: kendi maskesini uygulamayan launcher'lar
+     köşelerden koyu zemini gösterir, simge "siyah çerçeveli" görünür.
+     Bir ara yuvarlatılmış maske uygulanmıştı; bu madde onu geri getirmez. */
+  const kim = pngOku(path.join(RES, 'mipmap-' + yog, 'ic_launcher.png'));
+  for (const [x, y] of [[0, 0], [kim.en - 1, 0], [0, kim.boy - 1], [kim.en - 1, kim.boy - 1]]) {
+    assert.strictEqual(kim.px[(y * kim.en + x) * 4 + 3], 255,
+      yog + '/ic_launcher: köşe saydam — zemin kenardan kenara mor olmalı');
   }
 }
-console.log('  ✓ 1) simge kadrajı: 5 yoğunluk × 3 katman, maske payı yeterli');
+/* Daire çizen launcher'lar artık ic_launcher'ı (API 26+ uyarlanabilir
+   sürümünü) kullanıyor: ayrı yuvarlak simge mor DAİRE + saydam köşe
+   demekti, kendi tepsisini çizen launcher'da köşeler koyu kalıyordu. */
+assert.ok(!/android:roundIcon/.test(oku('android/app/src/main/AndroidManifest.xml')),
+  'android:roundIcon kaldırılmalı; yuvarlak simge koyu köşelere yol açıyordu');
+for (const yog of ['mdpi', 'xxxhdpi']) {
+  assert.ok(!fs.existsSync(path.join(RES, 'mipmap-' + yog, 'ic_launcher_round.png')),
+    yog + ': ic_launcher_round.png artık üretilmemeli');
+}
+console.log('  ✓ 1) simge: daire maskesine tam oturuyor, köşeler mor, yuvarlak varyant yok');
 
 // ---------- 2) İNSET SÖZLEŞMESİ: üç parça da yerinde mi ----------
 const java = oku('android/app/src/main/java/tr/com/masaoyunlari/oyun/MainActivity.java');
@@ -160,12 +190,21 @@ for (const d of ['--gv-ust', '--gv-alt', '--gv-sol', '--gv-sag']) {
   assert.ok(html.includes('var(' + d),
     'index.html ' + d + ' değişkenini kullanmalı (yoksa kabuk boşuna yolluyor)');
 }
-assert.ok(/GVWebView&&window\.GVWebView\.insetDestegi/.test(java.replace(/\s+/g, '')) ||
-          /insetDestegi/.test(java),
-  'kabuk, sayfanın inset desteğini sormalı');
+/* KURALLARI KABUK DA KURUYOR. Site Yöncü'de ayrı yayınlandığı için
+   güncel olmayabiliyor; yalnız değişken yollamak yetmiyordu (kimse
+   kullanmıyorsa bant aynen kalıyor). Kabuk kendi <style> etiketini
+   ekliyor, böylece sitenin hangi sürümü yayında olursa olsun doğru
+   görünüyor. */
+assert.ok(/gv-inset-css/.test(java),
+  'kabuk kendi <style> etiketini kurmalı (eski site sürümünde de çalışsın)');
+assert.ok(/body\.gv-app \.header\{box-sizing:border-box;/.test(java),
+  'kabuğun kurduğu CSS üst barı durum çubuğu kadar uzatmalı');
+assert.ok(/classList\.contains\('gv-app'\)/.test(java),
+  'dolgu ancak gövdede gv-app sınıfı VARKEN bırakılmalı; yoksa kurallar ' +
+  'çalışmaz ve içerik durum çubuğunun altında kalır');
 assert.ok(/GVWebView\.insetDestegi\s*=\s*true/.test(wv),
-  'js/webview.js insetDestegi bayrağını açmalı; yoksa kabuk dolguyu bırakmaz');
-console.log('  ✓ 2) inset sözleşmesi: Java, webview.js ve CSS aynı değişkenleri konuşuyor');
+  'js/webview.js bayrağı korunmalı (sitenin kendi kurallarını taşıdığının işareti)');
+console.log('  ✓ 2) inset sözleşmesi: kabuk CSS\'i kendi kuruyor, site de aynı değişkenleri kullanıyor');
 
 // ---------- 3) ÜST BAR DURUM ÇUBUĞUNU KENDİSİ BOYUYOR ----------
 assert.ok(/body\.gv-app\s*\{[^}]*padding-top:\s*0/.test(html),

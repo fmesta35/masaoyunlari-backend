@@ -176,28 +176,49 @@ public class MainActivity extends AppCompatActivity {
                                s ? 0 : insetSag, s ? 0 : insetAlt);
     }
 
-    /* Sistem çubuğu ölçülerini CSS değişkeni olarak sayfaya geçir.
+    /* Sistem çubuğu ölçülerini sayfaya geçir VE gereken CSS'i kendimiz kur.
      *
      * NEDEN: Eskiden WebView'e durum çubuğu yüksekliği kadar DOLGU veriliyordu;
      * uygulama o şeridi hiç boyamadığı için telefonda üstte koyu bir bant
-     * kalıyor, arayüz aşağı itilmiş görünüyordu. Artık WebView tüm ekrana
-     * çiziyor, üst barın yüksekliğini sayfa kendisi artırıyor — bar kendi
-     * rengiyle durum çubuğunun arkasına kadar uzanıyor.
+     * kalıyor, arayüz aşağı itilmiş görünüyordu.
      *
-     * GÜVENLİK AĞI: JS sonuç olarak "1" döndürmezse (eski WebView, hata,
-     * sitenin eski sürümü) native dolgu geri gelir. Böylece en kötü ihtimalde
-     * eski görünüme düşeriz, içerik ASLA durum çubuğunun altında kalmaz. */
+     * NEDEN CSS'İ DE BİZ KURUYORUZ: ilk denemede yalnız --gv-ust gibi
+     * değişkenler yollanmış, kuralları sitenin yazması beklenmişti. Site
+     * Yöncü'de ayrı yayınlandığı için güncel olmayabiliyor; o durumda
+     * değişkenleri kullanan kimse olmuyor ve bant aynen kalıyordu. Artık
+     * kuralları kabuk kendi <style> etiketiyle ekliyor: uygulama, sitenin
+     * hangi sürümü yayında olursa olsun doğru görünüyor. Site kendi
+     * kurallarını da taşıyorsa değerler aynı olduğu için çakışma olmaz.
+     *
+     * GÜVENLİK AĞI: JS "1" döndürmezse (JS kapalı, çok eski WebView, hata)
+     * native dolgu geri gelir. En kötü ihtimalde eski görünüme düşeriz,
+     * içerik ASLA durum çubuğunun altında kalmaz. */
     private void insetleriSayfayaYolla() {
         if (webView == null) return;
         float d = getResources().getDisplayMetrics().density;
         if (d <= 0) d = 1f;
-        String js = "(function(){try{var e=document.documentElement;"
-                + "if(!e||!e.style)return '0';var s=e.style;"
+        final String css =
+                "body.gv-app{padding-top:0;padding-bottom:var(--gv-alt,0px);"
+              + "padding-left:var(--gv-sol,0px);padding-right:var(--gv-sag,0px)}"
+              + "body.gv-app .header{box-sizing:border-box;"
+              + "padding-top:var(--gv-ust,0px);height:calc(56px + var(--gv-ust,0px))}"
+              + "body.gv-app .toast-wrap{top:calc(70px + var(--gv-ust,0px))}"
+              + "body.gv-app .notif-panel{top:calc(58px + var(--gv-ust,0px))}";
+        String js = "(function(){try{"
+                + "var e=document.documentElement;if(!e||!e.style)return '0';"
+                + "var s=e.style;"
                 + "s.setProperty('--gv-ust'," + (insetUst / d) + "+'px');"
                 + "s.setProperty('--gv-alt'," + (insetAlt / d) + "+'px');"
                 + "s.setProperty('--gv-sol'," + (insetSol / d) + "+'px');"
                 + "s.setProperty('--gv-sag'," + (insetSag / d) + "+'px');"
-                + "return (window.GVWebView&&window.GVWebView.insetDestegi)?'1':'0';"
+                + "var b=document.body;if(!b)return '0';"
+                + "var st=document.getElementById('gv-inset-css');"
+                + "if(!st){st=document.createElement('style');st.id='gv-inset-css';"
+                + "(document.head||e).appendChild(st);}"
+                + "st.textContent=" + jsMetin(css) + ";"
+                // Kurallar YALNIZ .gv-app gövdesinde çalışıyor; sınıf henüz
+                // eklenmediyse dolguyu bırakmak içeriği çubuğun altına sokardı.
+                + "return b.classList.contains('gv-app')?'1':'0';"
                 + "}catch(_){return '0';}})()";
         webView.evaluateJavascript(js, deger -> {
             boolean tamam = deger != null && deger.contains("1");
@@ -206,6 +227,19 @@ public class MainActivity extends AppCompatActivity {
                 dolguUygula();
             }
         });
+    }
+
+    /** Metni JavaScript dizesi olarak güvenle göm. */
+    private static String jsMetin(String m) {
+        StringBuilder sb = new StringBuilder("'");
+        for (int i = 0; i < m.length(); i++) {
+            char c = m.charAt(i);
+            if (c == '\'' || c == '\\') sb.append('\\').append(c);
+            else if (c == '\n' || c == '\r') sb.append(' ');
+            else if (c == '<') sb.append("\\x3c");
+            else sb.append(c);
+        }
+        return sb.append('\'').toString();
     }
 
     @SuppressLint("SetJavaScriptEnabled")
@@ -307,8 +341,10 @@ public class MainActivity extends AppCompatActivity {
         @Override
         public void onPageFinished(WebView view, String url) {
             super.onPageFinished(view, url);
-            // Sayfa yüklendi: CSS değişkenlerini hemen ver, sonra göster.
+            // Sayfa yüklendi: payları hemen uygula. gv-app sınıfı site
+            // betiğiyle geliyor; biraz gecikirse diye bir kez daha denenir.
             insetleriSayfayaYolla();
+            view.postDelayed(MainActivity.this::insetleriSayfayaYolla, 700);
             if (!loadFailed) showContent();
         }
 
