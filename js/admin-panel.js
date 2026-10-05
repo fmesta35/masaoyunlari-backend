@@ -59,7 +59,11 @@
      ilgili oyundaki tüm oyuncular için geçerli olacak."
      Satranç ve tavlada hamle başına süre yoktur (ana saat vardır), orada
      kutu hiç çizilmez. Liste ve varsayılanlar SUNUCUDAN gelir. */
-  let HAMLE_YOK = ['chess', 'tavla'];
+  /* Hamle süresi ARTIK her oyunda düzenlenebiliyor — satranç ve tavla
+     dahil. Onlarda da hamle başına hükmen mağlubiyet sayacı hep vardı,
+     yalnız 60 sn'ye sabitti. Liste sunucudan geliyor (sema.hamleYok) ve
+     boş; burası yalnızca sema gelmeden önceki ilk çizim için duruyor. */
+  let HAMLE_YOK = [];
   let HAMLE_SINIR = { min: 5, max: 600 };
   let HAMLE_VARSAYILAN = {};
   function hamleVarMi(gid) { return !HAMLE_YOK.includes(gid); }

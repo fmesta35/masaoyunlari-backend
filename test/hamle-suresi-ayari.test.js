@@ -19,8 +19,10 @@
  *      süresini kullanır — eskiden sabit OKEY_TURN_MS'ti.
  *   5) KELİMELİK motoru da masanın süresini alır.
  *   6) Sınır dışı değerler kırpılır (5-600 sn), 0/boş "varsayılanı kullan".
- *   7) Satranç/tavlada hamle başına süre YOKTUR: değer girilse bile
- *      yok sayılır ve panel o kutuyu çizmez.
+ *   7) SATRANÇ VE TAVLA DA DAHİL her oyunda ayarlanabilir. Bir ara bu ikisi
+ *      dışarıda bırakılmıştı ("ana saatleri var" diye); oysa onlarda da
+ *      hamle başına hükmen mağlubiyet sayacı hep vardı, yalnız 60 sn'ye
+ *      SABİTTİ ve kurucu değiştiremiyordu.
  *   8) Ayar kalıcıdır (yeniden başlatmada korunur) ve lobide görünür.
  * ========================================================================= */
 
@@ -92,8 +94,12 @@ async function main() {
 
   // ---------- 2) şema panele alanı bildiriyor ----------
   const sema = (await api(BASE, '/api/admin/tables', null, 'GET', T)).sema;
-  assert.ok(Array.isArray(sema.hamleYok) && sema.hamleYok.includes('chess') && sema.hamleYok.includes('tavla'),
-    'satranç ve tavla "hamle süresi yok" listesinde olmalı');
+  /* hamleYok BOŞ olmalı: alan artık her oyunda düzenlenebiliyor. Alanın
+     kendisi duruyor, çünkü eski panel sürümleri hâlâ ona bakıyor. */
+  assert.ok(Array.isArray(sema.hamleYok) && sema.hamleYok.length === 0,
+    'hiçbir oyun hamle süresi ayarının dışında bırakılmamalı — ' + JSON.stringify(sema.hamleYok));
+  assert.strictEqual(Number(sema.hamleVarsayilan.chess), 60, 'satranç varsayılanı 60 sn bildirilmeli');
+  assert.strictEqual(Number(sema.hamleVarsayilan.tavla), 60, 'tavla varsayılanı 60 sn bildirilmeli');
   assert.strictEqual(sema.hamleSinir.min, 5);
   assert.strictEqual(sema.hamleSinir.max, 600);
   assert.strictEqual(Number(sema.hamleVarsayilan.okey), 30, 'okey varsayılanı 30 sn bildirilmeli');
@@ -107,7 +113,8 @@ async function main() {
   ayar.kelimelik.tables[0].moveSeconds = 15;     // kelimelik 1. masa → 15 sn
   ayar.dama.tables[1].moveSeconds = 9999;        // sınır dışı → 600'e kırpılmalı
   ayar.dama.tables[2].moveSeconds = 1;           // sınır dışı → 5'e kırpılmalı
-  ayar.chess.tables[0].moveSeconds = 45;         // satrançta YOK SAYILMALI
+  ayar.chess.tables[0].moveSeconds = 45;         // satranç 1. masa → 45 sn
+  ayar.tavla.tables[0].moveSeconds = 20;         // tavla 1. masa → 20 sn
   let r = await api(BASE, '/api/admin/tables-apply', { games: ayar }, 'POST', T);
   assert.strictEqual(r.ok, true, 'ayar uygulanmalı — ' + JSON.stringify(r).slice(0, 180));
 
@@ -118,8 +125,18 @@ async function main() {
   assert.strictEqual(Number(damaOda[2].moveLimitMs), 5000, 'sınırın altı 5 sn\'ye çıkarılmalı');
   const satrancOda = [...rooms.values()].filter(x => x.isPreset && x.gameId === 'chess')
     .sort((a, b) => Number(a.id) - Number(b.id))[0];
-  assert.ok(!satrancOda.moveLimitMs, 'satrançta hamle süresi olmamalı (ana saat var)');
-  console.log('  ✓ 3) hamle süresi değişti, sınır dışı değerler kırpıldı, satranç yok saydı');
+  assert.strictEqual(Number(satrancOda.moveLimitMs), 45000,
+    'satranç masası da kurucunun girdiği süreyi almalı (eskiden yok sayılıyordu)');
+  const tavlaOda = [...rooms.values()].filter(x => x.isPreset && x.gameId === 'tavla')
+    .sort((a, b) => Number(a.id) - Number(b.id))[0];
+  assert.strictEqual(Number(tavlaOda.moveLimitMs), 20000, 'tavla masası da süreyi almalı');
+  /* Dokunulmayan satranç masaları varsayılanda kalmalı — tek masayı
+     değiştirmek diğerlerini etkilememeli. */
+  const satrancIkinci = [...rooms.values()].filter(x => x.isPreset && x.gameId === 'chess')
+    .sort((a, b) => Number(a.id) - Number(b.id))[1];
+  assert.strictEqual(Number(satrancIkinci.moveLimitMs), 60000,
+    'dokunulmayan satranç masası varsayılan 60 sn kalmalı');
+  console.log('  ✓ 3) hamle süresi değişti (satranç ve tavla dahil), sınır dışı değerler kırpıldı');
 
   // ---------- 4) MASADAKİ HERKES aynı süreyi görüyor ----------
   const odaId = String(damaOda[0].id);
@@ -221,9 +238,12 @@ async function main() {
   assert.ok(/HAMLE \(SN\)/.test(kod), 'kutunun etiketi olmalı');
   assert.ok(/function hamleVarMi/.test(kod) && /sema\.hamleYok/.test(kod),
     'hangi oyunda gösterileceği SUNUCUDAN okunmalı');
+  assert.ok(/let HAMLE_YOK = \[\]/.test(kod),
+    'panelin yerel varsayılanı da boş olmalı; şema gelmeden önce satranç/tavla ' +
+    'kutusu gizlenmesin');
   assert.ok(/OYUN \(DK\)/.test(kod), 'oyun süresi kutusu da etiketlenmeli');
   assert.ok(/t\.moveSeconds = 0/.test(kod), 'boş bırakmak 0 (varsayılan) olarak yollanmalı');
-  console.log('  ✓ 10) panel kutuyu etiketli çiziyor, satranç/tavlada gizliyor');
+  console.log('  ✓ 10) panel kutuyu her oyunda etiketli çiziyor');
 
   for (const s of acik) { try { s.close(); } catch (_) {} }
   server.close();

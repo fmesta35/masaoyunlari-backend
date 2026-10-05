@@ -348,9 +348,11 @@ const ALL_GAMES = ['chess', 'tavla', 'okey', 'okey101', 'pisti', 'batak',
    kullanılır. Masadaki herkes aynı süreyi görür, çünkü süre oyuncuya değil
    ODAYA bağlı — durum paketleri bunu moveLimitOf(room) üzerinden okur.
 
-   SATRANÇ ve TAVLA'da hamle başına süre YOKTUR (ana saat vardır); bu iki
-   oyunda alan hiç gösterilmez ve değer yok sayılır. */
-const HAMLE_SURESI_YOK = ['chess', 'tavla'];
+   HER OYUNDA geçerlidir — satranç ve tavla dahil. Bir ara bu ikisi dışarıda
+   bırakılmıştı ("ana saatleri var" diye); oysa onlarda da hamle başına
+   hükmen mağlubiyet sayacı hep vardı, yalnız 60 sn'ye SABİTLENMİŞTİ ve
+   kurucu değiştiremiyordu. Artık süre tek yerden (odaHamleMs) geliyor ve
+   kurucunun girdiği değer bütün oyunlarda aynı şekilde uygulanıyor. */
 const HAMLE_SN_MIN = 5;
 const HAMLE_SN_MAX = 600;
 
@@ -363,7 +365,6 @@ function hamleSaniyeTemizle(v) {
 /* Bir oyunun hamle süresi VARSAYILANI (ms). Kurucu masaya özel değer
    girmediğinde bu kullanılır — yani eski davranış birebir korunur. */
 function varsayilanHamleMs(gameId, durationMinutes) {
-  if (HAMLE_SURESI_YOK.includes(gameId)) return null;
   if (gameId === 'kelimelik') {
     /* Kelimelik'te ana saat yok; masa tipi hamle süresini belirler:
        ⚡ 10 dk → 30 sn · ♟️ 15 dk → 45 sn · 🧠 20 dk → 60 sn */
@@ -379,12 +380,9 @@ function varsayilanHamleSn(gameId, durationMinutes) {
 }
 
 /* Bir masanın GERÇEK hamle süresi (ms): kurucunun girdiği değer, yoksa
-   oyunun varsayılanı. Satranç/tavlada her zaman null — oraya değer
-   girilmiş olsa bile yok sayılır (o oyunlarda hamle başına süre yok).
-   TEK YERDEN hesaplanır: createRoom ve applyPresetConfig aynı kuralı
-   uygulasın diye (ayrı yazıldığında satranca süre sızıyordu). */
+   oyunun varsayılanı. TEK YERDEN hesaplanır — createRoom, applyPresetConfig
+   ve durum paketleri aynı kuralı uygulasın diye. */
 function odaHamleMs(gameId, moveSeconds, durationMinutes) {
-  if (HAMLE_SURESI_YOK.includes(gameId)) return null;
   const sn = hamleSaniyeTemizle(moveSeconds);
   return sn > 0 ? sn * 1000 : varsayilanHamleMs(gameId, durationMinutes);
 }
@@ -444,9 +442,12 @@ function defaultTablesFor(gameId) {
   for (const t of PRESET_TYPES) {
     out.push({ name: `${t.label} Masa #${base + out.length}`, type: t.type,
                durationMinutes: t.durationMinutes,
-               /* Panel boş kutu yerine GERÇEK değeri göstersin diye varsayılan
-                  hamle süresi de yazılır (kurucu üstüne yazabilir). */
-               moveSeconds: varsayilanHamleSn(gameId, t.durationMinutes) });   // 0 = o oyunda yok
+               /* 0 = "oyunun varsayılanını kullan". Varsayılanı buraya SAYI
+                  olarak yazmak cazip görünüyor ama kayıplı: saniyeye
+                  yuvarlanıp 5-600 aralığına kırpılıyor, yani varsayılanı
+                  kendi sınırlarımıza hapsediyor. Panel zaten varsayılanı
+                  kutunun placeholder'ında gösteriyor (sema.hamleVarsayilan). */
+               moveSeconds: 0 });
   }
   return out;
 }
@@ -506,11 +507,8 @@ function normPresetConfig(raw) {
           name: String(x.name || d.name).slice(0, 60),
           type: (x.type === 'fast' || x.type === 'thinker') ? x.type : 'normal',
           durationMinutes: clampDuration(x.durationMinutes, d.durationMinutes),
-          /* 0 ya da geçersiz → oyunun varsayılanı kullanılır (bkz. createRoom).
-             Satranç/tavlada hamle süresi kavramı yok: her zaman 0 saklanır. */
-          moveSeconds: HAMLE_SURESI_YOK.includes(g)
-            ? 0
-            : hamleSaniyeTemizle(x.moveSeconds !== undefined ? x.moveSeconds : d.moveSeconds)
+          /* 0 ya da geçersiz → oyunun varsayılanı kullanılır (bkz. createRoom). */
+          moveSeconds: hamleSaniyeTemizle(x.moveSeconds !== undefined ? x.moveSeconds : d.moveSeconds)
         };
       });
       if (t.length) cfg[g].tables = t;
@@ -1148,8 +1146,8 @@ function buildChessState(room, opts) {
     status: room.status,
     whiteTimeMs: room.whiteTimeMs,
     blackTimeMs: room.blackTimeMs,
-    moveLimitMs: MOVE_FORFEIT_MS,
-    moveRemainingMs: Math.max(0, MOVE_FORFEIT_MS - moveElapsed),
+    moveLimitMs: moveLimitOf(room),
+    moveRemainingMs: Math.max(0, moveLimitOf(room) - moveElapsed),
     serverNow: now(),
     result: room.result,
     check: typeof chess.isCheck === 'function' ? chess.isCheck() : false,
@@ -1187,8 +1185,8 @@ function buildTavlaState(room, opts) {
     status: room.status,
     whiteTimeMs: room.whiteTimeMs,
     blackTimeMs: room.blackTimeMs,
-    moveLimitMs: MOVE_FORFEIT_MS,
-    moveRemainingMs: Math.max(0, MOVE_FORFEIT_MS - moveElapsed),
+    moveLimitMs: moveLimitOf(room),
+    moveRemainingMs: Math.max(0, moveLimitOf(room) - moveElapsed),
     serverNow: now(),
     result: room.result,
     notice: room.tavlaNotice || null,
@@ -4207,17 +4205,22 @@ for (const room of rooms.values()) {
     if ((room.chess || room.tavla) && room.moveStartedAt) {
       const elapsed = now() - room.moveStartedAt;
       const turnColor = turnColorOf(room);
+      /* Sınır ARTIK masadan geliyor (kurucu panelinden girilen saniye);
+         eskiden MOVE_FORFEIT_MS'e sabitti ve değiştirilemiyordu. */
+      const sinir = moveLimitOf(room);
 
-      if (!room.moveWarned && elapsed >= MOVE_WARN_MS) {
+      /* Uyarı sınırın içinde kalmalı: 20 sn'lik bir masada 40. saniyede
+         uyarmak anlamsız olurdu. Kart oyunlarındaki kuralın aynısı. */
+      if (!room.moveWarned && elapsed >= Math.min(MOVE_WARN_MS, sinir - 1000)) {
         room.moveWarned = true;
         io.to(room.id).emit('moveTimeWarning', {
           roomId: room.id,
           color: turnColor,
-          remainingMs: Math.max(0, MOVE_FORFEIT_MS - elapsed)
+          remainingMs: Math.max(0, sinir - elapsed)
         });
       }
 
-      if (elapsed >= MOVE_FORFEIT_MS) {
+      if (elapsed >= sinir) {
         room.status = 'finished';
         room.result = { reason: 'move_timeout', winner: turnColor === 'white' ? 'black' : 'white' };
         const state = buildBoardState(room);
@@ -4417,10 +4420,12 @@ app.get('/api/admin/tables', async (req, res) => {
       kartSinir: Object.fromEntries(MANAGED_CARD_GAMES.map(g => [g, cardTableLimit(g)])),
       tabanlar: PRESET_GAME_BASES,
       tipler: PRESET_TYPES.map(t => ({ type: t.type, label: t.label, durationMinutes: t.durationMinutes })),
-      /* HAMLE SÜRESİ alanı: hangi oyunlarda gösterilmeyeceği, oyun başına
-         varsayılan saniye ve kabul edilen aralık. Panel bu bilgiyi kendi
-         içinde tutmaz — yeni oyun eklenince kendiliğinden doğru davranır. */
-      hamleYok: HAMLE_SURESI_YOK,
+      /* HAMLE SÜRESİ alanı: oyun başına varsayılan saniye ve kabul edilen
+         aralık. Panel bu bilgiyi kendi içinde tutmaz — yeni oyun eklenince
+         kendiliğinden doğru davranır. hamleYok artık BOŞ: alan her oyunda
+         düzenlenebilir (eski panel sürümleri bu listeye baktığı için alan
+         korunuyor). */
+      hamleYok: [],
       hamleSinir: { min: HAMLE_SN_MIN, max: HAMLE_SN_MAX },
       hamleVarsayilan: Object.fromEntries(ALL_GAMES.map(g => [g, varsayilanHamleSn(g, 15)])),
       tumOyunlar: ALL_GAMES
