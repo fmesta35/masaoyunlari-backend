@@ -5,6 +5,43 @@
   'use strict';
   const BACKEND = window.GV_BACKEND_URL || 'https://masaoyunlari-backend.onrender.com';
   let socket = null, roomId = null, room = null, started = false;
+  /* HAZIR SÜRESİ SAYACI (sunucu başlatır, bkz. server.js hazirSayaciBaslat).
+     Kullanıcı isteği: masa dolduğunda ve biri hazır verdiğinde 30 sn sayaç
+     başlar; süre dolunca hazır vermeyenler masadan çıkarılır. Sayaç sunucuda
+     işler — burada yalnız GÖSTERİLİR; yerel saat kaymasından etkilenmemek
+     için sunucunun bildirdiği KALAN süre üzerinden kendi bitişimizi kurarız. */
+  let hazirBitis = 0;          // yerel ms damgası (0 = sayaç yok)
+  let hazirTik = null;         // saniye sayacını yazan zamanlayıcı
+  function hazirKalanSn() {
+    if (!hazirBitis) return 0;
+    return Math.max(0, Math.ceil((hazirBitis - Date.now()) / 1000));
+  }
+  function hazirKur(kalanMs) {
+    const ms = Number(kalanMs) || 0;
+    if (ms <= 0) return hazirSifirla();
+    hazirBitis = Date.now() + ms;
+    hazirYaz();
+  }
+  function hazirSifirla() {
+    hazirBitis = 0;
+    if (hazirTik) { clearInterval(hazirTik); hazirTik = null; }
+    const el = document.querySelector('.gv-sayac-n');
+    if (el) el.textContent = '';
+  }
+  /* Saniye metnini AYRI yaz: kartın HTML'i her saniye yeniden üretilseydi
+     "HAZIRIM" tıklaması öksüz düğüme düşerdi (bkz. render'daki __gvLastHtml
+     notu). Bu yüzden yalnız sayı düğümünün metni güncellenir. */
+  function hazirYaz() {
+    const el = document.querySelector('.gv-sayac-n');
+    if (el) el.textContent = String(hazirKalanSn());
+    if (!hazirTik) {
+      hazirTik = setInterval(function () {
+        const e2 = document.querySelector('.gv-sayac-n');
+        if (e2) e2.textContent = String(hazirKalanSn());
+        if (!hazirBitis || hazirKalanSn() <= 0) { clearInterval(hazirTik); hazirTik = null; }
+      }, 250);
+    }
+  }
 
   function state() {
     try { return typeof st !== 'undefined' ? st : null; } catch (_) { return null; }
@@ -221,6 +258,13 @@
 .gvp.ready .st{color:#00b894}
 .gvp.gvp-empty{background:rgba(255,255,255,.03);border-style:dashed;opacity:.9}
 #gv-real-chess-wait .status{text-align:center;color:var(--text2,#aaa);margin:14px 0;font-size:.95rem;min-height:22px;font-weight:600}
+/* HAZIR SÜRESİ ŞERİDİ: hazır olmayan oyuncuya kırmızı uyarı, hazır olana
+   sakin yeşil bilgi. Saniye rakamı .gv-sayac-n düğümünde ayrıca güncellenir. */
+.gv-sayac{margin:10px 0 4px;padding:10px 12px;border-radius:12px;font-size:.92rem;
+  line-height:1.45;border:1px solid transparent;text-align:center}
+.gv-sayac.tehlike{background:rgba(231,76,60,.14);border-color:rgba(231,76,60,.55);color:#ffb3aa}
+.gv-sayac.guvende{background:rgba(16,185,129,.12);border-color:rgba(16,185,129,.45);color:#8ef0cb}
+.gv-sayac-n{font-variant-numeric:tabular-nums;font-size:1.25em;padding:0 2px}
 .gv-ready{width:100%;padding:14px;border:0;border-radius:12px;background:linear-gradient(135deg,#f59e0b,#d97706);color:#000;font-weight:800;cursor:pointer;font-size:1.1rem;transition:all .2s ease;box-shadow:0 4px 15px rgba(245,158,11,.3)}
 .gv-ready:hover{transform:translateY(-2px);box-shadow:0 6px 20px rgba(245,158,11,.4)}
 .gv-ready.ready{background:linear-gradient(135deg,#10b981,#059669);color:#fff;box-shadow:0 4px 15px rgba(16,185,129,.3)}
@@ -373,6 +417,20 @@
     let seatCells = '';
     for (let i = 0; i < seats; i++) seatCells += player(i);
 
+    /* HAZIR SÜRESİ ŞERİDİ. Saniye rakamı burada YAZILMAZ (boş bırakılır),
+       ayrı bir zamanlayıcı yalnız o düğümün metnini günceller — kartın HTML'i
+       saniyede bir yeniden üretilseydi "HAZIRIM" tıklaması kaybolabilirdi. */
+    const sayacVar = hazirBitis > 0 && !allReady;
+    const sayacHtml = !sayacVar ? '' :
+      ('<div class="gv-sayac' + (ready ? ' guvende' : ' tehlike') + '">⏱ Hazır süresi: ' +
+       '<b class="gv-sayac-n"></b> sn — ' +
+       (watching
+         ? 'hazır olmayan oyuncular masadan çıkarılacak.'
+         : (ready
+             ? 'hazırsınız, masada kalacaksınız.'
+             : 'süre dolmadan <b>HAZIRIM</b> demezseniz masadan çıkarılırsınız.')) +
+       '</div>');
+
     const html = '<div class="card">' +
       '<h2>' + gameLabel() + ' Masa #' + roomId + ' — ' + title + '</h2>' +
       intro + specLine +
@@ -380,6 +438,7 @@
       '<div class="players"><div class="gv-felt">' + esc(gameLabel()) +
         '<small>' + seats + ' kişilik masa</small></div>' + seatCells + '</div>' +
       '<div class="status">' + status + '</div>' +
+      sayacHtml +
       readyBtn +
       '<button class="gv-leave" type="button">' + leaveLabel + '</button>' +
       '</div>';
@@ -392,6 +451,7 @@
     if (e.__gvLastHtml === html) return;
     e.__gvLastHtml = html;
     e.innerHTML = html;
+    if (sayacVar) hazirYaz();          // yeni düğüme saniyeyi hemen yaz
 
     // Boş ➕ koltuk (özel masanın kurucusu): arkadaş davet penceresini aç —
     // birden fazla kişi davet edilebilir, ilk katılan koltuğu alır.
@@ -631,6 +691,11 @@
         window.__gvActiveRoom = r;
         const mePlayer = (r.players || []).find(isMe);
         window.__gvIsSpectator = !mePlayer && !!(r.spectators || []).find(isMe);
+        /* Hazır süresi oda özetinde de taşınır: sayfayı yenileyen ya da
+           yeniden bağlanan oyuncu kalan süreyi doğru görsün. Olay kaçsa bile
+           sayaç buradan kurulur. */
+        if (Number(r.hazirKalan) > 0) hazirKur(r.hazirKalan);
+        else if (r.status !== 'waiting') hazirSifirla();
         if (started) return;
         // roomUpdated yalnızca oda özetidir; status=playing paketi tek
         // başına tahtayı açmamalı. Aksi halde eski/stale bir oda özeti,
@@ -724,12 +789,43 @@
       });
       socket.on('joinedRoom', () => { authRetry = 0; });
 
-      // Kurucu masadan attıysa: odadan düş + kalıcı bilgi (yeniden davet şart)
+      // Masadan çıkarıldım: kurucunun atması ya da hazır süresinin dolması.
       socket.on('kickedFromRoom', p => {
         if (!p || String(p.roomId) !== String(roomId)) return;
-        try { window.GV && GV.toast && GV.toast('🚪 Kurucu sizi masadan attı — yeniden davet edilmeden giremezsiniz.', 'warning', 6000); } catch (_) {}
+        const hazirsizlik = p.reason === 'not_ready';
+        const metin = hazirsizlik
+          ? '⏱ Hazır süresi doldu — masadan çıkarıldınız. Lobiden yeniden masaya oturabilirsiniz.'
+          : '🚪 Kurucu sizi masadan attı — yeniden davet edilmeden giremezsiniz.';
+        try { window.GV && GV.toast && GV.toast(metin, 'warning', 6000); } catch (_) {}
+        hazirSifirla();
         leave();
       });
+
+      /* HAZIR SÜRESİ SAYACI — sunucu başlattı. Kullanıcı isteği: masa dolu ve
+         biri hazır verdiyse 30 sn sayaç; süre dolunca hazır vermeyenler
+         masadan çıkarılır. Sayaç bir kez başlar, iptal edilemez. */
+      socket.on('hazirSayaci', p => {
+        if (!p || String(p.roomId) !== String(roomId)) return;
+        hazirKur(p.kalan);
+        try {
+          window.GV && GV.toast && GV.toast(
+            '⏱ Hazır süresi başladı: ' + Math.round((Number(p.sure) || 30000) / 1000) +
+            ' sn içinde HAZIRIM demeyenler masadan çıkarılacak.', 'warning', 5000);
+        } catch (_) {}
+      });
+      socket.on('hazirSayacSonu', p => {
+        if (!p || String(p.roomId) !== String(roomId)) return;
+        hazirSifirla();
+        const ad = (p.atilan || []).join(', ');
+        if (ad) {
+          try {
+            window.GV && GV.toast && GV.toast(
+              '⏱ Hazır süresi doldu — masadan çıkarıldı: ' + ad, 'info', 5000);
+          } catch (_) {}
+        }
+      });
+      // Oyun başladıysa sayacın işi bitti.
+      socket.on('gameStarted', () => { hazirSifirla(); });
       // Atma işleminin sonucu (kurucunun ekranına düşer)
       socket.on('kickResult', p => {
         if (!p) return;

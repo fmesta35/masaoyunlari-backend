@@ -95,6 +95,11 @@
     unsupported:        '👁️ Bu oyunda oyuncu seçerek izleme yok; masayı tarafsız izliyorsunuz.',
     permission_revoked: '🚫 İzlediğiniz oyuncu izleyici iznini kapattı — lobiye yönlendiriliyorsunuz.',
 
+    // ---- Bekleme odası: hazır süresi ----
+    /* Masa dolduğunda ve biri hazır verdiğinde 30 sn sayaç başlar; süre
+       dolunca hazır vermeyenler masadan çıkarılır (yalnız normal masalarda). */
+    not_ready: '⏱ Hazır süresi doldu — masadan çıkarıldınız. Lobiden yeniden masaya oturabilirsiniz.',
+
     // ---- Amiral Battı (Battleship) ----
     bad_seat: '🔌 Masayla bağlantı kurulamadı. Sayfayı yenileyip tekrar deneyin.',
     wrong_phase: '🚫 Bu işlem şu anki oyun aşamasında yapılamaz.',

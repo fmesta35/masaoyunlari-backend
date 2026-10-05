@@ -895,6 +895,7 @@ function resetRoomToWaiting(room) {
   room.okey = null; // okey el/maç durumu tamamen temizlenir
   room.rematch = null; // bekleyen rövanş oylaması varsa düşer
   masaOylamasiTemizle(room); // bekleyen "eksik kişiyle devam" oylaması da
+  hazirSayaciTemizle(room);  // bekleme odasının hazır süresi de sıfırlanır
   room.result = null;
   room.lastMove = null;
   room.turnStartedAt = null;
@@ -1022,6 +1023,10 @@ function publicRoom(room) {
     spectators: spectators.map(publicSpectator),
     spectatorCount: spectators.length,
     readyCount: room.players.filter(p => p.isReady).length,
+    /* Hazır süresi sayacı işliyorsa kalan ms. Olay (hazirSayaci) anında
+       bildirir; bu alan sayfa yenileyen / yeniden bağlanan oyuncu için
+       tek doğru kaynaktır. */
+    hazirKalan: hazirSayaciKalan(room) || null,
     // Özel masayı kuran ÜYE (davet yetkisi istemcide de gösterilsin diye)
     creatorId: room.creatorId || null,
     // Okey masaları: maç el sayısı (lobi "🀄 X El" rozeti basar)
@@ -2069,6 +2074,102 @@ function insanKoltuklari(room) {
  * sayısının kurallarıyla yeni el başlar (4→3, 3→2). Oyunun alt sınırının
  * altına inilecekse (batak 3) oylama anlamsızdır: maç orada biter.
  * ======================================================================== */
+/* ==========================================================================
+ * BEKLEME ODASI — HAZIR SÜRESİ SAYACI
+ * ==========================================================================
+ * Kullanıcı isteği: "Oyuncular bekleme odasında beklerken, birisi hazır
+ * vermişken diğeri vermiyorsa 30 saniye hazır basma süresi verilsin, ardından
+ * hazır vermeyen odadan otomatik atılsın ve lobiye yönlendirilsin... 3 veya 4
+ * kişilik odalarda da oda sayısı dolduysa ve içlerinden 1 tanesi bile hazır
+ * verdiyse 30 saniyelik süre başlar... Oyuncular sürekli 'hazır yap' ve 'iptal
+ * et' yaparak bug yapmaya çalışabilirler, o yüzden sayaç başladığında sadece 1
+ * kere geçerli olacak; 30. saniye dolduğunda kim hazır vermediyse o atılır."
+ *
+ * KURALLAR
+ *   - Yalnız NORMAL (hazır/genel) masalarda. Özel masalarda çalışmaz: orada
+ *     kurucu kimi beklediğini bilir ve zaten atma yetkisi vardır.
+ *   - Masa DOLMADAN sayaç başlamaz: eksik masada bekleyen kimseyi bekletmiyor.
+ *   - En az bir oyuncu hazır verdiğinde başlar.
+ *   - BİR KEZ başlar ve durdurulamaz: hazır/iptal yapmak sayacı ne sıfırlar
+ *     ne de iptal eder (oyun açılmadan masayı kilitleme denemesinin önü).
+ *   - Süre dolduğunda hazır OLMAYAN herkes masadan çıkarılır ve lobiye
+ *     yönlendirilir; hazır olanlar masada kalır.
+ *   - Oyun bu arada başladıysa sayaç işlevsizleşir (status artık 'waiting'
+ *     değildir).
+ * ======================================================================== */
+const HAZIR_SURESI_MS = Math.max(5000, Number(process.env.GV_HAZIR_SURESI_MS) || 30000);
+
+/* Sayacın koşulları: normal masa, bekleme durumunda ve KOLTUKLAR DOLU. */
+function hazirSayaciUygunMu(room) {
+  if (!room || room.isPrivate) return false;
+  if (room.status !== 'waiting') return false;
+  const kisi = (room.players || []).length;
+  return kisi >= 2 && kisi === room.maxPlayers;
+}
+function hazirSayaciKalan(room) {
+  if (!room || !room.hazirSayac) return 0;
+  if (room.status !== 'waiting') return 0;   // oyun başladıysa sayacın anlamı yok
+  return Math.max(0, room.hazirSayac.bitis - now());
+}
+function hazirSayaciTemizle(room) {
+  if (!room || !room.hazirSayac) return;
+  try { clearTimeout(room.hazirSayac.timer); } catch (_) {}
+  room.hazirSayac = null;
+}
+/* Sayacı başlat. Zaten işliyorsa HİÇBİR ŞEY yapmaz — "bir kez geçerli"
+   kuralı tam olarak burada duruyor. */
+function hazirSayaciBaslat(room) {
+  if (!room) return;
+  /* Oyun bu arada başladıysa (herkes hazır verdi) bekleyen sayaç düşer:
+     maç sırasında kimse "hazır değil" diye atılmaz. */
+  if (room.status !== 'waiting') { hazirSayaciTemizle(room); return; }
+  if (room.hazirSayac) return;
+  if (!hazirSayaciUygunMu(room)) return;
+  if (!(room.players || []).some(p => p && p.isReady)) return;   // kimse hazır değil
+  if ((room.players || []).every(p => p && p.isReady)) return;   // herkes hazır: oyun başlıyor
+  const bitis = now() + HAZIR_SURESI_MS;
+  room.hazirSayac = {
+    bitis,
+    timer: setTimeout(() => hazirSayaciBitir(room), HAZIR_SURESI_MS)
+  };
+  io.to(room.id).emit('hazirSayaci', {
+    roomId: room.id, kalan: HAZIR_SURESI_MS, sure: HAZIR_SURESI_MS
+  });
+  console.log(`[ODA #${room.id}] hazır süresi başladı — ${Math.round(HAZIR_SURESI_MS / 1000)} sn`);
+  emitRoom(room);
+}
+/* Süre doldu: hazır olmayan herkes masadan çıkar. */
+function hazirSayaciBitir(room) {
+  if (!room) return;
+  hazirSayaciTemizle(room);
+  if (room.status !== 'waiting') return;           // oyun başlamış: iş yok
+  const atilacak = (room.players || []).filter(p => p && !p.isReady && !p.aiControlled);
+  if (!atilacak.length) return;
+  for (const p of atilacak) {
+    const sck = io.sockets.sockets.get(p.id);
+    if (sck) {
+      try {
+        sck.emit('kickedFromRoom', {
+          roomId: room.id,
+          reason: 'not_ready',
+          message: 'Hazır süresi doldu — masadan çıkarıldınız.'
+        });
+        sck.leave(room.id);
+        if (sck.roomId === room.id) sck.roomId = null;
+        sck.role = null;
+      } catch (_) {}
+    }
+    removePlayerFromRoom(room, p, 'Hazır süresi dolduğu için oyuncu masadan çıkarıldı.');
+  }
+  console.log(`[ODA #${room.id}] hazır süresi doldu — ${atilacak.length} oyuncu masadan çıkarıldı.`);
+  io.to(room.id).emit('hazirSayacSonu', {
+    roomId: room.id,
+    atilan: atilacak.map(p => p.name || 'Oyuncu')
+  });
+  emitRoom(room);
+  startRoomGame(room);                 // kalanlar hazırsa masa hemen başlar
+}
+
 const MASA_OYLAMA_MS = Math.max(5000, Number(process.env.GV_MASA_OYLAMA_MS) || 30000);
 
 function masaOylamasiYayinla(room) {
@@ -3527,6 +3628,10 @@ io.on('connection', socket => {
       // tüm odaya yayınlamak rakibin taş seçimini sıfırlıyordu.
       emitPlayingSnapshot(room, socket.id, player || null);
     }
+    /* MASA GELEN OYUNCUYLA DOLDUYSA ve içeride hazır veren varsa, hazır
+       süresi burada başlar: "hazırım"a basan taraf, geç gelen oyuncunun
+       hiç hazır vermemesi yüzünden sonsuza kadar bekletilmesin. */
+    hazirSayaciBaslat(room);
   });
 
   // İzleyici "hazırım" gönderemez: koltuk yalnızca SOKET kimliğiyle bulunur.
@@ -3545,6 +3650,9 @@ io.on('connection', socket => {
     player.isReady = !!ready;
     emitRoom(room);
     startRoomGame(room);
+    /* Hazır süresi: ilk "hazırım" sayacı başlatır. İptal etmek sayacı
+       DURDURMAZ (bkz. hazirSayaciBaslat) — masayı kilitleme denemesinin önü. */
+    hazirSayaciBaslat(room);
   });
 
   socket.on('toggleReady', () => {
@@ -3555,6 +3663,7 @@ io.on('connection', socket => {
     player.isReady = !player.isReady;
     emitRoom(room);
     startRoomGame(room);
+    hazirSayaciBaslat(room);
   });
 
   socket.on('chessMove', data => {
