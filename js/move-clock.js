@@ -19,17 +19,39 @@
  *     remainingMs,        // sunucudan gelen kalan süre
  *     limitMs,            // hamle limiti (kırmızıya dönme eşiği için)
  *     serverNow,          // paketin sunucu saati (ağ gecikmesi düzeltmesi)
- *     mainClock           // false → kartta ana saat yok, geri sayım BÜYÜK gösterilir
+ *     mainClock,          // false → kartta ana saat yok, geri sayım BÜYÜK gösterilir
+ *     benim               // true → sayan koltuk BENİM: son 10 sn'de uyarı sesi
  *   });
  *   GVMoveClock.clear();  // oyun bitti / oda değişti
+ *
+ * HAMLE SÜRESİ SESİ (kullanıcı isteği: "Oyunlarda ses açma ve kapatma
+ * hepsinde geçerli olsun. Sadece hamle süresi ses kapalı da olsa ses vermeye
+ * devam etsin."): geri sayım bu katmanda tek yerde işlediği için uyarı tonu
+ * da buradan çalınır — böylece satranç, tavla ve ortak yaşam döngüsündeki
+ * bütün oyunlarda birebir aynı davranır. Ton, ses anahtarını DİNLEMEYEN
+ * GVDeniz.ses.calZorla() yolundan gider; süresi dolan oyuncu hükmen mağlup
+ * olduğu için bu uyarı kapatılabilir bir efekt değildir.
  */
 (function () {
   'use strict';
   if (window.GVMoveClock) return;
 
   var TICK_MS = 250;
-  var state = null;     // {idx, remain, limit, at, mainClock}
+  var state = null;     // {idx, remain, limit, at, mainClock, benim}
   var timer = null;
+  var SES_ESIK_SN = 10; // son kaç saniyede uyarı tonu çalar
+  var sonSesSn = null;  // aynı saniyede iki kez çalmasın
+
+  /* Hamle süresi uyarı tonu: yalnız KENDİ sıramda, son 10 saniyede ve
+     saniye değiştikçe bir kez. calZorla ses kapalıyken de çalar. */
+  function sesUyar(mine, secs, aktif) {
+    if (!aktif || !mine || secs > SES_ESIK_SN || secs < 1) { sonSesSn = null; return; }
+    if (sonSesSn === secs) return;
+    sonSesSn = secs;
+    try {
+      if (window.GVDeniz && GVDeniz.ses && GVDeniz.ses.calZorla) GVDeniz.ses.calZorla('sure');
+    } catch (_) {}
+  }
 
   function strip() { return document.getElementById('topTimers'); }
   function cards() {
@@ -56,6 +78,7 @@
     if (!list.length) return;
     var s = strip();
     if (!state) {
+      sonSesSn = null;
       list.forEach(function (c) {
         var el = slot(c);
         if (el.textContent !== '') el.textContent = '';
@@ -70,6 +93,7 @@
     var remain = Math.max(0, state.remain - (Date.now() - state.at));
     var secs = Math.ceil(remain / 1000);
     var danger = remain <= Math.min(20000, (state.limit || 60000) / 2);
+    sesUyar(state.benim, secs, remain > 0);
 
     list.forEach(function (c, i) {
       var el = slot(c);
@@ -110,7 +134,8 @@
         remain: Math.max(0, remain - lag),
         limit: Number(o.limitMs) || 60000,
         at: Date.now(),
-        mainClock: o.mainClock !== false
+        mainClock: o.mainClock !== false,
+        benim: !!o.benim
       };
       // activeIndex verilmediyse kartların kendi .active sınıfını izle.
       if (state.idx < 0) {
@@ -124,13 +149,15 @@
     },
     clear: function () {
       state = null;
+      sonSesSn = null;
       paint();
       stop();
     },
     /* Teşhis/test: o an gösterilen saniye ve kart sırası */
     debug: function () {
       if (!state) return null;
-      return { index: state.idx, secs: Math.ceil(Math.max(0, state.remain - (Date.now() - state.at)) / 1000) };
+      return { index: state.idx, benim: !!state.benim,
+               secs: Math.ceil(Math.max(0, state.remain - (Date.now() - state.at)) / 1000) };
     }
   };
 

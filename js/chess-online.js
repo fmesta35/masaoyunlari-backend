@@ -398,7 +398,10 @@
       socket.on('moveTimeWarning', payload => {
         if (!payload || String(payload.roomId) !== String(roomId) || !isChessRoom()) return;
         const secs = Math.ceil(Math.max(0, Number(payload.remainingMs) || 0) / 1000) || 20;
-        if (payload.color === playerColor) {
+        // İZLEYİCİ taraf değildir: ne "siz" ne "rakibiniz" doğrudur, tarafsız bilgi verilir.
+        if (isSpectator || window.__gvIsSpectator) {
+          toast(`⏳ Sırası gelen oyuncu hamle yapmıyor. ${secs} saniye içinde oynamazsa hükmen mağlup sayılacak.`, 'warning');
+        } else if (payload.color === playerColor) {
           toast(`⏰ Hamle yapmakta gecikiyorsunuz! ${secs} saniye içinde oynamazsanız HÜKMEN MAĞLUP sayılacaksınız!`, 'error');
         } else {
           toast(`⏳ Rakibiniz hamle yapmıyor. ${secs} saniye içinde oynamazsa hükmen mağlup sayılacak.`, 'warning');
@@ -439,9 +442,33 @@
     return String(Math.floor(sec / 60)).padStart(2, '0') + ':' + String(sec % 60).padStart(2, '0');
   }
 
+  /* ===================== OYUN SESLERİ =====================
+     Kullanıcı isteği: "Oyunlarda ses açma ve kapatma hepsinde geçerli olsun."
+     Satrançta hiç ses yoktu; oda başlığındaki ses düğmesi burada hiçbir şey
+     yapmıyordu. Artık taş oynanışı ve sıra zili çalar; ikisi de
+     GVDeniz.ses.cal yolundan geçer, yani anahtar kapalıysa duyulmaz.
+     (Hamle süresi uyarısı ayrıdır ve anahtarı dinlemez — js/move-clock.js.) */
+  let sonFen = null, sonSiraSes = null;
+  function ses(ad) {
+    try { if (window.GVDeniz && GVDeniz.ses) GVDeniz.ses.cal(ad); } catch (_) {}
+  }
+  function sesleriIsle(gs) {
+    if (!gs) return;
+    if (gs.status !== 'playing') { sonFen = null; sonSiraSes = null; return; }
+    if (sonFen === null) sonFen = gs.fen || null;
+    else if (gs.fen && gs.fen !== sonFen) { sonFen = gs.fen; ses('tasKoy'); }
+    // gs.turn 'w'/'b' gelir; colorCode() playerColor'ı aynı koda çevirir.
+    const benim = colorCode();
+    const benimSira = !isSpectator && !!benim && gs.turn === benim;
+    const anahtar = benimSira ? ('t:' + (gs.fen || gs.turn)) : null;
+    if (anahtar && anahtar !== sonSiraSes) { sonSiraSes = anahtar; ses('zil'); }
+    if (!benimSira) sonSiraSes = null;
+  }
+
   function apply(gs) {
     if (!gs || !Array.isArray(gs.board)) return;
     claimClockOwnership();
+    sesleriIsle(gs);
     // Tahta pozisyonu DEĞİŞMEDİYSE (aynı fen) oyuncunun taş seçimini KORU.
     // Aksi halde sunucudan gelen her durum yayını (reconnect, rakibin join'i
     // vb.) seçimi siler ve oyuncu hedef kareye tıklayamadan seçim kaybolur.
@@ -943,7 +970,9 @@
           activeIndex: null,                       // vurgu yukarıda satrançta ayarlanıyor
           remainingMs: gameState.moveRemainingMs,
           limitMs: gameState.moveLimitMs,
-          serverNow: gameState.serverNow
+          serverNow: gameState.serverNow,
+          // Uyarı tonu yalnız kendi sıramda (izleyicide hiç) — move-clock.js
+          benim: !isSpectator && !!mine && gameState.turn === mine
         });
       } else {
         GVMoveClock.clear();
@@ -972,6 +1001,7 @@
   window.__gvChessOnlineReset = function () {
     active = false;
     pending = false;
+    sonFen = null; sonSiraSes = null;
     releaseClockOwnership();
     gameState = null;
     selected = null;

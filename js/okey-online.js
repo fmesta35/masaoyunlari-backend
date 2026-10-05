@@ -224,6 +224,16 @@
   function sesCal(ad) {
     try { if (window.GVDeniz && GVDeniz.ses) GVDeniz.ses.cal(ad); } catch (_) {}
   }
+  /* HAMLE SÜRESİ TONU ses anahtarını dinlemez (kullanıcı isteği: "Sadece
+     hamle süresi ses kapalı da olsa ses vermeye devam etsin"). Süresi dolan
+     oyuncu hükmen mağlup olduğu için bu uyarı kapatılabilir bir efekt
+     değildir; diğer bütün okey sesleri anahtara uyar. */
+  function sesCalZorla(ad) {
+    try {
+      if (window.GVDeniz && GVDeniz.ses && GVDeniz.ses.calZorla) return GVDeniz.ses.calZorla(ad);
+      if (window.GVDeniz && GVDeniz.ses) GVDeniz.ses.cal(ad);
+    } catch (_) {}
+  }
   let sonSiraZil = null;     // hangi el/sıra için zil çaldı
   let sonSnSes = null;       // son çalınan "süre bitiyor" saniyesi
   let sonAtikSayisi = null;  // masaya atılan taş sayısı (taş sesi için)
@@ -552,7 +562,7 @@
          biteceğini anlar oyuncu"). Zil sesinden AÇIKÇA farklı iki tonlu
          uyarı; yalnız KENDİ sıramda ve saniye değiştikçe bir kez çalar. */
       if (playing && myTurnNow() && secs <= 10 && secs >= 1) {
-        if (sonSnSes !== secs) { sonSnSes = secs; sesCal('sure'); }
+        if (sonSnSes !== secs) { sonSnSes = secs; sesCalZorla('sure'); }
       } else if (!playing || !myTurnNow() || secs > 10) {
         sonSnSes = null;
       }

@@ -20,6 +20,7 @@
    Dışarıya açılan arayüz:
      GVDeniz.oynat({tur, hedef, gemiKareleri, tohum, isBenim, bitince})
      GVDeniz.ses.acik() / .ayarla(bool) / .cal(ad)
+     GVDeniz.ses.calZorla(ad)   -> ses kapalı olsa da çalar (hamle süresi)
      GVDeniz.sureler  -> {iska, isabet, batis}
    ========================================================================== */
 (function () {
@@ -56,7 +57,11 @@
      Tarayıcılar sesi ancak kullanıcı etkileşiminden sonra açtığı için
      AudioContext ilk tıklamada uyandırılır.
      ===================================================================== */
-  var ctx = null, anaKazanc = null, sesAcikOnbellek = null;
+  /* İKİ ÇIKIŞ: anaKazanc ses anahtarıyla kısılır; zorunluKazanc HİÇ
+     kısılmaz. Kullanıcı isteği: "Sadece hamle süresi ses kapalı da olsa ses
+     vermeye devam etsin." Hamle süresi uyarısı zorunlu çıkıştan çalar. */
+  var ctx = null, anaKazanc = null, zorunluKazanc = null, cikis = null;
+  var sesAcikOnbellek = null;
 
   function sesAcik() {
     if (sesAcikOnbellek !== null) return sesAcikOnbellek;
@@ -73,16 +78,21 @@
     if (acik) uyandir();
   }
 
-  function uyandir() {
-    if (!sesAcik()) return null;
+  // zorla=true: ses anahtarı kapalı olsa da bağlamı aç (hamle süresi uyarısı).
+  function uyandir(zorla) {
+    if (!zorla && !sesAcik()) return null;
     try {
       var AC = window.AudioContext || window.webkitAudioContext;
       if (!AC) return null;
       if (!ctx) {
         ctx = new AC();
         anaKazanc = ctx.createGain();
-        anaKazanc.gain.value = 0.9;
+        anaKazanc.gain.value = sesAcik() ? 0.9 : 0;
         anaKazanc.connect(ctx.destination);
+        zorunluKazanc = ctx.createGain();
+        zorunluKazanc.gain.value = 0.9;         // anahtardan bağımsız
+        zorunluKazanc.connect(ctx.destination);
+        cikis = anaKazanc;
       }
       if (ctx.state === 'suspended' && ctx.resume) ctx.resume();
       return ctx;
@@ -91,8 +101,8 @@
 
   // Tarayıcı kuralı: ses ilk kullanıcı hareketinden sonra açılabilir.
   ['pointerdown', 'keydown', 'touchstart'].forEach(function (ev) {
-    try { document.addEventListener(ev, function () { uyandir(); }, { once: true, passive: true }); }
-    catch (_) { document.addEventListener(ev, function () { uyandir(); }); }
+    try { document.addEventListener(ev, function () { uyandir(true); }, { once: true, passive: true }); }
+    catch (_) { document.addEventListener(ev, function () { uyandir(true); }); }
   });
 
   function gurultuTamponu(sn) {
@@ -117,7 +127,7 @@
     g.gain.setValueAtTime(0.0001, t0);
     g.gain.exponentialRampToValueAtTime(o.hacim, t0 + (o.atak || 0.01));
     g.gain.exponentialRampToValueAtTime(0.0001, t0 + o.sure);
-    src.connect(f); f.connect(g); g.connect(anaKazanc);
+    src.connect(f); f.connect(g); g.connect(cikis || anaKazanc);
     src.start(t0); src.stop(t0 + o.sure + 0.05);
   }
 
@@ -132,7 +142,7 @@
     g.gain.setValueAtTime(0.0001, t0);
     g.gain.exponentialRampToValueAtTime(o.hacim, t0 + (o.atak || 0.01));
     g.gain.exponentialRampToValueAtTime(0.0001, t0 + o.sure);
-    osc.connect(g); g.connect(anaKazanc);
+    osc.connect(g); g.connect(cikis || anaKazanc);
     osc.start(t0); osc.stop(t0 + o.sure + 0.05);
   }
 
@@ -343,7 +353,24 @@
   function sesCal(ad, siddet) {
     if (!sesAcik() || !SESLER[ad]) return false;
     if (!uyandir()) return false;
+    cikis = anaKazanc;
     try { SESLER[ad](siddet); return true; } catch (_) { return false; }
+  }
+
+  /* SES KAPALI OLSA DA ÇALAN SES — yalnız hamle süresi uyarısı için.
+     Kullanıcı isteği: "Oyunlarda ses açma ve kapatma hepsinde geçerli olsun.
+     Sadece hamle süresi ses kapalı da olsa ses vermeye devam etsin."
+     Sebebi: hamle süresi dolunca oyuncu hükmen mağlup olur; bu uyarı oyunun
+     kuralıyla ilgilidir, keyfî bir efekt değildir. Kısılmayan ayrı bir
+     çıkıştan (zorunluKazanc) çalar. */
+  function sesCalZorla(ad, siddet) {
+    if (!SESLER[ad]) return false;
+    if (!uyandir(true)) return false;
+    var eski = cikis;
+    cikis = zorunluKazanc || anaKazanc;
+    try { SESLER[ad](siddet); return true; }
+    catch (_) { return false; }
+    finally { cikis = eski; }
   }
 
   /* =================================================================== KATMAN */
@@ -684,6 +711,7 @@
       acik: sesAcik,
       ayarla: sesAyarla,
       cal: sesCal,
+      calZorla: sesCalZorla,
       anahtar: SES_ANAHTAR,
       uyandir: uyandir
     }

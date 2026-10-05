@@ -367,9 +367,37 @@
       `<button class="btn btn-p" style="padding:10px 20px;cursor:pointer;" onclick="window.__gvRealChessLeave()">🚪 Lobiye Dön</button>${rovans}</div>${sayac}</div></div>`);
   }
 
+  /* ===================== OYUN SESLERİ =====================
+     Kullanıcı isteği: "Oyunlarda ses açma ve kapatma hepsinde geçerli olsun."
+     Tavlada hiç ses yoktu. Artık pul oynanışı ve sıra zili çalar; ikisi de
+     GVDeniz.ses.cal yolundan geçer, anahtar kapalıysa duyulmaz. (Hamle
+     süresi uyarısı ayrıdır ve anahtarı dinlemez — js/move-clock.js.) */
+  let sonTahtaImza = null, sonSiraSes = null;
+  function ses(ad) {
+    try { if (window.GVDeniz && GVDeniz.ses) GVDeniz.ses.cal(ad); } catch (_) {}
+  }
+  function tahtaImzasi(gs) {
+    try {
+      return JSON.stringify([gs.points || gs.board, gs.bar, gs.off, gs.movesLeft]);
+    } catch (_) { return null; }
+  }
+  function sesleriIsle(gs) {
+    if (!gs) return;
+    if (gs.status !== 'playing') { sonTahtaImza = null; sonSiraSes = null; return; }
+    const imza = tahtaImzasi(gs);
+    if (sonTahtaImza === null) sonTahtaImza = imza;
+    else if (imza !== null && imza !== sonTahtaImza) { sonTahtaImza = imza; ses('tas'); }
+    // gs.turn 'w'/'b' gelir, playerColor 'white'/'black' — mine() çevirir.
+    const benimSira = !isSpectator && !!mine() && gs.turn === mine();
+    const anahtar = benimSira ? ('t:' + (gs.turn) + ':' + (gs.dice || []).join(',')) : null;
+    if (anahtar && anahtar !== sonSiraSes) { sonSiraSes = anahtar; ses('zil'); }
+    if (!benimSira) sonSiraSes = null;
+  }
+
   // ---------- Durum uygulama ----------
   function apply(gs) {
     if (!gs || gs.kind !== 'tavla') return;
+    sesleriIsle(gs);
     // Yetkili sunucu durumu ulaştı: yerel yedek planı iptal.
     if (fallbackTimer) { clearTimeout(fallbackTimer); fallbackTimer = null; }
     gameState = gs;
@@ -449,7 +477,9 @@
           activeIndex: null,
           remainingMs: gameState.moveRemainingMs,
           limitMs: gameState.moveLimitMs,
-          serverNow: gameState.serverNow
+          serverNow: gameState.serverNow,
+          // Uyarı tonu yalnız kendi sıramda (izleyicide hiç) — move-clock.js
+          benim: !isSpectator && !!m && gameState.turn === m
         });
       } else {
         GVMoveClock.clear();
@@ -735,7 +765,10 @@
     socket.on('moveTimeWarning', payload => {
       if (!payload || String(payload.roomId) !== String(roomId) || !isTavlaRoom()) return;
       const secs = Math.ceil(Math.max(0, Number(payload.remainingMs) || 0) / 1000) || 20;
-      if (payload.color === playerColor) {
+      // İZLEYİCİ taraf değildir: ne "siz" ne "rakibiniz" doğrudur, tarafsız bilgi verilir.
+      if (isSpectator || window.__gvIsSpectator) {
+        toast(`⏳ Sırası gelen oyuncu hamle yapmıyor. ${secs} saniye içinde oynamazsa hükmen mağlup sayılacak.`, 'warning');
+      } else if (payload.color === playerColor) {
         toast(`⏰ Hamle yapmakta gecikiyorsunuz! ${secs} saniye içinde oynamazsanız HÜKMEN MAĞLUP sayılacaksınız!`, 'error');
       } else {
         toast(`⏳ Rakibiniz hamle yapmıyor. ${secs} saniye içinde oynamazsa hükmen mağlup sayılacak.`, 'warning');
@@ -785,6 +818,7 @@
   window.__gvTavlaOnlineReset = function () {
     joinedKey = null;
     active = false;
+    sonTahtaImza = null; sonSiraSes = null;
     releaseClockOwnership();
     gameState = null;
     sel = null;

@@ -3302,21 +3302,50 @@ function awardPoints(gid,type,extra){
   const r=GAME_REWARDS[gid];if(!r)return 0;const pts=r[type]||0;if(!st.scores[gid])st.scores[gid]=0;st.scores[gid]=Math.max(0,st.scores[gid]+pts+(extra||0));updateScoreUI();return pts;
 }
 
+/* ============================ PUAN UYARILARI ============================
+   Kullanıcı isteği: "İzleyicide değil, sadece oyuncularda (oyuncular
+   içerisinde sadece giriş yapanlarda) puan durumu olur. Bu sebeple üye
+   girişi yapan oyuncularda o puanla ilgili ceza vs. pop-up durumları
+   gözükecek."
+
+   İZLEYİCİ: masada koltuğu yoktur; ne hükmen mağlubiyeti ne puan cezası
+   olur. Hiçbir terk/ceza uyarısı görmemeli, "Ayrıl" dediğinde doğrudan
+   çıkabilmeli.
+   MİSAFİR (giriş yapmamış) OYUNCU: koltuğu vardır, terk ederse maçı
+   kaybeder — ama puan tablosunda yeri yoktur (awardPoints misafirde 0
+   döner). Bu yüzden uyarıda "mağlup sayılırsın" kalır, "puan kaybedersin"
+   cümlesi ve "terk cezası uygulandı" bildirimi KALDIRILIR; aksi hâlde
+   olmayan bir ceza duyuruluyordu.                                       */
+function izleyiciMi(){
+  try { if(window.__gvIsSpectator || window.__gvJoinAsSpectator) return true; } catch(_){}
+  return false;
+}
+function puanliOyuncuMu(){ return !izleyiciMi() && !st.isGuest; }
+/* Terk/pes uyarı metni: puan cümlesi yalnız puanı olan oyuncuya gösterilir. */
+function terkUyariMetni(botDevralir){
+  const puan = puanliOyuncuMu() ? '\n💔 Puan kaybedeceksin.' : '';
+  return botDevralir
+    ? '⚠️ Aktif oyundan çıkıyorsun!\n\n🤖 Tur bitene kadar yerini Bot devralacak.' + puan + '\n\nDevam?'
+    : '⚠️ Oyundan ayrılırsan MAĞLUP sayılırsın!' + puan + '\n\nDevam?';
+}
+/* Ceza bildirimi: puanı olmayana hiç gösterilmez. */
+function terkCezasiBildir(){
+  if(puanliOyuncuMu()) toast('❌ Terk cezası uygulandı!', 'error');
+}
+window.__gvIzleyiciMi = izleyiciMi;
+window.__gvPuanliOyuncu = puanliOyuncuMu;
+
 function guardNavigation(callback) {
   if (st.curPage === 'room' && hasActiveMatch()) {
     const isBotFallback = BOT_FALLBACK_GAMES.includes(st.curGame);
-    const msg = isBotFallback 
-      ? '⚠️ Aktif oyundan çıkıyorsun!\n\n🤖 Yerine Bot geçecek ve turu tamamlayacak.\n💔 Terk cezası puanı düşecek.\n\nDevam?' 
-      : '⚠️ Oyundan ayrılırsan MAĞLUP sayılırsın!\n\n💔 Puan kaybedeceksin.\n\nDevam?';
-
-    if (!confirm(msg)) return;
+    if (!confirm(terkUyariMetni(isBotFallback))) return;
 
     stopTimer();
     if(st.okTimerInt){clearInterval(st.okTimerInt);st.okTimerInt=null;}
     if(st.roomWaitingInt){clearInterval(st.roomWaitingInt);st.roomWaitingInt=null;}
     st.roomWaitingState = null;
     awardPoints(st.curGame, 'forfeit');
-    toast('❌ Terk cezası uygulandı!', 'error');
+    terkCezasiBildir();
 
     if(isBotFallback && st.boards[st.curGame]) {
       enableBotTakeover(st.curGame, 0);
@@ -3925,7 +3954,7 @@ function startCountdownAndBeginGame(room) {
 }
 
 function getGamePlayerCount(gid){return TWO_PLAYER_GAMES.includes(gid) ? 2 : 4;}
-function hasActiveMatch(){/* ONLINE tahta oyunları (dama, reversi, gomoku, connect4, bilardo, kart) ortak yaşam döngüsünde çizilir ve st.boards'a hiç yazmaz; bu yüzden maç sürerken bile 'aktif maç yok' sanılıyor, oyuncu terk uyarısını görmeden masadan çıkabiliyordu. */try{const _a=window.GVArena&&GVArena.state();if(_a&&_a.status==='playing')return true;}catch(_){}if(st.onlineClock)return false;const a=['chess','tavla','dama','turkdamasi','pisti','batak','reversi','gomoku','connect4','okey','okey101','bilardo','battleship'];if(!a.includes(st.curGame))return false;const g=st.boards[st.curGame];return g&&!g.gameEnded;}
+function hasActiveMatch(){/* İZLEYİCİ hiçbir maçın tarafı değildir: terk uyarısı ve ceza akışı onun için hiç çalışmamalı (kullanıcı raporu: izleyici çıkarıldığında puan kaybı uyarısı görüyordu). */if(izleyiciMi())return false;/* ONLINE tahta oyunları (dama, reversi, gomoku, connect4, bilardo, kart) ortak yaşam döngüsünde çizilir ve st.boards'a hiç yazmaz; bu yüzden maç sürerken bile 'aktif maç yok' sanılıyor, oyuncu terk uyarısını görmeden masadan çıkabiliyordu. */try{const _a=window.GVArena&&GVArena.state();if(_a&&_a.status==='playing')return true;}catch(_){}if(st.onlineClock)return false;const a=['chess','tavla','dama','turkdamasi','pisti','batak','reversi','gomoku','connect4','okey','okey101','bilardo','battleship'];if(!a.includes(st.curGame))return false;const g=st.boards[st.curGame];return g&&!g.gameEnded;}
 function hasActiveGame(){return hasActiveMatch();}
 
 function leaveRoom(){
@@ -3974,15 +4003,14 @@ function leaveRoom(){
     return;
   }
   
-  const msg = isBotFallback ? '⚠️ Aktif oyundan çıkıyorsun!\n\n🤖 Tur bitene kadar yerini Bot devralacak.\n💔 Puan kaybedeceksin.\n\nDevam?' : '⚠️ Oyundan ayrılırsan MAĞLUP sayılırsın!\n\n💔 Puan kaybedeceksin.\n\nDevam?';
-  if(!confirm(msg)) return;
+  if(!confirm(terkUyariMetni(isBotFallback))) return;
   
   stopTimer();
   if(st.okTimerInt){ clearInterval(st.okTimerInt); st.okTimerInt=null; }
   if(st.roomWaitingInt){ clearInterval(st.roomWaitingInt); st.roomWaitingInt=null; }
   st.roomWaitingState = null;
   awardPoints(st.curGame,'forfeit');
-  toast('❌ Terk cezası uygulandı!','error');
+  terkCezasiBildir();
 
   if(isBotFallback && st.boards[st.curGame]) {
     enableBotTakeover(st.curGame, 0);
@@ -5843,13 +5871,15 @@ function _okCheck(){
 function _okSurrender(){
   const ok=st.boards.okey;
   if(!ok||ok.gameEnded)return;
-  if(!confirm('🏳️ Pes etmek istediğinize emin misiniz?\n\nPuan kaybedeceksiniz ve lobiye yönlendirileceksiniz.'))return;
+  if(!confirm('🏳️ Pes etmek istediğinize emin misiniz?\n\n' +
+     (puanliOyuncuMu() ? 'Puan kaybedeceksiniz ve lobiye' : 'Maçı kaybedecek ve lobiye') +
+     ' yönlendirileceksiniz.'))return;
   
   ok.gameEnded=true;
   if(st.okTimerInt)clearInterval(st.okTimerInt);
   
   awardPoints(ok.is101?'okey101':'okey','forfeit');
-  toast('🏳️ Pes ettiniz! Puan kaybedildi.','error');
+  toast(puanliOyuncuMu() ? '🏳️ Pes ettiniz! Puan kaybedildi.' : '🏳️ Pes ettiniz.','error');
   
   setTimeout(()=>{
     st.boards.okey = null;

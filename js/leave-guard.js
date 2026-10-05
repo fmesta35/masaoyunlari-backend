@@ -3,7 +3,9 @@
  *  Aktif online maç SIRASINDA:
  *   - Sayfada gezinme (GV.page / GV.openLobby) veya oda ÇIKIŞ düğmesi
  *     (.gv-leave) → onay penceresi: "Oyunu Terk Etmek İstediğinize Emin
- *     Misiniz? ... mağlup sayılacak ve ceza puanı alacaksınız."
+ *     Misiniz? ... mağlup sayılacak ve (üye girişi yapılmışsa) ceza puanı
+ *     alacaksınız." İzleyiciye bu pencere HİÇ açılmaz; misafir oyuncuda
+ *     ceza cümlesi gösterilmez (puan tablosunda yeri yoktur).
  *     HAYIR → oyunda kal (tıklanan yerde işlem yapılmaz); EVET → tıklanan
  *     yere gidilebilir ve terk işlemi akışına devam eder.
  *   - Pencere 30 sn içinde yanıtlanmazsa kendiliğinden kapanır (oyunda
@@ -29,7 +31,23 @@
 
   const MODAL_MS = () => Number(window.__gvLeaveGuardModalMs) || 30000;
 
-  function isSpectator() { return !!(window.__gvIsSpectator || window.__gvJoinAsSpectator); }
+  function isSpectator() {
+    // Sayfanın ortak ölçüsü varsa onu kullan (tek doğru kaynak olsun).
+    try {
+      if (typeof window.__gvIzleyiciMi === 'function') return !!window.__gvIzleyiciMi();
+    } catch (_) {}
+    return !!(window.__gvIsSpectator || window.__gvJoinAsSpectator);
+  }
+  /* PUANI OLAN OYUNCU MU? Yalnız üye girişi yapanların puan tablosunda yeri
+     var; misafir terk ederse maçı kaybeder ama puan cezası almaz. Bu yüzden
+     uyarı metninden ceza cümlesi düşer (kullanıcı isteği). */
+  function puanliMi() {
+    try {
+      if (typeof window.__gvPuanliOyuncu === 'function') return !!window.__gvPuanliOyuncu();
+    } catch (_) {}
+    try { if (window.st && window.st.isGuest) return false; } catch (_) {}
+    return !isSpectator();
+  }
 
   // Ortak yaşam döngüsü (online-arena) CANLI bir tahta çiziyorsa maç
   // kesinlikle sürüyordur. Bu kontrol, 'gameStarted' paketi bekçi sokete
@@ -160,7 +178,8 @@
       '<div class="gvlg-box" role="dialog" aria-modal="true">' +
       '<div class="gvlg-ic">⚠️</div>' +
       '<h2>Oyunu Terk Etmek İstediğinize Emin Misiniz?</h2>' +
-      '<p>Devam eden maçtan ayrılırsanız <b>hükmen mağlup</b> sayılacak ve <b>ceza puanı</b> alacaksınız.</p>' +
+      '<p>Devam eden maçtan ayrılırsanız <b>hükmen mağlup</b> sayılacaksınız' +
+      (puanliMi() ? ' ve <b>ceza puanı</b> alacaksınız.' : '.') + '</p>' +
       '<div class="gvlg-cd">Bu uyarı <b class="gvlg-cd-n">' + left + '</b> saniye içinde kendiliğinden kapanır (oyunda kalırsınız).</div>' +
       '<div class="gvlg-btns">' +
       '<button type="button" class="gvlg-yes">🚪 Evet, Terk Et</button>' +

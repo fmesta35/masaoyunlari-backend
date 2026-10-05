@@ -175,11 +175,54 @@
         remainingMs: kalan,
         limitMs: gs.turnLimitMs,
         serverNow: gs.serverNow,
-        mainClock: false          // bu oyunlarda ana saat yok: sayaç BÜYÜK gösterilir
+        mainClock: false,         // bu oyunlarda ana saat yok: sayaç BÜYÜK gösterilir
+        // Hamle süresi uyarı tonu yalnız KENDİ sıramda çalar; izleyicinin
+        // hamle süresi yoktur (bkz. js/move-clock.js).
+        benim: !active.isSpectator && me !== null && turn === me
       });
     } else {
       GVMoveClock.clear();
     }
+  }
+
+  /* ======================= OYUN SESLERİ (ortak yedi oyun) =======================
+     Kullanıcı isteği: "Oyunlarda ses açma ve kapatma hepsinde geçerli olsun."
+     Ses anahtarı her odanın başlığında vardı ama bu yedi oyunun (dama, Türk
+     daması, reversi, gomoku, 4 sıra, pişti, batak) HİÇ sesi yoktu: oyuncu
+     düğmeye basıyor, hiçbir şey değişmiyordu. Artık hamle ve sıra sesleri
+     buradan çalınır; hepsi GVDeniz.ses.cal yolundan geçer, yani anahtar
+     kapalıysa duyulmaz. (Hamle süresi uyarısı ayrıdır — js/move-clock.js.) */
+  var sonHamleImza = null, sonSiraSes = null;
+  function ses(ad) {
+    try { if (window.GVDeniz && GVDeniz.ses) GVDeniz.ses.cal(ad); } catch (_) {}
+  }
+  /* Tahtanın o anki özeti: paket her değiştiğinde değil, gerçekten bir HAMLE
+     olduğunda ses çalsın (sunucu saat tazelemesi için ses çıkmamalı). */
+  function hamleImzasi(gs) {
+    if (!gs) return null;
+    var p = [gs.moveCount, gs.turnCount, gs.ply, gs.lastMoveAt];
+    for (var i = 0; i < p.length; i++) if (typeof p[i] === 'number') return 'n' + i + ':' + p[i];
+    // Sayaç yollamayan oyunlarda tahtanın kendisinden imza çıkar.
+    try {
+      if (Array.isArray(gs.board)) return 'b:' + JSON.stringify(gs.board).length + ':' + JSON.stringify(gs.board);
+      if (Array.isArray(gs.handCounts)) return 'h:' + gs.handCounts.join(',') + '/' + (gs.lastCard ? JSON.stringify(gs.lastCard) : '');
+    } catch (_) {}
+    return null;
+  }
+  function sesleriIsle(gs, yeniMac) {
+    if (!gs) return;
+    if (gs.status !== 'playing') { sonHamleImza = null; sonSiraSes = null; return; }
+    var imza = hamleImzasi(gs);
+    if (yeniMac || sonHamleImza === null) { sonHamleImza = imza; sonSiraSes = null; }
+    else if (imza !== null && imza !== sonHamleImza) { sonHamleImza = imza; ses('tasKoy'); }
+    // SIRA ZİLİ: sıra bana geçtiğinde bir kez (izleyicide hiç).
+    var me = (active && typeof active.seat === 'number') ? active.seat : null;
+    var turn = (typeof gs.turnSeat === 'number') ? gs.turnSeat
+             : (typeof gs.turn === 'number') ? gs.turn : null;
+    var benimSira = !(active && active.isSpectator) && me !== null && turn === me;
+    var anahtar = benimSira ? ('t' + turn + ':' + (gs.round || 0)) : null;
+    if (anahtar && anahtar !== sonSiraSes) { sonSiraSes = anahtar; ses('zil'); }
+    if (!benimSira) sonSiraSes = null;
   }
 
   function onState(p, yeniMac) {
@@ -209,6 +252,7 @@
     active.isSpectator = !!p.isSpectator;
     paint(!!yeniMac);
     syncStrip();
+    sesleriIsle(p.gameState, !!yeniMac);
   }
 
   function emitFor(def) {
@@ -366,6 +410,7 @@
 
   /* Odadan çıkış / masa değişimi: her şeyi söker. */
   function reset() {
+    sonHamleImza = null; sonSiraSes = null;
     stop();
     detach();
   }
