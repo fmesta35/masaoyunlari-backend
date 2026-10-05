@@ -22,7 +22,12 @@
 #   keystore\PAROLA-GIZLI-TUT.txt dosyalarina yazar. Gozetimsiz derleme
 #   (ornegin uzaktan calistirma) icindir; parola ekrana YAZILMAZ.
 #   Bu dosyalarin yedegini almak SIZE aittir.
-param([switch]$OtomatikAnahtar)
+#
+# -Apk : .aab YERINE, telefona dogrudan kurulabilen imzali app-release.apk
+#   uretir. Play Console .aab ister ama .aab telefona KURULAMAZ; uygulamayi
+#   kendi cihazinizda denemek icin APK gerekir. Ikisi de AYNI imza anahtariyla
+#   imzalanir, yani davranis birebir aynidir.
+param([switch]$OtomatikAnahtar, [switch]$Apk)
 
 $ErrorActionPreference = "Continue"
 $root = $PSScriptRoot
@@ -47,7 +52,8 @@ function Info($m) { Write-Host "->   $m" -ForegroundColor Cyan }
 function Err($m)  { Write-Host "HATA $m" -ForegroundColor Red }
 
 Write-Host ""
-Write-Host "=== Masa Oyunlari - Android .aab derleme ===" -ForegroundColor Yellow
+$hedefAd = if ($Apk) { ".apk (telefona kurulum)" } else { ".aab (Play Console)" }
+Write-Host "=== Masa Oyunlari - Android $hedefAd derleme ===" -ForegroundColor Yellow
 Write-Host ""
 
 # ---------------------------------------------------------------- 1) JDK 17
@@ -242,19 +248,43 @@ $sdkYol = JavaProp ($androidSdk -replace '\\', '/')
 # ------------------------------------------------------------------ 6) Derle
 Write-Host ""
 Info "Derleniyor (ilk derleme bagimliliklari indirir, birkac dakika surer)..."
-& $gradleBat bundleRelease --no-daemon --warning-mode=none
+if ($Apk) {
+    & $gradleBat assembleRelease --no-daemon --warning-mode=none
+} else {
+    & $gradleBat bundleRelease --no-daemon --warning-mode=none
+}
 $kod = $LASTEXITCODE
 
-$aab = "$root\app\build\outputs\bundle\release\app-release.aab"
+if ($Apk) {
+    $cikti = "$root\app\build\outputs\apk\release\app-release.apk"
+} else {
+    $cikti = "$root\app\build\outputs\bundle\release\app-release.aab"
+}
 Write-Host ""
-if ($kod -eq 0 -and (Test-Path $aab)) {
-    $mb = [math]::Round((Get-Item $aab).Length / 1MB, 2)
-    Ok "BITTI. Play Console'a yukleyeceginiz dosya:"
-    Write-Host "     $aab  ($mb MB)" -ForegroundColor Green
-    Write-Host ""
-    Write-Host "Sonraki adim: Play Console > Uygulama imzalama sayfasindaki SHA-256" -ForegroundColor Cyan
-    Write-Host "parmak izini .well-known/assetlinks.json icine yazip siteye yukleyin." -ForegroundColor Cyan
-    try { Start-Process (Split-Path $aab) } catch { }
+if ($kod -eq 0 -and (Test-Path $cikti)) {
+    $mb = [math]::Round((Get-Item $cikti).Length / 1MB, 2)
+    if ($Apk) {
+        Ok "BITTI. Telefona kuracaginiz dosya:"
+        Write-Host "     $cikti  ($mb MB)" -ForegroundColor Green
+        Write-Host ""
+        Write-Host "Telefona nasil kurulur:" -ForegroundColor Cyan
+        Write-Host "  1) Dosyayi USB kablosuyla, e-postayla ya da WhatsApp ile telefona gonderin." -ForegroundColor Cyan
+        Write-Host "  2) Telefonda dosyaya dokunun. Android 'bilinmeyen kaynak' uyarisi verirse" -ForegroundColor Cyan
+        Write-Host "     'Ayarlar'a gidip o uygulamaya (Dosyalar / Chrome / WhatsApp) kurulum" -ForegroundColor Cyan
+        Write-Host "     izni verin; bu izin yalnizca o uygulama icin gecerlidir." -ForegroundColor Cyan
+        Write-Host "  3) Play'den kurulan surumle AYNI paket adini tasidigi icin ikisi bir arada" -ForegroundColor Cyan
+        Write-Host "     duramaz. Play surumunu kurduktan sonra bu APK'yi kaldirmaniz gerekir." -ForegroundColor Cyan
+        Write-Host ""
+        Write-Host "NOT: Play Console'a bu dosya YUKLENMEZ. Magaza .aab ister:" -ForegroundColor Yellow
+        Write-Host "     derle.bat (parametresiz) calistirin." -ForegroundColor Yellow
+    } else {
+        Ok "BITTI. Play Console'a yukleyeceginiz dosya:"
+        Write-Host "     $cikti  ($mb MB)" -ForegroundColor Green
+        Write-Host ""
+        Write-Host "Sonraki adim: Play Console > Uygulama imzalama sayfasindaki SHA-256" -ForegroundColor Cyan
+        Write-Host "parmak izini .well-known/assetlinks.json icine yazip siteye yukleyin." -ForegroundColor Cyan
+    }
+    try { Start-Process (Split-Path $cikti) } catch { }
 } else {
     Err "Derleme basarisiz (cikis kodu $kod). Yukaridaki kirmizi satirlari gonderin."
     exit 1

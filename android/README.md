@@ -43,6 +43,27 @@ powershell -ExecutionPolicy Bypass -File .\derle.ps1 -OtomatikAnahtar
 Bu kipte parola **ekrana yazılmaz**; `keystore\PAROLA-GIZLI-TUT.txt`
 dosyasına kaydedilir.
 
+### Telefonunuzda denemek için: `.apk`
+
+Play Console `.aab` ister, ama **`.aab` bir telefona kurulamaz** — o, mağazanın
+her cihaza özel APK üretmesi için kullandığı bir kaynak paketidir, indirilip
+çalıştırılan bir dosya değildir. Uygulamayı kendi telefonunuzda denemek için:
+
+```cmd
+derle-apk.bat
+```
+
+Çıktı: `app\build\outputs\apk\release\app-release.apk`
+
+APK ile AAB **aynı imza anahtarıyla** imzalanır, yani denediğiniz uygulama
+mağazaya gidenle birebir aynı davranır. Dosyayı telefona USB, e-posta ya da
+WhatsApp ile gönderip dokunmanız yeterli; Android "bilinmeyen kaynak" uyarısı
+verirse, dosyayı açtığınız uygulamaya (Dosyalar / Chrome / WhatsApp) bir kerelik
+kurulum izni verin.
+
+> Paket adı mağaza sürümüyle aynı olduğu için ikisi telefonda bir arada
+> duramaz. Play'den kurmadan önce bu APK'yi kaldırın.
+
 Betik sırayla:
 
 1. **JDK 17**'yi bulur, yoksa `winget` ile kurar.

@@ -45,7 +45,8 @@ for (const f of ['android/settings.gradle', 'android/build.gradle', 'android/gra
                  'android/app/build.gradle', 'android/app/src/main/AndroidManifest.xml',
                  'android/app/src/main/res/layout/activity_main.xml',
                  'android/app/src/main/res/values/strings.xml',
-                 'android/README.md', 'android/derle.ps1', 'android/derle.bat']) {
+                 'android/README.md', 'android/derle.ps1', 'android/derle.bat',
+                 'android/derle-apk.bat']) {
   assert.ok(fs.existsSync(path.join(KOK, f)), 'eksik dosya: ' + f);
 }
 const appGradle = oku('android/app/build.gradle');
@@ -201,7 +202,19 @@ assert.ok(/Read-Host/.test(ps1) && /AsSecureString/.test(ps1),
   'parola kullanıcıdan gizli şekilde alınmalı (betiğe gömülmemeli)');
 assert.ok(!/storePassword=[A-Za-z0-9]/.test(ps1), 'betikte gömülü parola olmamalı');
 assert.ok(/android-sdk/.test(ps1), 'betik kurulu SDK\'yı aramalı (gereksiz GB indirmesin)');
-console.log('  ✓ 10) derleme betikleri ASCII, parolayı sormuyor-gömmüyor, kurulu SDK\'yı arıyor');
+/* TELEFONDA DENEME: Play Console .aab ister ama .aab bir cihaza KURULAMAZ
+   (indirilebilir bir paket değil, mağazanın cihaza göre APK üretmesi için
+   kaynak). Uygulamayı kendi telefonunda denemek isteyen için -Apk anahtarı
+   ve derle-apk.bat var; ikisi de AYNI imza yapılandırmasını kullanır, yani
+   denenen uygulama mağazaya gidenle aynı davranır. */
+const batApk = oku('android/derle-apk.bat');
+assert.ok(!/[^\x00-\x7F]/.test(batApk), 'derle-apk.bat ASCII olmalı');
+assert.ok(/\$Apk/.test(ps1) && /assembleRelease/.test(ps1),
+  'betik -Apk anahtarıyla telefona kurulabilen APK de üretmeli');
+assert.ok(/-Apk/.test(batApk), 'derle-apk.bat betiği -Apk anahtarıyla çağırmalı');
+assert.ok(/signingConfig signingConfigs\.release/.test(appGradle),
+  'release yapısı imzalı olmalı; yoksa assembleRelease imzasız APK üretir ve kurulmaz');
+console.log('  ✓ 10) derleme betikleri ASCII, parolayı sormuyor-gömmüyor, kurulu SDK\'yı arıyor; APK seçeneği var');
 
 // ---------- 11) kaynak atıfları çözülüyor mu ----------
 /* Java'daki R.id.x / R.string.y ve XML'deki @drawable/z gibi atıfların
