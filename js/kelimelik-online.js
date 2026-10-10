@@ -34,9 +34,21 @@
   var sonRet = [];        // sunucunun reddettiği kelimeler (Kelime Bildir)
   var sonHamleSayisi = -1;
 
+  /* Oda sayfasına "kelimelik masası" işareti. Telefona özel yerleşim
+     düzeltmeleri (süre kartlarının yan yana gelmesi, yatayda üst çubukların
+     sıkışması) YALNIZ bu sınıfın altında tanımlı — diğer oyunlar etkilenmez. */
+  function odaIsaretle(acik) {
+    var oda = document.getElementById('pg-room');
+    if (oda) oda.classList.toggle('gv-kl', !!acik);
+    /* Gövdeye de yazılır: yatay telefonda site başlığını sıkıştıran kural
+       #pg-room'un DIŞINDAKİ bir öğeyi hedefliyor, oraya ancak gövdeden
+       ulaşılabiliyor. */
+    try { document.body.classList.toggle('gv-kl-masa', !!acik); } catch (_) {}
+  }
   function sifirla() {
     gecici = []; bekleyen = []; secili = null;
     takasModu = false; takasSecim = {}; sonRet = []; sonHamleSayisi = -1;
+    odaIsaretle(false);
   }
   window.addEventListener('gv:roomLeft', sifirla);
 
@@ -298,6 +310,7 @@
                                    rack: (s.rack || []).join(',') };
       var tahta = root.querySelector('.kl-tahta');
       var kutu = root.querySelector('.kl-kutu');
+      odaIsaretle(true);
 
       hamleleriYaz(m);
       durumSeridiYaz(m);
@@ -357,7 +370,22 @@
         var rackH = olc('.kl-istaka-kutu') || 64;
         var ctrlH = olc('.kl-kumanda') || 42;
 
-        var dikeyK = Math.min(availW, availH - rackH - ctrlH - ARA);
+        /* SÜRE KARTLARI TAHTANIN ALTINDAYSA onlara da yer ayır.
+           Kullanıcı raporu: "normal dikey ekranda rakip süresi gözükmüyor."
+           Telefonda yan panel tahtanın ALTINA düşüyor; tahta kalan yüksekliğin
+           tamamını alınca süre kartları ekranın dışında kalıyordu. Kartların
+           YÜKSEKLİĞİ tahtadan bağımsızdır (içeriği sabit), bu yüzden bütçeden
+           düşmek yeni bir geri besleme yaratmaz. */
+        var sureRez = 0;
+        var sureEl = document.querySelector('#pg-room .game-side .timers');
+        if (sureEl && ar) {
+          var sr = sureEl.getBoundingClientRect();
+          /* Yan panel tahtanın ALTINDA mı (telefon dizilimi) yoksa YANINDA mı
+             (masaüstü)? Yanındaysa tahtanın yüksekliğiyle yarışmıyor. */
+          if (sr.width > 0 && sr.top >= ar.top + 1) sureRez = sr.height + 10;
+        }
+
+        var dikeyK = Math.min(availW, availH - rackH - ctrlH - ARA - sureRez);
         var yatayK = Math.min(availH, availW - SAG_MIN);
 
         var yatay;
@@ -387,7 +415,7 @@
 
         /* Teşhis/test: hangi yerleşimde, hangi ölçüyle çizildi. */
         window.__gvKelimelikOlcu = {
-          yatay: yatay, kenar: kenar, hc: hc, rt: rt,
+          yatay: yatay, kenar: kenar, hc: hc, rt: rt, sureRez: sureRez,
           availW: availW, availH: availH, dikeyK: dikeyK, yatayK: yatayK
         };
       }

@@ -1611,6 +1611,52 @@ html{scrollbar-gutter:stable}
   .kl-kumanda{margin-top:5px;gap:4px}
   .kl-kumanda .btn{min-height:32px;padding:4px 8px;font-size:.74em}
 }
+/* ================= KELİMELİK — TELEFON YERLEŞİMİ =================
+   Bu blok YALNIZ kelimelik masasında (#pg-room.gv-kl) ve yalnız telefon
+   ölçülerinde geçerlidir; diğer oyunlara dokunmaz.
+
+   1) DİKEY: "rakip süresi gözükmüyor, alt butonlar gerekirse biraz daha
+      küçülsün ama tam sığarak gözüksün." Süre kartları yan yana tek şeride
+      iner (ikisi birden görünür), kumanda düğmeleri sıkışır. Tahta ölçüsü
+      bu şeridi de bütçeden düşer (bkz. js/kelimelik-online.js sureRez).
+   2) YATAY (tam ekran DEĞİL): "telefonu yataya çevirdiğimde ekran minnacık
+      kalıyor." Sebebi üstteki site başlığı + oda başlığı + düğme satırının
+      alçak ekranın yarısını yemesi. Yatayda bu çubuklar sıkışır, site
+      başlığı gizlenir; kazanılan yükseklik tahtaya gider. */
+@media(max-width:860px) and (orientation:portrait){
+  #pg-room.gv-kl .game-side{gap:6px}
+  #pg-room.gv-kl .game-side .timers{flex-direction:row;gap:6px}
+  #pg-room.gv-kl .game-side .timer{padding:5px 6px;border-width:1px}
+  #pg-room.gv-kl .game-side .timer-name{font-size:.68em}
+  #pg-room.gv-kl .game-side .timer-time,
+  #pg-room.gv-kl .game-side .timer-move{font-size:1.15em}
+  #pg-room.gv-kl .game-side .timer.active{transform:none;box-shadow:none}
+  /* Kumanda: tek satırda, taşmadan. Yazılar kısalır, simgeler kalır. */
+  #pg-room.gv-kl .kl-kumanda{gap:4px;margin-top:6px;flex-wrap:nowrap}
+  #pg-room.gv-kl .kl-kumanda .btn{min-height:34px;padding:6px 7px;font-size:.76em;
+    flex:1 1 0;min-width:0;justify-content:center}
+  #pg-room.gv-kl .kl-istaka-kutu{margin-top:7px;padding:6px}
+}
+/* YATAY TELEFON, STANDART (tam ekran değil): üst çubuklar sıkışır.
+   Site başlığı yalnız kelimelik masasındayken ve yalnız alçak yatay ekranda
+   gizlenir; masadan çıkınca sınıf kalkar ve başlık geri gelir. */
+@media(max-height:520px) and (orientation:landscape){
+  body.gv-kl-masa .header{display:none}
+  body.gv-kl-masa .container,body.gv-kl-masa .main{padding-top:6px}
+  #pg-room.gv-kl .gr-header{margin-bottom:4px;gap:6px;flex-wrap:nowrap}
+  #pg-room.gv-kl #grTitle{font-size:.95em;white-space:nowrap;overflow:hidden;
+    text-overflow:ellipsis}
+  #pg-room.gv-kl .gr-actions{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}
+  #pg-room.gv-kl .gr-actions::-webkit-scrollbar{display:none}
+  #pg-room.gv-kl .gr-actions .btn{padding:4px 8px;font-size:.72em;white-space:nowrap}
+  #pg-room.gv-kl .game-layout{gap:6px}
+  /* Süre kartları yatayda tahtanın yanına değil, kumandanın yanına sığsın. */
+  #pg-room.gv-kl .game-side{gap:5px}
+  #pg-room.gv-kl .game-side>*:not(.timers){display:none}
+  #pg-room.gv-kl .game-side .timers{flex-direction:row;gap:5px}
+  #pg-room.gv-kl .game-side .timer{padding:4px 6px}
+}
+
 /* ISTAKA + KUMANDA ortak sütunu. Dikeyde tahtanın altında normal akışta
    durur; yatayda (aşağıdaki .kl-yatay) tahtanın yanına geçer. */
 .kl-sag{display:flex;flex-direction:column;min-width:0;width:100%;max-width:100%}

@@ -11,6 +11,7 @@
 process.env.GV_POST_GAME_HOLD_MS = '400';
 
 const assert = require('assert');
+const fs = require('fs');
 const { JSDOM, VirtualConsole } = require('jsdom');
 const serverModule = require('../server.js');
 
@@ -445,6 +446,36 @@ async function main() {
     assert.strictEqual(olcum().kenar, yatIlk, 'yatayda da tekrar ölçüm tahtayı küçültmemeli');
     console.log('  ✓ 10) telefon yatay: yan yana yerleşim, tahta yüksekliği kullanıyor, sabit');
 
+    /* --- b2) SÜRE KARTLARI TAHTANIN ALTINDAYSA bütçeden düşülmeli.
+       Kullanıcı raporu: "normal dikey ekranda rakip süresi gözükmüyor."
+       Kartlar tahtanın altındayken tahta onların yerini yememeli. */
+    {
+      const sureler = belge2.querySelector('#pg-room .game-side .timers');
+      assert.ok(sureler, 'süre kartları yan panelde olmalı');
+      kutuKur(390, 620, 150);
+      // kartlar tahtanın ALTINDA (telefon dizilimi): 58 px'lik şerit
+      sureler.getBoundingClientRect = () => ({
+        width: 390, height: 58, top: 400, left: 0, right: 390, bottom: 458
+      });
+      kok.__klOlcu();
+      await sleep(40);
+      const ileSure = olcum();
+      assert.strictEqual(ileSure.sureRez, 68, 'şerit yüksekliği + boşluk bütçeden düşmeli');
+      assert.ok(ileSure.kenar <= 390 - 0, 'tahta genişliği aşmamalı');
+      assert.strictEqual(ileSure.kenar, Math.min(390, 620 - 64 - 42 - 14 - 68),
+        'tahta süre şeridine yer bırakmalı');
+
+      // kartlar tahtanın YANINDAYSA (masaüstü) bütçeye girmez
+      sureler.getBoundingClientRect = () => ({
+        width: 260, height: 120, top: 150, left: 700, right: 960, bottom: 270
+      });
+      kok.__klOlcu();
+      await sleep(40);
+      assert.strictEqual(olcum().sureRez, 0, 'yan paneldeki kartlar bütçeye girmemeli');
+      sureler.getBoundingClientRect = () => ({ width: 0, height: 0, top: 0, left: 0, right: 0, bottom: 0 });
+      console.log('  ✓ 10b) süre kartları tahtanın altındayken bütçeden düşülüyor');
+    }
+
     // --- c) TAM EKRAN DİKEY: tahta genişliğin tamamını alır
     kutuKur(412, 860, 0);
     kok.__klOlcu();
@@ -473,6 +504,21 @@ async function main() {
         o.kenar + ', dikey ' + o.dikeyK + ', yatay ' + o.yatayK + ')');
     }
     console.log('  ✓ 13) her ekranda iki yerleşimden büyük tahta vereni seçiliyor');
+
+    /* Telefona özel yerleşim kuralları YALNIZ kelimelik masasında geçerli
+       olsun diye oda sayfası ve gövde işaretleniyor. */
+    assert.ok(belge2.getElementById('pg-room').classList.contains('gv-kl'),
+      'kelimelik masasında oda sayfası işaretlenmeli');
+    assert.ok(belge2.body.classList.contains('gv-kl-masa'),
+      'yatay telefonda site başlığını gizleyen kural için gövde işaretlenmeli');
+    const sayfaKod = fs.readFileSync(require('path').join(__dirname, '..', 'index.html'), 'utf8');
+    assert.ok(/@media\(max-width:860px\) and \(orientation:portrait\)\{\s*#pg-room\.gv-kl \.game-side\{gap:6px\}/.test(sayfaKod),
+      'dikey telefonda süre kartları ve kumanda sıkışmalı');
+    assert.ok(/#pg-room\.gv-kl \.game-side \.timers\{flex-direction:row/.test(sayfaKod),
+      'süre kartları telefonda yan yana gelmeli (ikisi de görünsün)');
+    assert.ok(/body\.gv-kl-masa \.header\{display:none\}/.test(sayfaKod),
+      'yatay telefonda site başlığı tahtaya yer açmalı');
+    console.log('  ✓ 14) telefon kuralları yalnız kelimelik masasında devrede');
   }
 
   for (const w of [A, B]) { try { w.close(); } catch (_) {} }

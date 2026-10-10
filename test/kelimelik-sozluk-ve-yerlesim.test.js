@@ -150,8 +150,10 @@ function bolum4() {
   /* Ölçünün DAVRANIŞI test/kelimelik-client.test.js'te gerçek kodu çalıştırarak
      ölçülüyor (küçülme döngüsü, yerleşim seçimi, en büyük tahta). Burada
      kuralın KAYNAKTA yerinde durduğu doğrulanıyor. */
-  assert.ok(/var dikeyK = Math\.min\(availW, availH - rackH - ctrlH - ARA\);/.test(kod),
-    'alt alta yerleşimin tahta kenarı hesaplanmalı');
+  assert.ok(/var dikeyK = Math\.min\(availW, availH - rackH - ctrlH - ARA - sureRez\);/.test(kod),
+    'alt alta yerleşimin tahta kenarı hesaplanmalı (süre şeridi dahil)');
+  assert.ok(/sr\.top >= ar\.top \+ 1/.test(kod),
+    'süre kartları yalnız tahtanın ALTINDAYKEN bütçeden düşülmeli');
   assert.ok(/var yatayK = Math\.min\(availH, availW - SAG_MIN\);/.test(kod),
     'yan yana yerleşimin tahta kenarı hesaplanmalı');
   assert.ok(/yatay = yatayK > dikeyK \+ HISTEREZ/.test(kod),
