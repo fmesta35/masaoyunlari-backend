@@ -315,56 +315,83 @@
         var e = root.querySelector(sec);
         return e ? e.getBoundingClientRect().height : 0;
       }
-      /* TEK ÖLÇÜ YERİ — dikey ve yatay, normal ve tam ekran.
-         ÖLÇÜLEN HATA: yükseklik bütçesi tahtanın o anki EKRAN KONUMUNDAN
-         (getBoundingClientRect().top) çıkarılıyordu. Bu değer hem sayfa
-         kaydırmasına hem de bir önceki ölçüye bağlı olduğu için, telefonda
-         sayfa biraz kayınca bütçe şişiyor, tahta kendi kutusundan taşıp
-         ıstakanın üstüne biniyordu (kullanıcı raporu: "harfler oyun alanının
-         içerisinde kalıyor"). Artık bütçe boardArea'nın KENDİ kutusundan
-         okunuyor ve ekranın altıyla sınırlanıyor.
 
-         YATAY YERLEŞİM: ekran genişse ve alçaksa (telefon yatay, tam ekran)
-         tahtayı ıstakanın üstüne koymak tahtayı okunmaz hale getiriyordu.
-         O durumda ıstaka ve kumanda tahtanın YANINA geçer, tahta yüksekliğin
-         tamamını kullanır. */
+      /* ======================= TEK ÖLÇÜ YERİ =======================
+         Kullanıcı isteği: "mobilde de webde de tüm cihazlarda en uygun yatay
+         dikey, tam ekran ve standart en büyük görüntü optimizasyonu
+         sağlansın."
+
+         ÖLÇÜLEN HATA (telefonda tahta küçücük kalıyordu): yükseklik bütçesi
+         boardArea'nın KENDİ yüksekliğinden çıkarılıyordu. Ama o alanın
+         yüksekliği zaten tahtadan geliyor — ölçü kendi kendini besliyordu ve
+         her ölçümde tahta 4 px küçülüyordu. Ölçüm her kaydırmada, her yeniden
+         çizimde tekrarlandığı için tahta saniyeler içinde 150 px'lik tabana
+         oturuyordu. Artık bütçeye YALNIZ ekran girer; tahtanın kendi ölçüsü
+         hesaba hiç katılmaz, yani döngü teknik olarak imkânsızdır.
+
+         YERLEŞİM SEÇİMİ: eşik tahmin etmek yerine İKİ yerleşimin de tahta
+         kenarı hesaplanır ve BÜYÜĞÜ seçilir:
+           alt alta → tahta genişliğe, ıstaka+kumanda alta
+           yan yana → tahta yüksekliğe, ıstaka+kumanda sağ sütuna
+         Böylece telefon dikey/yatay, tam ekran, tablet, bölünmüş ekran ve
+         masaüstü tek kuralla çözülür ve her durumda mümkün olan en büyük
+         tahta çıkar. Yön değişiminde titremesin diye yerleşim ancak belirgin
+         bir kazanç varsa değişir (histerez). */
+      var SAG_MIN = 170;      // yan yana yerleşimde sağ sütuna ayrılan en az yer
+      var ARA = 14;           // tahta ile ıstaka arasındaki boşluk payı
+      var HISTEREZ = 24;      // yerleşim değişimi için gereken belirgin kazanç
+      var sonYatay = null;    // en son hangi yerleşimdeydik (titreme önleyici)
+
       function olcuYaz() {
         if (!tahta || !kutu) return;
         var sarici = root.querySelector('.kl-wrap') || root;
         var alan = document.getElementById('boardArea');
         var ar = alan ? alan.getBoundingClientRect() : null;
-        var g = Math.max(160, ar ? ar.width : 600);
-        /* Kullanılabilir yükseklik: boardArea'nın üst kenarından ekranın
-           altına kadar (alanın kendi yüksekliği daha küçükse o geçerli). */
-        var y = gorunurY() - (ar ? Math.max(0, ar.top) : 0) - 8;
-        if (ar && ar.height > 40) y = Math.min(y, ar.height - 4);
-        y = Math.max(160, y);
 
-        /* Yatay yerleşim eşiği: genişlik yüksekliğin 1.3 katından fazlaysa VE
-           yükseklik 560 px'in altındaysa yan yana dizilim kazandırır. */
-        var yatay = (g > y * 1.3) && (y < 560);
+        /* Kullanılabilir kutu. Genişlik alanın kendi genişliği; YÜKSEKLİK ise
+           alanın ÜST KENARINDAN görünür ekranın altına kadar. Alanın kendi
+           yüksekliği bilinçli olarak kullanılmıyor (bkz. yukarıdaki not). */
+        var availW = Math.max(160, ar ? ar.width : 600);
+        var availH = Math.max(160, gorunurY() - (ar ? Math.max(0, ar.top) : 0) - 8);
+
+        var rackH = olc('.kl-istaka-kutu') || 64;
+        var ctrlH = olc('.kl-kumanda') || 42;
+
+        var dikeyK = Math.min(availW, availH - rackH - ctrlH - ARA);
+        var yatayK = Math.min(availH, availW - SAG_MIN);
+
+        var yatay;
+        if (sonYatay === null) yatay = yatayK > dikeyK + HISTEREZ;
+        else if (sonYatay)     yatay = yatayK > dikeyK - HISTEREZ;
+        else                   yatay = yatayK > dikeyK + HISTEREZ;
+        sonYatay = yatay;
+
+        var kenar = Math.max(170, Math.floor(yatay ? yatayK : dikeyK));
         if (sarici.classList.contains('kl-yatay') !== yatay) {
           sarici.classList.toggle('kl-yatay', yatay);
         }
-
-        var kenar;
-        if (yatay) {
-          /* Tahta yüksekliğin tamamını alır; genişliğin en çok %64'ü ona,
-             kalanı ıstaka + kumanda sütununa. */
-          kenar = Math.min(y, g * 0.64);
-        } else {
-          var alti = olc('.kl-istaka-kutu') + olc('.kl-kumanda') + 18;
-          kenar = Math.min(g, y - alti);
-        }
-        kenar = Math.max(150, Math.floor(kenar));
         kutu.style.width = kenar + 'px';
+
         var hc = ((kenar - 18) - 8 - (N - 1) * 2) / N;
         tahta.style.setProperty('--hc', Math.max(4, hc).toFixed(2) + 'px');
         /* Hücre 17 px'in altındaysa puan rakamı ve bonus etiketi okunmuyor. */
         tahta.classList.toggle('ufak', hc < 17);
+
+        /* ISTAKA TAŞI: kalan genişliğe göre. Yan yana yerleşimde sağ sütun
+           dardır — taş küçülür ve iki sıraya sarar; dikeyde tam genişlik var,
+           taş en büyük hâlini alır. Sabit vw yerine GERÇEK alana bakılıyor,
+           böylece tam ekranda ve bölünmüş ekranda da taşma olmuyor. */
+        var sagG = yatay ? Math.max(120, availW - kenar - 12) : availW;
+        var rt = Math.max(26, Math.min(54, Math.floor((sagG - 24) / 7) - 5));
+        sarici.style.setProperty('--kl-rt', rt + 'px');
+
         /* Teşhis/test: hangi yerleşimde, hangi ölçüyle çizildi. */
-        window.__gvKelimelikOlcu = { yatay: yatay, kenar: kenar, hc: hc, g: g, y: y };
+        window.__gvKelimelikOlcu = {
+          yatay: yatay, kenar: kenar, hc: hc, rt: rt,
+          availW: availW, availH: availH, dikeyK: dikeyK, yatayK: yatayK
+        };
       }
+
       olcuYaz();
       requestAnimationFrame(olcuYaz);
       setTimeout(olcuYaz, 120);
@@ -387,7 +414,20 @@
         window.visualViewport.addEventListener('resize', root.__klVV);
         window.visualViewport.addEventListener('scroll', root.__klVV);
       }
-      document.addEventListener('fullscreenchange', root.__klOlcu);
+      if (root.__klFs) document.removeEventListener('fullscreenchange', root.__klFs);
+      root.__klFs = root.__klOlcu;
+      document.addEventListener('fullscreenchange', root.__klFs);
+      /* Sitenin KENDİ tam ekran düğmesi (#pg-room.gv-fs) tarayıcının
+         fullscreenchange olayını tetiklemez; yan panelin açılıp kapanması da
+         öyle. Alanın kutusu her değiştiğinde ölçü tazelensin. */
+      if (window.ResizeObserver) {
+        var alanEl = document.getElementById('boardArea');
+        if (root.__klRO) { try { root.__klRO.disconnect(); } catch (_) {} }
+        if (alanEl) {
+          root.__klRO = new ResizeObserver(function () { olcuYaz(); });
+          root.__klRO.observe(alanEl);
+        }
+      }
 
       if (m.isSpectator) return;
 

@@ -147,20 +147,27 @@ function bolum3() {
 /* ------------------------------------------------------------ 4) YERLEŞİM */
 function bolum4() {
   const kod = oku('js/kelimelik-online.js');
-  /* Ölçü işlevini kaynaktan ayıklayıp tek başına çalıştırmak kırılgan olurdu;
-     bunun yerine KURAL metni doğrulanıyor: eşikler ve bütçe hesabı yerinde mi. */
-  assert.ok(/var yatay = \(g > y \* 1\.3\) && \(y < 560\);/.test(kod),
-    'yatay yerleşim eşiği tanımlı olmalı');
+  /* Ölçünün DAVRANIŞI test/kelimelik-client.test.js'te gerçek kodu çalıştırarak
+     ölçülüyor (küçülme döngüsü, yerleşim seçimi, en büyük tahta). Burada
+     kuralın KAYNAKTA yerinde durduğu doğrulanıyor. */
+  assert.ok(/var dikeyK = Math\.min\(availW, availH - rackH - ctrlH - ARA\);/.test(kod),
+    'alt alta yerleşimin tahta kenarı hesaplanmalı');
+  assert.ok(/var yatayK = Math\.min\(availH, availW - SAG_MIN\);/.test(kod),
+    'yan yana yerleşimin tahta kenarı hesaplanmalı');
+  assert.ok(/yatay = yatayK > dikeyK \+ HISTEREZ/.test(kod),
+    'iki yerleşimden büyük tahta veren seçilmeli (histerezli)');
   assert.ok(/kl-yatay/.test(kod), 'yatay sınıfı sarıcıya eklenmeli');
-  assert.ok(/kenar = Math\.min\(y, g \* 0\.64\)/.test(kod),
-    'yatayda tahta genişliğin en çok %64\'ünü almalı');
-  assert.ok(/var alti = olc\('\.kl-istaka-kutu'\) \+ olc\('\.kl-kumanda'\)/.test(kod),
-    'dikeyde ıstaka ve kumanda yüksekliği bütçeden düşülmeli (tahta onların üstüne binmesin)');
-  assert.ok(/ar \? Math\.max\(0, ar\.top\) : 0/.test(kod),
-    'yükseklik bütçesi boardArea kutusundan okunmalı (sayfa kaydırmasına bağlı olmamalı)');
+  /* KÜÇÜLME DÖNGÜSÜNÜN KÖKÜ: alanın KENDİ yüksekliği bütçeye girmemeli. */
+  assert.ok(!/ar\.height/.test(kod),
+    'tahtanın yükseklik bütçesi boardArea\'nın kendi yüksekliğinden ÇIKARILMAMALI (küçülme döngüsü)');
+  assert.ok(/availH = Math\.max\(160, gorunurY\(\)/.test(kod),
+    'yükseklik bütçesi görünür ekrandan okunmalı');
   assert.ok(/visualViewport[\s\S]{0,400}addEventListener\('resize'/.test(kod),
     'adres çubuğu / tam ekran değişimi de ölçüyü tazelemeli');
   assert.ok(/fullscreenchange/.test(kod), 'tam ekran değişiminde ölçü tazelenmeli');
+  assert.ok(/new ResizeObserver/.test(kod),
+    'sitenin kendi tam ekran düğmesi için alanın kutusu izlenmeli');
+  assert.ok(/--kl-rt/.test(kod), 'ıstaka taşı ölçülen alana göre boyutlanmalı');
 
   const sayfa = oku('index.html');
   assert.ok(/\.kl-wrap\.kl-yatay\{flex-direction:row/.test(sayfa),
@@ -168,6 +175,11 @@ function bolum4() {
   assert.ok(/#pg-room\.gv-fs \.kl-wrap\.kl-yatay\{flex-direction:row/.test(sayfa),
     'tam ekran + yatayda da yan yana yerleşim geçerli olmalı');
   assert.ok(/\.kl-sag\{display:flex/.test(sayfa), 'ıstaka+kumanda ortak sütunda olmalı');
+  assert.ok(/#pg-room\.gv-fs \.kl-sag\{width:100%/.test(sayfa),
+    'tam ekranda ortak sütun genişlemeli (ıstaka/kumanda taşmasın)');
+  assert.ok(/width:var\(--kl-rt/.test(sayfa), 'taş boyu ölçülen değerden gelmeli');
+  assert.ok(!/\.kl-rt\{width:clamp\(28px,4\.6vw,38px\)/.test(sayfa),
+    'yatay telefon medya sorgusu taş ölçüsünü EZMEMELİ');
   assert.ok(/<div class="kl-sag">/.test(kod), 'çizimde ortak sütun olmalı');
   console.log('  ✓ 4) dikey/yatay yerleşim kuralları ve tam ekran uyumu yerinde');
 }

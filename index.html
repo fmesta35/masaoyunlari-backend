@@ -1544,13 +1544,16 @@ html{scrollbar-gutter:stable}
 .kl-tahta.ufak .kl-hc.merkez{font-size:calc(var(--hc) * .5)}
 .kl-istaka-kutu{margin-top:10px;background:linear-gradient(180deg,#3a2c17,#241a0c);
   border:1px solid #4a3a1e;border-radius:14px;padding:8px;box-shadow:0 10px 24px rgba(0,0,0,.4)}
-.kl-istaka{display:flex;gap:5px;justify-content:center;align-items:center;min-height:54px;
-  flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;padding:2px}
+.kl-istaka{display:flex;gap:5px;justify-content:center;align-items:center;min-height:0;
+  flex-wrap:wrap;overflow:visible;padding:2px}
 .kl-istaka::-webkit-scrollbar{display:none}
 .kl-izleyici{color:#cdbb92;font-size:.86em}
-.kl-rt{position:relative;flex:0 0 auto;width:clamp(34px,9.6vw,54px);aspect-ratio:1/1;border-radius:7px;
+/* Taş boyu JS'te ÖLÇÜLEN alana göre verilir (--kl-rt): vw tahmini tam ekranda
+   ve bölünmüş ekranda tutmuyordu, ıstaka taşıyordu. Değişken yoksa eski
+   davranışa düşer. */
+.kl-rt{position:relative;flex:0 0 auto;width:var(--kl-rt,clamp(34px,9.6vw,54px));aspect-ratio:1/1;border-radius:7px;
   background:linear-gradient(160deg,#f3e2bd,#d9c193);color:#2a2010;display:grid;place-items:center;
-  font-weight:800;font-size:clamp(17px,5vw,26px);cursor:grab;touch-action:none;
+  font-weight:800;font-size:calc(var(--kl-rt,26px) * .52);cursor:grab;touch-action:none;
   user-select:none;-webkit-user-select:none;
   box-shadow:inset 0 -3px 0 rgba(0,0,0,.18),0 2px 5px rgba(0,0,0,.45);transition:transform .1s}
 .kl-rt .pv{position:absolute;right:3px;bottom:1px;font-size:.4em;opacity:.8}
@@ -1602,14 +1605,15 @@ html{scrollbar-gutter:stable}
 /* Yatay telefon: tahtaya yer açmak için şeritler sıkışır. */
 @media(max-height:480px) and (orientation:landscape){
   .kl-istaka-kutu{padding:4px;margin-top:5px;border-radius:10px}
-  .kl-istaka{min-height:38px;gap:4px}
-  .kl-rt{width:clamp(28px,4.6vw,38px);font-size:clamp(14px,2.6vw,19px)}
+  .kl-istaka{gap:4px}
+  /* Taş ölçüsü JS'ten gelir (--kl-rt); burada SABİT px vermek ölçüyü ezip
+     ıstakayı taşırıyordu. Yalnız şeritler sıkıştırılır. */
   .kl-kumanda{margin-top:5px;gap:4px}
   .kl-kumanda .btn{min-height:32px;padding:4px 8px;font-size:.74em}
 }
 /* ISTAKA + KUMANDA ortak sütunu. Dikeyde tahtanın altında normal akışta
    durur; yatayda (aşağıdaki .kl-yatay) tahtanın yanına geçer. */
-.kl-sag{display:flex;flex-direction:column;min-width:0}
+.kl-sag{display:flex;flex-direction:column;min-width:0;width:100%;max-width:100%}
 /* ============ YATAY / ALÇAK EKRAN YERLEŞİMİ ============
    Kullanıcı isteği: "tam ekran yaptığımda ve yatay görüntüye geçtiğimde
    görüntü optimizasyonu korunamadı... yatay ve dikey otomatik optimizasyon."
@@ -1617,9 +1621,9 @@ html{scrollbar-gutter:stable}
    yüksekliğin tamamını alır, ıstaka ve kumanda sağ sütuna geçer. Böylece
    alçak ekranda tahta küçülüp okunmaz hale gelmez, ıstaka da tahtanın
    üstüne binmez. */
-.kl-wrap.kl-yatay{flex-direction:row;align-items:flex-start;gap:10px;justify-content:center}
+.kl-wrap.kl-yatay{flex-direction:row;align-items:center;gap:10px;justify-content:center}
 .kl-wrap.kl-yatay .kl-kutu{flex:0 0 auto;margin:0}
-.kl-wrap.kl-yatay .kl-sag{flex:1 1 auto;justify-content:center;gap:8px;align-self:stretch}
+.kl-wrap.kl-yatay .kl-sag{flex:1 1 0;min-width:0;width:auto;justify-content:center;gap:8px;margin-top:0}
 .kl-wrap.kl-yatay .kl-istaka-kutu{margin-top:0}
 /* Yan sütunda ıstaka iki sıraya sarabilir: 7 taş dar sütuna sığmayabilir. */
 .kl-wrap.kl-yatay .kl-istaka{flex-wrap:wrap;overflow:visible;min-height:0}
@@ -1631,8 +1635,11 @@ html{scrollbar-gutter:stable}
   display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:0}
 #pg-room.gv-fs .kl-wrap.kl-yatay{flex-direction:row;align-items:center;justify-content:center;gap:10px}
 #pg-room.gv-fs .kl-kutu{flex:0 0 auto;margin:0 auto}
+#pg-room.gv-fs .kl-sag{width:100%;max-width:100%;flex:0 0 auto}
 #pg-room.gv-fs .kl-istaka-kutu,#pg-room.gv-fs .kl-kumanda{width:100%;flex:0 0 auto}
 #pg-room.gv-fs .kl-wrap.kl-yatay .kl-kutu{margin:0}
+/* Yatayda sütun kalan genişlik kadardır; %100 vermek taşmaya yol açıyordu. */
+#pg-room.gv-fs .kl-wrap.kl-yatay .kl-sag{width:auto;flex:1 1 0;min-width:0}
 </style>
 
 <!-- Favicon & PWA -->

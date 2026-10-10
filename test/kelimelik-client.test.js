@@ -377,9 +377,107 @@ async function main() {
   sirali.GV.toast = eskiToast;
   console.log('  ✓ 8) sözlük dışı ret sebepleri de cümle olarak gösteriliyor');
 
+  /* ===================================================================
+     10) EKRAN YERLEŞİMİ — KÜÇÜLME DÖNGÜSÜ VE EN BÜYÜK TAHTA
+     Kullanıcı isteği: "mobilde de webde de tüm cihazlarda en uygun yatay
+     dikey, tam ekran ve standart en büyük görüntü optimizasyonu sağlansın."
+     ÖLÇÜLEN HATA: yükseklik bütçesi boardArea'nın KENDİ yüksekliğinden
+     çıkarılıyordu; ölçü kendini besleyip her seferinde tahtayı 4 px
+     küçültüyordu. Burada ölçü ARKA ARKAYA çalıştırılıp tahtanın SABİT
+     kaldığı doğrulanıyor — döngü geri gelirse bu test düşer.
+     =================================================================== */
+  {
+    const belge2 = sirali.document;
+    const kok = belge2.getElementById('boardArea');
+    assert.ok(typeof kok.__klOlcu === 'function', 'ölçü tazeleyicisi bağlanmalı');
+
+    /* jsdom'da yerleşim yok: kutuları biz veriyoruz. Istaka ve kumanda
+       yükseklikleri GERÇEK ölçüde olduğu gibi sabit; tahta onlardan
+       bağımsız hesaplanmalı. */
+    function kutuKur(genislik, yukseklik, ust) {
+      kok.getBoundingClientRect = () => ({
+        width: genislik, height: yukseklik, top: ust, left: 0,
+        right: genislik, bottom: ust + yukseklik
+      });
+      sirali.visualViewport = {
+        width: genislik, height: ust + yukseklik,
+        addEventListener() {}, removeEventListener() {}
+      };
+      sirali.innerWidth = genislik;
+      sirali.innerHeight = ust + yukseklik;
+      for (const [sec, h] of [['.kl-istaka-kutu', 64], ['.kl-kumanda', 42]]) {
+        const e = belge2.querySelector('#boardArea ' + sec);
+        if (e) e.getBoundingClientRect = () => ({ width: genislik, height: h, top: 0, left: 0, right: genislik, bottom: h });
+      }
+    }
+    const olcum = () => sirali.__gvKelimelikOlcu;
+
+    // --- a) TELEFON DİKEY: ölçü tekrarlansa da tahta KÜÇÜLMEMELİ
+    kutuKur(390, 620, 150);
+    kok.__klOlcu();
+    await sleep(40);
+    const ilk = olcum().kenar;
+    assert.ok(ilk > 240, 'dikeyde tahta makul büyüklükte olmalı → ' + ilk);
+    for (let i = 0; i < 40; i++) kok.__klOlcu();
+    await sleep(40);
+    assert.strictEqual(olcum().kenar, ilk,
+      '40 ölçümden sonra tahta AYNI kalmalı (küçülme döngüsü) → ' + ilk + ' → ' + olcum().kenar);
+    assert.strictEqual(olcum().yatay, false, 'telefon dikeyde alt alta yerleşim');
+    /* Dikeyde tahta ya genişliği ya da (yükseklik − ıstaka − kumanda) kadar;
+       hangisi küçükse o. Burada yükseklik bütçesi: 620−64−42−14 = 500 > 390 */
+    assert.strictEqual(ilk, 390, 'dikeyde tahta tüm genişliği almalı');
+    console.log('  ✓ 9) telefon dikey: tahta tam genişlik, tekrar ölçümde küçülmüyor');
+
+    // --- b) TELEFON YATAY: yan yana yerleşim ve DAHA BÜYÜK tahta
+    kutuKur(780, 330, 40);
+    kok.__klOlcu();
+    await sleep(40);
+    const yat = olcum();
+    assert.strictEqual(yat.yatay, true, 'alçak ve geniş ekranda yan yana yerleşim seçilmeli');
+    assert.ok(belge2.querySelector('#boardArea .kl-wrap').classList.contains('kl-yatay'),
+      'sarıcı yatay sınıfını almalı');
+    assert.ok(yat.kenar > yat.dikeyK,
+      'yan yana yerleşim daha büyük tahta vermeli → yatay ' + yat.kenar + ' / dikey ' + yat.dikeyK);
+    assert.ok(yat.kenar + 170 <= 780 + 1, 'sağ sütuna en az 170 px kalmalı → ' + yat.kenar);
+    const yatIlk = yat.kenar;
+    for (let i = 0; i < 40; i++) kok.__klOlcu();
+    await sleep(40);
+    assert.strictEqual(olcum().kenar, yatIlk, 'yatayda da tekrar ölçüm tahtayı küçültmemeli');
+    console.log('  ✓ 10) telefon yatay: yan yana yerleşim, tahta yüksekliği kullanıyor, sabit');
+
+    // --- c) TAM EKRAN DİKEY: tahta genişliğin tamamını alır
+    kutuKur(412, 860, 0);
+    kok.__klOlcu();
+    await sleep(40);
+    assert.strictEqual(olcum().yatay, false, 'tam ekran dikeyde alt alta');
+    assert.strictEqual(olcum().kenar, 412, 'tam ekran dikeyde tahta tüm genişliği almalı');
+    console.log('  ✓ 11) tam ekran dikey: tahta tüm genişliği alıyor');
+
+    // --- d) MASAÜSTÜ: geniş ve yüksek → alt alta, büyük tahta
+    kutuKur(700, 760, 190);
+    kok.__klOlcu();
+    await sleep(40);
+    const mas = olcum();
+    assert.strictEqual(mas.yatay, false, 'masaüstünde alt alta yerleşim');
+    assert.ok(mas.kenar >= 600, 'masaüstünde tahta büyük olmalı → ' + mas.kenar);
+    console.log('  ✓ 12) masaüstü: tahta kalan alanın tamamını kullanıyor');
+
+    // --- e) HER DURUMDA iki yerleşimden BÜYÜK olan seçilmeli
+    for (const [g, y, ust] of [[390, 620, 150], [780, 330, 40], [412, 860, 0], [700, 760, 190], [1024, 500, 60]]) {
+      kutuKur(g, y, ust);
+      kok.__klOlcu(); kok.__klOlcu();
+      const o = olcum();
+      const buyuk = Math.max(o.dikeyK, o.yatayK);
+      assert.ok(o.kenar >= buyuk - 24,
+        g + '×' + y + ': daha büyük tahta veren yerleşim seçilmeli (seçilen ' +
+        o.kenar + ', dikey ' + o.dikeyK + ', yatay ' + o.yatayK + ')');
+    }
+    console.log('  ✓ 13) her ekranda iki yerleşimden büyük tahta vereni seçiliyor');
+  }
+
   for (const w of [A, B]) { try { w.close(); } catch (_) {} }
   server.close();
-  console.log('OK kelimelik istemci (jsdom): çizim, hamle, kayıt, sesler, sözlük reddi, kelime bildir, sade görünüm, pas, sürükle-bırak, ret sebepleri');
+  console.log('OK kelimelik istemci (jsdom): çizim, hamle, kayıt, sesler, sözlük reddi, kelime bildir, sade görünüm, pas, sürükle-bırak, ret sebepleri, ekran yerleşimi');
   process.exit(0);
 }
 main().catch(e => { console.error('❌ KELİMELİK İSTEMCİ HATASI:', e); process.exit(1); });
