@@ -288,8 +288,12 @@
         h += '<div class="kl-kumanda">' +
           '<button class="btn btn-a kl-onay" type="button"' + kapali + '>✅ <span class="uz">Hamleyi </span>Onayla</button>' +
           '<button class="btn kl-geri" type="button"' + kapali + '>↩️ Geri<span class="uz"> Al</span></button>' +
-          '<button class="btn kl-temiz" type="button"' + kapali + '>🧹<span class="uz"> Temizle</span></button>' +
-          '<button class="btn kl-karistir" type="button"' + kapali + '>🔀<span class="uz"> Karıştır</span></button>' +
+          /* Bu ikisinin ADI her zaman yazılı: yalnız simge kalınca ne işe
+             yaradıkları anlaşılmıyordu (kullanıcı raporu). Diğer düğmelerde
+             .uz içindeki uzun ek telefonda gizleniyor, burada gizlenecek bir
+             şey yok — iki kelime zaten kısa. */
+          '<button class="btn kl-temiz" type="button"' + kapali + '>🧹 Temizle</button>' +
+          '<button class="btn kl-karistir" type="button"' + kapali + '>🔀 Karıştır</button>' +
           '<button class="btn kl-takas" type="button"' + kapali + '>' +
             (takasModu ? '✔️ <span class="uz">Değişimi </span>Onayla' : '🔁 <span class="uz">Harf </span>Değiştir') + '</button>' +
           '<button class="btn kl-pas" type="button"' + kapali + '>⏭️ Pas<span class="uz"> Geç</span></button>' +

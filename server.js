@@ -426,10 +426,20 @@ const MANAGED_CARD_GAMES = ['okey', 'okey101', 'pisti', 'batak'];
    (Aralığın uzunluğu aynı zamanda o oyunun masa sayısı üst sınırıdır.) */
 const CARD_TABLE_RANGE = {
   okey:    [301, 330],   // varsayılan 18 masa (301-318) + 12 boş
-  okey101: [331, 340],   // varsayılan  6 masa (331-336) +  4 boş
+  /* 101 OKEY — kullanıcı raporu: "masa ekleme butonu kapalı, masa sayısı da
+     10 diyor ama 5". Eski aralık yalnız 10 kimlikti (331-340) ve varsayılan
+     6 masa onun 6'sını doluyordu; panel ➕ düğmesini 10'da kilitliyordu.
+     331-360 arası pisti'ye bitişik olduğu için genişletilemiyordu, bu yüzden
+     101 Okey ÇAKIŞMAYAN yeni bir bloğa taşındı: artık okey ile aynı
+     kapasitede (40 kimlik) ve varsayılanı da okeyinki gibi 18 masa. */
+  okey101: [1201, 1240], // varsayılan 18 masa (1201-1218) + 22 boş
   pisti:   [341, 360],   // varsayılan 18 masa (341-358) +  2 boş
   batak:   [361, 400]    // varsayılan  6 masa (361-366) + 34 boş
 };
+/* 101 Okey'in ESKİ varsayılan kimlikleri. Kayıtlı yapılandırma hâlâ bu altı
+   masadan ibaretse (kurucu hiç dokunmamış demektir) yeni 18'li düzene
+   kendiliğinden geçilir; kurucu masaları değiştirmişse elleşilmez. */
+const OKEY101_ESKI_IDLER = ['331', '332', '333', '334', '335', '336'];
 function cardTableLimit(g) {
   const r = CARD_TABLE_RANGE[g];
   return r ? (r[1] - r[0] + 1) : 40;
@@ -487,6 +497,15 @@ function normPresetConfig(raw) {
          kimliğini alıyordu; iki masa aynı odaya çöküyordu. Artık kimliksiz
          satıra, oyuna ayrılmış aralıktan indekse karşılık gelen benzersiz
          kimlik verilir (bkz. CARD_TABLE_RANGE). */
+      /* 101 OKEY GEÇİŞİ: kayıtlı yapılandırma hâlâ eski 6'lı varsayılansa
+         (kurucu hiç dokunmamış) yeni 18'li düzene geç. Kurucu masaları
+         değiştirmişse — sayı farklıysa ya da kimlikler eski küme değilse —
+         hiçbir şeye dokunulmaz. */
+      if (g === 'okey101' && src.tables.length === OKEY101_ESKI_IDLER.length &&
+          src.tables.every((x, i) => String((x && x.id) || '') === OKEY101_ESKI_IDLER[i])) {
+        cfg[g].tables = defs;
+        continue;
+      }
       const t = src.tables.slice(0, cardTableLimit(g)).map((x,i) => { const d=defs[i]||{}; x=x&&typeof x==='object'?x:{}; return {id:String(x.id||d.id||(bas+i)),name:String(x.name||d.name||('Masa #'+(bas+i))).slice(0,60),type:(x.type==='fast'||x.type==='thinker')?x.type:'normal',durationMinutes:clampDuration(x.durationMinutes,d.durationMinutes||10),moveSeconds:hamleSaniyeTemizle(x.moveSeconds!==undefined?x.moveSeconds:d.moveSeconds),maxPlayers:Math.max(2,Math.min(Number(x.maxPlayers||d.maxPlayers||2),4)),rounds:Number(x.rounds||d.rounds)||undefined}; });
       if (t.length) cfg[g].tables=t;
     }
@@ -584,7 +603,7 @@ function cardPresetTables(gameId, startId) {
   for (const [players, rounds] of combos) for(let n=0;n<2;n++){const rid=String(id++);out.push({id:rid,gameId,maxPlayers:players,durationMinutes:rounds===1?10:rounds===3?15:20,rounds,name:`${players} Kişilik • ${rounds} El — Masa #${rid}`});}
   return out;
 }
-function managedCardTables(gameId) { const out=[]; let id=gameId==='okey'?301:gameId==='okey101'?331:gameId==='pisti'?341:361; const combos=gameId==='okey'?[[2,3],[2,5],[2,7],[3,3],[3,5],[3,7],[4,3],[4,5],[4,7]]:gameId==='okey101'?[[2,10],[2,20],[3,10],[3,20],[4,10],[4,20]]:gameId==='pisti'?[[2,1],[2,3],[2,5],[3,1],[3,3],[3,5],[4,1],[4,3],[4,5]]:[[4,3],[4,5],[4,7]];for(const [players,rounds] of combos)for(let n=0;n<(gameId==='okey101'?1:2);n++){const rid=String(id++);const sure=gameId==='okey101'?rounds:(rounds===3?(gameId==='okey'?10:15):(rounds===5?15:20));out.push({id:rid,gameId,maxPlayers:players,rounds,durationMinutes:sure,moveSeconds:varsayilanHamleSn(gameId,sure),type:rounds<=1?'fast':rounds>=7?'thinker':'normal',name:`${players} Kişilik • ${rounds}${gameId==='okey101'?' dk':' El'} — Masa #${rid}`})}return out;}
+function managedCardTables(gameId) { const out=[]; let id=gameId==='okey'?301:gameId==='okey101'?1201:gameId==='pisti'?341:361; const combos=gameId==='okey'?[[2,3],[2,5],[2,7],[3,3],[3,5],[3,7],[4,3],[4,5],[4,7]]:gameId==='okey101'?[[2,10],[2,20],[2,30],[3,10],[3,20],[3,30],[4,10],[4,20],[4,30]]:gameId==='pisti'?[[2,1],[2,3],[2,5],[3,1],[3,3],[3,5],[4,1],[4,3],[4,5]]:[[4,3],[4,5],[4,7]];for(const [players,rounds] of combos)for(let n=0;n<2;n++){const rid=String(id++);const sure=gameId==='okey101'?rounds:(rounds===3?(gameId==='okey'?10:15):(rounds===5?15:20));out.push({id:rid,gameId,maxPlayers:players,rounds,durationMinutes:sure,moveSeconds:varsayilanHamleSn(gameId,sure),type:rounds<=1?'fast':rounds>=7?'thinker':'normal',name:`${players} Kişilik • ${rounds}${gameId==='okey101'?' dk':' El'} — Masa #${rid}`})}return out;}
 function presetTablesFromConfig(cfg) {
   const out = [];
   for (const g of STANDARD_PRESET_GAMES) {

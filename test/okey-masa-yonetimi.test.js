@@ -156,6 +156,40 @@ async function main() {
     'masası düzenlenebilen HER oyunun listesi birleştirmede korunmalı');
   console.log('  ✓ 6) panel kodu okey/101 okey\'e masa düğmelerini ve kişi/el sütunlarını çiziyor');
 
+  /* ====================================================================
+     7) 101 OKEY, OKEY İLE AYNI KAPASİTEDE
+     Kullanıcı raporu: "101 okey için kurucu panelinde masa ekleme butonu
+     kapalı, masa sayısı da 10 diyor ama 5." Eski aralık yalnız 10 kimlikti
+     (331-340); varsayılan 6 masa onun 6'sını doluyor, panel ➕ düğmesini
+     erkenden kilitliyordu. Artık 101 Okey okey ile aynı: 18 varsayılan masa,
+     2/3/4 kişilik, üç süre seçeneği ve geniş kapasite.
+     ==================================================================== */
+  {
+    const sinir = sema.kartSinir || {};
+    assert.ok(Number(sinir.okey101) >= 30,
+      '101 Okey kapasitesi okey kadar geniş olmalı → ' + sinir.okey101);
+
+    const sunucu = fs.readFileSync(path.join(__dirname, '..', 'server.js'), 'utf8');
+    const mt = sunucu.match(/function managedCardTables[\s\S]*?return out;\}/)[0];
+    const uret = new Function('function varsayilanHamleSn(){return 0;}\n' + mt +
+                              '\nreturn managedCardTables;')();
+    const k101 = uret('okey101'), kok = uret('okey');
+    assert.strictEqual(k101.length, kok.length,
+      '101 Okey varsayılan masa sayısı okey ile aynı olmalı → ' + k101.length + ' / ' + kok.length);
+    assert.deepStrictEqual([...new Set(k101.map(t => t.maxPlayers))].sort(), [2, 3, 4],
+      '101 Okey masaları 2, 3 ve 4 kişilik olmalı');
+    assert.strictEqual([...new Set(k101.map(t => t.durationMinutes))].length, 3,
+      '101 Okey için üç süre seçeneği olmalı');
+    /* Kimlikler benzersiz ve başka oyunun aralığına girmemeli. */
+    assert.strictEqual(new Set(k101.map(t => t.id)).size, k101.length, 'kimlikler benzersiz olmalı');
+    const digerIdler = new Set([].concat(uret('okey'), uret('pisti'), uret('batak')).map(t => t.id));
+    assert.ok(!k101.some(t => digerIdler.has(t.id)),
+      '101 Okey kimlikleri başka oyunun masasıyla çakışmamalı');
+    assert.ok(k101.length <= Number(sinir.okey101),
+      'varsayılan masa sayısı kapasiteyi aşmamalı (➕ düğmesi kilitli açılmasın)');
+    console.log('  ✓ 7) 101 Okey masaları okeyle aynı: 18 masa, 2/3/4 kişi, üç süre, kapasite geniş');
+  }
+
   server.close();
   console.log('OK okey + 101 okey masa yönetimi: ekle, düzenle, çıkar; kimlikler benzersiz');
   process.exit(0);
