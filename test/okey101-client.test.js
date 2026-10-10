@@ -4,7 +4,7 @@
  * OKEY 101 İSTEMCİSİ — gerçek tarayıcı benzeri (jsdom) uçtan uca kanıt.
  *  - Lobi: 101 Okey sayfasında 6 hazır masa listelenir; "El" ROZETİ YOK
  *    (maç el sayısıyla değil, 101 puanla biter).
- *  - 4 gerçek pencere 4 kişilik 101 hazır masasına (#336) girer →
+ *  - 4 gerçek pencere 4 kişilik 101 hazır masasına (#1215) girer →
  *    bekleme lobisi 4 KOLTUKLU (okey101 artık köprü oyunudur).
  *  - 4×HAZIRIM → masa her pencerede "🔢 OKEY 101 • El 1 (4 Kişilik) •
  *    Hedef 101" başlığıyla çizilir; st.boards.okey variant/target taşır.
@@ -58,15 +58,15 @@ async function main() {
   L.win.GV.openLobby('okey101');
   const rows = await waitFor(() => {
     const r = [...L.win.document.querySelectorAll('#roomList .room')]
-      .filter(el => /Masa #3\d\d/.test(el.textContent));
-    return r.length >= 6 ? r : null;
+      .filter(el => /Masa #12\d\d/.test(el.textContent));
+    return r.length >= 18 ? r : null;
   }, 15000, 'lobide 101 hazır masaları');
-  assert.ok(rows.some(el => el.textContent.includes('#336') && el.textContent.includes('4 Kişilik')), '#336 4 kişilik masa');
+  assert.ok(rows.some(el => el.textContent.includes('#1215') && el.textContent.includes('4 Kişilik')), '#1215 4 kişilik masa');
   assert.ok(rows.every(el => !/🀄\s*\d+\s*El/.test(el.textContent)), '101 masasında "El" rozeti yok');
-  console.log('  ✓ 1) lobi: 6 hazır 101 masası listelendi, "El" rozeti yok');
+  console.log('  ✓ 1) lobi: 18 hazır 101 masası listelendi, "El" rozeti yok');
   L.dom.window.close();
 
-  // ============ 2) 4 pencere #336 masasına → 4 koltuklu bekleme ============
+  // ============ 2) 4 pencere #1215 masasına → 4 koltuklu bekleme ============
   const clients = [];
   for (let i = 0; i < 4; i++) clients.push(await makeClient('P' + (i + 1)));
   for (const c of clients) {
@@ -75,7 +75,7 @@ async function main() {
   }
   for (const c of clients) {
     c.win.st.curGame = 'okey101';
-    c.win.GV.joinRoom('336');
+    c.win.GV.joinRoom('1215');
   }
   await waitFor(() => clients[0].win.document.querySelectorAll('#gv-real-chess-wait .gvp').length === 4, 8000, '4 koltuk kartı');
   console.log('  ✓ 2) 4 pencere 101 masasında — bekleme lobisi 4 koltuklu');

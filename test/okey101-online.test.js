@@ -2,7 +2,7 @@
 
 /*
  * OKEY 101 ONLINE — sunucu yetkili uçtan uca testleri.
- *  A) Lobide okey101 hazır masaları (#331-#336) tohumlanır; klasik okey
+ *  A) Lobide okey101 hazır masaları (#1201-#1218) tohumlanır; klasik okey
  *     masaları (#301-#318) etkilenmez.
  *  B) 4 kişilik maç: istemciye variant='okey101' + target=101 gider;
  *     hazırlanmış 101 eli bitince skor = gained (rakiplerin kalan el
@@ -129,14 +129,16 @@ async function main() {
   // ============ A) Lobi: okey101 hazır masaları ============
   {
     const l101 = await httpRooms(BASE, 'okey101');
-    assert.ok(l101.length >= 6, 'okey101 hazır masalar lobide (>=6)');
-    assert.ok(l101.some(r => String(r.id) === '331' && r.maxPlayers === 2), '2 kişilik masa #331');
-    assert.ok(l101.some(r => String(r.id) === '336' && r.maxPlayers === 4 && r.duration === 20), '4 kişilik 20 dk masa #336');
+    /* 101 Okey artık klasik okeyle AYNI kapasitede: 18 hazır masa
+       (2/3/4 kişilik × 10/20/30 dk × 2 kopya), id aralığı 1201-1218. */
+    assert.strictEqual(l101.length, 18, 'okey101 lobisinde 18 hazır masa');
+    assert.ok(l101.some(r => String(r.id) === '1201' && r.maxPlayers === 2), '2 kişilik masa #1201');
+    assert.ok(l101.some(r => String(r.id) === '1215' && r.maxPlayers === 4 && r.duration === 20), '4 kişilik 20 dk masa #1215');
     // 101 masasında EL ROZETİ YOK (maç el sayısıyla bitmez):
     assert.ok(l101.every(r => !r.rounds), 'okey101 lobisinde "El" rozeti yok');
     const lokey = await httpRooms(BASE, 'okey');
     assert.strictEqual(lokey.length, 18, 'klasik okey 18 hazır masası etkilenmedi');
-    console.log('  ✓ A) lobi: okey101 6 hazır masa (#331-#336), klasik okey 18 masa aynen');
+    console.log('  ✓ A) lobi: okey101 18 hazır masa (#1201-#1218), klasik okey 18 masa aynen');
   }
 
   // ============ B) 4 kişilik: variant + 101 bitiş → MAÇ biter ============

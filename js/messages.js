@@ -100,6 +100,12 @@
        dolunca hazır vermeyenler masadan çıkarılır (yalnız normal masalarda). */
     not_ready: '⏱ Hazır süresi doldu — masadan çıkarıldınız. Lobiden yeniden masaya oturabilirsiniz.',
 
+    // ---- Tombala ----
+    /* Tombalada oyuncu hamlesi yok; bu kodlar elin NEDEN bittiğini anlatır. */
+    el_bitti:    '🎱 Bu el çoktan kapandı — yeni çekiliş için masanın yeni elini bekleyin.',
+    tombala:     '🎉 Tombala! On beş sayının tamamı kapandı ve el bitti.',
+    torba_bitti: '🎱 Torbadaki toplar bitti — el, o ana kadar kazanılan ödüllere göre kapandı.',
+
     // ---- Amiral Battı (Battleship) ----
     bad_seat: '🔌 Masayla bağlantı kurulamadı. Sayfayı yenileyip tekrar deneyin.',
     wrong_phase: '🚫 Bu işlem şu anki oyun aşamasında yapılamaz.',

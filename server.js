@@ -13,6 +13,10 @@ const damaEngine = require('./dama-engine');
 const turkDamaEngine = require('./turkdamasi-engine');
 const reversiEngine = require('./reversi-engine');
 const gomokuEngine = require('./gomoku-engine');
+/* TOMBALA — saf motor (tombala-engine.js). Çekiliş zamanlayıcısı burada
+   işler, oyuncu hamlesi yoktur: oyun tamamen şansa dayanır. */
+let tombalaEngine = null;
+try { tombalaEngine = require('./tombala-engine.js'); } catch (_) {}
 const kelimelikEngine = require('./kelimelik-engine');
 const kelimelikBildirim = require('./kelimelik-bildirim');
 const connect4Engine = require('./connect4-engine');
@@ -116,11 +120,11 @@ try {
 
 const MAX_ROOM_PLAYERS = 2;
 // Okey 4 kişilik oynanır; diğerleri ikişer kişilik kalır.
-const MAX_PLAYERS_BY_GAME = { okey: 4, okey101: 4, pisti: 4, batak: 4 };
+const MAX_PLAYERS_BY_GAME = { okey: 4, okey101: 4, pisti: 4, batak: 4, tombala: 6 };
 /* Oyunun EN AZ kaç kişiyle oynanabildiği. Bir oyuncu ayrılıp masa küçülünce
    "devam edelim mi" oylamasında buna bakılır: batak 3 kişinin altına
    inemez (ihale/koz mantığı iki kişilik değildir), diğerleri 2'ye iner. */
-const MIN_PLAYERS_BY_GAME = { okey: 2, okey101: 2, pisti: 2, batak: 3 };
+const MIN_PLAYERS_BY_GAME = { okey: 2, okey101: 2, pisti: 2, batak: 3, tombala: 2 };
 function minOyuncu(gameId) { return MIN_PLAYERS_BY_GAME[gameId] || 2; }
 const ONLINE_CARD_GAMES = new Set(['pisti', 'batak']);
 const ONLINE_BOARD_GAMES = new Set(['dama','turkdamasi','reversi']);
@@ -341,7 +345,8 @@ const disconnectTimers = new Map();
 // o hesap sabit "kurucu123" şifresiyle otomatik açılıyordu.)
 const ADMIN_EMAIL = String(process.env.GV_ADMIN_EMAIL || '').trim().toLowerCase();
 const ALL_GAMES = ['chess', 'tavla', 'okey', 'okey101', 'pisti', 'batak',
-  'dama', 'turkdamasi', 'reversi', 'gomoku', 'connect4', 'bilardo', 'battleship', 'kelimelik'];
+  'dama', 'turkdamasi', 'reversi', 'gomoku', 'connect4', 'bilardo', 'battleship', 'kelimelik',
+  'tombala'];
 
 /* ===================== HAMLE SÜRESİ (masa başına) =====================
    Kullanıcı isteği: "kurucu panelinde masa düzenlemeler bölümünde oyun
@@ -414,11 +419,11 @@ const STANDARD_PRESET_GAMES = Object.keys(PRESET_GAME_BASES);
    okey'in masa düzenlerinde masa artırma ve eksiltme düzeltme ayarları
    yok"). Artık kurucu bunların da masasını ekleyip çıkarabiliyor; sunucu
    tarafı zaten destekliyordu (bkz. normPresetConfig). */
-const FIXED_PRESET_GAMES = ['okey', 'okey101'];
+const FIXED_PRESET_GAMES = ['okey', 'okey101', 'tombala'];
 
 /* Masa satırı kişi sayısı ve el sayısı da taşıyan oyunlar. Panel bunlara
    ek sütun çizer; normPresetConfig bu alanları korur. */
-const MANAGED_CARD_GAMES = ['okey', 'okey101', 'pisti', 'batak'];
+const MANAGED_CARD_GAMES = ['okey', 'okey101', 'pisti', 'batak', 'tombala'];
 
 /* Bu oyunların masa kimlikleri için AYRILMIŞ aralıklar. Kurucu varsayılan
    masa sayısının üstüne masa eklediğinde yeni kimlik buradan verilir;
@@ -434,7 +439,9 @@ const CARD_TABLE_RANGE = {
      kapasitede (40 kimlik) ve varsayılanı da okeyinki gibi 18 masa. */
   okey101: [1201, 1240], // varsayılan 18 masa (1201-1218) + 22 boş
   pisti:   [341, 360],   // varsayılan 18 masa (341-358) +  2 boş
-  batak:   [361, 400]    // varsayılan  6 masa (361-366) + 34 boş
+  batak:   [361, 400],   // varsayılan  6 masa (361-366) + 34 boş
+  /* TOMBALA: 2-6 kişilik; ikinci değer çekiliş aralığıdır (saniye). */
+  tombala: [1301, 1340]  // varsayılan 16 masa (1301-1316) + 24 boş
 };
 /* 101 Okey'in ESKİ varsayılan kimlikleri. Kayıtlı yapılandırma hâlâ bu altı
    masadan ibaretse (kurucu hiç dokunmamış demektir) yeni 18'li düzene
@@ -506,7 +513,7 @@ function normPresetConfig(raw) {
         cfg[g].tables = defs;
         continue;
       }
-      const t = src.tables.slice(0, cardTableLimit(g)).map((x,i) => { const d=defs[i]||{}; x=x&&typeof x==='object'?x:{}; return {id:String(x.id||d.id||(bas+i)),name:String(x.name||d.name||('Masa #'+(bas+i))).slice(0,60),type:(x.type==='fast'||x.type==='thinker')?x.type:'normal',durationMinutes:clampDuration(x.durationMinutes,d.durationMinutes||10),moveSeconds:hamleSaniyeTemizle(x.moveSeconds!==undefined?x.moveSeconds:d.moveSeconds),maxPlayers:Math.max(2,Math.min(Number(x.maxPlayers||d.maxPlayers||2),4)),rounds:Number(x.rounds||d.rounds)||undefined}; });
+      const t = src.tables.slice(0, cardTableLimit(g)).map((x,i) => { const d=defs[i]||{}; x=x&&typeof x==='object'?x:{}; return {id:String(x.id||d.id||(bas+i)),name:String(x.name||d.name||('Masa #'+(bas+i))).slice(0,60),type:(x.type==='fast'||x.type==='thinker')?x.type:'normal',durationMinutes:clampDuration(x.durationMinutes,d.durationMinutes||10),moveSeconds:hamleSaniyeTemizle(x.moveSeconds!==undefined?x.moveSeconds:d.moveSeconds),maxPlayers:Math.max(2,Math.min(Number(x.maxPlayers||d.maxPlayers||2),g==='tombala'?6:4)),rounds:Number(x.rounds||d.rounds)||undefined}; });
       if (t.length) cfg[g].tables=t;
     }
     // ⚠ HATA DÜZELTMESİ: pisti/batak HEM yukarıdaki "yönetilen kart oyunu"
@@ -603,7 +610,7 @@ function cardPresetTables(gameId, startId) {
   for (const [players, rounds] of combos) for(let n=0;n<2;n++){const rid=String(id++);out.push({id:rid,gameId,maxPlayers:players,durationMinutes:rounds===1?10:rounds===3?15:20,rounds,name:`${players} Kişilik • ${rounds} El — Masa #${rid}`});}
   return out;
 }
-function managedCardTables(gameId) { const out=[]; let id=gameId==='okey'?301:gameId==='okey101'?1201:gameId==='pisti'?341:361; const combos=gameId==='okey'?[[2,3],[2,5],[2,7],[3,3],[3,5],[3,7],[4,3],[4,5],[4,7]]:gameId==='okey101'?[[2,10],[2,20],[2,30],[3,10],[3,20],[3,30],[4,10],[4,20],[4,30]]:gameId==='pisti'?[[2,1],[2,3],[2,5],[3,1],[3,3],[3,5],[4,1],[4,3],[4,5]]:[[4,3],[4,5],[4,7]];for(const [players,rounds] of combos)for(let n=0;n<2;n++){const rid=String(id++);const sure=gameId==='okey101'?rounds:(rounds===3?(gameId==='okey'?10:15):(rounds===5?15:20));out.push({id:rid,gameId,maxPlayers:players,rounds,durationMinutes:sure,moveSeconds:varsayilanHamleSn(gameId,sure),type:rounds<=1?'fast':rounds>=7?'thinker':'normal',name:`${players} Kişilik • ${rounds}${gameId==='okey101'?' dk':' El'} — Masa #${rid}`})}return out;}
+function managedCardTables(gameId) { const out=[]; let id=gameId==='okey'?301:gameId==='okey101'?1201:gameId==='pisti'?341:gameId==='tombala'?1301:361; const combos=gameId==='okey'?[[2,3],[2,5],[2,7],[3,3],[3,5],[3,7],[4,3],[4,5],[4,7]]:gameId==='okey101'?[[2,10],[2,20],[2,30],[3,10],[3,20],[3,30],[4,10],[4,20],[4,30]]:gameId==='pisti'?[[2,1],[2,3],[2,5],[3,1],[3,3],[3,5],[4,1],[4,3],[4,5]]:gameId==='tombala'?[[2,5],[2,8],[3,5],[3,8],[4,5],[4,8],[6,5],[6,8]]:[[4,3],[4,5],[4,7]];for(const [players,rounds] of combos)for(let n=0;n<2;n++){const rid=String(id++);const sure=gameId==='okey101'?rounds:gameId==='tombala'?10:(rounds===3?(gameId==='okey'?10:15):(rounds===5?15:20));out.push({id:rid,gameId,maxPlayers:players,rounds,durationMinutes:sure,moveSeconds:gameId==='tombala'?rounds:varsayilanHamleSn(gameId,sure),type:gameId==='tombala'?(rounds<=5?'fast':'normal'):(rounds<=1?'fast':rounds>=7?'thinker':'normal'),name:`${players} Kişilik • ${rounds}${gameId==='okey101'?' dk':gameId==='tombala'?' sn çekiliş':' El'} — Masa #${rid}`})}return out;}
 function presetTablesFromConfig(cfg) {
   const out = [];
   for (const g of STANDARD_PRESET_GAMES) {
@@ -623,6 +630,16 @@ function presetTablesFromConfig(cfg) {
       });
     });
   }
+  /* TOMBALA: kişi sayısı 2-6 arası masa başına ayarlanabildiği için
+     standart (kişi=2'ye sabit) yoldan değil, yönetilen masa yolundan geçer. */
+  { const gc=cfg.tombala||{}; if (tombalaEngine && gc.visible!==false) {
+      const defs=Array.isArray(gc.tables)&&gc.tables.length?gc.tables:managedCardTables('tombala');
+      defs.forEach((t,i)=>out.push({id:String(t.id||(1301+i)),gameId:'tombala',
+        maxPlayers:Math.max(2,Math.min(Number(t.maxPlayers)||2,6)),
+        durationMinutes:clampDuration(t.durationMinutes,10),
+        moveSeconds:hamleSaniyeTemizle(t.moveSeconds),
+        name:String(t.name||('Masa #'+(t.id||i))).slice(0,60)}));
+  } }
   for (const g of ['okey','okey101']) { const gc=cfg[g]||{}; if(gc.visible===false || (!okeyEngine && process.env.GV_OKEY_PRESETS!=='1')) continue; const defs=Array.isArray(gc.tables)&&gc.tables.length?gc.tables:managedCardTables(g); defs.forEach((t,i)=>out.push({id:String(t.id||((g==='okey'?301:331)+i)),gameId:g,maxPlayers:Number(t.maxPlayers)||2,durationMinutes:clampDuration(t.durationMinutes,10),moveSeconds:hamleSaniyeTemizle(t.moveSeconds),rounds:g==='okey'?Number(t.rounds)||3:undefined,name:String(t.name||('Masa #'+(t.id||i))).slice(0,60)})); }
   return out;
 }
@@ -899,6 +916,8 @@ function resetRoomToWaiting(room) {
   room.dama = null;
   room.reversi = null;
   room.gomoku = null;
+  if (room.tombala && room.tombala.timer) { clearTimeout(room.tombala.timer); }
+  room.tombala = null;
   room.kelimelik = null;
   room.connect4 = null;
   room.bilardo = null;
@@ -1375,6 +1394,131 @@ function kelimelikBitisYayinla(room, reason) {
     youWon: false, isSpectator: true, gameState: kelimelikState(room, null)
   }));
 }
+/* ========================================================================
+ * TOMBALA — oda akışı
+ * ========================================================================
+ * Oyuncu hamlesi YOKTUR: sunucu belirli aralıklarla bir top çeker, kartlar
+ * kendiliğinden kapanır. Bu yüzden hamle süresi, sıra ve terk cezası
+ * işletilmez; masanın "hamle süresi" ayarı burada ÇEKİLİŞ ARALIĞI anlamına
+ * gelir (kurucu panelinden masa başına ayarlanabilir).
+ * ====================================================================== */
+const TOMBALA_VARSAYILAN_ARALIK_MS = 4000;
+const TOMBALA_MIN_ARALIK_MS = 1500;
+
+function tombalaAralikMs(room) {
+  const sn = Number(room && room.moveLimitMs) > 0 ? Number(room.moveLimitMs) : 0;
+  const ms = sn > 0 ? sn : TOMBALA_VARSAYILAN_ARALIK_MS;
+  return Math.max(TOMBALA_MIN_ARALIK_MS, Math.min(20000, ms));
+}
+function tombalaState(room, seat) {
+  const g = room.tombala && room.tombala.st;
+  if (!g) return null;
+  const v = tombalaEngine.gorunum(g, seat);
+  v.status = room.status === 'playing' ? v.status : room.status;
+  v.aralikMs = tombalaAralikMs(room);
+  v.adlar = room.players.map(p => ({ seat: p.seat, name: p.name, ai: !!p.aiControlled }));
+  return v;
+}
+function emitTombalaState(room, event) {
+  const ev = event || 'gameStateUpdated';
+  room.players.forEach(p => emitToPlayer(p, ev, {
+    roomId: room.id, seat: p.seat, gameState: tombalaState(room, p.seat), isSpectator: false
+  }));
+  (room.spectators || []).forEach(p => emitToPlayer(p, ev, {
+    roomId: room.id, seat: null, gameState: tombalaState(room, null), isSpectator: true
+  }));
+}
+function tombalaZamanlayiciDurdur(room) {
+  if (room && room.tombala && room.tombala.timer) {
+    clearTimeout(room.tombala.timer);
+    room.tombala.timer = null;
+  }
+}
+function tombalaZamanlayiciKur(room) {
+  tombalaZamanlayiciDurdur(room);
+  if (!room || !room.tombala || room.status !== 'playing') return;
+  room.tombala.timer = setTimeout(() => tombalaCek(room), tombalaAralikMs(room));
+}
+/* Eli KAPAT: skoru yaz, gameEnded duyur, odayı sıfırlamaya al. Hem normal
+   bitişten (tombala verildi / torba boşaldı) hem de motorun "el çoktan bitti"
+   dediği durumdan çağrılır — ikinci durum, eli dışarıdan bitiren bir akış
+   (test, yönetici müdahalesi, yeniden yükleme) olduğunda odanın 'playing'
+   takılı kalmasını önler. */
+function tombalaBitir(room) {
+  if (!room || !room.tombala) return;
+  if (room.status === 'finished') return;   // iki yoldan da çağrılabilir, bir kez bitsin
+  const g = room.tombala.st;
+  tombalaZamanlayiciDurdur(room);
+  room.status = 'finished';
+  const sira = tombalaEngine.siralama(g);
+  const kazananSeat = sira.length ? sira[0].seat : null;
+  room.result = { winner: kazananSeat, reason: g.result && g.result.reason, siralama: sira };
+
+  /* PUAN: tombala şansa dayanır, bu yüzden terk cezası yoktur; yalnız
+     kazanana galibiyet yazılır (diğer oyunlardaki akışın aynısı). */
+  try {
+    puanYaz(scoring.macOlaylari({
+      gameId: room.gameId, roomId: room.id, elSayisi: 1,
+      oyuncular: room.players.map(p => ({
+        uid: p.userId, ad: p.name, kazandi: p.seat === kazananSeat
+      }))
+    }));
+  } catch (_) {}
+
+  room.players.forEach(p => emitToPlayer(p, 'gameEnded', {
+    roomId: room.id, reason: 'finished',
+    winnerSeat: kazananSeat, youWon: p.seat === kazananSeat,
+    gameState: tombalaState(room, p.seat)
+  }));
+  (room.spectators || []).forEach(p => emitToPlayer(p, 'gameEnded', {
+    roomId: room.id, reason: 'finished', winnerSeat: kazananSeat, youWon: false,
+    gameState: tombalaState(room, null)
+  }));
+  emitRoom(room);
+  scheduleRoomReset(room);
+}
+/* Bir top çek, kartları kapat, ödülleri duyur, el bitmediyse sırayı kur. */
+function tombalaCek(room) {
+  if (!room || !room.tombala || room.status !== 'playing') return;
+  const g = room.tombala.st;
+  const r = tombalaEngine.cek(g);
+  if (!r.ok) {
+    /* Motor "el bitti" diyor ama oda hâlâ oynuyor: eli şimdi kapat, yoksa
+       kimseye gameEnded gitmez ve masa sonsuza kadar açık kalır. */
+    tombalaZamanlayiciDurdur(room);
+    if (r.reason === 'el_bitti') tombalaBitir(room);
+    return;
+  }
+
+  io.to(room.id).emit('tombalaTop', {
+    roomId: room.id, top: r.top, kalan: g.torba.length,
+    kapatan: r.kapatan, yeniOduller: r.yeniOduller
+  });
+  emitTombalaState(room);
+
+  if (!r.bitti) { tombalaZamanlayiciKur(room); return; }
+  tombalaBitir(room);
+}
+function startTombala(room) {
+  if (!tombalaEngine) return;
+  if (room.status === 'playing') return;
+  if (room.players.length < 2 || room.players.length !== room.maxPlayers) return;
+  if (!room.players.every(p => p.isReady)) return;
+  cancelRoomReset(room);
+  room.status = 'playing';
+  room.result = null;
+  room.tombala = { st: tombalaEngine.elBaslat({ seats: room.players.map(p => p.seat), roundNo: 1 }), timer: null };
+  emitRoom(room);
+  room.players.forEach(p => emitToPlayer(p, 'gameStarted', {
+    roomId: room.id, seat: p.seat, players: publicRoom(room).players,
+    gameState: tombalaState(room, p.seat)
+  }));
+  (room.spectators || []).forEach(p => emitToPlayer(p, 'gameStarted', {
+    roomId: room.id, seat: null, isSpectator: true, gameState: tombalaState(room, null)
+  }));
+  tombalaZamanlayiciKur(room);
+}
+
 function startGomoku(room){if(room.status==='playing'||room.players.length!==2||!room.players.every(p=>p.isReady))return;room.status='playing';room.result=null;room.gomoku=gomokuEngine.init();room.turnStartedAt=now();touchMoveTimer(room);emitRoom(room);room.players.forEach(p=>emitToPlayer(p,'gameStarted',{roomId:room.id,seat:p.seat,playerColor:p.seat===0?'b':'w',players:publicRoom(room).players,gameState:gomokuState(room,p.seat)}));emitGomokuState(room);}
 function reversiState(room, seat) { const r=room.reversi; return {kind:'reversi',status:room.status,turn:r.turn,winner:r.winner,board:r.board.map(x=>x.slice()),seat,playerColor:seat===0?'b':'w',legalMoves:seat===null?[]:r.turn===(seat===0?'b':'w')?reversiEngine.legalMoves(r):[],result:r.result||null,...moveClockOf(room)}; }
 function emitReversiState(room,event='gameStateUpdated'){room.players.forEach(p=>emitToPlayer(p,event,{roomId:room.id,seat:p.seat,gameState:reversiState(room,p.seat),isSpectator:false}));(room.spectators||[]).forEach(p=>emitToPlayer(p,event,{roomId:room.id,seat:null,gameState:reversiState(room,null),isSpectator:true}));}
@@ -1487,6 +1631,7 @@ function buildBoardState(room, opts) {
   if (room.dama) return damaState(room, opts && opts.seat);
   if (room.reversi) return reversiState(room, opts && opts.seat);
   if (room.gomoku) return gomokuState(room, opts && opts.seat);
+  if (room.tombala) return tombalaState(room, opts && opts.seat);
   if (room.kelimelik) return kelimelikState(room, opts && opts.seat);
   if (room.connect4) return connect4State(room, opts && opts.seat);
   if (room.bilardo) return bilardoState(room, opts && opts.seat);
@@ -1556,6 +1701,7 @@ function emitPlayingSnapshot(room, socketId, player) {
   if (room && room.status === 'playing' && room.battleship) { const p=bakis; io.to(socketId).emit('gameStarted',{roomId:room.id,seat:p,isSpectator:!player,players:publicRoom(room).players,gameState:battleshipState(room,p)}); io.to(socketId).emit('gameStateUpdated',{roomId:room.id,seat:p,isSpectator:!player,gameState:battleshipState(room,p)}); return; }
   if (room && room.status === 'playing' && room.connect4) { const p=bakis; io.to(socketId).emit('gameStarted',{roomId:room.id,seat:p,isSpectator:!player,players:publicRoom(room).players,gameState:connect4State(room,p)}); io.to(socketId).emit('gameStateUpdated',{roomId:room.id,seat:p,isSpectator:!player,gameState:connect4State(room,p)}); return; }
   if (room && room.status === 'playing' && room.kelimelik) { const p=bakis; io.to(socketId).emit('gameStarted',{roomId:room.id,seat:p,isSpectator:!player,players:publicRoom(room).players,gameState:kelimelikState(room,p)}); io.to(socketId).emit('gameStateUpdated',{roomId:room.id,seat:p,isSpectator:!player,gameState:kelimelikState(room,p)}); return; }
+  if (room && room.status === 'playing' && room.tombala) { const p=bakis; io.to(socketId).emit('gameStarted',{roomId:room.id,seat:p,isSpectator:!player,players:publicRoom(room).players,gameState:tombalaState(room,p)}); io.to(socketId).emit('gameStateUpdated',{roomId:room.id,seat:p,isSpectator:!player,gameState:tombalaState(room,p)}); return; }
   if (room && room.status === 'playing' && room.gomoku) { const p=bakis; io.to(socketId).emit('gameStarted',{roomId:room.id,seat:p,isSpectator:!player,players:publicRoom(room).players,gameState:gomokuState(room,p)}); io.to(socketId).emit('gameStateUpdated',{roomId:room.id,seat:p,isSpectator:!player,gameState:gomokuState(room,p)}); return; }
   if (room && room.status === 'playing' && room.reversi) { const p=bakis; io.to(socketId).emit('gameStarted',{roomId:room.id,seat:p,isSpectator:!player,players:publicRoom(room).players,gameState:reversiState(room,p)}); io.to(socketId).emit('gameStateUpdated',{roomId:room.id,seat:p,isSpectator:!player,gameState:reversiState(room,p)}); return; }
   if (room && room.status === 'playing' && room.dama) { const p=bakis; io.to(socketId).emit('gameStarted',{roomId:room.id,seat:p,isSpectator:!player,players:publicRoom(room).players,gameState:damaState(room,p)}); io.to(socketId).emit('gameStateUpdated',{roomId:room.id,seat:p,isSpectator:!player,gameState:damaState(room,p)}); return; }
@@ -1676,6 +1822,7 @@ function startRoomGame(room) {
   if (ONLINE_CARD_GAMES.has(room.gameId)) return startCardGame(room);
   if (room.gameId === 'reversi') return startReversi(room);
   if (room.gameId === 'gomoku') return startGomoku(room);
+  if (room.gameId === 'tombala') return startTombala(room);
   if (room.gameId === 'kelimelik') return startKelimelik(room);
   if (room.gameId === 'connect4') return startConnect4(room);
   if (room.gameId === 'bilardo') return startBilardo(room);
@@ -2698,6 +2845,7 @@ function resignMatch(room, player) {
     const stateFor = seat =>
       room.dama ? damaState(room, seat) :
       room.reversi ? reversiState(room, seat) :
+      room.tombala ? tombalaState(room, seat) :
       room.gomoku ? gomokuState(room, seat) :
       room.kelimelik ? kelimelikState(room, seat) :
       room.connect4 ? connect4State(room, seat) :
@@ -3011,7 +3159,7 @@ function removePlayerFromRoom(room, player, message) {
   // aşağıdaki resetRoomToWaiting()'e düşer, status 'waiting' olur ve o andan
   // sonra hamle süresi denetimi de çalışmaz (saat 0'da donar). Amiral Battı
   // tam olarak bu yüzden rakip ayrılınca bitmiyordu.
-  if (wasPlaying && (room.dama || room.reversi || room.gomoku || room.kelimelik || room.connect4 || room.bilardo || room.battleship || room.cardGame)) {
+  if (wasPlaying && (room.dama || room.reversi || room.gomoku || room.kelimelik || room.connect4 || room.bilardo || room.battleship || room.cardGame || room.tombala)) {
     const kalanKoltuklar = room.players.map(p => p.seat);
     let winnerSeat = kalanKoltuklar[0];
     if (kalanKoltuklar.length > 1) {
@@ -3025,6 +3173,7 @@ function removePlayerFromRoom(room, player, message) {
     const stateFor = seat =>
       room.dama ? damaState(room, seat) :
       room.reversi ? reversiState(room, seat) :
+      room.tombala ? tombalaState(room, seat) :
       room.gomoku ? gomokuState(room, seat) :
       room.kelimelik ? kelimelikState(room, seat) :
       room.connect4 ? connect4State(room, seat) :

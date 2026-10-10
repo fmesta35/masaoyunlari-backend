@@ -40,14 +40,17 @@
      yok"). Liste SUNUCUDAN gelir (sema.duzenlenebilir). */
   let DUZENLENEBILIR = STANDARD.slice();
   /* Masa satırı kişi sayısı / el sayısı da taşıyan oyunlar ve üst sınırları. */
-  let KART_MASALARI = ['okey', 'okey101', 'pisti', 'batak'];
-  let KART_SINIR = { okey: 30, okey101: 10, pisti: 20, batak: 40 };
+  let KART_MASALARI = ['okey', 'okey101', 'pisti', 'batak', 'tombala'];
+  let KART_SINIR = { okey: 30, okey101: 40, pisti: 20, batak: 40, tombala: 40 };
   /* Bu oyunlarda masa satırında hangi ek sütunlar görünsün?
      okey101'de "rounds" el değil SÜRE anlamına geldiği için el sütunu yok;
      batak masaları tanımı gereği 4 kişiliktir, kişi sütunu yok. */
   const KART_SUTUN = {
     okey:    { kisi: [2, 3, 4], el: [3, 5, 7],  elEtiket: 'El' },
     okey101: { kisi: [2, 3, 4], el: null,       elEtiket: '' },
+    /* Tombalada el yoktur; kişi sayısı 2-6, çekiliş hızı "hamle süresi"
+       sütunundan ayarlanır (saniye). */
+    tombala: { kisi: [2, 3, 4, 5, 6], el: null, elEtiket: '' },
     pisti:   { kisi: [2, 3, 4], el: [1, 3, 5],  elEtiket: 'El' },
     batak:   { kisi: null,      el: [3, 5, 7],  elEtiket: 'El' }
   };

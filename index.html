@@ -2191,6 +2191,61 @@ body.gv-app input,body.gv-app textarea,body.gv-app .chat-msgs,body.gv-app .moves
   .ok101a-tx{width:20px;height:20px;font-size:11px}
 }
 
+/* ===================== TOMBALA ===================================== */
+/* Oyuncu hamlesi yok: ekran çekilen top, torba durumu, herkesin kartı ve
+   ödül panosundan ibarettir. Göz genişliği JS'te ÖLÇÜLEN alana göre
+   veriliyor (--tb-goz); sabit vw tahmini tam ekranda tutmuyor. */
+.tb-wrap{--tb-goz:32px;width:100%;display:flex;flex-direction:column;gap:9px}
+.tb-ust{display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:14px;
+  background:linear-gradient(135deg,#3a1030,#6d1c4c);border:1px solid rgba(255,255,255,.12)}
+.tb-top{flex:0 0 auto;width:72px;height:72px;border-radius:50%;display:grid;place-items:center;
+  font-weight:900;font-size:1.9em;color:#4a0f33;background:radial-gradient(circle at 34% 30%,#fff,#f3cfe3 60%,#d98cba);
+  box-shadow:inset 0 -4px 10px rgba(0,0,0,.25),0 6px 18px rgba(0,0,0,.45);font-variant-numeric:tabular-nums}
+.tb-top:not(.dolu){color:rgba(74,15,51,.4)}
+.tb-ust-bilgi{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;gap:6px}
+.tb-kalan{font-size:.88em;color:#f5d7e9}
+.tb-kalan b{color:#fff;font-variant-numeric:tabular-nums}
+.tb-son5{display:flex;gap:4px;flex-wrap:wrap}
+.tb-mini{min-width:26px;text-align:center;padding:2px 5px;border-radius:7px;font-size:.78em;
+  font-weight:700;background:rgba(0,0,0,.28);color:#f0c6de;font-variant-numeric:tabular-nums}
+.tb-mini.ilk{background:#f0c6de;color:#4a0f33}
+.tb-pano{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px}
+.tb-odul{padding:7px 9px;border-radius:11px;border:1px solid var(--border);background:var(--bg2);
+  display:flex;flex-direction:column;gap:2px;min-width:0}
+.tb-odul.verildi{border-color:#f0a23c;background:rgba(240,162,60,.12)}
+.tb-odul-ad{font-size:.72em;color:var(--text3);letter-spacing:.4px;text-transform:uppercase}
+.tb-odul-kim{font-size:.86em;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tb-odul.verildi .tb-odul-kim{color:#f0a23c}
+.tb-kartlar{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.tb-kart{border:1px solid var(--border);border-radius:13px;padding:9px;background:var(--bg2);min-width:0}
+.tb-kart.benim{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent) inset}
+.tb-kart-bas{display:flex;align-items:baseline;gap:8px;margin-bottom:6px}
+.tb-ad{flex:1;min-width:0;font-size:.86em;font-weight:700;overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap}
+.tb-sayac{font-size:.76em;color:var(--text3);font-variant-numeric:tabular-nums}
+.tb-rozetler{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:6px}
+.tb-rozet{font-size:.68em;font-weight:800;padding:2px 7px;border-radius:999px;
+  background:rgba(240,162,60,.18);color:#f0a23c}
+.tb-rozet.tombala{background:rgba(46,204,113,.18);color:#2ecc71}
+.tb-izgara{display:flex;flex-direction:column;gap:3px}
+.tb-satir{display:grid;grid-template-columns:repeat(9,minmax(0,1fr));gap:3px;border-radius:7px;
+  padding:2px;transition:background .25s}
+.tb-satir.tam{background:rgba(46,204,113,.15)}
+.tb-goz{height:var(--tb-goz);display:grid;place-items:center;border-radius:6px;
+  font-size:calc(var(--tb-goz) * .44);font-weight:700;font-variant-numeric:tabular-nums;
+  background:#1e2333;color:var(--text2);transition:background .2s,color .2s,transform .2s}
+.tb-goz.bos{background:transparent}
+.tb-goz.acik{background:linear-gradient(160deg,#f3e2bd,#d9c193);color:#2a2010}
+.tb-goz.son{outline:2px solid var(--accent);outline-offset:-2px;transform:scale(1.08)}
+.tb-not{font-size:.78em;color:var(--text3);text-align:center}
+@media(max-width:700px){
+  .tb-kartlar{grid-template-columns:minmax(0,1fr)}
+  .tb-top{width:58px;height:58px;font-size:1.5em}
+  .tb-pano{grid-template-columns:repeat(3,minmax(0,1fr));gap:5px}
+  .tb-odul{padding:5px 7px}
+  .tb-odul-kim{font-size:.78em}
+}
+
 /* ---------- 9b-3) MASA OYLAMASI PENCERESİ ---------- */
 .mo-ov{position:fixed;inset:0;z-index:3200;background:rgba(5,6,16,.8);
   display:flex;align-items:center;justify-content:center;padding:16px;backdrop-filter:blur(3px)}
@@ -2863,7 +2918,7 @@ const TWO_PLAYER_GAMES = ['chess', 'tavla', 'dama', 'turkdamasi', 'reversi', 'go
 // SUNUCUDA GERÇEK MASALARI OLAN OYUNLAR: lobi listesi Render'dan gelir.
 // Damalar/reversi/gomoku/connect4/bilardo da 10'ar hazır masa açıldı —
 // bekleme odaları (otur/kalk/hazırım) tümünde aynı şekilde çalışır.
-const ONLINE_GAMES = ['chess', 'tavla', 'okey', 'okey101', 'dama', 'turkdamasi', 'reversi', 'gomoku', 'connect4', 'bilardo', 'battleship', 'kelimelik'];
+const ONLINE_GAMES = ['chess', 'tavla', 'okey', 'okey101', 'dama', 'turkdamasi', 'reversi', 'gomoku', 'connect4', 'bilardo', 'battleship', 'kelimelik', 'tombala'];
 // Okey VE 101 Okey ONLINE (gerçek oyuncular, sunucu yetkili). Bot yedeği
 // yalnızca henüz online motoru olmayan (pişti, batak) oyunlarda devrede.
 const BOT_FALLBACK_GAMES = ['pisti', 'batak'];
@@ -2888,10 +2943,11 @@ const GAMES={
   connect4:{name:'Connect4',icon:'🔴',cat:'strategy',bg:'linear-gradient(150deg,#0b2560,#1746a8 55%,#e8495a)',cover:'assets/covers/connect4.jpg'},
   bilardo:{name:'Bilardo',icon:'🎱',cat:'board',bg:'linear-gradient(150deg,#07301d,#0f5c34 55%,#188a4e)',cover:'assets/covers/bilardo.jpg'},
   battleship:{name:'Amiral Battı',icon:'🚢',cat:'strategy',bg:'linear-gradient(150deg,#041a2e,#0b3a54 55%,#1f7fa8)',cover:'assets/covers/battleship.jpg'},
-  kelimelik:{name:'Kelimelik',icon:'🔤',cat:'board',bg:'linear-gradient(150deg,#2b1c3f,#5a3a7a 55%,#9b6fc4)',cover:'assets/covers/kelimelik.jpg'}
+  kelimelik:{name:'Kelimelik',icon:'🔤',cat:'board',bg:'linear-gradient(150deg,#2b1c3f,#5a3a7a 55%,#9b6fc4)',cover:'assets/covers/kelimelik.jpg'},
+  tombala:{name:'Tombala',icon:'🎱',cat:'card',bg:'linear-gradient(150deg,#3a1030,#7a1f55 55%,#d1468c)',cover:'assets/covers/tombala.jpg'}
 };
 
-const ROOMS = { chess:[], tavla:[], dama:[], turkdamasi:[], okey:[], okey101:[], pisti:[], batak:[], reversi:[], gomoku:[], connect4:[], bilardo:[], battleship:[], kelimelik:[] };
+const ROOMS = { chess:[], tavla:[], dama:[], turkdamasi:[], okey:[], okey101:[], pisti:[], batak:[], reversi:[], gomoku:[], connect4:[], bilardo:[], battleship:[], kelimelik:[], tombala:[] };
 
 const RULES={
   kelimelik:`<div class="rules-content"><h3>🎯 Kelimelik — Amaç</h3><p>Istakandaki yedi harfle 15×15 tahtaya kelime dizerek rakibinden çok puan toplamak. Masa <b>iki kişiliktir</b>.</p><h3>📖 Sözlük</h3><p>TDK Güncel Türkçe Sözlük esas alınır ve denetim <b>kapatılamaz</b>. Sözlükte <b>madde başı</b> ne ise o geçerlidir; ek almış biçimler (kediler, evde, geldim) geçerli DEĞİLDİR. Fiiller mastar hâliyle bulunur: <b>gel</b> ✗ · <b>gelmek</b> ✓. Özel adlar, element simgeleri ve kısaltmalar yoktur; ülke adları kabul edilir. Sözlükte olduğunu düşündüğün bir kelime reddedilirse <b>📣 Kelime Bildir</b> ile iletebilirsin; doğrulanırsa sözlüğe eklenir.</p><h3>📋 Nasıl Oynanır</h3><p>İlk hamle ★ başlangıç karesinden geçmeli ve en az iki harfli olmalıdır. Sonraki her hamle tahtadaki bir kelimeye değmeli; harfler tek hat üzerinde ve aralarında boşluk kalmadan dizilmelidir. Kesişmeden doğan yan kelimeler de denetlenir ve ayrıca puanlanır.</p><h3>🎯 Puanlama</h3><ul><li>H²/H³ harfin, K²/K³ kelimenin puanını çarpar; bonus yalnız üzerine İLK konulduğu hamlede sayılır.</li><li>Yedi harfin tamamı kullanılırsa <b>+35 Bingo</b>.</li><li>Joker (★) her harfin yerine geçer, 0 puandır.</li></ul><h3>⚙️ Bu Platformda</h3><ul><li>Hamle süresi masa tipindedir: ⚡ Hızlı 30 sn · ♟️ Normal 45 sn · 🧠 Düşünen 60 sn. Süresi dolan oyuncu <b>pas geçmiş sayılır</b> (hükmen mağlup olmaz).</li><li>Hamle bulunamazsa oyuncu masadan atılmaz, sırası <b>otomatik pas</b> geçilir.</li><li>Bir oyuncu <b>üst üste 3 kez</b> pas geçerse (elle, otomatik ya da süre aşımıyla) <b>diskalifiye</b> olur: puanı silinir, rakip hükmen kazanır.</li><li>İki oyuncu da üst üste ikişer kez pas geçerse maç biter.</li><li>Torba boşalıp bir oyuncu taşlarını bitirince maç biter; rakibin elinde kalan taşların puanı ondan düşülüp bitirene eklenir.</li><li>Ayrılma ve pes etme hükmen mağlubiyettir: puanın silinir ve terk cezası uygulanır.</li><li>Rövanş için masadaki <b>her iki oyuncunun da</b> kabul etmesi gerekir.</li></ul></div>`,
@@ -2907,6 +2963,7 @@ const RULES={
   gomoku:`<div class="rules-content"><h3>🎯 Gomoku — Amaç</h3><p>Yatay, dikey ya da çapraz bir doğrultuda arka arkaya en az 5 taş dizen ilk oyuncu olmak.</p><h3>📋 Nasıl Oynanır</h3><p>15x15 tahtada oyuncular sırayla boş bir kareye taş yerleştirir (taş bir daha oynatılmaz), siyah başlar.</p><h3>⚙️ Bu Platformda</h3><p>Serbest (freestyle) kurallarla oynanır: Renju/geleneksel gomokudaki "tam 5 olmalı, 6 ve üzeri sayılmaz" ya da siyah için yasak hamle gibi kısıtlamalar YOKTUR — 5 veya daha fazla taşın art arda dizilmesi kazandırır. Tahta tamamen dolar da kimse 5'li yapamazsa oyun berabere biter.</p></div>`,
   connect4:`<div class="rules-content"><h3>🎯 Connect4 — Amaç</h3><p>Yatay, dikey ya da çapraz bir doğrultuda arka arkaya 4 taş dizen ilk oyuncu olmak.</p><h3>📋 Nasıl Oynanır</h3><p>7 sütun × 6 satırlık bir tahtada oyuncular sırayla bir sütun seçer; taş yerçekimiyle o sütundaki en alttaki boş kareye düşer. Sütun doluysa oraya oynanamaz.</p><h3>🏁 Kazanma</h3><p>İlk 4'lüyü yapan kazanır; tahtanın tamamı (42 kare) dolar da kimse 4'lü yapamazsa oyun berabere biter.</p></div>`,
   bilardo:`<div class="rules-content"><h3>🎯 8-Top Bilardo — Amaç</h3><p>Kendi grubunu (düz ya da çizgili toplar) bitirip 8 topu EN SON olarak kurallara uygun şekilde potlamak.</p><h3>📋 Nasıl Oynanır</h3><p>Gerçekçi 2 boyutlu fizik motoruyla oynanır: vuruş açısı, güç, falso (yan/üst/alt spin) ve masse atışları için isteka yüksekliği ayarlanabilir. İlk potlanan renkli (8 hariç) top hangi oyuncunundur, o oyuncunun grubu o olur — düz mü çizgili mi, rakibinki otomatik olarak diğer grup olur.</p><h3>⚙️ Bu Platformda — Faul Sayılan Durumlar</h3><ul><li>Beyaz (isteka) topunu potlamak.</li><li>Grubun belliyken önce kendi grubundan bir topa değmemek.</li><li>Vuruşta hiçbir topa değmemek ya da temas sonrası hiçbir top banda/pota gitmemek.</li></ul><p>Faul yapılırsa ya da kendi grubundan olmayan bir top potlanırsa sıra rakibe geçer; kendi grubundan yasal bir top potlarsan sıra sende kalır. Beyaz top potlanırsa (skreç) masaya güvenli bir noktaya yeniden konur. Grubun bitmeden ya da faul yaparken 8 topu potlarsan maçı RAKİBİNE kaptırırsın.</p><h3>🏁 Kazanma</h3><p>Grubun tamamen bitmişken faulsüz şekilde 8 topu potlayan kazanır.</p></div>`,
+  tombala:`<div class="rules-content"><h3>🎱 Tombala — Amaç</h3><p>Kartındaki <b>15 sayıyı</b> ilk kapatan olmak. Oyun tamamen şansa dayanır: yapman gereken bir şey yok, toplar kendiliğinden çekilir ve kartın otomatik kapanır.</p><h3>🎟️ Kart</h3><p>Her oyuncuya <b>3 satır × 9 sütunluk</b> bir kart verilir. Her satırda tam <b>5 sayı</b> bulunur (kartta toplam 15 sayı); sütunlar onluk dilimlerdir: 1-9, 10-19 … 80-90. Her sütunda en az bir sayı vardır.</p><h3>📋 Nasıl Oynanır</h3><p>Torbada 1'den 90'a kadar 90 top vardır. Sunucu belirli aralıklarla birer top çeker; çekilen sayı kartında varsa kendiliğinden kapanır. Masanın çekiliş hızı kurucu tarafından ayarlanır.</p><h3>🏅 Ödüller</h3><ul><li><b>1. Çinko</b> — bir satırı ilk kapatan (1 puan).</li><li><b>2. Çinko</b> — iki satırı ilk kapatan (2 puan).</li><li><b>Tombala</b> — on beş sayının tamamını kapatan (4 puan).</li></ul><p>Ödüller sırayla verilir: 1. çinko verilmeden 2. çinko verilmez. Aynı çekilişte birden fazla oyuncu hak ederse ödül <b>paylaşılır</b> ve her biri tam puan alır.</p><h3>🏁 Bitiş</h3><p>Tombala yapıldığında el biter. Kimse tombala yapamadan torba boşalırsa en çok puanı olan kazanır; puanlar eşitse daha çok sayı kapatan öndedir.</p><h3>⚙️ Bu Platformda</h3><ul><li>Hamle sırası olmadığı için <b>hamle süresi ve terk cezası yoktur</b>.</li><li>Masa 2-6 kişiliktir; herkes herkesin kartını görebilir, tombalada gizli bilgi yoktur.</li></ul></div>`,
   battleship:`<div class="rules-content"><h3>🎯 Amiral Battı — Amaç</h3><p>10x10 haritada filonu gizle, rakibinkini önce sen bul ve batır.</p><h3>📋 Nasıl Oynanır</h3><ul><li>Filo: Uçak Gemisi (5 hücre), Zırhlı (4), Kruvazör (3), Denizaltı (3), Muhrip (2) — toplam 17 hücre.</li><li>Her iki oyuncu da gemilerini kendi haritasına gizlice yerleştirir; yerleştirme bitince sırayla karşı haritaya ateş edilir.</li></ul><h3>⚙️ Bu Platformda</h3><p>İsabet etsen bile ekstra atış hakkın yoktur — her atıştan sonra (vuruş ya da vuramama fark etmeksizin) sıra rakibe geçer.</p><h3>🏁 Kazanma</h3><p>Rakibin filosundaki TÜM hücreleri (17 hücrenin tamamını) batıran kazanır.</p></div>`
 };
 
@@ -6324,6 +6381,7 @@ GV.init();
 <script src="js/tournaments.js?v=20260927a" defer></script>
 <script src="js/battleship-online.js?v=20260920c" defer></script>
 <script src="js/kelimelik-online.js?v=20261003a" defer></script>
+<script src="js/tombala-online.js?v=20261010a" defer></script>
 <script src="js/chat.js?v=20260821c" defer></script>
 <script src="js/leave-guard.js?v=20260927c" defer></script>
 <script src="js/auth.js?v=20260912a" defer></script>
