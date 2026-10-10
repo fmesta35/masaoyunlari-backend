@@ -1637,24 +1637,55 @@ html{scrollbar-gutter:stable}
     flex:1 1 0;min-width:0;justify-content:center}
   #pg-room.gv-kl .kl-istaka-kutu{margin-top:7px;padding:6px}
 }
-/* YATAY TELEFON, STANDART (tam ekran değil): üst çubuklar sıkışır.
-   Site başlığı yalnız kelimelik masasındayken ve yalnız alçak yatay ekranda
-   gizlenir; masadan çıkınca sınıf kalkar ve başlık geri gelir. */
-@media(max-height:520px) and (orientation:landscape){
+/* ---- YATAY (telefon/alçak pencere): SÜRE TAHTANIN YANINA, ÜST ÇUBUKLAR SIKIŞIR
+   Kullanıcı isteği: "standart ekran yatayda görüntü simülasyon gibi küçücük
+   gözüküyor; dikeydeki büyük ekran görünümüne sahip olsun yatay yatırılsa
+   bile." Alçak ekranda yüksekliğin her pikseli tahtanındır:
+     · site başlığı (yalnız kelimelik masasındayken) gizlenir,
+     · oda başlığı ve düğmeler tek sıraya iner,
+     · yan panel DAR BİR SÜTUNA döner ve tahtanın YANINA geçer — altında
+       olsaydı tahtanın yüksekliğinden yerdi (bkz. sureRez). */
+@media(max-height:560px) and (orientation:landscape){
   body.gv-kl-masa .header{display:none}
-  body.gv-kl-masa .container,body.gv-kl-masa .main{padding-top:6px}
-  #pg-room.gv-kl .gr-header{margin-bottom:4px;gap:6px;flex-wrap:nowrap}
-  #pg-room.gv-kl #grTitle{font-size:.95em;white-space:nowrap;overflow:hidden;
-    text-overflow:ellipsis}
+  body.gv-kl-masa .container,body.gv-kl-masa .main{padding-top:4px}
+  #pg-room.gv-kl .gr-header{margin-bottom:3px;gap:6px;flex-wrap:nowrap;align-items:center}
+  #pg-room.gv-kl #grTitle{font-size:.86em;white-space:nowrap;overflow:hidden;
+    text-overflow:ellipsis;max-width:34vw}
   #pg-room.gv-kl .gr-actions{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}
   #pg-room.gv-kl .gr-actions::-webkit-scrollbar{display:none}
-  #pg-room.gv-kl .gr-actions .btn{padding:4px 8px;font-size:.72em;white-space:nowrap}
-  #pg-room.gv-kl .game-layout{gap:6px}
-  /* Süre kartları yatayda tahtanın yanına değil, kumandanın yanına sığsın. */
-  #pg-room.gv-kl .game-side{gap:5px}
+  #pg-room.gv-kl .gr-actions .btn{padding:3px 7px;font-size:.7em;white-space:nowrap;
+    min-height:0}
+  /* Yan panel tahtanın YANINDA dar bir sütun: süre kartları alt alta. */
+  #pg-room.gv-kl .game-layout{flex-direction:row;align-items:stretch;gap:6px;flex-wrap:nowrap}
+  #pg-room.gv-kl .game-board-area{flex:1 1 auto;min-width:0}
+  #pg-room.gv-kl .game-side{width:94px;flex:0 0 94px;gap:5px}
   #pg-room.gv-kl .game-side>*:not(.timers){display:none}
-  #pg-room.gv-kl .game-side .timers{flex-direction:row;gap:5px}
-  #pg-room.gv-kl .game-side .timer{padding:4px 6px}
+  #pg-room.gv-kl .game-side .timers{flex-direction:column;gap:5px}
+  #pg-room.gv-kl .game-side .timer{padding:5px 4px;border-width:1px}
+  #pg-room.gv-kl .game-side .timer-name{font-size:.62em}
+  #pg-room.gv-kl .game-side .timer-time,
+  #pg-room.gv-kl .game-side .timer-move{font-size:1em}
+  #pg-room.gv-kl .game-side .timer.active{transform:none;box-shadow:none}
+}
+
+/* ---- MOBİL TAM EKRAN, DİKEY: SOL SÜRE ŞERİDİ KALKAR
+   Kullanıcı isteği: "tam ekran dikeyde sol tarafta saçma sapan süre kısımları
+   olduğu için oyun ekranını sıkıştırmış; geniş ekran görünümü sağla, süreyi
+   altına yatay olarak sığdırırsın." Ortak tam ekran kuralı sola 86 px'lik bir
+   şerit ayırıyor; dikeyde tahta GENİŞLİKLE sınırlı olduğu için o şerit
+   doğrudan tahtadan çalıyordu. Kelimelikte dikey tam ekranda şerit kalkar,
+   süre kartları tahtanın ALTINA yatay olarak iner. */
+@media(orientation:portrait){
+  #pg-room.gv-fs.gv-kl{grid-template-columns:minmax(0,1fr);
+    grid-template-rows:auto minmax(0,1fr) auto}
+  #pg-room.gv-fs.gv-kl .game-board-area{grid-column:1;grid-row:2}
+  #pg-room.gv-fs.gv-kl .game-side{grid-column:1;grid-row:3;align-self:end;
+    width:100%;flex-direction:row;gap:6px;margin-top:4px}
+  #pg-room.gv-fs.gv-kl .game-side .timers{flex-direction:row;gap:6px;width:100%}
+  #pg-room.gv-fs.gv-kl .game-side .timer{padding:5px 6px}
+  #pg-room.gv-fs.gv-kl .game-side .timer-name{font-size:.66em}
+  #pg-room.gv-fs.gv-kl .game-side .timer-time,
+  #pg-room.gv-fs.gv-kl .game-side .timer-move{font-size:1.1em}
 }
 
 /* ISTAKA + KUMANDA ortak sütunu. Dikeyde tahtanın altında normal akışta
@@ -1669,12 +1700,24 @@ html{scrollbar-gutter:stable}
    üstüne binmez. */
 .kl-wrap.kl-yatay{flex-direction:row;align-items:center;gap:10px;justify-content:center}
 .kl-wrap.kl-yatay .kl-kutu{flex:0 0 auto;margin:0}
-.kl-wrap.kl-yatay .kl-sag{flex:1 1 0;min-width:0;width:auto;justify-content:center;gap:8px;margin-top:0}
+/* Sağ sütun kalan genişliği alır ama SINIRLI: geniş ekranda 460 px'i aşarsa
+   tahta ile düğmeler arasında kocaman bir boşluk kalıyordu (kullanıcı
+   raporundaki web görüntüsü). Sınır konunca kolon derli toplu duruyor. */
+.kl-wrap.kl-yatay .kl-sag{flex:1 1 0;min-width:0;width:auto;max-width:460px;
+  justify-content:center;gap:8px;margin-top:0}
 .kl-wrap.kl-yatay .kl-istaka-kutu{margin-top:0}
 /* Yan sütunda ıstaka iki sıraya sarabilir: 7 taş dar sütuna sığmayabilir. */
 .kl-wrap.kl-yatay .kl-istaka{flex-wrap:wrap;overflow:visible;min-height:0}
-.kl-wrap.kl-yatay .kl-kumanda{flex-wrap:wrap;overflow:visible;justify-content:center;margin-top:0}
-.kl-wrap.kl-yatay .kl-kumanda .btn{flex:0 0 auto}
+/* Düğmeler sütunda IZGARA: alt alta dağılmak yerine eşit kutularda oturur,
+   hepsi görünür ve "Kelime Bildir" de yan boşluğa düzgün yerleşir. */
+.kl-wrap.kl-yatay .kl-kumanda{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:6px;margin-top:0;overflow:visible}
+.kl-wrap.kl-yatay .kl-kumanda .btn{flex:none;width:100%;justify-content:center;
+  min-width:0;white-space:nowrap}
+/* Dar sütunda (yatay telefon) tek sütuna iner. */
+@media(max-width:620px){
+  .kl-wrap.kl-yatay .kl-kumanda{grid-template-columns:minmax(0,1fr)}
+}
 /* TAM EKRAN: tahta kutusu kendi ölçüsünü JS'te hesaplar (bkz.
    js/kelimelik-online.js olcuYaz), burada yalnız sarmalayıcı esnetilir. */
 #pg-room.gv-fs .kl-wrap{max-width:none;width:100%;height:100%;max-height:100%;min-height:0;

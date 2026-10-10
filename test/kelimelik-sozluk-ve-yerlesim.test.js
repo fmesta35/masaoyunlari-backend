@@ -182,6 +182,26 @@ function bolum4() {
   assert.ok(/width:var\(--kl-rt/.test(sayfa), 'taş boyu ölçülen değerden gelmeli');
   assert.ok(!/\.kl-rt\{width:clamp\(28px,4\.6vw,38px\)/.test(sayfa),
     'yatay telefon medya sorgusu taş ölçüsünü EZMEMELİ');
+
+  /* YATAY (alçak ekran): süre kartları tahtanın YANINDA dar bir sütunda
+     olmalı — altında olsaydı tahtanın yüksekliğinden yerdi. */
+  assert.ok(/#pg-room\.gv-kl \.game-layout\{flex-direction:row/.test(sayfa),
+    'yatayda yan panel tahtanın yanına geçmeli');
+  assert.ok(/#pg-room\.gv-kl \.game-side\{width:94px/.test(sayfa),
+    'yatayda yan panel dar bir sütun olmalı');
+  assert.ok(/body\.gv-kl-masa \.header\{display:none\}/.test(sayfa),
+    'yatayda site başlığı tahtaya yer açmalı');
+  /* TAM EKRAN DİKEY: soldaki 86 px'lik süre şeridi kalkmalı, süre alta inmeli. */
+  assert.ok(/#pg-room\.gv-fs\.gv-kl\{grid-template-columns:minmax\(0,1fr\);/.test(sayfa),
+    'tam ekran dikeyde sol süre şeridi kalkmalı (tahta tüm genişliği alsın)');
+  assert.ok(/#pg-room\.gv-fs\.gv-kl \.game-side\{grid-column:1;grid-row:3/.test(sayfa),
+    'tam ekran dikeyde süre kartları tahtanın altına inmeli');
+  /* GENİŞ EKRAN: sağ sütun sınırlı olmalı, yoksa tahta ile düğmeler arasında
+     kocaman boşluk kalıyor. */
+  assert.ok(/\.kl-wrap\.kl-yatay \.kl-sag\{[^}]*max-width:460px/.test(sayfa),
+    'yan yana yerleşimde sağ sütun sınırlanmalı');
+  assert.ok(/\.kl-wrap\.kl-yatay \.kl-kumanda\{display:grid/.test(sayfa),
+    'yan sütunda düğmeler ızgaraya girmeli');
   assert.ok(/<div class="kl-sag">/.test(kod), 'çizimde ortak sütun olmalı');
   console.log('  ✓ 4) dikey/yatay yerleşim kuralları ve tam ekran uyumu yerinde');
 }
