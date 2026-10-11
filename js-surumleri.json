@@ -1,8 +1,4 @@
 {
-  "fark-sahneler.js": {
-    "v": "20261011b",
-    "sha": "63e5f931efd9"
-  },
   "js/adamasmaca-online.js": {
     "v": "20261011a",
     "sha": "72c89cfda6c4"
@@ -71,6 +67,10 @@
     "v": "20261011b",
     "sha": "1d8098825717"
   },
+  "js/fark-sahneler.js": {
+    "v": "20261011b",
+    "sha": "63e5f931efd9"
+  },
   "js/games.js": {
     "v": "20260823b",
     "sha": "f5422f097024"
@@ -84,8 +84,8 @@
     "sha": "b478e2dbeaaa"
   },
   "js/havahokeyi-online.js": {
-    "v": "20261011b",
-    "sha": "47d3f02f4b4a"
+    "v": "20261011c",
+    "sha": "c45419e2902a"
   },
   "js/izleyici.js": {
     "v": "20261004a",
@@ -124,8 +124,8 @@
     "sha": "6809f2d1cb81"
   },
   "js/metropol-online.js": {
-    "v": "20261011b",
-    "sha": "58b3559db696"
+    "v": "20261011g",
+    "sha": "079be3f476c7"
   },
   "js/move-clock.js": {
     "v": "20260908a",

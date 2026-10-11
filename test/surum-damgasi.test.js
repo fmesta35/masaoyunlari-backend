@@ -46,6 +46,21 @@ const KOK = path.join(__dirname, '..');
       'index.html var olmayan betiklere bağlanıyor: ' + eksik.map(b => b.yol).join(', '));
     console.log('  ✓ 2) index.html\'in bağladığı tüm betikler depoda var');
 
+    /* 2b) SERVİS EDİLEBİLİRLİK: sunucu güvenlik gereği yalnız js/, css/ ve
+       assets/ klasörlerini yayınlar (bkz. server.js statik yollar) + açıkça
+       tanımlı birkaç kök dosya. Depoda VAR olması yetmez, tarayıcının
+       indirebilmesi gerekir.
+       ⚠ Bu gerçekten yaşandı: fark-sahneler.js depo KÖKÜNDEYDİ, /fark-sahneler.js
+       404 dönüyordu, GVFark hiç oluşmuyor ve Fark Bulmaca "Sahne çizimleri
+       yüklenemedi" hatasıyla hiç açılmıyordu. */
+    const KOK_ISTISNA = ['sw.js'];
+    const servisDisi = Object.keys(kayit).filter(
+      y => !/^(js|css|assets)\//.test(y) && KOK_ISTISNA.indexOf(y) === -1);
+    assert.strictEqual(servisDisi.length, 0,
+      'bu betikler sunucudan SERVİS EDİLMİYOR (js/, css/ ya da assets/ altına taşıyın): ' +
+      servisDisi.join(', '));
+    console.log('  ✓ 2b) bağlanan her betik sunucunun yayınladığı bir klasörde');
+
     // 4) Düzeltmesi canlıya ulaşmayan dosyalar artık ESKİ etiketle olmamalı.
     //    (Bu dört dosya bire bir o olayın kurbanıydı; etiketleri geri
     //    düşerse aynı hata tekrar eder.)

@@ -26,7 +26,7 @@
  * Bu dosya SAF mantıktır: soket, zamanlayıcı, oda yoktur.
  * ========================================================================= */
 
-const S = require('./fark-sahneler.js');
+const S = require('./js/fark-sahneler.js');
 
 const EL_BASINA_FARK = 7;
 const KAZANMA_SAYISI = 2;            // 3 elin 2'si

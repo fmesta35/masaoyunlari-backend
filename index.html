@@ -2618,12 +2618,16 @@ body.gv-app input,body.gv-app textarea,body.gv-app .chat-msgs,body.gv-app .moves
 }
 
 /* ---------- 9b-2d) METROPOL ----------
-   11×11 çerçeve: 40 kare kenarlarda, orta alan bilgi paneli. Kare boyu
-   (--mp-k) JS'te ölçülür (js/metropol-online.js → olcuYaz), çünkü ızgaranın
-   kenarı hem genişliğe hem yüksekliğe bağlı. Kenar karelerinde yazı
-   kenara göre DÖNER: alt/üst kenarda düz, yan kenarlarda 90°.
+   Tahta mantıksal olarak 11×11'dir (dört köşe kare yerinde kalsın diye) ama
+   hücreler KARE DEĞİLDİR: çerçeve derinliği (--mp-d) ile kenar hücrelerinin
+   genişliği (--mp-wt) ve yüksekliği (--mp-hs) ayrı ölçülür. Böylece tahta
+   1:1'e hapsolmaz, ekranın en-boy oranına yayılır ve kare adları iki kat
+   büyür. Ölçüler JS'te hesaplanır (js/metropol-online.js → olcuYaz).
+
+   GENİŞ ekranda kontrol paneli tahtanın ORTASINA taşınır; DAR ekranda
+   tahtanın altına iner (panelYerlestir). Gerçek tahtada da orta boştur.
    -------------------------------------------------------------------- */
-.mp-wrap{display:flex;flex-direction:column;gap:10px}
+.mp-wrap{display:flex;flex-direction:column;gap:8px;min-width:0}
 .mp-oyuncular{display:flex;flex-wrap:wrap;gap:6px}
 .mp-oy{display:flex;align-items:center;gap:6px;padding:5px 9px;border-radius:999px;
   border:1px solid var(--border);background:var(--bg2);font-size:.84em;min-width:0}
@@ -2637,110 +2641,145 @@ body.gv-app input,body.gv-app textarea,body.gv-app .chat-msgs,body.gv-app .moves
 .mp-oy-varlik{font-size:.82em;color:var(--text3);white-space:nowrap}
 .mp-oy-ceza,.mp-oy-kart{font-size:.82em}
 .mp-oy-iflas{font-size:.72em;font-weight:900;color:#e74c3c}
-.mp-alan{display:flex;gap:14px;align-items:flex-start}
-.mp-alan.dar{flex-direction:column;align-items:center}
-.mp-sol{flex:0 0 auto;display:flex;justify-content:center}
-.mp-sag{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;gap:8px}
-.mp-alan.dar .mp-sag{width:100%}
-.mp-tahta{--mp-k:34px;position:relative;display:grid;
-  grid-template-columns:repeat(11,var(--mp-k));grid-template-rows:repeat(11,var(--mp-k));
-  border-radius:12px;overflow:hidden;background:#cfe3cd;border:2px solid #1d2a1c}
-/* Kare içi: renk bandı MUTLAK konumlu, yazı da bandın ÜSTÜNE denk gelmesin
-   diye band tarafına PAY (padding) bırakılıyor. Önce justify-content ile
-   hizalanıyordu ve üst kenarda yazının ikinci satırı bandın altında
-   kalıyordu ("CADDEBOSTAN" → "CADDEBOS" görünüyordu). */
+.mp-alan{display:flex;flex-direction:column;align-items:center;gap:10px;min-width:0}
+.mp-sol{flex:0 0 auto;display:flex;justify-content:center;max-width:100%}
+.mp-alt-yuva{width:100%;min-width:0}
+.mp-wrap.genis .mp-alt-yuva{display:none}
+
+/* --------- TAHTA --------- */
+.mp-tahta{--mp-d:56px;--mp-wt:64px;--mp-hs:46px;position:relative;display:grid;
+  grid-template-columns:var(--mp-d) repeat(9,var(--mp-wt)) var(--mp-d);
+  grid-template-rows:var(--mp-d) repeat(9,var(--mp-hs)) var(--mp-d);
+  border-radius:10px;overflow:hidden;background:#cfe3cd;border:2px solid #1d2a1c;
+  box-shadow:0 10px 30px rgba(0,0,0,.45)}
 .mp-kare{position:relative;background:#e9f3e6;border:1px solid rgba(0,0,0,.25);
   overflow:hidden;display:flex;flex-direction:column;align-items:center;
   justify-content:center;padding:1px;box-sizing:border-box}
-.mp-kare.kenar-alt{padding-top:25%}
-.mp-kare.kenar-ust{padding-bottom:25%}
-.mp-kare.kenar-sol{padding-right:25%}
-.mp-kare.kenar-sag{padding-left:25%}
-.mp-kare.kose{padding:1px}
-.mp-kare.kose{background:#dcebd8}
-.mp-kare.satilik{box-shadow:inset 0 0 0 2px #f0a23c}
+/* Yazı, renk bandının ÜSTÜNE denk gelmesin diye band tarafına pay bırakılır. */
+.mp-kare.kenar-alt{padding-top:24%}
+.mp-kare.kenar-ust{padding-bottom:24%}
+.mp-kare.kenar-sol{padding-right:24%}
+.mp-kare.kenar-sag{padding-left:24%}
+.mp-kare.kose{padding:2px;background:#dcebd8}
+.mp-kare.satilik{box-shadow:inset 0 0 0 2px #f0a23c;z-index:2}
 .mp-kare.k-sans{background:#ffe9b8}
 .mp-kare.k-fon{background:#cfe6ff}
 .mp-kare.k-vergi{background:#f3dada}
-.mp-bant{position:absolute;left:0;right:0;height:22%;box-shadow:inset 0 -1px 0 rgba(0,0,0,.3)}
-.mp-kare.kenar-alt .mp-bant{top:0}
-.mp-kare.kenar-ust .mp-bant{bottom:0}
-.mp-kare.kenar-sol .mp-bant{top:0;bottom:0;height:auto;width:22%;left:auto;right:0}
-.mp-kare.kenar-sag .mp-bant{top:0;bottom:0;height:auto;width:22%;right:auto;left:0}
-/* Kare adı: 40 kareyi tek ekrana sığdırmak için yazı KÜÇÜK. "KARAKÖY" gibi
-   adlar tek satıra sığsın diye .155 seçildi; "BAHÇELİEVLER" gibi uzun olanlar
-   kelime sonundan bölünür (anywhere DEĞİL — yoksa "KARAKÖ / Y" oluyordu). */
-.mp-ad{font-size:calc(var(--mp-k) * .155);line-height:1.08;font-weight:800;color:#15210f;
-  text-align:center;overflow:hidden;max-width:100%;overflow-wrap:break-word;hyphens:auto;
+.mp-bant{position:absolute;box-shadow:inset 0 -1px 0 rgba(0,0,0,.3)}
+/* Renk bandı daima İÇE bakar: altta üstte, üstte altta, solda sağda, sağda solda. */
+.mp-kare.kenar-alt .mp-bant{left:0;right:0;top:0;height:22%}
+.mp-kare.kenar-ust .mp-bant{left:0;right:0;bottom:0;height:22%}
+.mp-kare.kenar-sol .mp-bant{top:0;bottom:0;right:0;width:22%}
+.mp-kare.kenar-sag .mp-bant{top:0;bottom:0;left:0;width:22%}
+/* Yazı boyu ÇERÇEVE DERİNLİĞİNDEN türer: hem yatay hem dik kenarda okunur
+   olan ölçü budur. */
+.mp-ad{width:100%;font-size:calc(var(--mp-d) * .20);line-height:1.08;font-weight:800;
+  color:#15210f;text-align:center;overflow:hidden;max-width:100%;
+  overflow-wrap:break-word;hyphens:auto;
   display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical}
-.mp-fiyat{font-size:calc(var(--mp-k) * .155);color:#3a4a33;font-family:var(--mono)}
-/* Sarma için KESİN bir ölçü gerekiyor: yoksa uzun adlar tek satırda taşıp
-   üç nokta ile kırpılıyordu ("CADDEBOS…"). Yatay kenarlarda genişlik,
-   dik kenarlarda (yazı 90° döndüğü için) yükseklik sınırlar. */
-.mp-ad{width:100%}
-/* Yan kenarlarda yazı MERKEZE BAKAR (gerçek tahtadaki gibi): sol sütunda
-   harflerin tepesi sağa, sağ sütunda sola döner. (Önce tersti; sağ sütun
-   baş aşağı okunuyordu.) */
+.mp-fiyat{font-size:calc(var(--mp-d) * .18);color:#3a4a33;font-family:var(--mono);font-weight:700}
+/* Yan kenarlarda yazı merkeze bakar: solda harflerin tepesi sağa, sağda sola. */
 .mp-kare.kenar-sol .mp-ad,.mp-kare.kenar-sol .mp-fiyat{writing-mode:vertical-rl}
 .mp-kare.kenar-sag .mp-ad,.mp-kare.kenar-sag .mp-fiyat{writing-mode:vertical-rl;transform:rotate(180deg)}
-.mp-kare.kenar-sol .mp-ad,.mp-kare.kenar-sag .mp-ad{width:auto;height:100%;max-height:100%}
-.mp-sahip{position:absolute;top:2px;right:2px;width:calc(var(--mp-k) * .2);
-  height:calc(var(--mp-k) * .2);border-radius:50%;box-shadow:0 0 0 1px rgba(0,0,0,.4)}
-/* Binalar RENK BANDININ üzerine oturur (gerçek tahtadaki gibi), yoksa kare
-   adının üstüne denk gelip yazıyı okunmaz yapıyordu. */
+/* YAN kenarlarda ad ve fiyat YAN YANA dizilir (satır yönü), üst/altta ALT
+   ALTA. Sebebi: dik yazıda satır uzunluğu hücrenin YÜKSEKLİĞİdir; sütun
+   yönünde ad ile fiyat o yüksekliği paylaşıyor ve ikisi de kırpılıyordu
+   ("HARBİYE" → "HAR Bİ…"). Gerçek tahtada da yan kenarda ad ve fiyat iki
+   paralel dik satırdır. */
+.mp-kare.kenar-sol,.mp-kare.kenar-sag{flex-direction:row;gap:1px}
+/* YAN kenarlarda yazının uzunluğunu hücre YÜKSEKLİĞİ sınırlar (yazı 90°
+   dönük), üst/altta ise GENİŞLİK. Yatay tahtada yükseklik daha dar olduğu
+   için yan kenarlarda yazı küçülmeli; yoksa "HARBİYE" üç satıra bölünüp
+   fiyatın üstüne biniyordu. */
+.mp-kare.kenar-sol .mp-ad,.mp-kare.kenar-sag .mp-ad{width:auto;height:100%;max-height:100%;
+  font-size:var(--mp-ad-yan);-webkit-line-clamp:3}
+.mp-kare.kenar-sol .mp-fiyat,.mp-kare.kenar-sag .mp-fiyat{font-size:var(--mp-fi-yan)}
+/* Üst/alt kenarda da genişlik sınırı var (dar ekranda hücreler incelir).
+   ⚠ Yazı boyları CSS min() ile DEĞİL, JS'te hesaplanıp değişken olarak
+   yazılır (js/metropol-online.js → olcuYaz). Sebebi: jsdom'un CSS
+   ayrıştırıcısı min() görünce TÜM stil sayfasını düşürüyor ve jsdom
+   tabanlı testlerde sayfa stilsiz kalıyor (masa sohbeti testi bu yüzden
+   kırılmıştı). JS zaten ölçüleri biliyor; tek kaynak orası olsun. */
+.mp-kare.kenar-alt .mp-ad,.mp-kare.kenar-ust .mp-ad{font-size:var(--mp-ad-ust)}
+.mp-kare.kenar-alt .mp-fiyat,.mp-kare.kenar-ust .mp-fiyat{font-size:var(--mp-fi-ust)}
+.mp-sahip{position:absolute;top:2px;right:2px;width:calc(var(--mp-d) * .17);
+  height:calc(var(--mp-d) * .17);border-radius:50%;box-shadow:0 0 0 1px rgba(0,0,0,.45);z-index:2}
+/* Binalar renk bandının üzerine oturur (gerçek tahtadaki gibi). */
 .mp-bina{position:absolute;z-index:2;text-align:center;
-  font-size:calc(var(--mp-k) * .19);line-height:1}
+  font-size:calc(var(--mp-d) * .19);line-height:1;letter-spacing:-1px}
 .mp-kare.kenar-alt .mp-bina{top:1px;left:0;right:0}
 .mp-kare.kenar-ust .mp-bina{bottom:1px;left:0;right:0}
-.mp-kare.kenar-sol .mp-bina{right:0;top:0;bottom:0;width:25%;display:grid;place-items:center}
-.mp-kare.kenar-sag .mp-bina{left:0;top:0;bottom:0;width:25%;display:grid;place-items:center}
-.mp-ipotek{position:absolute;bottom:1px;left:2px;font-size:calc(var(--mp-k) * .22)}
+.mp-kare.kenar-sol .mp-bina{right:0;top:0;bottom:0;width:24%;display:grid;place-items:center}
+.mp-kare.kenar-sag .mp-bina{left:0;top:0;bottom:0;width:24%;display:grid;place-items:center}
+.mp-ipotek{position:absolute;bottom:1px;left:2px;font-size:calc(var(--mp-d) * .2);z-index:2}
 .mp-piyon{position:relative;z-index:3;align-self:center;justify-self:center;
-  width:calc(var(--mp-k) * .36);height:calc(var(--mp-k) * .36);border-radius:50%;
-  display:grid;place-items:center;font-size:calc(var(--mp-k) * .2);
-  transform:translate(calc((var(--mp-dx) - .5) * var(--mp-k) * .34),
-                      calc((var(--mp-dy) - .5) * var(--mp-k) * .34));
+  width:calc(var(--mp-d) * .34);height:calc(var(--mp-d) * .34);border-radius:50%;
+  display:grid;place-items:center;font-size:calc(var(--mp-d) * .19);
+  transform:translate(calc((var(--mp-dx) - .5) * var(--mp-d) * .32),
+                      calc((var(--mp-dy) - .5) * var(--mp-d) * .32));
   box-shadow:0 1px 3px rgba(0,0,0,.5);transition:transform .2s ease}
 .mp-piyon.sirada{outline:2px solid #ffd666;outline-offset:1px}
+
+/* --------- ORTA ALAN --------- */
 .mp-orta{grid-row:2 / 11;grid-column:2 / 11;background:#dfeedb;display:flex;
-  flex-direction:column;align-items:center;justify-content:center;gap:4px;
-  padding:4px;overflow:hidden;text-align:center}
-.mp-logo{font-size:calc(var(--mp-k) * .42);font-weight:900;letter-spacing:.14em;
-  color:#c0392b;transform:rotate(-8deg)}
-.mp-kart{background:#fff;border-radius:6px;padding:4px 6px;max-width:92%;
-  box-shadow:0 2px 6px rgba(0,0,0,.25)}
+  flex-direction:column;align-items:center;justify-content:flex-start;gap:6px;
+  padding:8px;overflow:hidden;text-align:center;min-width:0}
+.mp-orta-ust{display:flex;flex-direction:column;align-items:center;gap:3px;
+  flex:0 0 auto;max-width:100%}
+.mp-wrap.genis .mp-orta{justify-content:flex-start}
+.mp-wrap.genis .mp-orta-ust{flex-direction:row;flex-wrap:wrap;justify-content:center;gap:10px}
+.mp-orta-yuva{flex:1 1 auto;width:100%;min-height:0;display:flex;overflow:hidden}
+.mp-wrap.dar .mp-orta-yuva{display:none}
+.mp-logo{font-size:calc(var(--mp-d) * .40);font-weight:900;letter-spacing:.14em;
+  color:#c0392b;transform:rotate(-4deg);white-space:nowrap}
+.mp-kart{background:#fff;border-radius:7px;padding:5px 9px;max-width:92%;
+  box-shadow:0 2px 8px rgba(0,0,0,.25);text-align:left}
 .mp-kart.sans{border-left:4px solid #e8a81c}
 .mp-kart.fon{border-left:4px solid #2a63d8}
-.mp-kart-bas{font-size:calc(var(--mp-k) * .18);font-weight:900;color:#444}
-.mp-kart-metin{font-size:calc(var(--mp-k) * .2);color:#111;line-height:1.2}
-.mp-gunluk{font-size:calc(var(--mp-k) * .17);color:#2b3a26;line-height:1.35;
-  max-width:96%;overflow:hidden}
-.mp-havuz{font-size:calc(var(--mp-k) * .18);font-weight:800;color:#1b7a3c}
-.mp-durum{font-weight:700;font-size:.95em}
+.mp-kart-bas{font-size:calc(var(--mp-d) * .17);font-weight:900;color:#555}
+.mp-kart-metin{font-size:calc(var(--mp-d) * .2);color:#111;line-height:1.25}
+.mp-gunluk{font-size:calc(var(--mp-d) * .17);color:#2b3a26;line-height:1.4;
+  max-width:96%;overflow:hidden;text-align:left}
+.mp-havuz{font-size:calc(var(--mp-d) * .18);font-weight:800;color:#1b7a3c}
+
+/* --------- KONTROL PANELİ (ortada ya da altta) --------- */
+.mp-panel{display:flex;flex-direction:column;gap:8px;min-width:0;width:100%;
+  flex:1 1 auto;overflow-y:auto;text-align:left}
+/* Orta alana girince tahtanın açık zemini üstünde durur: yazılar KOYU olmalı. */
+.mp-wrap.genis .mp-panel{color:#1b2a17;padding:2px 4px;max-width:680px;
+  margin:0 auto;align-self:center}
+.mp-wrap.genis .mp-panel .mp-durum{color:#12210c}
+.mp-wrap.genis .mp-panel .mp-tur,
+.mp-wrap.genis .mp-panel .mp-ipucu{color:#44553c}
+.mp-wrap.genis .mp-panel .mp-mulk-bas{color:#24351d}
+.mp-wrap.genis .mp-panel .mp-mulk-sat{background:rgba(255,255,255,.72);
+  border-color:rgba(0,0,0,.18);color:#1b2a17}
+.mp-wrap.genis .mp-panel .mp-mulk.bos{color:#55634d}
+.mp-durum{font-weight:800;font-size:1em;line-height:1.3}
 .mp-sure{font-weight:400;color:var(--text3);font-size:.85em}
-.mp-tur{font-size:.8em;color:var(--text3)}
+.mp-tur{font-size:.82em;color:var(--text3)}
 .mp-zarlar{display:flex;align-items:center;gap:8px}
-.mp-zar{width:42px;height:42px;border-radius:10px;display:grid;place-items:center;
-  font-size:1.3em;font-weight:900;background:#f6f3e8;color:#1d2a1c;
-  box-shadow:inset 0 -3px 0 rgba(0,0,0,.18),0 3px 9px rgba(0,0,0,.35)}
-.mp-cift{font-size:.78em;color:#f0a23c;font-weight:700}
-.mp-dugmeler{display:flex;flex-wrap:wrap;gap:6px}
-.mp-mulk-bas{font-size:.82em;font-weight:800;color:var(--text2);margin-top:2px}
-.mp-mulk{display:flex;flex-direction:column;gap:4px;max-height:210px;overflow-y:auto}
-.mp-mulk.bos{color:var(--text3);font-size:.82em}
-.mp-mulk-sat{display:flex;align-items:center;gap:6px;padding:3px 6px;border-radius:8px;
-  background:var(--bg2);border:1px solid var(--border);font-size:.8em}
+.mp-zar{width:46px;height:46px;border-radius:10px;display:grid;place-items:center;
+  font-size:1.45em;font-weight:900;background:#f8f5ea;color:#1d2a1c;
+  box-shadow:inset 0 -3px 0 rgba(0,0,0,.18),0 3px 9px rgba(0,0,0,.3)}
+.mp-cift{font-size:.8em;color:#c87f10;font-weight:800}
+.mp-dugmeler{display:flex;flex-wrap:wrap;gap:7px}
+.mp-mulk-bas{font-size:.84em;font-weight:800;color:var(--text2);margin-top:2px}
+.mp-mulk{display:flex;flex-direction:column;gap:4px;max-height:34vh;overflow-y:auto}
+.mp-mulk.bos{color:var(--text3);font-size:.84em}
+.mp-mulk-sat{display:flex;align-items:center;gap:6px;padding:4px 7px;border-radius:8px;
+  background:var(--bg2);border:1px solid var(--border);font-size:.82em}
 .mp-mulk-bant{width:10px;height:16px;border-radius:3px;flex:0 0 auto}
 .mp-mulk-ad{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.mp-mulk-ev{font-size:.9em}
-.mp-mulk-ip{font-size:.82em;color:var(--text3)}
+.mp-mulk-ev{font-size:.95em}
+.mp-mulk-ip{font-size:.84em;color:var(--text3)}
 .btn.mini{padding:3px 7px;font-size:.82em;border-radius:7px}
-.mp-ipucu{font-size:.76em;color:var(--text3);line-height:1.5}
+.mp-ipucu{font-size:.78em;color:var(--text3);line-height:1.5}
 @media(max-width:560px){
-  .mp-durum{font-size:.86em}
-  .mp-zar{width:34px;height:34px;font-size:1.05em}
+  .mp-durum{font-size:.9em}
+  .mp-zar{width:36px;height:36px;font-size:1.1em}
   .mp-oy-varlik{display:none}
-  .mp-mulk{max-height:150px}
+  .mp-mulk{max-height:28vh}
 }
 
 @media(max-width:700px){
@@ -6913,12 +6952,16 @@ GV.init();
 <script src="js/passaparola-online.js?v=20261011b" defer></script>
 <script src="js/cenga-online.js?v=20261011b" defer></script>
 <script src="js/langirt-online.js?v=20261011b" defer></script>
-<script src="js/havahokeyi-online.js?v=20261011b" defer></script>
-<!-- Fark Bulmaca sahneleri: sunucu ile AYNI dosya (fark-sahneler.js). -->
-<script src="fark-sahneler.js?v=20261011b" defer></script>
+<script src="js/havahokeyi-online.js?v=20261011c" defer></script>
+<!-- Fark Bulmaca sahneleri: sunucu ile AYNI dosya (js/fark-sahneler.js).
+     ⚠ KÖKTE DEĞİL js/ ALTINDA olmak ZORUNDA: sunucu güvenlik gereği yalnız
+     js/, css/ ve assets/ klasörlerini yayınlıyor (bkz. server.js statik
+     yollar). Kökteyken /fark-sahneler.js 404 dönüyor, GVFark hiç oluşmuyor
+     ve oyun "Sahne çizimleri yüklenemedi" hatası veriyordu. -->
+<script src="js/fark-sahneler.js?v=20261011b" defer></script>
 <script src="js/fark-online.js?v=20261011b" defer></script>
 <script src="js/kizmabirader-online.js?v=20261011b" defer></script>
-<script src="js/metropol-online.js?v=20261011b" defer></script>
+<script src="js/metropol-online.js?v=20261011g" defer></script>
 <script src="js/chat.js?v=20260821c" defer></script>
 <script src="js/leave-guard.js?v=20260927c" defer></script>
 <!-- Tarayıcı GERİ/İLERİ tuşu: sayfa geçişleri geçmişe adım bırakır,

@@ -36,7 +36,7 @@ const langirtEngine = require('./langirt-engine.js');
    tokmağın içinden geçiyordu). */
 const havahokeyiEngine = require('./havahokeyi-engine.js');
 /* FARK BULMACA — saf motor (fark-engine.js) + ortak sahneler
-   (fark-sahneler.js, istemciyle AYNI dosya). Sahne, tohum ve tıklama
+   (js/fark-sahneler.js, istemciyle AYNI dosya). Sahne, tohum ve tıklama
    doğrulaması sunucuda. */
 const farkEngine = require('./fark-engine.js');
 /* KIZMA BİRADER (Ludo) — saf motor (kizmabirader-engine.js). ZAR SUNUCUDA

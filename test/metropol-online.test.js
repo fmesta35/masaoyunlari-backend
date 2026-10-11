@@ -537,7 +537,14 @@ function arayuzTesti() {
 
   const istemci = oku('js/metropol-online.js');
   assert.ok(/kinds: \['metropol'\]/.test(istemci), 'adaptör türü karşılamalı');
-  assert.ok(/--mp-k/.test(istemci), 'kare boyu ölçülen alana göre verilmeli');
+  /* Tahta KARE DEĞİL: çerçeve derinliği ile kenar hücrelerinin genişliği ve
+     yüksekliği ayrı ölçülür, böylece tahta ekranın yatayını doldurur. */
+  assert.ok(/--mp-d/.test(istemci) && /--mp-wt/.test(istemci) && /--mp-hs/.test(istemci),
+    'çerçeve derinliği ve hücre en/boyu ayrı ayrı ölçülmeli (yatay tahta)');
+  assert.ok(!/tahta\.style\.width = \(kare \* N\)/.test(istemci),
+    'tahta kare olmaya zorlanmamalı');
+  assert.ok(/panelYerlestir/.test(istemci),
+    'geniş ekranda kontrol paneli tahtanın ortasına taşınmalı');
   assert.ok(/orientationchange/.test(istemci), 'yön değişiminde ölçü tazelenmeli');
   assert.ok(/classList\.toggle\('dar'/.test(istemci), 'dar ekranda düzen değişmeli');
   assert.ok(/gv-arena-clock/.test(istemci), 'saat ayrı düğümde olmalı (her saniye yeniden çizim yok)');

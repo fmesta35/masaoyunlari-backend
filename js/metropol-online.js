@@ -114,8 +114,12 @@
            Math.floor(n / 2) + ';background:' + PIYON_RENK[s.seats.indexOf(o.seat) % 4] + '">' +
            PIYON_SIM[s.seats.indexOf(o.seat) % 4] + '</div>';
     });
-    /* Orta alan: günlük + son kart. */
-    h += '<div class="mp-orta"><div class="mp-logo">METROPOL</div>' + ortaHtml(s) + '</div>';
+    /* ORTA ALAN. Gerçek tahtada burası boştur; biz geniş ekranda KONTROL
+       PANELİNİ buraya taşıyoruz (bkz. bind → panelYerlestir). Böylece tahta
+       ekranın tüm genişliğini kullanabiliyor ve hiçbir yere boşluk kalmıyor. */
+    h += '<div class="mp-orta">' +
+         '<div class="mp-orta-ust"><div class="mp-logo">METROPOL</div>' + ortaHtml(s) + '</div>' +
+         '<div class="mp-orta-yuva"></div></div>';
     h += '</div>';
     return h;
   }
@@ -255,7 +259,11 @@
       h += oyuncularHtml(s);
       h += '<div class="mp-alan">';
       h += '<div class="mp-sol">' + tahtaHtml(s) + '</div>';
-      h += '<div class="mp-sag">';
+      /* Dar ekranda panelin ineceği yer; geniş ekranda panel tahtanın
+         ORTASINA taşınır (bkz. bind → panelYerlestir). */
+      h += '<div class="mp-alt-yuva"></div>';
+      h += '</div>';
+      h += '<div class="mp-panel">';
 
       /* Durum satırı + saat */
       h += '<div class="mp-durum">' +
@@ -306,7 +314,7 @@
       h += '<div class="mp-ipucu">Grubun <b>tamamına</b> sahip olunca bina kurulur ve binalar <b>dengeli</b> yükselir. ' +
            'Nakit sıkıştığında bina satın ya da mülk ipotek edin — yetmezse sunucu otomatik tasfiye eder. ' +
            'Almadığınız kare diğer oyunculara <b>liste fiyatından tek tur</b> teklif edilir.</div>';
-      h += '</div></div></div>';
+      h += '</div></div>';
       return h;
     },
 
@@ -329,29 +337,79 @@
       bagla('.mp-sat', 'metropolSell', function (b) { return { kare: Number(b.dataset.kare) }; });
       bagla('.mp-ipotek', 'metropolMortgage', function (b) { return { kare: Number(b.dataset.kare) }; });
 
-      /* ÖLÇÜ: tahta kare kalsın ve ölçülen alana sığsın. Hesap JS'te çünkü
-         11×11 ızgaranın kare boyu hem genişliğe hem yüksekliğe bağlı. */
+      /* ===================================================================
+         ÖLÇÜ — TAHTA EKRANIN YATAYINI DOLDURUR
+         ===================================================================
+         Tahta mantıksal olarak hâlâ 11×11'dir (dört köşe kare KALKIŞ /
+         CEZAEVİ / PARK / CEZAEVİNE GİT yerinde kalsın diye), ama hücreler
+         KARE DEĞİLDİR: çerçeve derinliği (--mp-d) ile kenar hücrelerinin
+         genişliği (--mp-wt) ve yüksekliği (--mp-hs) ayrı ayrı hesaplanır.
+         Böylece tahta 1:1'e hapsolmadan ekranın en-boy oranına yayılır;
+         geniş ekranda kare boyu neredeyse iki katına çıkar ve kare adları
+         rahat okunur. (Eskiden tahta kareydi, yüksekliğe sıkışıyor ve
+         yanında kocaman bir boşluk kalıyordu.)
+
+         GENİŞ ekranda kontrol paneli tahtanın ORTASINA taşınır — gerçek
+         tahtada da orası boştur ve böylece hiçbir piksel boşa gitmez.
+         DAR ekranda panel tahtanın altına iner. */
+      function panelYerlestir(genis) {
+        var panel = root.querySelector('.mp-panel');
+        var yuva = root.querySelector(genis ? '.mp-orta-yuva' : '.mp-alt-yuva');
+        if (panel && yuva && panel.parentNode !== yuva) yuva.appendChild(panel);
+      }
       function olcuYaz() {
         var alan = document.getElementById('boardArea');
-        var r = alan ? alan.getBoundingClientRect() : { width: 760, height: 560 };
+        var r = alan ? alan.getBoundingClientRect() : { width: 1000, height: 640 };
         var oy = root.querySelector('.mp-oyuncular');
-        /* Oyuncu şeridi + boşluklar + bir parmak payı: tahtanın alt sırası
-           kapsayıcının dışında kalmasın (ölçümde 4 px taşıyordu). */
-        var pay = (oy ? oy.getBoundingClientRect().height : 0) + 40;
-        var g = Math.max(260, r.width);
-        var y = Math.max(240, (r.height || 560) - pay);
-        var dar = g < 780;
-        var kap = root.querySelector('.mp-alan');
-        if (kap) kap.classList.toggle('dar', dar);
-        /* Dar ekranda tahta üstte tam genişlik, panel altta; geniş ekranda
-           tahta solda yüksekliğe göre. */
-        var kenar = dar ? Math.min(g, y * 0.70) : Math.min(g * 0.60, y);
-        var kare = Math.max(22, Math.floor(kenar / N));
+        var pay = (oy ? oy.getBoundingClientRect().height : 0) + 26;
+        var G = Math.max(260, r.width);
+        /* ⚠ Kullanılabilir YÜKSEKLİK, #boardArea'nın kendi yüksekliği DEĞİL:
+           o kutu sayfanın altından taşabiliyor ve tahtanın son sırası ekranın
+           dışında kalıyordu. Görünen alanla sınırla. */
+        var gorunen = (window.innerHeight || 700) - r.top - 12;
+        var Y = Math.max(240, Math.min(r.height || 640, gorunen) - pay);
+
+        /* Panel ortaya ancak yeterli yer varsa girer: orta alan 9 hücre
+           genişliğinde ve 9 hücre yüksekliğindedir, bu da en az ~420×300
+           piksel ister. Altında kalırsa panel okunmaz hâle gelirdi. */
+        var genis = G >= 900 && Y >= 430;
+        /* ⚠ Sınıf .mp-wrap'a yazılır, root'a DEĞİL: arena bind'e #boardArea'yı
+           veriyor; sınıf oraya yazılınca .mp-wrap.genis kuralları hiç
+           tutmuyordu (panel ortaya taşınıyor ama koyu zemin yazı rengiyle
+           okunmaz kalıyordu). */
+        var sarmal = root.querySelector('.mp-wrap') || root;
+        sarmal.classList.toggle('genis', genis);
+        sarmal.classList.toggle('dar', !genis);
+        panelYerlestir(genis);
+
+        /* Dar ekranda tahta yüksekliğin yalnız bir kısmını alır (altında
+           panel var); geniş ekranda tüm alanı kaplar. */
+        var BW = G, BH = genis ? Y : Math.min(Y * 0.62, G * 1.1);
+        /* En-boy oranını makul tut: çok yayvan tahta okunmaz olur. */
+        if (BW / BH > 1.95) BW = BH * 1.95;
+        if (BW / BH < 0.82) BH = BW / 0.82;
+
+        /* Çerçeve derinliği: gerçek tahtadaki gibi kenarın ~%10'u. */
+        var D = Math.round(Math.min(BW, BH) * 0.108);
+        D = Math.max(22, Math.min(D, 96));
+        var Wt = Math.max(16, (BW - 2 * D) / 9);
+        var Hs = Math.max(16, (BH - 2 * D) / 9);
+
         var tahta = root.querySelector('.mp-tahta');
         if (tahta) {
-          tahta.style.setProperty('--mp-k', kare + 'px');
-          tahta.style.width = (kare * N) + 'px';
-          tahta.style.height = (kare * N) + 'px';
+          tahta.style.setProperty('--mp-d', D + 'px');
+          tahta.style.setProperty('--mp-wt', Wt + 'px');
+          tahta.style.setProperty('--mp-hs', Hs + 'px');
+          /* Yazı boyları BURADA hesaplanır (CSS min() değil): kare adı hem
+             çerçeve derinliğine hem de o kenardaki hücre uzunluğuna sığmalı.
+             Üst/altta uzunluk GENİŞLİK, yanlarda YÜKSEKLİKtir. */
+          var kucuk = function (a, b) { return Math.round(Math.min(a, b) * 10) / 10; };
+          tahta.style.setProperty('--mp-ad-ust', kucuk(D * 0.20, Wt * 0.19) + 'px');
+          tahta.style.setProperty('--mp-fi-ust', kucuk(D * 0.18, Wt * 0.17) + 'px');
+          tahta.style.setProperty('--mp-ad-yan', kucuk(D * 0.20, Hs * 0.21) + 'px');
+          tahta.style.setProperty('--mp-fi-yan', kucuk(D * 0.18, Hs * 0.19) + 'px');
+          tahta.style.width = Math.round(2 * D + 9 * Wt) + 'px';
+          tahta.style.height = Math.round(2 * D + 9 * Hs) + 'px';
         }
       }
       olcuYaz();

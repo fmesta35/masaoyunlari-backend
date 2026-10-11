@@ -145,10 +145,19 @@
     ctx.restore();
   }
 
+  /* ⚠ TİTREŞİMİN SEBEBİ BUYDU: eski sürüm k'yı 1.6'ya kadar çıkarıp son
+     paketin ÖTESİNE tahmin yürütüyordu (ekstrapolasyon). Yeni paket gelince
+     konum geri sıçrıyor, disk ve tokmak sürekli titriyordu.
+     Artık YALNIZ iki paket ARASINDA değer üretilir (k ∈ [0,1]) ve payda
+     sabit 50 ms değil, ÖLÇÜLEN paket aralığıdır — paket geç kalırsa görüntü
+     hızlanıp durmaz, sadece biraz yavaşlar. Bedeli ~bir paketlik (≈50 ms)
+     gecikmedir; kendi tokmağınız zaten yerel olarak çizildiği için bu
+     gecikme hissedilmez (bkz. yerelTokmak). */
+  var kareAraligi = 50;
   function araDeger() {
     if (!kare) return null;
     if (!oncekiKare) return kare;
-    var k = kirp((Date.now() - kareZamani) / 50, 0, 1.6);
+    var k = kirp((Date.now() - kareZamani) / Math.max(16, kareAraligi), 0, 1);
     var ka = function (x, y) { return x + (y - x) * k; };
     var a = oncekiKare, b = kare;
     return {
@@ -161,6 +170,55 @@
     };
   }
 
+  /* ---------------------------------------------- YEREL TOKMAK (tahmin)
+     Kendi tokmağınız sunucudan dönmeyi BEKLEMEZ: imleci yerelde, sunucunun
+     kullandığı hız ve sınırların AYNISIYLA takip eder. Böylece kontrol
+     anında hissedilir; sunucudan gelen konum yalnız yumuşakça düzeltir.
+     (Sunucu yine de son sözü söyler — hile mümkün değil.) */
+  var yerel = null;        // { x, y }
+  var hedef = null;        // imlecin masa koordinatındaki yeri
+  var yerelZaman = 0;
+  function tokmakKirpYerel(t, oyuncu) {
+    var pay = 7;
+    var minX = oyuncu === 0 ? ALAN.sol + TOKMAK_R + pay : (MASA_EN / 2) + TOKMAK_R + 8;
+    var maxX = oyuncu === 0 ? (MASA_EN / 2) - TOKMAK_R - 8 : ALAN.sag - TOKMAK_R - pay;
+    t.x = kirp(t.x, minX, maxX);
+    t.y = kirp(t.y, ALAN.ust + TOKMAK_R + pay, ALAN.alt - TOKMAK_R - pay);
+    return t;
+  }
+  function yerelTokmak(sunucuKare) {
+    if (benimKoltuk === null || !sunucuKare || !sunucuKare.tokmak) return null;
+    var sv = sunucuKare.tokmak[benimKoltuk];
+    if (!sv) return null;
+    var simdi = Date.now();
+    var dt = Math.min(0.1, (simdi - (yerelZaman || simdi)) / 1000);
+    yerelZaman = simdi;
+    if (!yerel) yerel = { x: sv.x, y: sv.y };
+    if (hedef) {
+      var dx = hedef.x - yerel.x, dy = hedef.y - yerel.y;
+      var uz = Math.hypot(dx, dy);
+      var adim = Math.min(uz, 1120 * dt);          // sunucuyla AYNI hız
+      if (uz > 0.001) { yerel.x += (dx / uz) * adim; yerel.y += (dy / uz) * adim; }
+    }
+    /* Sunucuya yumuşak yakınsama: aradaki fark büyürse (paket kaybı, hile
+       denemesi, kale sonrası sıfırlama) yerel konum sunucuya çekilir. */
+    var fx = sv.x - yerel.x, fy = sv.y - yerel.y;
+    var fark = Math.hypot(fx, fy);
+    if (fark > 90) { yerel.x = sv.x; yerel.y = sv.y; }
+    else if (fark > 1) { var c = Math.min(1, dt * 6); yerel.x += fx * c; yerel.y += fy * c; }
+    return tokmakKirpYerel({ x: yerel.x, y: yerel.y }, benimKoltuk);
+  }
+  /* Çizime verilecek kare: disk ve rakip ara değerden, KENDİ tokmağınız
+     yerelden. */
+  function cizimKaresi(s) {
+    var g = araDeger() || (s ? { faz: s.faz, fazSn: s.fazSn, skor: s.skor,
+                                 disk: s.disk, tokmak: s.tokmak } : null);
+    if (!g) return null;
+    var y = yerelTokmak(kare || g);
+    if (y && g.tokmak) { g.tokmak = g.tokmak.slice(); g.tokmak[benimKoltuk] = y; }
+    return g;
+  }
+
   if (!window.GVArena && !window.__gvArenaQueue) window.__gvArenaQueue = { push: function () {} };
   var define = (window.GVArena && window.GVArena.define) || function (d) { window.__gvArenaQueue.push(d); };
 
@@ -171,9 +229,16 @@
     events: {
       hokeyFrame: function (p) {
         if (!p || !p.disk) return;
+        var simdi = Date.now();
+        /* Paket aralığını ÖLÇ (yumuşatılmış): ara değer bunu payda olarak
+           kullanır, böylece ağ dalgalanmasında görüntü sıçramaz. */
+        if (kareZamani) {
+          var d = simdi - kareZamani;
+          if (d > 8 && d < 400) kareAraligi = kareAraligi * 0.8 + d * 0.2;
+        }
         oncekiKare = kare || p;
         kare = p;
-        kareZamani = Date.now();
+        kareZamani = simdi;
         if (p.olayNo !== sonOlayNo) {
           sonOlayNo = p.olayNo;
           if (p.sonOlay === 'gol') ses('kazandi');
@@ -247,8 +312,7 @@
         tuval.style.height = ty + 'px';
         tuval.width = Math.round(tg * dpr);
         tuval.height = Math.round(ty * dpr);
-        ciz(tuval, araDeger() || { faz: s.faz, fazSn: s.fazSn, skor: s.skor,
-                                   disk: s.disk, tokmak: s.tokmak });
+        var _k = cizimKaresi(s); if (_k) ciz(tuval, _k);
       }
       olcuYaz();
       requestAnimationFrame(olcuYaz);
@@ -256,8 +320,7 @@
       if (cizimId) cancelAnimationFrame(cizimId);
       var don = function () {
         if (!root.isConnected || !tuval.isConnected) { cizimId = null; return; }
-        ciz(tuval, araDeger() || { faz: s.faz, fazSn: s.fazSn, skor: s.skor,
-                                   disk: s.disk, tokmak: s.tokmak });
+        var _k = cizimKaresi(s); if (_k) ciz(tuval, _k);
         cizimId = requestAnimationFrame(don);
       };
       cizimId = requestAnimationFrame(don);
@@ -275,6 +338,8 @@
       }
       function gonder(p) {
         if (benimKoltuk === null) return;
+        /* Yerel tahmin hemen bu hedefe koşar; paket hızı ayrı. */
+        hedef = { x: p.x, y: p.y };
         var simdi = Date.now();
         /* Saniyede ~33 paket yeter; fizik sunucuda 120 Hz'de araları
            kendisi dolduruyor. Daha sık yollamak bant genişliği israfı. */
@@ -324,6 +389,7 @@
   window.addEventListener('gv:roomLeft', function () {
     if (cizimId) { cancelAnimationFrame(cizimId); cizimId = null; }
     kare = null; oncekiKare = null; sonOlayNo = -1; benimKoltuk = null;
+    yerel = null; hedef = null; yerelZaman = 0; kareAraligi = 50;
   });
 
   window.__gvHavahokeyi = { kare: function () { return kare; } };

@@ -5,7 +5,7 @@
  * Prototip Next.js + Postgres üzerineydi; oyunun kendisi değil, BARINDIRMASI
  * uyumsuzdu. Kurallar (4 sahne × 13 fark, elde 7 fark, 90 sn, 3 elin 2'si) ve
  * SVG çizimler taşındı; sahneler sunucu ile istemcinin ORTAK kullandığı tek
- * bir dosyada (fark-sahneler.js).
+ * bir dosyada (js/fark-sahneler.js).
  *
  * NE DOĞRULANIR
  *   SAHNELER
@@ -38,7 +38,7 @@ process.env.GV_POST_GAME_HOLD_MS = '400';
 
 const assert = require('assert');
 const ioClient = require('socket.io-client');
-const S = require('../fark-sahneler.js');
+const S = require('../js/fark-sahneler.js');
 const E = require('../fark-engine.js');
 const serverModule = require('../server.js');
 
@@ -381,9 +381,16 @@ function arayuzTesti() {
   const sayfa = oku('index.html');
   assert.ok(/fark:\{name:'Fark Bulmaca'/.test(sayfa), 'oyun listesinde fark bulmaca olmalı');
   assert.ok(/js\/fark-online\.js/.test(sayfa), 'istemci adaptörü bağlı olmalı');
-  assert.ok(/<script src="fark-sahneler\.js/.test(sayfa), 'ORTAK sahne dosyası sayfaya bağlı olmalı');
+  /* ⚠ Sahne dosyası js/ ALTINDA olmalı, kökte DEĞİL: sunucu güvenlik gereği
+     yalnız js/, css/ ve assets/ yayınlıyor. Kökteyken /fark-sahneler.js 404
+     dönüyor, GVFark hiç oluşmuyor ve oyun "Sahne çizimleri yüklenemedi"
+     hatası veriyordu — canlıda tam olarak bu oldu. */
+  assert.ok(/<script src="js\/fark-sahneler\.js/.test(sayfa),
+    'ORTAK sahne dosyası js/ altından bağlanmalı (kökten servis EDİLMİYOR)');
+  assert.ok(!/<script src="fark-sahneler\.js/.test(sayfa),
+    'sahne dosyası kökten bağlanmamalı — sunucu kök .js dosyalarını yayınlamıyor');
   /* Sahneler adaptörden ÖNCE yüklenmeli, yoksa GVFark tanımsız olur. */
-  assert.ok(sayfa.indexOf('<script src="fark-sahneler.js') <
+  assert.ok(sayfa.indexOf('<script src="js/fark-sahneler.js') <
             sayfa.indexOf('<script src="js/fark-online.js'),
     'sahne dosyası adaptörden önce yüklenmeli');
   assert.ok(/\.fk-wrap\{/.test(sayfa), 'fark bulmaca stilleri olmalı');
@@ -400,7 +407,7 @@ function arayuzTesti() {
   assert.ok(/preserveAspectRatio/.test(istemci), 'SVG oranını korumalı');
 
   /* Sahne dosyası HEM Node'da HEM tarayıcıda çalışmalı (UMD). */
-  const sahneler = oku('fark-sahneler.js');
+  const sahneler = oku('js/fark-sahneler.js');
   assert.ok(/module\.exports/.test(sahneler) && /kok\.GVFark/.test(sahneler),
     'sahne dosyası hem sunucuda hem tarayıcıda yüklenebilmeli');
 
