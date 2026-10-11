@@ -18,6 +18,19 @@ const gomokuEngine = require('./gomoku-engine');
 let tombalaEngine = null;
 try { tombalaEngine = require('./tombala-engine.js'); } catch (_) {}
 const kelimelikEngine = require('./kelimelik-engine');
+/* ADAM ASMACA — saf motor (adamasmaca-engine.js). Kelime sunucuda saklanır,
+   tahminciye yalnız maske gider; sözlük denetimi Kelimelik'in TDK
+   sözlüğünden gelir (iki oyun aynı listeyi paylaşır). */
+const adamasmacaEngine = require('./adamasmaca-engine.js');
+/* PASSAPAROLA — saf motor (passaparola-engine.js). Soru havuzu, doğru cevap
+   ve iki oyuncunun saati sunucudadır; istemci yalnız soruyu ve maskeyi görür. */
+const passaparolaEngine = require('./passaparola-engine.js');
+/* CENGA — saf motor (cenga-engine.js). Kule kuralları, denge analizi ve
+   çekişin GİZLİ HEDEFİ sunucudadır; istemci hedefi hiç görmez. */
+const cengaEngine = require('./cenga-engine.js');
+/* LANGIRT — saf fizik (langirt-engine.js). Fizik SUNUCUDA sabit 50 Hz
+   adımlarla işler; istemciler yalnız çubuk hedefi ve şut gönderir. */
+const langirtEngine = require('./langirt-engine.js');
 const kelimelikBildirim = require('./kelimelik-bildirim');
 const connect4Engine = require('./connect4-engine');
 const bilardoEngine = require('./bilardo-engine');
@@ -346,7 +359,7 @@ const disconnectTimers = new Map();
 const ADMIN_EMAIL = String(process.env.GV_ADMIN_EMAIL || '').trim().toLowerCase();
 const ALL_GAMES = ['chess', 'tavla', 'okey', 'okey101', 'pisti', 'batak',
   'dama', 'turkdamasi', 'reversi', 'gomoku', 'connect4', 'bilardo', 'battleship', 'kelimelik',
-  'tombala'];
+  'tombala', 'adamasmaca', 'passaparola', 'cenga', 'langirt'];
 
 /* ===================== HAMLE SÜRESİ (masa başına) =====================
    Kullanıcı isteği: "kurucu panelinde masa düzenlemeler bölümünde oyun
@@ -380,6 +393,25 @@ function varsayilanHamleMs(gameId, durationMinutes) {
        ⚡ 10 dk → 30 sn · ♟️ 15 dk → 45 sn · 🧠 20 dk → 60 sn */
     return ({ 10: 30000, 15: 45000, 20: 60000 })[durationMinutes] || 45000;
   }
+  if (gameId === 'adamasmaca') {
+    /* Adam Asmaca'da tek bir hamle süresi iki iş görür: kelime seçmek ve
+       harf tahmin etmek. Harf tahmini saniyeler sürer, kelime seçmek daha
+       uzun; bu yüzden süre Kelimelik'ten bir tık cömert tutuldu.
+       ⚡ 10 dk → 45 sn · ♟️ 15 dk → 60 sn · 🧠 20 dk → 90 sn */
+    return ({ 10: 45000, 15: 60000, 20: 90000 })[durationMinutes] || 60000;
+  }
+  if (gameId === 'passaparola') {
+    /* Passaparola'da oyuncu başına AYRI bir saat işler (masa süresine göre
+       90/120/180 sn). Genel hamle sayacı buna karışmaz; yine de bir üst
+       sınır gerekiyor — tek bir soruda sonsuza kadar beklenmesin diye
+       oyuncunun kendi saatinin tamamı kadar süre tanınır. */
+    return ({ 10: 90000, 15: 120000, 20: 180000 })[durationMinutes] || 120000;
+  }
+  if (gameId === 'cenga') {
+    /* Cenga'da bir sıra iki adımdır (taş seç → çek); süre ikisi için
+       birden işler. ⚡ 10 dk → 30 sn · ♟️ 15 dk → 45 sn · 🧠 20 dk → 60 sn */
+    return ({ 10: 30000, 15: 45000, 20: 60000 })[durationMinutes] || 45000;
+  }
   if (gameId === 'okey' || gameId === 'okey101') return OKEY_TURN_MS;
   if (gameId === 'pisti') return PISTI_TURN_MS;
   return MOVE_FORFEIT_MS;
@@ -409,7 +441,11 @@ const PRESET_GAME_BASES = {
   // bilardo 921: 901-910 aralığı okey test süitinin oda kimlikleriyle
   // çakışmasın diye atlandı.
   dama: 401, turkdamasi: 501, reversi: 601, gomoku: 701, connect4: 801, bilardo: 921,
-  battleship: 1001, kelimelik: 1101
+  battleship: 1001, kelimelik: 1101,
+  /* "Diğer Oyunlar"dan taşınan oyunlar 2000'li bloğa alındı: 1400-1700
+     aralığını test süiti ÖZEL ODA kimliği olarak kullanıyor (örn. 1501,
+     1601) ve hazır masa oraya düşerse özel oda hiç yaratılamıyordu. */
+  adamasmaca: 2001, passaparola: 2101, cenga: 2201, langirt: 2301
 };
 const STANDARD_PRESET_GAMES = Object.keys(PRESET_GAME_BASES);
 /* Okey ve 101 Okey'in hazır masaları "taban ID + indeks" şemasını DEĞİL,
@@ -919,6 +955,11 @@ function resetRoomToWaiting(room) {
   if (room.tombala && room.tombala.timer) { clearTimeout(room.tombala.timer); }
   room.tombala = null;
   room.kelimelik = null;
+  room.adamasmaca = null;
+  room.passaparola = null;
+  room.cenga = null;
+  if (room.langirt) langirtDurdur(room);
+  room.langirt = null;
   room.connect4 = null;
   room.bilardo = null;
   /* AMİRAL BATTI: bu satır eksikti. Rövanş kabul edilince oda "waiting"e
@@ -1268,6 +1309,9 @@ function turnSeatOf(room) {
   if (room.reversi) return room.reversi.turn === 'b' ? 0 : 1;
   if (room.gomoku) return room.gomoku.turn === 'b' ? 0 : 1;
   if (room.kelimelik) return room.kelimelik.turn;
+  if (room.adamasmaca) return adamasmacaEngine.siradaki(room.adamasmaca);
+  if (room.passaparola) return room.passaparola.status === 'playing' ? room.passaparola.turn : null;
+  if (room.cenga) return room.cenga.status === 'playing' ? room.cenga.turn : null;
   if (room.connect4) return room.connect4.turn === 'r' ? 0 : 1;
   if (room.bilardo) return room.bilardo.turn;
   // Yerleştirme (placing) fazında tur sahibi yok — her iki oyuncu da
@@ -1394,6 +1438,392 @@ function kelimelikBitisYayinla(room, reason) {
     youWon: false, isSpectator: true, gameState: kelimelikState(room, null)
   }));
 }
+/* ========================================================================
+ * ADAM ASMACA — oda akışı
+ * ========================================================================
+ * İki kişilik kelime düellosu. Bir koltuk GİZLEYEN, diğeri TAHMİNCİ; her el
+ * sonunda roller değişir. KELİME SUNUCUDA KALIR: tahminciye ve izleyiciye
+ * yalnız maske gider (adamasmaca-engine.js → gorunum).
+ *
+ * El sayısı masa süresinden gelir — ⚡10 dk → 2 el · ♟️15 dk → 4 el ·
+ * 🧠20 dk → 6 el. Roller her el değiştiği için sayı daima ÇİFTtir, yoksa
+ * bir taraf bir kez fazla gizlerdi.
+ * ===================================================================== */
+function adamasmacaElSayisi(room) {
+  if (Number(room && room.rounds) > 0) return Number(room.rounds);
+  return ({ 10: 2, 15: 4, 20: 6 })[Number(room && room.durationMinutes)] || 4;
+}
+function adamasmacaState(room, seat) {
+  const a = room.adamasmaca;
+  if (!a) return null;
+  return adamasmacaEngine.gorunum(a, (seat === 0 || seat === 1) ? seat : null,
+    Object.assign({ status: room.status }, moveClockOf(room)));
+}
+function emitAdamasmacaState(room, event = 'gameStateUpdated') {
+  room.players.forEach(p => emitToPlayer(p, event, {
+    roomId: room.id, seat: p.seat, isSpectator: false,
+    gameState: adamasmacaState(room, p.seat)
+  }));
+  (room.spectators || []).forEach(p => emitToPlayer(p, event, {
+    roomId: room.id, seat: null, isSpectator: true,
+    gameState: adamasmacaState(room, null)
+  }));
+}
+function startAdamasmaca(room) {
+  if (room.status === 'playing' || room.players.length !== 2 || !room.players.every(p => p.isReady)) return;
+  room.status = 'playing'; room.result = null;
+  room.adamasmaca = adamasmacaEngine.macBaslat({
+    seats: room.players.map(p => p.seat).sort((x, y) => x - y),
+    elSayisi: adamasmacaElSayisi(room)
+  });
+  room.turnStartedAt = now(); touchMoveTimer(room); emitRoom(room);
+  room.players.forEach(p => emitToPlayer(p, 'gameStarted', {
+    roomId: room.id, seat: p.seat, isSpectator: false,
+    players: publicRoom(room).players, gameState: adamasmacaState(room, p.seat)
+  }));
+  (room.spectators || []).forEach(p => emitToPlayer(p, 'gameStarted', {
+    roomId: room.id, seat: null, isSpectator: true,
+    gameState: adamasmacaState(room, null)
+  }));
+  emitAdamasmacaState(room);
+}
+/* Maç bitişini TEK yerden yayınla (harf, süre aşımı, terk). */
+function adamasmacaBitisYayinla(room, reason) {
+  const a = room.adamasmaca;
+  if (!a) return;
+  room.status = 'finished';
+  const ham = reason || (a.result && a.result.reason) || 'finished';
+  /* Puan katmanı beraberliği NEDENDEN okuyor (bkz. scheduleRoomReset):
+     kazanan yoksa neden 'draw' olmalı, yoksa iki oyuncu da mağlup sayılır. */
+  const neden = (a.winner === null || a.winner === undefined) ? 'draw' : ham;
+  room.result = { reason: neden, winnerSeat: a.winner == null ? null : a.winner,
+                  adamasmacaNeden: ham };
+  room.players.forEach(p => emitToPlayer(p, 'gameEnded', {
+    roomId: room.id, reason: neden, winnerSeat: room.result.winnerSeat,
+    youWon: room.result.winnerSeat !== null && p.seat === room.result.winnerSeat,
+    gameState: adamasmacaState(room, p.seat)
+  }));
+  (room.spectators || []).forEach(p => emitToPlayer(p, 'gameEnded', {
+    roomId: room.id, reason: neden, winnerSeat: room.result.winnerSeat,
+    youWon: false, isSpectator: true, gameState: adamasmacaState(room, null)
+  }));
+}
+/* El bitti mi / maç bitti mi — her hamleden sonra tek elden işlenir. */
+function adamasmacaSonrasi(room, elOzeti) {
+  const a = room.adamasmaca;
+  if (elOzeti) {
+    io.to(room.id).emit('adamasmacaRoundEnd', { roomId: room.id, el: elOzeti });
+  }
+  touchMoveTimer(room);
+  if (a.status !== 'playing') {
+    adamasmacaBitisYayinla(room);
+    emitAdamasmacaState(room); emitRoom(room); scheduleRoomReset(room);
+    return true;
+  }
+  emitAdamasmacaState(room);
+  return false;
+}
+
+/* ========================================================================
+ * LANGIRT — oda akışı (GERÇEK ZAMANLI)
+ * ========================================================================
+ * Bu oyun sıra tabanlı DEĞİL: iki oyuncu da aynı anda oynar. Fizik sunucuda
+ * sabit 50 Hz adımlarla işler (langirtEngine.adim), durum paketi ~20 Hz
+ * yayınlanır. İstemci yalnız ÇUBUK HEDEFLERİNİ ve ŞUT isteğini yollar;
+ * topun nerede olduğuna hep sunucu karar verir.
+ *
+ * Hedef gol sayısı masa tipinden gelir: ⚡10 dk → 3 gol · ♟️15 dk → 5 gol ·
+ * 🧠20 dk → 7 gol.
+ * ===================================================================== */
+const LANGIRT_ADIM_MS = 20;      // 50 Hz fizik
+const LANGIRT_YAYIN_MS = 50;     // 20 Hz durum paketi
+const langirtOdalari = new Set();
+let langirtTimer = null;
+
+function langirtHedefGol(room) {
+  return ({ 10: 3, 15: 5, 20: 7 })[Number(room && room.durationMinutes)] || 5;
+}
+function langirtState(room, seat) {
+  const l = room.langirt;
+  if (!l) return null;
+  return langirtEngine.gorunum(l.st, (seat === 0 || seat === 1) ? seat : null,
+    { status: room.status, serverNow: now() });
+}
+function emitLangirtState(room, event = 'gameStateUpdated') {
+  room.players.forEach(p => emitToPlayer(p, event, {
+    roomId: room.id, seat: p.seat, isSpectator: false, gameState: langirtState(room, p.seat)
+  }));
+  (room.spectators || []).forEach(p => emitToPlayer(p, event, {
+    roomId: room.id, seat: null, isSpectator: true, gameState: langirtState(room, null)
+  }));
+}
+/* Sahanın gerçek zamanlı paketi: her oyuncuya aynı, küçük ve sık. Durum
+   paketinin tamamını 20 Hz yollamak gereksiz; yalnız hareket edenler gider. */
+function langirtKare(room) {
+  const st = room.langirt.st;
+  io.to(room.id).emit('langirtFrame', {
+    roomId: room.id,
+    t: now(),
+    faz: st.faz,
+    fazSn: Math.round(st.fazSn * 10) / 10,
+    top: { x: Math.round(st.top.x * 10) / 10, y: Math.round(st.top.y * 10) / 10,
+           vx: Math.round(st.top.vx), vy: Math.round(st.top.vy) },
+    cubuk: { kirmizi: st.cubuk.kirmizi.map(v => Math.round(v)),
+             mavi: st.cubuk.mavi.map(v => Math.round(v)) },
+    skor: st.skor, olayNo: st.olayNo, sonOlay: st.sonOlay
+  });
+}
+function langirtDurdur(room) {
+  if (room) langirtOdalari.delete(String(room.id));
+  if (!langirtOdalari.size && langirtTimer) { clearInterval(langirtTimer); langirtTimer = null; }
+}
+function langirtBasla(room) {
+  langirtOdalari.add(String(room.id));
+  if (langirtTimer) return;
+  langirtTimer = setInterval(langirtDonguAdimi, LANGIRT_ADIM_MS);
+  if (typeof langirtTimer.unref === 'function') langirtTimer.unref();
+}
+/* Tek bir genel zamanlayıcı bütün langırt masalarını işletir: masa başına
+   setInterval açmak gereksiz yük olurdu. */
+function langirtDonguAdimi() {
+  for (const id of Array.from(langirtOdalari)) {
+    const room = rooms.get(id);
+    if (!room || !room.langirt || room.status !== 'playing') { langirtOdalari.delete(id); continue; }
+    const l = room.langirt;
+    const simdi = now();
+    /* Gerçek geçen süreyi küçük sabit adımlara böl: sunucu bir an takılsa
+       bile fizik aynı sonucu versin (değişken dt topu ışınlardı). */
+    let kalan = Math.min(250, simdi - (l.sonAdim || simdi));
+    l.sonAdim = simdi;
+    let adimSayisi = 0;
+    while (kalan >= LANGIRT_ADIM_MS && adimSayisi < 12) {
+      langirtEngine.adim(l.st, LANGIRT_ADIM_MS / 1000, l.kontrol);
+      kalan -= LANGIRT_ADIM_MS;
+      adimSayisi++;
+      if (l.st.status !== 'playing') break;
+    }
+    l.sonAdim = simdi - kalan;
+    if (l.st.status !== 'playing') { langirtBitir(room); continue; }
+    /* MAÇ SÜRESİ: hedef gole ulaşılamazsa masa süresi dolunca maç biter ve
+       skor üstünlüğü kazanır (eşitse berabere). Sıra olmadığı için genel
+       hamle sayacı burada işlemez; süreyi bu dal kapatır. */
+    const sinirSn = Math.max(60, Number(room.durationMinutes || 15) * 60);
+    if (l.st.gecenSn >= sinirSn) { langirtBitir(room, 'timeout'); continue; }
+    if (simdi - (l.sonYayin || 0) >= LANGIRT_YAYIN_MS) {
+      l.sonYayin = simdi;
+      langirtKare(room);
+    }
+  }
+  if (!langirtOdalari.size && langirtTimer) { clearInterval(langirtTimer); langirtTimer = null; }
+}
+function startLangirt(room) {
+  if (room.status === 'playing' || room.players.length !== 2 || !room.players.every(p => p.isReady)) return;
+  room.status = 'playing'; room.result = null;
+  room.langirt = {
+    st: langirtEngine.macBaslat({
+      seats: room.players.map(p => p.seat).sort((a, b) => a - b),
+      hedefGol: langirtHedefGol(room)
+    }),
+    kontrol: { hedefY: { kirmizi: [], mavi: [] }, hassas: {} },
+    sonAdim: now(), sonYayin: 0
+  };
+  room.turnStartedAt = now(); touchMoveTimer(room); emitRoom(room);
+  room.players.forEach(p => emitToPlayer(p, 'gameStarted', {
+    roomId: room.id, seat: p.seat, isSpectator: false,
+    players: publicRoom(room).players, gameState: langirtState(room, p.seat)
+  }));
+  (room.spectators || []).forEach(p => emitToPlayer(p, 'gameStarted', {
+    roomId: room.id, seat: null, isSpectator: true, gameState: langirtState(room, null)
+  }));
+  emitLangirtState(room);
+  langirtBasla(room);
+}
+function langirtBitir(room, reason) {
+  const l = room.langirt;
+  if (!l || room.status === 'finished') return;
+  langirtDurdur(room);
+  if (l.st.status === 'playing') langirtEngine.macBitir(l.st, reason || 'finished');
+  room.status = 'finished';
+  const w = l.st.winner;
+  const neden = (w === null || w === undefined) ? 'draw' : (reason || l.st.result.reason || 'finished');
+  room.result = { reason: neden, winnerSeat: w == null ? null : w, skor: l.st.skor };
+  room.players.forEach(p => emitToPlayer(p, 'gameEnded', {
+    roomId: room.id, reason: neden, winnerSeat: room.result.winnerSeat,
+    youWon: room.result.winnerSeat !== null && p.seat === room.result.winnerSeat,
+    gameState: langirtState(room, p.seat)
+  }));
+  (room.spectators || []).forEach(p => emitToPlayer(p, 'gameEnded', {
+    roomId: room.id, reason: neden, winnerSeat: room.result.winnerSeat,
+    youWon: false, isSpectator: true, gameState: langirtState(room, null)
+  }));
+  emitLangirtState(room); emitRoom(room); scheduleRoomReset(room);
+}
+
+/* ========================================================================
+ * CENGA — oda akışı
+ * ========================================================================
+ * Sıra iki adımdır: önce TAŞ SEÇ, sonra ÇEK. Çekişin gizli hedefi motorda
+ * durur ve istemciye asla gönderilmez (cenga-engine.js → gorunum); istemci
+ * yalnız tolerans bandını bilir, iğnenin durduğu konumu yollar.
+ * ===================================================================== */
+function cengaState(room, seat) {
+  const c = room.cenga;
+  if (!c) return null;
+  return cengaEngine.gorunum(c, (seat === 0 || seat === 1) ? seat : null,
+    Object.assign({ status: room.status }, moveClockOf(room)));
+}
+function emitCengaState(room, event = 'gameStateUpdated') {
+  room.players.forEach(p => emitToPlayer(p, event, {
+    roomId: room.id, seat: p.seat, isSpectator: false, gameState: cengaState(room, p.seat)
+  }));
+  (room.spectators || []).forEach(p => emitToPlayer(p, event, {
+    roomId: room.id, seat: null, isSpectator: true, gameState: cengaState(room, null)
+  }));
+}
+function startCenga(room) {
+  if (room.status === 'playing' || room.players.length !== 2 || !room.players.every(p => p.isReady)) return;
+  room.status = 'playing'; room.result = null;
+  room.cenga = cengaEngine.macBaslat({ seats: room.players.map(p => p.seat).sort((a, b) => a - b) });
+  room.turnStartedAt = now(); touchMoveTimer(room); emitRoom(room);
+  room.players.forEach(p => emitToPlayer(p, 'gameStarted', {
+    roomId: room.id, seat: p.seat, isSpectator: false,
+    players: publicRoom(room).players, gameState: cengaState(room, p.seat)
+  }));
+  (room.spectators || []).forEach(p => emitToPlayer(p, 'gameStarted', {
+    roomId: room.id, seat: null, isSpectator: true, gameState: cengaState(room, null)
+  }));
+  emitCengaState(room);
+}
+function cengaBitisYayinla(room, reason) {
+  const c = room.cenga;
+  if (!c) return;
+  room.status = 'finished';
+  const ham = reason || (c.result && c.result.reason) || 'finished';
+  const neden = (c.winner === null || c.winner === undefined) ? 'draw' : ham;
+  room.result = { reason: neden, winnerSeat: c.winner == null ? null : c.winner, cengaNeden: ham };
+  room.players.forEach(p => emitToPlayer(p, 'gameEnded', {
+    roomId: room.id, reason: neden, winnerSeat: room.result.winnerSeat,
+    youWon: room.result.winnerSeat !== null && p.seat === room.result.winnerSeat,
+    gameState: cengaState(room, p.seat)
+  }));
+  (room.spectators || []).forEach(p => emitToPlayer(p, 'gameEnded', {
+    roomId: room.id, reason: neden, winnerSeat: room.result.winnerSeat,
+    youWon: false, isSpectator: true, gameState: cengaState(room, null)
+  }));
+}
+function cengaSonrasi(room) {
+  const c = room.cenga;
+  touchMoveTimer(room);
+  if (c.status !== 'playing') {
+    cengaBitisYayinla(room);
+    emitCengaState(room); emitRoom(room); scheduleRoomReset(room);
+    return true;
+  }
+  emitCengaState(room);
+  return false;
+}
+
+/* ========================================================================
+ * PASSAPAROLA — oda akışı
+ * ========================================================================
+ * İki kişilik bilgi yarışması. Her oyuncunun KENDİ saati vardır ve saat
+ * yalnız sırası gelen oyuncunun aleyhine işler; bu yüzden oyun genel hamle
+ * sayacını DEĞİL, kendi saat döngüsünü kullanır (okey gibi).
+ *
+ * Oyuncu başına süre masa tipinden gelir: ⚡10 dk → 90 sn · ♟️15 dk → 120 sn ·
+ * 🧠20 dk → 180 sn. Soru seti her maçta rastgele seçilir ve iki oyuncu da
+ * AYNI seti oynar.
+ * ===================================================================== */
+function passaparolaSureSn(room) {
+  return ({ 10: 90, 15: 120, 20: 180 })[Number(room && room.durationMinutes)] || 120;
+}
+function passaparolaState(room, seat) {
+  const q = room.passaparola;
+  if (!q) return null;
+  return passaparolaEngine.gorunum(q, (seat === 0 || seat === 1) ? seat : null,
+    { status: room.status, turnSeat: q.status === 'playing' ? q.turn : null,
+      serverNow: now() });
+}
+function emitPassaparolaState(room, event = 'gameStateUpdated') {
+  room.players.forEach(p => emitToPlayer(p, event, {
+    roomId: room.id, seat: p.seat, isSpectator: false,
+    gameState: passaparolaState(room, p.seat)
+  }));
+  (room.spectators || []).forEach(p => emitToPlayer(p, event, {
+    roomId: room.id, seat: null, isSpectator: true,
+    gameState: passaparolaState(room, null)
+  }));
+}
+function startPassaparola(room) {
+  if (room.status === 'playing' || room.players.length !== 2 || !room.players.every(p => p.isReady)) return;
+  if (!passaparolaEngine.setSayisi()) return;      // soru havuzu yoksa oyun açılmaz
+  room.status = 'playing'; room.result = null;
+  room.passaparola = passaparolaEngine.macBaslat({
+    seats: room.players.map(p => p.seat).sort((a, b) => a - b),
+    sureSn: passaparolaSureSn(room)
+  });
+  room.passaparolaSonTik = now();
+  room.turnStartedAt = now(); touchMoveTimer(room); emitRoom(room);
+  room.players.forEach(p => emitToPlayer(p, 'gameStarted', {
+    roomId: room.id, seat: p.seat, isSpectator: false,
+    players: publicRoom(room).players, gameState: passaparolaState(room, p.seat)
+  }));
+  (room.spectators || []).forEach(p => emitToPlayer(p, 'gameStarted', {
+    roomId: room.id, seat: null, isSpectator: true,
+    gameState: passaparolaState(room, null)
+  }));
+  emitPassaparolaState(room);
+}
+function passaparolaBitisYayinla(room, reason) {
+  const q = room.passaparola;
+  if (!q) return;
+  room.status = 'finished';
+  const ham = reason || (q.result && q.result.reason) || 'finished';
+  const neden = (q.winner === null || q.winner === undefined) ? 'draw' : ham;
+  room.result = { reason: neden, winnerSeat: q.winner == null ? null : q.winner,
+                  passaparolaNeden: ham };
+  room.players.forEach(p => emitToPlayer(p, 'gameEnded', {
+    roomId: room.id, reason: neden, winnerSeat: room.result.winnerSeat,
+    youWon: room.result.winnerSeat !== null && p.seat === room.result.winnerSeat,
+    gameState: passaparolaState(room, p.seat)
+  }));
+  (room.spectators || []).forEach(p => emitToPlayer(p, 'gameEnded', {
+    roomId: room.id, reason: neden, winnerSeat: room.result.winnerSeat,
+    youWon: false, isSpectator: true, gameState: passaparolaState(room, null)
+  }));
+}
+/* Her hamleden sonra tek elden: bitti mi, yayınla. */
+function passaparolaSonrasi(room) {
+  const q = room.passaparola;
+  room.passaparolaSonTik = now();     // yeni sıraya temiz saat
+  touchMoveTimer(room);
+  if (q.status !== 'playing') {
+    passaparolaBitisYayinla(room);
+    emitPassaparolaState(room); emitRoom(room); scheduleRoomReset(room);
+    return true;
+  }
+  emitPassaparolaState(room);
+  return false;
+}
+/* SAAT DÖNGÜSÜ — ana zamanlayıcıdan saniyede bir işler. Yalnız sırası olan
+   oyuncunun saati azalır; sıfırlanınca sıra rakibe geçer. */
+function passaparolaClockTick(room) {
+  const q = room.passaparola;
+  if (!q || q.status !== 'playing') return;
+  const gecen = now() - (room.passaparolaSonTik || now());
+  const sn = Math.floor(gecen / 1000);
+  if (sn < 1) return;
+  room.passaparolaSonTik = (room.passaparolaSonTik || now()) + sn * 1000;
+  const r = passaparolaEngine.tik(q, sn);
+  if (r.sureBitti) {
+    io.to(room.id).emit('passaparolaTimeout', { roomId: room.id, seat: r.seat });
+    passaparolaSonrasi(room);
+    emitRoom(room);
+    return;
+  }
+  if (r.degisti) emitPassaparolaState(room);
+}
+
 /* ========================================================================
  * TOMBALA — oda akışı
  * ========================================================================
@@ -1633,6 +2063,10 @@ function buildBoardState(room, opts) {
   if (room.gomoku) return gomokuState(room, opts && opts.seat);
   if (room.tombala) return tombalaState(room, opts && opts.seat);
   if (room.kelimelik) return kelimelikState(room, opts && opts.seat);
+  if (room.adamasmaca) return adamasmacaState(room, opts && opts.seat);
+  if (room.passaparola) return passaparolaState(room, opts && opts.seat);
+  if (room.cenga) return cengaState(room, opts && opts.seat);
+  if (room.langirt) return langirtState(room, opts && opts.seat);
   if (room.connect4) return connect4State(room, opts && opts.seat);
   if (room.bilardo) return bilardoState(room, opts && opts.seat);
   if (room.battleship) return battleshipState(room, opts && opts.seat);
@@ -1700,6 +2134,10 @@ function emitPlayingSnapshot(room, socketId, player) {
   if (room && room.status === 'playing' && room.bilardo) { const p=bakis; io.to(socketId).emit('gameStarted',{roomId:room.id,seat:p,isSpectator:!player,players:publicRoom(room).players,gameState:bilardoState(room,p)}); io.to(socketId).emit('gameStateUpdated',{roomId:room.id,seat:p,isSpectator:!player,gameState:bilardoState(room,p)}); return; }
   if (room && room.status === 'playing' && room.battleship) { const p=bakis; io.to(socketId).emit('gameStarted',{roomId:room.id,seat:p,isSpectator:!player,players:publicRoom(room).players,gameState:battleshipState(room,p)}); io.to(socketId).emit('gameStateUpdated',{roomId:room.id,seat:p,isSpectator:!player,gameState:battleshipState(room,p)}); return; }
   if (room && room.status === 'playing' && room.connect4) { const p=bakis; io.to(socketId).emit('gameStarted',{roomId:room.id,seat:p,isSpectator:!player,players:publicRoom(room).players,gameState:connect4State(room,p)}); io.to(socketId).emit('gameStateUpdated',{roomId:room.id,seat:p,isSpectator:!player,gameState:connect4State(room,p)}); return; }
+  if (room && room.status === 'playing' && room.langirt) { const p=bakis; io.to(socketId).emit('gameStarted',{roomId:room.id,seat:p,isSpectator:!player,players:publicRoom(room).players,gameState:langirtState(room,p)}); io.to(socketId).emit('gameStateUpdated',{roomId:room.id,seat:p,isSpectator:!player,gameState:langirtState(room,p)}); return; }
+  if (room && room.status === 'playing' && room.cenga) { const p=bakis; io.to(socketId).emit('gameStarted',{roomId:room.id,seat:p,isSpectator:!player,players:publicRoom(room).players,gameState:cengaState(room,p)}); io.to(socketId).emit('gameStateUpdated',{roomId:room.id,seat:p,isSpectator:!player,gameState:cengaState(room,p)}); return; }
+  if (room && room.status === 'playing' && room.passaparola) { const p=bakis; io.to(socketId).emit('gameStarted',{roomId:room.id,seat:p,isSpectator:!player,players:publicRoom(room).players,gameState:passaparolaState(room,p)}); io.to(socketId).emit('gameStateUpdated',{roomId:room.id,seat:p,isSpectator:!player,gameState:passaparolaState(room,p)}); return; }
+  if (room && room.status === 'playing' && room.adamasmaca) { const p=bakis; io.to(socketId).emit('gameStarted',{roomId:room.id,seat:p,isSpectator:!player,players:publicRoom(room).players,gameState:adamasmacaState(room,p)}); io.to(socketId).emit('gameStateUpdated',{roomId:room.id,seat:p,isSpectator:!player,gameState:adamasmacaState(room,p)}); return; }
   if (room && room.status === 'playing' && room.kelimelik) { const p=bakis; io.to(socketId).emit('gameStarted',{roomId:room.id,seat:p,isSpectator:!player,players:publicRoom(room).players,gameState:kelimelikState(room,p)}); io.to(socketId).emit('gameStateUpdated',{roomId:room.id,seat:p,isSpectator:!player,gameState:kelimelikState(room,p)}); return; }
   if (room && room.status === 'playing' && room.tombala) { const p=bakis; io.to(socketId).emit('gameStarted',{roomId:room.id,seat:p,isSpectator:!player,players:publicRoom(room).players,gameState:tombalaState(room,p)}); io.to(socketId).emit('gameStateUpdated',{roomId:room.id,seat:p,isSpectator:!player,gameState:tombalaState(room,p)}); return; }
   if (room && room.status === 'playing' && room.gomoku) { const p=bakis; io.to(socketId).emit('gameStarted',{roomId:room.id,seat:p,isSpectator:!player,players:publicRoom(room).players,gameState:gomokuState(room,p)}); io.to(socketId).emit('gameStateUpdated',{roomId:room.id,seat:p,isSpectator:!player,gameState:gomokuState(room,p)}); return; }
@@ -1824,6 +2262,10 @@ function startRoomGame(room) {
   if (room.gameId === 'gomoku') return startGomoku(room);
   if (room.gameId === 'tombala') return startTombala(room);
   if (room.gameId === 'kelimelik') return startKelimelik(room);
+  if (room.gameId === 'adamasmaca') return startAdamasmaca(room);
+  if (room.gameId === 'passaparola') return startPassaparola(room);
+  if (room.gameId === 'cenga') return startCenga(room);
+  if (room.gameId === 'langirt') return startLangirt(room);
   if (room.gameId === 'connect4') return startConnect4(room);
   if (room.gameId === 'bilardo') return startBilardo(room);
   if (room.gameId === 'battleship') return startBattleship(room);
@@ -2807,6 +3249,26 @@ function resignMatch(room, player) {
   if (room.kelimelik && room.kelimelik.status === 'playing') {
     kelimelikEngine.pesEt(room.kelimelik, loserSeat);
   }
+  /* ADAM ASMACA: pes eden kaybeder; motor durumu da kapatılmalı, yoksa
+     bitiş paketinde maç "oynanıyor" görünür ve el sayacı donar. */
+  if (room.adamasmaca && room.adamasmaca.status === 'playing') {
+    adamasmacaEngine.pesEt(room.adamasmaca, loserSeat);
+  }
+  /* PASSAPAROLA: pes eden kaybeder; motor durumu kapatılır ki sonuç
+     ekranındaki doğru/süre sayıları o anki hâliyle dondurulsun. */
+  if (room.passaparola && room.passaparola.status === 'playing') {
+    passaparolaEngine.pesEt(room.passaparola, loserSeat);
+  }
+  /* CENGA: pes eden kaybeder; kule donar ve skorlar o hâliyle kalır. */
+  if (room.cenga && room.cenga.status === 'playing') {
+    cengaEngine.pesEt(room.cenga, loserSeat);
+  }
+  /* LANGIRT: pes eden kaybeder; fizik döngüsü de durdurulmalı, yoksa boş
+     masada top dönmeye devam eder. */
+  if (room.langirt && room.langirt.st.status === 'playing') {
+    langirtEngine.pesEt(room.langirt.st, loserSeat);
+    langirtDurdur(room);
+  }
 
   room.status = 'finished';
 
@@ -2848,6 +3310,10 @@ function resignMatch(room, player) {
       room.tombala ? tombalaState(room, seat) :
       room.gomoku ? gomokuState(room, seat) :
       room.kelimelik ? kelimelikState(room, seat) :
+      room.adamasmaca ? adamasmacaState(room, seat) :
+      room.passaparola ? passaparolaState(room, seat) :
+      room.cenga ? cengaState(room, seat) :
+      room.langirt ? langirtState(room, seat) :
       room.connect4 ? connect4State(room, seat) :
       room.bilardo ? bilardoState(room, seat) :
       room.battleship ? battleshipState(room, seat) :
@@ -3159,7 +3625,7 @@ function removePlayerFromRoom(room, player, message) {
   // aşağıdaki resetRoomToWaiting()'e düşer, status 'waiting' olur ve o andan
   // sonra hamle süresi denetimi de çalışmaz (saat 0'da donar). Amiral Battı
   // tam olarak bu yüzden rakip ayrılınca bitmiyordu.
-  if (wasPlaying && (room.dama || room.reversi || room.gomoku || room.kelimelik || room.connect4 || room.bilardo || room.battleship || room.cardGame || room.tombala)) {
+  if (wasPlaying && (room.dama || room.reversi || room.gomoku || room.kelimelik || room.adamasmaca || room.passaparola || room.cenga || room.langirt || room.connect4 || room.bilardo || room.battleship || room.cardGame || room.tombala)) {
     const kalanKoltuklar = room.players.map(p => p.seat);
     let winnerSeat = kalanKoltuklar[0];
     if (kalanKoltuklar.length > 1) {
@@ -3176,6 +3642,10 @@ function removePlayerFromRoom(room, player, message) {
       room.tombala ? tombalaState(room, seat) :
       room.gomoku ? gomokuState(room, seat) :
       room.kelimelik ? kelimelikState(room, seat) :
+      room.adamasmaca ? adamasmacaState(room, seat) :
+      room.passaparola ? passaparolaState(room, seat) :
+      room.cenga ? cengaState(room, seat) :
+      room.langirt ? langirtState(room, seat) :
       room.connect4 ? connect4State(room, seat) :
       room.bilardo ? bilardoState(room, seat) :
       room.battleship ? battleshipState(room, seat) :
@@ -4228,6 +4698,200 @@ io.on('connection', socket => {
     socket.emit('kelimelikReported', { ok: true, kelimeler });
   });
 
+  /* ===================================================================== */
+  /* ADAM ASMACA — bütün kurallar sunucuda (adamasmaca-engine.js).         */
+  /* Kelime hiçbir zaman tahminciye gönderilmez; istemci yalnız kelime     */
+  /* önerisi ve harf tahmini yollar.                                       */
+  /* ===================================================================== */
+  function aaOda(data) {
+    const room = rooms.get(socket.roomId || String(data && data.roomId || ''));
+    if (!room || !room.adamasmaca) return null;
+    return room;
+  }
+  function aaRed(room, reason, ek) {
+    socket.emit('adamasmacaRejected', Object.assign(
+      { roomId: room ? room.id : null, reason: reason }, ek || {}));
+  }
+  socket.on('adamasmacaWord', data => {
+    const room = aaOda(data);
+    const p = room && room.players.find(x => x.id === socket.id);
+    if (!p || room.status !== 'playing') return aaRed(room, 'not_in_room');
+    const r = adamasmacaEngine.kelimeSec(room.adamasmaca, p.seat,
+      (data && data.kelime) || '', (data && data.ipucu) || '');
+    if (!r.ok) return aaRed(room, r.reason, { oneriler: r.oneriler || [] });
+    /* Kelime kilitlendi: iki tarafa da duyurulur ama KELİME yollanmaz. */
+    io.to(room.id).emit('adamasmacaWordLocked', {
+      roomId: room.id, gizleyen: p.seat,
+      harfSayisi: [...r.kelime].length, ipucu: room.adamasmaca.ipucu
+    });
+    touchMoveTimer(room);
+    emitAdamasmacaState(room); emitRoom(room);
+  });
+  /* "Sözlükten öner": sözlük SUNUCUDA olduğu için öneri de buradan gelir ve
+     YALNIZ gizleyenin kendi soketine yollanır — rakip kelimeyi görmemeli. */
+  socket.on('adamasmacaSuggest', data => {
+    const room = aaOda(data);
+    const p = room && room.players.find(x => x.id === socket.id);
+    if (!p || room.status !== 'playing') return aaRed(room, 'not_in_room');
+    const a = room.adamasmaca;
+    if (a.faz !== 'kelime') return aaRed(room, 'wrong_phase');
+    if (p.seat !== a.gizleyen) return aaRed(room, 'not_your_turn');
+    const kelime = kelimelikEngine.rastgeleKelime(4, 9);
+    if (!kelime) return aaRed(room, 'sozluk_yok');
+    socket.emit('adamasmacaSuggestion', { roomId: room.id, kelime });
+  });
+  socket.on('adamasmacaGuess', data => {
+    const room = aaOda(data);
+    const p = room && room.players.find(x => x.id === socket.id);
+    if (!p || room.status !== 'playing') return aaRed(room, 'not_in_room');
+    const r = adamasmacaEngine.harfTahmin(room.adamasmaca, p.seat, (data && data.harf) || '');
+    if (!r.ok) return aaRed(room, r.reason);
+    io.to(room.id).emit('adamasmacaLetter', {
+      roomId: room.id, seat: p.seat, harf: r.harf, dogru: !!r.dogru
+    });
+    adamasmacaSonrasi(room, r.el || null);
+    emitRoom(room);
+  });
+
+  /* ===================================================================== */
+  /* PASSAPAROLA — doğru cevap ve saat SUNUCUDA. İstemci yalnız yazdığı     */
+  /* metni, "pas" ya da "harf al" isteğini gönderir.                       */
+  /* ===================================================================== */
+  function ppOda(data) {
+    const room = rooms.get(socket.roomId || String(data && data.roomId || ''));
+    if (!room || !room.passaparola) return null;
+    return room;
+  }
+  function ppRed(room, reason) {
+    socket.emit('passaparolaRejected', { roomId: room ? room.id : null, reason: reason });
+  }
+  socket.on('passaparolaAnswer', data => {
+    const room = ppOda(data);
+    const p = room && room.players.find(x => x.id === socket.id);
+    if (!p || room.status !== 'playing') return ppRed(room, 'not_in_room');
+    passaparolaClockTick(room);                       // önce saati güncelle
+    if (room.status !== 'playing') return;
+    const r = passaparolaEngine.cevapla(room.passaparola, p.seat, (data && data.cevap) || '');
+    if (!r.ok) return ppRed(room, r.reason);
+    /* Cevap herkese duyurulur — yanlış bilinen sorunun doğrusu da görünsün. */
+    io.to(room.id).emit('passaparolaResult', {
+      roomId: room.id, seat: p.seat, harf: r.harf, dogru: r.dogru, cevap: r.cevap
+    });
+    passaparolaSonrasi(room);
+    emitRoom(room);
+  });
+  socket.on('passaparolaPass', data => {
+    const room = ppOda(data);
+    const p = room && room.players.find(x => x.id === socket.id);
+    if (!p || room.status !== 'playing') return ppRed(room, 'not_in_room');
+    passaparolaClockTick(room);
+    if (room.status !== 'playing') return;
+    const r = passaparolaEngine.pas(room.passaparola, p.seat);
+    if (!r.ok) return ppRed(room, r.reason);
+    io.to(room.id).emit('passaparolaPassed', { roomId: room.id, seat: p.seat, harf: r.harf });
+    passaparolaSonrasi(room);
+    emitRoom(room);
+  });
+  /* ===================================================================== */
+  /* CENGA — kule kuralları ve ÇEKİŞİN GİZLİ HEDEFİ sunucuda.              */
+  /* İstemci yalnız seçtiği taşı ve iğnenin durduğu konumu gönderir.       */
+  /* ===================================================================== */
+  function cgOda(data) {
+    const room = rooms.get(socket.roomId || String(data && data.roomId || ''));
+    if (!room || !room.cenga) return null;
+    return room;
+  }
+  function cgRed(room, reason) {
+    socket.emit('cengaRejected', { roomId: room ? room.id : null, reason: reason });
+  }
+  /* ===================================================================== */
+  /* LANGIRT — fizik SUNUCUDA. İstemci yalnız çubuk hedefleri ve şut yollar. */
+  /* ===================================================================== */
+  function lgOda(data) {
+    const room = rooms.get(socket.roomId || String(data && data.roomId || ''));
+    if (!room || !room.langirt) return null;
+    return room;
+  }
+  function lgRed(room, reason) {
+    socket.emit('langirtRejected', { roomId: room ? room.id : null, reason: reason });
+  }
+  /* Çubuk hedefleri saniyede onlarca kez gelir: en ucuz yol, doğrulayıp
+     kontrol nesnesine yazmak. Fizik döngüsü bunu kendi adımında okur. */
+  socket.on('langirtRods', data => {
+    const room = lgOda(data);
+    const p = room && room.players.find(x => x.id === socket.id);
+    if (!p || room.status !== 'playing') return;
+    const taraf = langirtEngine.tarafOf(p.seat);
+    const r = langirtEngine.hedefYaz(room.langirt.st, taraf, data && data.hedefY);
+    if (!r.ok) return lgRed(room, r.reason);
+    room.langirt.kontrol.hassas[taraf] = !!(data && data.hassas);
+  });
+  socket.on('langirtShot', data => {
+    const room = lgOda(data);
+    const p = room && room.players.find(x => x.id === socket.id);
+    if (!p || room.status !== 'playing') return lgRed(room, 'not_in_room');
+    const taraf = langirtEngine.tarafOf(p.seat);
+    const r = langirtEngine.sut(room.langirt.st, taraf, {
+      cubuk: data && data.cubuk, guc: data && data.guc, nisanY: data && data.nisanY
+    });
+    if (!r.ok) return lgRed(room, r.reason);
+    io.to(room.id).emit('langirtShotFired', {
+      roomId: room.id, seat: p.seat, taraf, guc: r.guc, hiz: Math.round(r.hiz)
+    });
+  });
+
+  socket.on('cengaSelect', data => {
+    const room = cgOda(data);
+    const p = room && room.players.find(x => x.id === socket.id);
+    if (!p || room.status !== 'playing') return cgRed(room, 'not_in_room');
+    const r = cengaEngine.tasSec(room.cenga, p.seat,
+      data && data.kat, data && data.slot);
+    if (!r.ok) return cgRed(room, r.reason);
+    /* Duyuruda HEDEF YOK — yalnız bant ve etiketler. */
+    io.to(room.id).emit('cengaSelected', {
+      roomId: room.id, seat: p.seat, kat: r.kat, slot: r.slot, bant: r.bant,
+      sikilikEtiketi: r.sikilikEtiketi, riskSeviyesi: r.riskSeviyesi, riskEtiketi: r.riskEtiketi
+    });
+    touchMoveTimer(room);
+    emitCengaState(room);
+  });
+  socket.on('cengaRelease', data => {
+    const room = cgOda(data);
+    const p = room && room.players.find(x => x.id === socket.id);
+    if (!p || room.status !== 'playing') return cgRed(room, 'not_in_room');
+    const r = cengaEngine.secimiBirak(room.cenga, p.seat);
+    if (!r.ok) return cgRed(room, r.reason);
+    touchMoveTimer(room);
+    emitCengaState(room);
+  });
+  socket.on('cengaPull', data => {
+    const room = cgOda(data);
+    const p = room && room.players.find(x => x.id === socket.id);
+    if (!p || room.status !== 'playing') return cgRed(room, 'not_in_room');
+    const r = cengaEngine.tasCek(room.cenga, p.seat, data && data.el);
+    if (!r.ok) return cgRed(room, r.reason);
+    /* Çekiş bitti; o taşın hedefi artık sır değil — geri bildirim olsun.
+       Her yeni seçim yeni bir gizli hedef üretir. */
+    io.to(room.id).emit('cengaPulled', {
+      roomId: room.id, seat: p.seat, basarili: !!r.basarili, devrildi: !!r.devrildi,
+      isabet: r.isabet, sapma: r.sapma, hedef: r.hedef, puan: r.puan,
+      kademe: r.kademe, yerlestirildi: r.yerlestirildi
+    });
+    cengaSonrasi(room);
+    emitRoom(room);
+  });
+
+  socket.on('passaparolaReveal', data => {
+    const room = ppOda(data);
+    const p = room && room.players.find(x => x.id === socket.id);
+    if (!p || room.status !== 'playing') return ppRed(room, 'not_in_room');
+    passaparolaClockTick(room);
+    if (room.status !== 'playing') return;
+    const r = passaparolaEngine.harfAl(room.passaparola, p.seat);
+    if (!r.ok) return ppRed(room, r.reason);
+    emitPassaparolaState(room);
+  });
+
   // ---------- REVERSİ eylemleri (sunucu yetkili) ----------
   socket.on('reversiMove', data => { const room=rooms.get(socket.roomId||String(data?.roomId||'')); const p=room?.reversi&&room.players.find(x=>x.id===socket.id); if(!p||room.status!=='playing')return socket.emit('reversiRejected',{roomId:room?.id||data?.roomId,reason:'not_in_room'}); const r=reversiEngine.play(room.reversi,p.seat,Number(data.r),Number(data.c)); if(!r.ok)return socket.emit('reversiRejected',{roomId:room.id,reason:r.reason,gameState:reversiState(room,p.seat)}); if(r.winner!==undefined&&r.winner!==null||room.reversi.status==='finished'){room.status='finished';room.result=room.reversi.result;} touchMoveTimer(room);emitReversiState(room);emitRoom(room); if(room.status==='finished')room.players.forEach(q=>emitToPlayer(q,'gameEnded',{roomId:room.id,reason:'finished',winnerSeat:room.reversi.winner,youWon:q.seat===room.reversi.winner,gameState:reversiState(room,q.seat)})); });
 
@@ -4653,7 +5317,7 @@ const clockTimer = setInterval(() => {
   // Sıra kimde? — tek kaynak turnSeatOf() (durum paketleriyle birebir aynı).
   function cardMoveTurn(room) { return turnSeatOf(room); }
 function enforceOnlineMoveTimeout(room) {
-  if (!room.moveStartedAt || !room.players.length || (!room.dama && !room.reversi && !room.gomoku && !room.kelimelik && !room.connect4 && !room.bilardo && !room.battleship && !room.cardGame)) return false;
+  if (!room.moveStartedAt || !room.players.length || (!room.dama && !room.reversi && !room.gomoku && !room.kelimelik && !room.adamasmaca && !room.cenga && !room.connect4 && !room.bilardo && !room.battleship && !room.cardGame)) return false;
   // Amiral Battı 'placing' fazında kimsenin "sırası" yok (bkz. turnSeatOf),
   // bu yüzden genel tek-koltuklu zaman-aşımı mantığı burada işlemez —
   // ayrı bir dal: süresi dolduğunda HANGİ koltuk(lar) hâlâ hazır değilse
@@ -4679,6 +5343,40 @@ function enforceOnlineMoveTimeout(room) {
   const sinir=moveLimitOf(room);
   if (!room.moveWarned && elapsed>=Math.min(MOVE_WARN_MS, sinir-1000)) { room.moveWarned=true; io.to(room.id).emit('moveTimeWarning',{roomId:room.id,seat,remainingMs:Math.max(0,sinir-elapsed)}); }
   if (elapsed<sinir) return false;
+
+  /* CENGA: süresi dolan oyuncu masadan ATILMAZ. Taş seçmediyse sunucu en
+     güvenli taşı onun adına seçer; çekişte beklediyse el kayar ve çoğu
+     zaman kule devrilir — acele etmemenin bedeli budur. */
+  if (room.cenga) {
+    const c = room.cenga;
+    const ad = (room.players.find(x => x.seat === seat) || {}).name || 'Oyuncu';
+    const r = cengaEngine.sureDoldu(c);
+    io.to(room.id).emit('cengaTimeout', { roomId: room.id, seat, ad,
+      tur: r && r.tur, el: r && r.el });
+    cengaSonrasi(room);
+    emitRoom(room);
+    return true;
+  }
+
+  /* ADAM ASMACA: süresi dolan oyuncu masadan ATILMAZ (site kuralı).
+     Gizleyen süreyi doldurursa kelimeyi SUNUCU sözlükten seçer — oyun
+     durmasın; tahminci doldurursa bir can gider, yani yanlış harf saymış
+     olur. Böylece ceza da gecikmeyi yapanın üstünde kalır. */
+  if (room.adamasmaca) {
+    const a = room.adamasmaca;
+    const sonuc = adamasmacaEngine.sureDoldu(a);
+    const ad = (room.players.find(x => x.seat === seat) || {}).name || 'Oyuncu';
+    if (sonuc && sonuc.tur === 'kelime') {
+      io.to(room.id).emit('adamasmacaAutoWord', { roomId: room.id, seat, ad,
+        harfSayisi: [...(a.kelime || '')].length });
+    } else if (sonuc && sonuc.harf) {
+      io.to(room.id).emit('adamasmacaLetter', { roomId: room.id, seat, harf: sonuc.harf,
+        dogru: !!(sonuc.sonuc && sonuc.sonuc.dogru), sure: true, ad });
+    }
+    adamasmacaSonrasi(room, (sonuc && sonuc.sonuc && sonuc.sonuc.el) || null);
+    emitRoom(room);
+    return true;
+  }
 
   /* KELİMELİK: süresi dolan oyuncu HÜKMEN MAĞLUP OLMAZ — pas geçmiş sayılır.
      Diskalifiye yalnız ÜST ÜSTE 3 pastan sonra gelir (site kuralı). */
@@ -4708,10 +5406,10 @@ function enforceOnlineMoveTimeout(room) {
     winner = seat === 0 ? 1 : 0;
   }
   room.status='finished'; room.result={reason:'move_timeout',winnerSeat:winner};
-  const stateFor=(p)=>room.dama?damaState(room,p):room.reversi?reversiState(room,p):room.gomoku?gomokuState(room,p):room.kelimelik?kelimelikState(room,p):room.connect4?connect4State(room,p):room.bilardo?bilardoState(room,p):room.battleship?battleshipState(room,p):cardGameState(room,p);
+  const stateFor=(p)=>room.dama?damaState(room,p):room.reversi?reversiState(room,p):room.gomoku?gomokuState(room,p):room.kelimelik?kelimelikState(room,p):room.adamasmaca?adamasmacaState(room,p):room.cenga?cengaState(room,p):room.connect4?connect4State(room,p):room.bilardo?bilardoState(room,p):room.battleship?battleshipState(room,p):cardGameState(room,p);
   room.players.forEach(p=>emitToPlayer(p,'gameEnded',{roomId:room.id,reason:'move_timeout',winnerSeat:winner,youWon:p.seat===winner,gameState:stateFor(p.seat)}));
   (room.spectators||[]).forEach(p=>emitToPlayer(p,'gameEnded',{roomId:room.id,reason:'move_timeout',winnerSeat:winner,youWon:false,isSpectator:true,gameState:stateFor(null)}));
-  if (room.dama) emitDamaState(room); else if(room.reversi) emitReversiState(room); else if(room.gomoku) emitGomokuState(room); else if(room.kelimelik) emitKelimelikState(room); else if(room.connect4) emitConnect4State(room); else if(room.bilardo) emitBilardoState(room); else if(room.battleship) emitBattleshipState(room); else emitCardState(room);
+  if (room.dama) emitDamaState(room); else if(room.reversi) emitReversiState(room); else if(room.gomoku) emitGomokuState(room); else if(room.kelimelik) emitKelimelikState(room); else if(room.adamasmaca) emitAdamasmacaState(room); else if(room.cenga) emitCengaState(room); else if(room.connect4) emitConnect4State(room); else if(room.bilardo) emitBilardoState(room); else if(room.battleship) emitBattleshipState(room); else emitCardState(room);
   emitRoom(room); scheduleRoomReset(room); return true;
 }
 
@@ -4719,6 +5417,8 @@ for (const room of rooms.values()) {
     if (room.status !== 'playing') continue;
     // Okey kendi saat döngüsünü işletir (SIRA sayacı + koltuk ana saatleri).
     if (room.okey) { okeyClockTick(room); continue; }
+    // Passaparola da kendi saat döngüsünü işletir (oyuncu başına ayrı saat).
+    if (room.passaparola) { passaparolaClockTick(room); continue; }
     // Satranç/tavla dışındaki tüm online oyunlarda da hamlesiz 60 sn hükmen mağlubiyet.
     if (enforceOnlineMoveTimeout(room)) continue;
     const before = room.status;

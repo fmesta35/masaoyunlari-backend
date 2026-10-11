@@ -1,0 +1,440 @@
+[
+ {
+  "id": 1,
+  "name": "Standart Klasik Set",
+  "questions": [
+   {
+    "letter": "A",
+    "question": "Türkiye Cumhuriyeti'nin başkenti olan, İç Anadolu Bölgesi'ndeki tarihi şehrimiz.",
+    "answer": "Ankara"
+   },
+   {
+    "letter": "B",
+    "question": "Arıların çiçek polenlerinden ürettiği, kahvaltıda tüketilen tatlı ve şifalı besin.",
+    "answer": "Bal"
+   },
+   {
+    "letter": "C",
+    "question": "Milletin egemenliğine dayanan, halkın kendi kendini yönettiği modern yönetim şekli.",
+    "answer": "Cumhuriyet"
+   },
+   {
+    "letter": "Ç",
+    "question": "Karadeniz bölgesinde bolca yetişen, demlenerek sıcak içilen milli içeceğimiz.",
+    "answer": "Çay"
+   },
+   {
+    "letter": "D",
+    "question": "Yeryüzündeki dev su kütlelerinden, okyanustan küçük fakat göllerden büyük tuzlu su kütlesi.",
+    "answer": "Deniz"
+   },
+   {
+    "letter": "E",
+    "question": "Fırından taze aldığımız, sofralarımızın vazgeçilmez temel unlu mamulü.",
+    "answer": "Ekmek"
+   },
+   {
+    "letter": "F",
+    "question": "Özellikle Karadeniz bölgesinde yetişen, sert kabuklu, yuvarlak ve besleyici kuruyemiş.",
+    "answer": "Fındık"
+   },
+   {
+    "letter": "G",
+    "question": "Gündüzleri gökyüzünde parlayan, dünyamızı ısıtan ve aydınlatan en yakın yıldız.",
+    "answer": "Güneş"
+   },
+   {
+    "letter": "H",
+    "question": "Tavşanların çok sevdiği, turuncu renkli, toprak altında yetişen vitaminli kök sebze.",
+    "answer": "Havuç"
+   },
+   {
+    "letter": "I",
+    "question": "Temel Reis çizgi filminde kahramanın güç kazanmak için yediği yeşil yapraklı demir zengini sebze.",
+    "answer": "Ispanak"
+   },
+   {
+    "letter": "İ",
+    "question": "Türkiye'nin nüfus olarak en büyük, Boğaz'ı ile ünlü, tarihi ve turistik metropol şehri.",
+    "answer": "İstanbul"
+   },
+   {
+    "letter": "K",
+    "question": "Miyavlaması, uykuculuğu ve sevimli hareketleriyle bilinen en popüler evcil hayvan.",
+    "answer": "Kedi"
+   },
+   {
+    "letter": "L",
+    "question": "Ekşi tadıyla bilinen, salatalara, çaylara ve çorbalara sıkılan sarı renkli narenciye.",
+    "answer": "Limon"
+   },
+   {
+    "letter": "M",
+    "question": "Sarı renkli, kabuğu soyularak yenen, potasyum oranı çok yüksek tropikal meyve.",
+    "answer": "Muz"
+   },
+   {
+    "letter": "N",
+    "question": "İçi yüzlerce kırmızı taneyle kaplı, bereketin ve bolluğun simgesi olan kış meyvesi.",
+    "answer": "Nar"
+   },
+   {
+    "letter": "O",
+    "question": "Ağaçların bir arada bulunduğu, yabani hayvanların doğal yaşam alanı olan geniş yeşil bitki örtüsü.",
+    "answer": "Orman"
+   },
+   {
+    "letter": "Ö",
+    "question": "Okulda öğrencilere eğitim veren, bilgi öğreten, kutsal bir göreve sahip meslek grubu.",
+    "answer": "Öğretmen"
+   },
+   {
+    "letter": "P",
+    "question": "Kızartması, püresi ve yemeği çok sevilen, toprak altında yetişen nişastalı temel sebze.",
+    "answer": "Patates"
+   },
+   {
+    "letter": "R",
+    "question": "Uykuda zihnimizde canlanan, gerçek dışı olayların görüldüğü hayal veya düş.",
+    "answer": "Rüya"
+   },
+   {
+    "letter": "S",
+    "question": "Vücudumuzun büyük kısmını oluşturan, yaşamımızı sürdürmek için günde bolca içmemiz gereken renksiz sıvı.",
+    "answer": "Su"
+   },
+   {
+    "letter": "Ş",
+    "question": "Hastalandığımızda doktora gidip reçeteyle aldığımız, kaşıkla içilen sıvı formdaki ilaç.",
+    "answer": "Şurup"
+   },
+   {
+    "letter": "T",
+    "question": "Saçlarımızı düzeltmek, taramak ve şekillendirmek için kullandığımız sık dişli kişisel bakım aleti.",
+    "answer": "Tarak"
+   },
+   {
+    "letter": "U",
+    "question": "Gökyüzünde motor ve kanat gücüyle uçarak yolcu taşıyan büyük hava aracı.",
+    "answer": "Uçak"
+   },
+   {
+    "letter": "Ü",
+    "question": "Asma bağlarında salkımlar halinde yetişen, kurutularak da tüketilen tatlı salkımlı meyve.",
+    "answer": "Üzüm"
+   },
+   {
+    "letter": "V",
+    "question": "Denizlerde ve göllerde yolcu ve araç taşımaya yarayan, bacası ve motoru olan büyük deniz taşıtı.",
+    "answer": "Vapur",
+    "alternatives": [
+     "Gemi"
+    ]
+   },
+   {
+    "letter": "Y",
+    "question": "Geceleri gökyüzünde parıldayan, Dünyamızdan milyarlarca ışık yılı uzakta bulunan devasa gaz kütleleri.",
+    "answer": "Yıldız"
+   },
+   {
+    "letter": "Z",
+    "question": "Ege ve Akdeniz'de bolca yetişen, kahvaltıların vazgeçilmezi olan, yağı çok şifalı yeşil veya siyah küçük meyve.",
+    "answer": "Zeytin"
+   }
+  ]
+ },
+ {
+  "id": 2,
+  "name": "Günlük Yaşam ve Ev Seti",
+  "questions": [
+   {
+    "letter": "A",
+    "question": "Akdeniz kıyısında yer alan, portakalları, turizmi ve şelaleleri ile ünlü güney şehrimiz.",
+    "answer": "Antalya"
+   },
+   {
+    "letter": "B",
+    "question": "Bebeklerin ilk aylarında yattığı, hafifçe sallanarak uyutulmasını sağlayan küçük yatak.",
+    "answer": "Beşik"
+   },
+   {
+    "letter": "C",
+    "question": "Haftanın cuma gününden sonra, pazar gününden önce gelen ilk hafta sonu tatil günü.",
+    "answer": "Cumartesi"
+   },
+   {
+    "letter": "Ç",
+    "question": "Toprağı kazmak, havalandırmak veya yabani otları temizlemek için kullanılan uzun saplı tarım demiri.",
+    "answer": "Çapa"
+   },
+   {
+    "letter": "D",
+    "question": "Ağzımızda besinleri ısırmaya, çiğnemeye ve ezmeye yarayan, beyaz ve sert yapılı organlar.",
+    "answer": "Diş"
+   },
+   {
+    "letter": "E",
+    "question": "Spor yaparken veya evde dinlenirken giyilen, alt ve üst olmak üzere iki parçalı rahat kıyafet takımı.",
+    "answer": "Eşofman"
+   },
+   {
+    "letter": "F",
+    "question": "Gemilerin ve denizcilerin karanlıkta kıyıyı bulabilmesi için sahillere dikilen dev aydınlatma kulesi.",
+    "answer": "Fener"
+   },
+   {
+    "letter": "G",
+    "question": "Gözlerimizin daha net görmesini sağlayan ya da güneşten koruyan camlı, çerçeveli araç.",
+    "answer": "Gözlük"
+   },
+   {
+    "letter": "H",
+    "question": "Vahşi ve egzotik hayvanların kafes veya özel alanlarda sergilendiği, ziyaret edilen büyük park.",
+    "answer": "Hayvanat Bahçesi"
+   },
+   {
+    "letter": "I",
+    "question": "Karanlık bir ortamı aydınlatmaya yarayan, görme olayını gerçekleştiren fiziksel enerji formu.",
+    "answer": "Işık"
+   },
+   {
+    "letter": "İ",
+    "question": "İki veya daha fazla kişinin karşılıklı konuşması, bilgi ve duygu alışverişinde bulunması süreci.",
+    "answer": "İletişim"
+   },
+   {
+    "letter": "K",
+    "question": "Deniz kıyısında güneşlenilen, çocukların kale yaptığı ince kumlu sahil bölgesi.",
+    "answer": "Kumsal",
+    "alternatives": [
+     "Plaj"
+    ]
+   },
+   {
+    "letter": "L",
+    "question": "Evlerimizde veya sokaklarda geceleri aydınlatma amacıyla kullanılan, ampulün takılı olduğu alet.",
+    "answer": "Lamba"
+   },
+   {
+    "letter": "M",
+    "question": "Demir, nikel, kobalt gibi metalleri kendine doğru çekme özelliği olan iki kutuplu doğal cisim.",
+    "answer": "Mıknatıs"
+   },
+   {
+    "letter": "N",
+    "question": "Şarkılarda ve bestelerde seslerin süresini ve inceliğini gösteren, portre üzerine yazılan müzik işaretleri.",
+    "answer": "Nota"
+   },
+   {
+    "letter": "O",
+    "question": "Trafikte yolcu taşımacılığında kullanılan, dört tekerlekli, motorlu binek taşıt.",
+    "answer": "Otomobil",
+    "alternatives": [
+     "Araba"
+    ]
+   },
+   {
+    "letter": "Ö",
+    "question": "Yatak veya koltukların üzerine serilen, tozdan koruyan veya süsleyen kumaş kaplama.",
+    "answer": "Örtü"
+   },
+   {
+    "letter": "P",
+    "question": "Evlerimizde ışık ve hava girmesini sağlayan, dışarıyı izleyebildiğimiz camlı duvar açıklığı.",
+    "answer": "Pencere"
+   },
+   {
+    "letter": "R",
+    "question": "Havanın yüksek basınçtan alçak basınca yer değiştirmesiyle oluşan, esinti ve rüzgar dalgası.",
+    "answer": "Rüzgar"
+   },
+   {
+    "letter": "S",
+    "question": "Halıların, parkelerin üzerindeki toz ve çöpleri içine çekerek temizleyen elektrikli ev aleti.",
+    "answer": "Süpürge"
+   },
+   {
+    "letter": "Ş",
+    "question": "İçine su, gazoz ya da zeytinyağı konan, genellikle cam veya plastikten üretilen dar boyunlu kap.",
+    "answer": "Şişe"
+   },
+   {
+    "letter": "T",
+    "question": "Tarlalarda çift sürmek, tohum ekmek ve yük taşımak için kullanılan büyük arka tekerlekli tarım aracı.",
+    "answer": "Traktör"
+   },
+   {
+    "letter": "U",
+    "question": "Gezegenlerin, yıldızların ve tüm gök cisimlerinin içinde yer aldığı sonsuz karanlık boşluk.",
+    "answer": "Uzay"
+   },
+   {
+    "letter": "Ü",
+    "question": "Kırışık kıyafetleri yüksek sıcaklık ve buhar yardımıyla düzleştirmeye yarayan ev aleti.",
+    "answer": "Ütü"
+   },
+   {
+    "letter": "V",
+    "question": "Baş, gövde, kollar ve bacaklardan oluşan, insanın sahip olduğu fiziksel yapı bütünü.",
+    "answer": "Vücut",
+    "alternatives": [
+     "Beden"
+    ]
+   },
+   {
+    "letter": "Y",
+    "question": "Kuşların yumurtlamak ve yavrularını büyütmek için saman ve dallarla ağaçlara yaptığı barınak.",
+    "answer": "Yuva"
+   },
+   {
+    "letter": "Z",
+    "question": "Mektupları, tebrik kartlarını korumak amacıyla içine koyduğumuz, üzeri yapışkanlı kağıt kılıf.",
+    "answer": "Zarf"
+   }
+  ]
+ },
+ {
+  "id": 3,
+  "name": "Doğa, Kültür ve Eğlence Seti",
+  "questions": [
+   {
+    "letter": "A",
+    "question": "Geceleri gökyüzünde parlayan, dünyamızın tek doğal uydusu olan gök cismi.",
+    "answer": "Ay"
+   },
+   {
+    "letter": "B",
+    "question": "Deniz ve nehirlerde yaşayan, solungaçları olan, pullarla kaplı su canlılarının genel adı.",
+    "answer": "Balık"
+   },
+   {
+    "letter": "C",
+    "question": "Haftanın perşembeden sonra gelen, müslümanlar için haftalık toplu ibadet günü olan kutsal gün.",
+    "answer": "Cuma"
+   },
+   {
+    "letter": "Ç",
+    "question": "Seyahate çıkarken elbiselerimizi ve kişisel eşyalarımızı yerleştirdiğimiz fermuarlı bavul veya çanta.",
+    "answer": "Çanta"
+   },
+   {
+    "letter": "D",
+    "question": "Suyun altında uzun süre kalabilen, periskopla çevreyi izleyen askeri veya bilimsel deniz aracı.",
+    "answer": "Denizaltı"
+   },
+   {
+    "letter": "E",
+    "question": "Zıt anlamlısı 'taze', 'yeni' veya 'modern' olan; uzun süre önce üretilmiş veya yaşanmış şey.",
+    "answer": "Eski"
+   },
+   {
+    "letter": "F",
+    "question": "Parklarda, bahçelerde veya meydanlarda yukarı doğru estetik şekilde su püskürten yapay havuz düzeneği.",
+    "answer": "Fıskiye"
+   },
+   {
+    "letter": "G",
+    "question": "Gelinlerin düğün törenlerinde giydiği, genellikle tüllerle süslü, bembeyaz gösterişli elbise.",
+    "answer": "Gelinlik"
+   },
+   {
+    "letter": "H",
+    "question": "Hastalara teşhis koyulan, tedavilerin uygulandığı, doktor ve hemşirelerin çalıştığı büyük şifa kurumu.",
+    "answer": "Hastane"
+   },
+   {
+    "letter": "I",
+    "question": "Dokunulduğunda cildi yakan, kaşındıran, fakat çorbası ve yemeği çok faydalı olan yabani yeşil ot.",
+    "answer": "Isırgan"
+   },
+   {
+    "letter": "İ",
+    "question": "Dikiş nakış işlerinde iğne deliğinden geçirilerek kumaşları birleştirmeye yarayan ince lifli ip.",
+    "answer": "İplik"
+   },
+   {
+    "letter": "K",
+    "question": "Kışın bulutlardan süzülerek yere düşen, beyaz kristallerden oluşan soğuk yağış türü.",
+    "answer": "Kar"
+   },
+   {
+    "letter": "L",
+    "question": "Su, taze sıkılmış ekşi limon suyu ve şekerin karıştırılmasıyla elde edilen serinletici yaz içeceği.",
+    "answer": "Limonata"
+   },
+   {
+    "letter": "M",
+    "question": "Yeraltından çıkan, içinde bolca mineral barındıran, asitli ve gazlı doğal şifalı su.",
+    "answer": "Maden Suyu",
+    "alternatives": [
+     "Soda"
+    ]
+   },
+   {
+    "letter": "N",
+    "question": "Altın, pırlanta, elmas gibi değerli madenlerden yapılan, çok yüksek maddi değere sahip süs eşyası.",
+    "answer": "Mücevher"
+   },
+   {
+    "letter": "O",
+    "question": "Vücutta aşırı yağ depolanmasıyla ortaya çıkan, sağlığı tehdit eden aşırı kiloluluk hastalığı.",
+    "answer": "Obezite"
+   },
+   {
+    "letter": "Ö",
+    "question": "Öğrencilerin okul saatleri dışında, evlerinde kendilerini geliştirmesi için öğretmen tarafından verilen ödev.",
+    "answer": "Ödev"
+   },
+   {
+    "letter": "P",
+    "question": "Haftanın belirli günlerinde sokaklarda kurulan, taze sebze ve meyvelerin ucuza satıldığı tezgahlar alanı.",
+    "answer": "Pazar"
+   },
+   {
+    "letter": "R",
+    "question": "Yalnızca ses dalgaları yoluyla yayın yapan, araba yolculuklarında müzik dinlediğimiz eski kutu cihaz.",
+    "answer": "Radyo"
+   },
+   {
+    "letter": "S",
+    "question": "Tiyatro, konser veya sinema salonlarında izleyicilerin oturduğu, sahneyi tam cepheden gören geniş oda.",
+    "answer": "Salon"
+   },
+   {
+    "letter": "Ş",
+    "question": "Otobüs, dolmuş, taksi veya kamyon gibi ticari veya hususi araçları kullanan profesyonel sürücü.",
+    "answer": "Şoför"
+   },
+   {
+    "letter": "T",
+    "question": "Gökyüzündeki çok uzaktaki gezegenleri, yıldızları ve gök cisimlerini dev merceklerle inceleyen bilimsel alet.",
+    "answer": "Teleskop"
+   },
+   {
+    "letter": "U",
+    "question": "Geleceğe yönelik beslenen güzel hayaller, olumlu beklentiler ve içsel iyimserlik hissi.",
+    "answer": "Umut"
+   },
+   {
+    "letter": "Ü",
+    "question": "Üç kenarı, üç köşesi ve üç iç açısı bulunan, toplam iç açısı 180 derece olan geometrik şekil.",
+    "answer": "Üçgen"
+   },
+   {
+    "letter": "V",
+    "question": "Altışar kişilik iki takım halinde, elle vurularak topun ortadaki file üzerinden geçirilmeye çalışıldığı spor.",
+    "answer": "Voleybol"
+   },
+   {
+    "letter": "Y",
+    "question": "Yemeklerin içerisine dökülen, zeytinden, ayçiçeğinden veya tereyağından elde edilen kaygan sıvı yağlayıcı.",
+    "answer": "Yağ"
+   },
+   {
+    "letter": "Z",
+    "question": "Zararlı virüs ve bakterileri öldürmek için ellerimize sıktığımız, yüksek alkollü dezenfekte edici sıvı.",
+    "answer": "Dezenfektan"
+   }
+  ]
+ }
+]

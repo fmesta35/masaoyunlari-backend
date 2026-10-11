@@ -95,6 +95,37 @@ function sozluktekiMi(kelime) {
 }
 function sozlukBoyu() { sozlukYukle(); return SOZLUK.size; }
 
+/* ----------------------------------------------------------- RASTGELE KELİME
+ * Adam Asmaca, gizleyen oyuncu süresini doldurduğunda ya da "öner" dediğinde
+ * sözlükten kelime ister. Kelimelik'in SOZLUK_LISTE'si ıstaka boyuyla (7 harf)
+ * sınırlı olduğu için burada uzunluğa göre AYRI bir dizin kurulur; dizin bir
+ * kez kurulup saklanır (60 bin kelimeyi her seferinde taramak gereksiz).
+ */
+let UZUNLUK_DIZINI = null;
+function uzunlukDizini() {
+  if (UZUNLUK_DIZINI) return UZUNLUK_DIZINI;
+  sozlukYukle();
+  UZUNLUK_DIZINI = {};
+  for (const k of SOZLUK) {
+    const n = [...k].length;                 // Türkçe harfler tek kod birimi
+    (UZUNLUK_DIZINI[n] = UZUNLUK_DIZINI[n] || []).push(k);
+  }
+  return UZUNLUK_DIZINI;
+}
+/* enAz..enCok harf arası rastgele bir sözlük kelimesi. rng verilmezse
+   Math.random kullanılır (testler tohumlanabilsin diye dışarıdan alınır). */
+function rastgeleKelime(enAz, enCok, rng) {
+  const dz = uzunlukDizini();
+  const r = rng || Math.random;
+  const a = Math.max(2, Number(enAz) || 4);
+  const b = Math.max(a, Number(enCok) || 10);
+  const havuz = [];
+  for (let n = a; n <= b; n++) if (dz[n]) havuz.push(dz[n]);
+  if (!havuz.length) return null;
+  const grup = havuz[Math.floor(r() * havuz.length)];
+  return grup[Math.floor(r() * grup.length)] || null;
+}
+
 /* ---------------------------------------------------------------- "BUNU MU?"
  * Reddedilen kelimeye BİR harf uzaklıktaki sözlük kelimelerini bulur.
  * Kullanıcı raporu: "MARMALAT kelimesi nasıl Türkçe olmaz" — doğrusu
@@ -541,6 +572,6 @@ function otomatikPasGerekli(st) {
 module.exports = {
   N, ISTAKA, BINGO, PAS_SINIRI, HARFLER, BONUS, MERKEZ,
   init, play, pas, takas, pesEt, hamleVarMi, otomatikPasGerekli,
-  sozluktekiMi, sozlukYukle, sozlukBoyu, benzerKelimeler, harfPuani, trBuyuk, trKucuk,
+  sozluktekiMi, sozlukYukle, sozlukBoyu, benzerKelimeler, rastgeleKelime, harfPuani, trBuyuk, trKucuk,
   _hamleAra: hamleAra, _sozlukHamlesiAra: sozlukHamlesiAra, _kelimeleriTopla: kelimeleriTopla
 };

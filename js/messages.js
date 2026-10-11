@@ -106,6 +106,32 @@
     tombala:     '🎉 Tombala! On beş sayının tamamı kapandı ve el bitti.',
     torba_bitti: '🎱 Torbadaki toplar bitti — el, o ana kadar kazanılan ödüllere göre kapandı.',
 
+    // ---- Adam Asmaca ----
+    /* Gizleyen kelimeyi seçerken, tahminci harf girerken bu kodlar döner. */
+    kelime_kisa:   '✏️ Kelime en az 3 harf olmalı — daha uzun bir kelime seçin.',
+    kelime_uzun:   '✏️ Kelime en fazla 14 harf olabilir — daha kısa bir kelime seçin.',
+    harf_denendi:  '🔁 Bu harf zaten denendi — başka bir harf seçin.',
+    game_over:     '🏁 Maç bitti — bu masada yeni hamle yapılamaz.',
+    sozluk_yok:    '📚 Sözlükten şu an kelime önerilemedi — kendi kelimenizi yazabilirsiniz.',
+
+    // ---- Passaparola ----
+    /* Cevap, pas ve "harf al" isteklerinde dönebilecek sebep kodları. */
+    bos_cevap:    '✍️ Önce bir cevap yazın — boş gönderilemez.',
+    sure_yetmez:  '⏱ Harf almak 5 saniyeye mal olur; kalan süreniz yetmiyor.',
+    harf_kalmadi: '💡 Bu cevapta açılacak harf kalmadı — tahmininizi yazın.',
+
+    // ---- Cenga ----
+    /* Kule kuralları ve çekiş sunucuda; bu kodlar reddedilen hamleyi anlatır. */
+    kat_kilitli:    '🚫 En üstteki tamamlanmış kattan ve üstünden taş çekilemez — daha alttan seçin.',
+    tas_yok:        '🧱 Orada taş yok — kulede duran bir taş seçin.',
+    gecersiz_tas:   '🧱 Böyle bir taş yok — kuleden bir taş seçin.',
+    gecersiz_cekis: '✊ Çekiş okunamadı — iğneyi durdurup tekrar deneyin.',
+    cokus:          '💥 Kule devrildi — kuleyi deviren eli kaybeder.',
+
+    // ---- Langırt ----
+    /* Gerçek zamanlı oyun; tek reddedilebilir işlem boşa sallanan şuttur. */
+    top_uzak:       '⚽ Bu çubuk topa uzak — önce çubuğu topun hizasına getirin.',
+
     // ---- Amiral Battı (Battleship) ----
     bad_seat: '🔌 Masayla bağlantı kurulamadı. Sayfayı yenileyip tekrar deneyin.',
     wrong_phase: '🚫 Bu işlem şu anki oyun aşamasında yapılamaz.',
