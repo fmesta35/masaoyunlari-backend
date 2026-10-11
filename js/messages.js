@@ -132,6 +132,26 @@
     /* Gerçek zamanlı oyun; tek reddedilebilir işlem boşa sallanan şuttur. */
     top_uzak:       '⚽ Bu çubuk topa uzak — önce çubuğu topun hizasına getirin.',
 
+    // ---- Fark Bulmaca ----
+    /* Boşa tıklayan kısa süre kilitlenir: ekrana rastgele tıklayarak
+       farkları süpürmek işe yaramasın diye. */
+    tikla_kilitli:  '⏳ Boşa dokundunuz — birkaç saniye bekleyip tekrar deneyin.',
+
+    // ---- Metropol ----
+    /* Mülk oyununda "yapamazsın" demenin bir sürü sebebi var; oyuncu
+       hangisine takıldığını bilsin diye her biri AYRI yazıldı. */
+    satilmaz:        '🏷️ Bu kare satılık değil — ya sahibi var ya da alınıp satılan bir kare değil.',
+    para_yetmiyor:   '💸 Nakdiniz yetmiyor. Bina satıp ya da mülk ipotek ederek para yaratabilirsiniz.',
+    sizin_degil:     '🔑 Bu kare sizin değil — yalnız kendi mülkünüzde işlem yapabilirsiniz.',
+    gecersiz_kare:   '🗺️ Böyle bir mülk yok — üzerine bina kurulabilecek bir kare seçin.',
+    grup_eksik:      '🏘️ Bina kurmak için o rengin TÜM karelerine sahip olmalısınız.',
+    ipotekli:        '📄 İpotekli mülke bina kurulamaz — önce ipoteği kaldırın.',
+    bina_dolu:       '🏨 Bu karede bina sınırına ulaşıldı (4 ev + 1 otel).',
+    dengesiz:        '⚖️ Dengeli inşaat kuralı: aynı renkteki kareler arasında en çok bir bina fark olabilir.',
+    bina_yok:        '🏚️ Bu karede satılacak bina yok.',
+    once_binalari_sat: '🏗️ İpotek için önce o rengin üzerindeki tüm binaları satmalısınız.',
+    kart_yok:        '🎫 Elinizde "cezaevinden çıkış" kartı yok.',
+
     // ---- Amiral Battı (Battleship) ----
     bad_seat: '🔌 Masayla bağlantı kurulamadı. Sayfayı yenileyip tekrar deneyin.',
     wrong_phase: '🚫 Bu işlem şu anki oyun aşamasında yapılamaz.',
@@ -165,6 +185,7 @@
       if (r === 'player_left') return { ikon: '🚪', baslik: 'Oyuncu ayrıldı', metin: 'Masadaki oyunculardan biri oyunu terk etti; maç sona erdi.' };
       if (r === 'move_timeout') return { ikon: '⏱️', baslik: 'Süre doldu', metin: 'Sırası gelen oyuncu süresinde hamle yapmadı.' };
       if (r === 'timeout' || r === 'time_expired') return { ikon: '⏱️', baslik: 'Süre bitti', metin: 'Oyunculardan birinin süresi tükendi.' };
+      if (r === 'tur_limiti') return { ikon: '🏦', baslik: 'Tur limiti doldu', metin: 'Masa tur limitinde bitti; en yüksek varlığa sahip oyuncu kazandı.' };
       return { ikon: '🏁', baslik: 'Maç bitti', metin: 'Bu masadaki maç sona erdi.' };
     }
 
@@ -202,6 +223,16 @@
         threefold_repetition: 'Aynı konum üç kez tekrarlandı.'
       }[r] || 'İki taraf da kazanamadı.';
       return { ikon: '🤝', baslik: 'Berabere', metin: acik };
+    }
+    /* METROPOL: tur limiti dolduğunda en yüksek VARLIK kazanır — iflas
+       yok, bu yüzden "kaybettiniz" demek yerine sıralama vurgulanır. */
+    if (r === 'tur_limiti') {
+      if (o.winnerSeat === null || o.winnerSeat === undefined) {
+        return { ikon: '🤝', baslik: 'Berabere', metin: 'Tur limiti doldu ve varlıklar eşit çıktı — masa berabere bitti.' };
+      }
+      return o.youWon
+        ? { ikon: '🏆', baslik: 'En zengin sizsiniz!', metin: 'Tur limiti doldu; en yüksek varlıkla masayı siz kazandınız.' }
+        : { ikon: '🏦', baslik: 'Tur limiti doldu', metin: 'Masa tur limitinde bitti; en yüksek varlık rakibinizdeydi.' };
     }
     if (r === 'fleet_sunk') {
       return o.youWon

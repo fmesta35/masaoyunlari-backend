@@ -83,6 +83,25 @@ const topParmak = p => p.evaluate(() => {
   if (!g || !g.balls) return null;
   return g.balls.map(b => Math.round(b.x) + ',' + Math.round(b.y) + (b.potted ? 'P' : '')).join(' ');
 });
+/* ⚠ Açılış ırkı BİLEREK kusurludur: bilardo-engine.js → rack() her topa
+   ±0,15 mm'lik bir dağınıklık ekler, yoksa her açılış vuruşu birebir aynı
+   sonucu verirdi. Bu yüzden rövanştan sonraki ırk öncekinin BİREBİR AYNISI
+   olamaz — bir topun yuvarlanmış koordinatı ara sıra 223/224 gibi bir
+   piksel kayıyordu ve test rastgele kalıyordu. Karşılaştırma artık 1
+   piksellik paya izin veriyor; ölçmek istediğimiz şey "toplar açılış
+   DÜZENİNE döndü mü", "bitler aynı mı" değil. */
+function ayniDuzen(a, b, pay) {
+  if (!a || !b) return false;
+  const A = String(a).split(' '), B = String(b).split(' ');
+  if (A.length !== B.length) return false;
+  return A.every((t, i) => {
+    const u = B[i];
+    if (/P$/.test(t) !== /P$/.test(u)) return false;   // cebe giren topluk
+    const [ax, ay] = t.replace('P', '').split(',').map(Number);
+    const [bx, by] = u.replace('P', '').split(',').map(Number);
+    return Math.abs(ax - bx) <= (pay || 1) && Math.abs(ay - by) <= (pay || 1);
+  });
+}
 const cizimSayaci = p => p.evaluate(() => (window.__gvBilDurum || {}).cizim || 0);
 
 async function siradaki(sayfalar) {
@@ -159,7 +178,7 @@ async function main() {
 
   // ---------- C/D) RÖVANŞTA TAHTA SIFIRLANIYOR ----------
   const vurustanSonra = await topParmak(p1);
-  assert.notStrictEqual(vurustanSonra, acilis,
+  assert.ok(!ayniDuzen(vurustanSonra, acilis, 1),
     'test kurulumu: vuruş topları gerçekten dağıtmalı');
   await p1.evaluate(() => { const s = window.__gvRoomSocket; s.emit('gvResign'); });
   await uyu(1600);
@@ -169,7 +188,7 @@ async function main() {
 
   const sonrasi = await topParmak(p1);
   const cizimSonra = await cizimSayaci(p1);
-  assert.strictEqual(sonrasi, acilis,
+  assert.ok(ayniDuzen(sonrasi, acilis, 1),
     'C) rövanş sonrası toplar AÇILIŞ düzenine dönmeli — hâlâ: ' + String(sonrasi).slice(0, 60));
   assert.ok(cizimSonra > cizimOnce,
     'C) rövanştan sonra tuval yeniden çizilmeli (çizim sayacı artmalı) — ' +

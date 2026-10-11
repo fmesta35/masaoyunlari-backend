@@ -31,7 +31,7 @@
      Kelimelik satırında yalnız "Görünür" vardı). Artık şema SUNUCUDAN
      (/api/admin/tables → sema) okunur; aşağıdakiler yalnız sunucuya
      ulaşılamadığında kullanılan yedektir. */
-  let STANDARD = ['chess', 'tavla', 'okey', 'okey101', 'pisti', 'batak', 'dama', 'turkdamasi', 'reversi', 'gomoku', 'connect4', 'bilardo', 'battleship', 'kelimelik', 'adamasmaca', 'passaparola', 'cenga', 'langirt', 'havahokeyi'];
+  let STANDARD = ['chess', 'tavla', 'okey', 'okey101', 'pisti', 'batak', 'dama', 'turkdamasi', 'reversi', 'gomoku', 'connect4', 'bilardo', 'battleship', 'kelimelik', 'adamasmaca', 'passaparola', 'cenga', 'langirt', 'havahokeyi', 'fark'];
   let FIXED = [];
   /* Masası eklenip çıkarılabilen oyunlar. Eskiden bunun yerine doğrudan
      STANDARD'a bakılıyordu; okey ve 101 okey orada olmadığı için satırlarında
@@ -40,8 +40,8 @@
      yok"). Liste SUNUCUDAN gelir (sema.duzenlenebilir). */
   let DUZENLENEBILIR = STANDARD.slice();
   /* Masa satırı kişi sayısı / el sayısı da taşıyan oyunlar ve üst sınırları. */
-  let KART_MASALARI = ['okey', 'okey101', 'pisti', 'batak', 'tombala'];
-  let KART_SINIR = { okey: 30, okey101: 40, pisti: 20, batak: 40, tombala: 40 };
+  let KART_MASALARI = ['okey', 'okey101', 'pisti', 'batak', 'tombala', 'kizmabirader', 'metropol'];
+  let KART_SINIR = { okey: 30, okey101: 40, pisti: 20, batak: 40, tombala: 40, kizmabirader: 40, metropol: 40 };
   /* Bu oyunlarda masa satırında hangi ek sütunlar görünsün?
      okey101'de "rounds" el değil SÜRE anlamına geldiği için el sütunu yok;
      batak masaları tanımı gereği 4 kişiliktir, kişi sütunu yok. */
@@ -51,6 +51,11 @@
     /* Tombalada el yoktur; kişi sayısı 2-6, çekiliş hızı "hamle süresi"
        sütunundan ayarlanır (saniye). */
     tombala: { kisi: [2, 3, 4, 5, 6], el: null, elEtiket: '' },
+    /* Kizma Birader'de el yoktur; kisi 2-4, hamle suresi ayri sutunda. */
+    kizmabirader: { kisi: [2, 3, 4], el: null, elEtiket: '' },
+    /* Metropol'de "el" yerine TUR LİMİTİ var: masa sonsuza kadar sürmesin
+       diye limit dolunca en yüksek varlık kazanır. Kurucu buradan seçer. */
+    metropol: { kisi: [2, 3, 4], el: [15, 25, 40], elEtiket: 'Tur' },
     pisti:   { kisi: [2, 3, 4], el: [1, 3, 5],  elEtiket: 'El' },
     batak:   { kisi: null,      el: [3, 5, 7],  elEtiket: 'El' }
   };
@@ -218,7 +223,7 @@
   }
 
   // Varsayılan ayarlar (sunucudakiyle aynı kalıp):
-  const BASE = { chess: 101, tavla: 201, dama: 401, turkdamasi: 501, reversi: 601, gomoku: 701, connect4: 801, bilardo: 921, okey: 301, okey101: 1201, pisti: 341, batak: 361, battleship: 1001, kelimelik: 1101, tombala: 1301, adamasmaca: 2001, passaparola: 2101, cenga: 2201, langirt: 2301, havahokeyi: 2401 };
+  const BASE = { chess: 101, tavla: 201, dama: 401, turkdamasi: 501, reversi: 601, gomoku: 701, connect4: 801, bilardo: 921, okey: 301, okey101: 1201, pisti: 341, batak: 361, battleship: 1001, kelimelik: 1101, tombala: 1301, adamasmaca: 2001, passaparola: 2101, cenga: 2201, langirt: 2301, havahokeyi: 2401, fark: 2501, kizmabirader: 2601, metropol: 2701 };
   /* Taban numarası bilinmeyen (sunucu şeması gelmemiş) bir oyun için bile
      masa adı üretilebilsin; yoksa "Masa #NaN" yazıyordu. */
   function tabanOf(gid) { return Number(BASE[gid]) > 0 ? Number(BASE[gid]) : 1; }

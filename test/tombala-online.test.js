@@ -273,11 +273,18 @@ function arayuzTesti() {
   const panel = oku('js/admin-panel.js');
   assert.ok(/tombala: \{ kisi: \[2, 3, 4, 5, 6\]/.test(panel),
     'kurucu paneli tombalada 2-6 kişi seçebilmeli');
-  assert.ok(/KART_MASALARI = \[[^\]]*'tombala'\]/.test(panel),
+  /* ⚠ Liste ÜYELİĞİ ölçülüyor, SIRA değil: eskiden regex oyunun listenin
+     SONUNDA olmasını şart koşuyordu ve her yeni oyun eklendiğinde bu test
+     kırılıyordu. Liste bloğu çekilip includes ile bakılıyor. */
+  const listeIcinde = (metin, ad, oyun) => {
+    const blok = (metin.match(new RegExp(ad + ' = \\[[\\s\\S]*?\\];')) || [''])[0];
+    return blok.includes("'" + oyun + "'");
+  };
+  assert.ok(listeIcinde(panel, 'KART_MASALARI', 'tombala'),
     'panel tombalayı masası yönetilen oyun saymalı');
 
   const sunucu = oku('server.js');
-  assert.ok(/FIXED_PRESET_GAMES = \['okey', 'okey101', 'tombala'\]/.test(sunucu),
+  assert.ok(listeIcinde(sunucu, 'FIXED_PRESET_GAMES', 'tombala'),
     'tombala masaları kurucu tarafından yönetilebilmeli');
   assert.ok(/tombala: 6/.test(sunucu), 'tombala 6 kişiye kadar açılmalı');
   console.log('  ✓ 10) istemci, stiller, kurallar ve kurucu paneli bağlı');

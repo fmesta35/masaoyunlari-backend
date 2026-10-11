@@ -2508,6 +2508,241 @@ body.gv-app input,body.gv-app textarea,body.gv-app .chat-msgs,body.gv-app .moves
   .hk-skor-yazi{font-size:1.25em}
   .hk-takim{font-size:.76em;padding:5px 8px}
 }
+
+/* ===================== FARK BULMACA =============================== */
+/* İki SVG kopya; geniş alanda yan yana, dar alanda alt alta. Kutuların
+   ölçüsü JS'te ÖLÇÜLEN alana göre verilir (js/fark-online.js olcuYaz),
+   SVG'ler görünüm kutusunu koruyarak içine oturur. */
+.fk-wrap{width:100%;display:flex;flex-direction:column;gap:7px;align-items:stretch}
+.fk-ust{display:flex;align-items:stretch;gap:8px}
+.fk-oyuncu{flex:1 1 0;min-width:0;display:flex;flex-direction:column;gap:1px;
+  padding:6px 10px;border-radius:11px;border:1px solid var(--border);background:var(--bg2)}
+.fk-oyuncu.sag{text-align:right}
+.fk-oyuncu.benim{border-color:var(--accent)}
+.fk-ad{font-size:.82em;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fk-bul{font-size:1.05em;font-weight:900;color:#67d3c6;font-variant-numeric:tabular-nums}
+.fk-orta{flex:0 0 auto;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:1px;padding:5px 12px;border-radius:11px;border:1px solid var(--border);background:var(--bg2)}
+.fk-el{font-size:.6em;letter-spacing:1.2px;color:var(--text3)}
+.fk-skor{font-size:1.15em;font-weight:900;font-variant-numeric:tabular-nums}
+.fk-sure{font-size:.82em;color:var(--text3);font-variant-numeric:tabular-nums}
+.fk-sure.az{color:#e74c3c;font-weight:800}
+.fk-sahne-adi{font-size:.8em;color:var(--text3);text-align:center}
+.fk-resimler{display:flex;flex-direction:column;gap:8px;align-items:center;justify-content:center}
+.fk-resimler.yanyana{flex-direction:row}
+.fk-kutu{position:relative;border-radius:12px;overflow:hidden;background:#0b1b2b;
+  border:1px solid var(--border);flex:0 0 auto}
+.fk-etiket{position:absolute;top:6px;left:8px;z-index:2;font-size:.72em;font-weight:900;
+  padding:1px 8px;border-radius:999px;background:rgba(0,0,0,.55);color:#fff;letter-spacing:1px}
+.fk-svg{display:block;width:100%;height:100%;cursor:crosshair;touch-action:manipulation;
+  user-select:none;-webkit-user-select:none}
+.fk-halka{fill:rgba(103,211,198,.16);stroke:#2ecc71;stroke-width:4}
+.fk-halka.yeni{stroke:#ffd666;stroke-width:6}
+.fk-halka.kacan{fill:rgba(231,76,60,.12);stroke:#e74c3c;stroke-dasharray:8 6}
+.fk-perde{position:relative;margin-top:-6px;display:flex;flex-direction:column;align-items:center;
+  gap:2px;padding:9px;border-radius:12px;background:rgba(18,48,73,.85);border:1px solid var(--border)}
+.fk-perde b{font-size:1.6em;font-weight:900;color:#67d3c6}
+.fk-perde span{font-size:.78em;color:var(--text3)}
+.fk-perde.bitti b{font-size:1.1em}
+.fk-not{font-size:.76em;color:var(--text3);text-align:center;line-height:1.45}
+.fk-uyari{padding:14px;border-radius:12px;text-align:center;color:#e74c3c;
+  background:rgba(231,76,60,.12);border:1px solid rgba(231,76,60,.35)}
+@media(max-width:560px){
+  .fk-ad{font-size:.74em}
+  .fk-bul{font-size:.95em}
+  .fk-skor{font-size:1em}
+}
+
+/* ==================== KIZMA BIRADER =============================== */
+/* Tahta 15x15 CSS izgarasi; hucre boyu (--kb-h) JS'te OLCULEN alana gore
+   veriliyor ve tahta her zaman KARE kaliyor. Piyonlar izgaranin ustunde
+   mutlak konumda durur, boylece ara karelere de (us icindeki 2x2 dizilim)
+   oturabilirler. */
+.kb-wrap{width:100%;display:flex;flex-direction:column;gap:8px}
+.kb-oyuncular{display:flex;gap:6px;flex-wrap:wrap}
+.kb-oyuncu{flex:1 1 130px;min-width:0;display:flex;align-items:center;gap:6px;
+  padding:5px 9px;border-radius:11px;border:1px solid var(--border);background:var(--bg2)}
+.kb-oyuncu.benim{border-color:var(--accent)}
+.kb-oyuncu.sirada{box-shadow:0 0 0 2px rgba(224,86,127,.5) inset}
+.kb-oyuncu.bitti{opacity:.6}
+.kb-nokta{flex:0 0 auto;width:12px;height:12px;border-radius:50%}
+.kb-ad{flex:1;min-width:0;font-size:.8em;font-weight:700;overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap}
+.kb-evde{font-size:.72em;color:var(--text3);white-space:nowrap}
+.kb-rozet{font-size:.72em;font-weight:900;color:#f0a23c}
+.kb-son{padding:6px 10px;border-radius:10px;font-size:.84em;border:1px solid var(--border);
+  background:var(--bg2)}
+.kb-son.yeme{background:rgba(231,76,60,.12);border-color:rgba(231,76,60,.35)}
+.kb-son.uyari{background:rgba(240,162,60,.12);border-color:rgba(240,162,60,.35)}
+.kb-alan{display:flex;gap:14px;align-items:flex-start}
+.kb-alan.dar{flex-direction:column;align-items:center}
+.kb-sol{flex:0 0 auto;display:flex;justify-content:center}
+.kb-sag{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;gap:9px}
+.kb-alan.dar .kb-sag{width:100%}
+.kb-tahta{--kb-h:24px;position:relative;display:grid;
+  grid-template-columns:repeat(15,var(--kb-h));grid-template-rows:repeat(15,var(--kb-h));
+  border-radius:12px;overflow:hidden;background:#140b18;border:1px solid var(--border)}
+.kb-hucre{width:var(--kb-h);height:var(--kb-h);display:grid;place-items:center;
+  font-size:calc(var(--kb-h) * .55);line-height:1}
+.kb-hucre.yol{background:#f4ecd9;border:1px solid rgba(0,0,0,.14)}
+.kb-hucre.guvenli{background:#e3d7bb}
+.kb-hucre.yildiz{color:#8a6a2a;background:#e3d7bb}
+.kb-hucre.ev{border:1px solid rgba(0,0,0,.14)}
+.kb-hucre.merkez{background:#2a1230}
+.kb-hucre.us{border:1px solid rgba(255,255,255,.06)}
+.kb-hucre.bos{background:transparent}
+.kb-piyon{position:absolute;z-index:3;border:0;padding:0;cursor:default;
+  width:calc(var(--kb-h) * .82);height:calc(var(--kb-h) * .82);border-radius:50%;
+  left:calc((var(--kb-c) + .5) * var(--kb-h));top:calc((var(--kb-r) + .5) * var(--kb-h));
+  transform:translate(-50%,-50%);
+  font-size:calc(var(--kb-h) * .40);font-weight:900;color:rgba(0,0,0,.55);
+  box-shadow:0 2px 4px rgba(0,0,0,.45),inset 0 -2px 3px rgba(0,0,0,.3);
+  transition:left .22s ease,top .22s ease,transform .15s}
+.kb-piyon.oynanabilir{cursor:pointer;outline:2px solid #ffd666;outline-offset:1px;
+  animation:kb-nabiz 1.1s ease-in-out infinite}
+.kb-piyon.oynanabilir:hover{transform:translate(-50%,-62%) scale(1.1)}
+@keyframes kb-nabiz{50%{box-shadow:0 2px 10px rgba(255,214,102,.8),inset 0 -2px 3px rgba(0,0,0,.3)}}
+.kb-durum{font-weight:700;font-size:.95em}
+.kb-sure{font-weight:400;color:var(--text3);font-size:.85em}
+.kb-zar{width:62px;height:62px;border-radius:14px;display:grid;place-items:center;
+  font-size:1.8em;font-weight:900;background:#f4ecd9;color:#2a1230;
+  box-shadow:inset 0 -4px 0 rgba(0,0,0,.18),0 4px 12px rgba(0,0,0,.4)}
+.kb-zar:not(.dolu){color:rgba(42,18,48,.35)}
+.kb-alti{font-size:.76em;color:#f0a23c}
+.kb-secenekler{display:flex;flex-direction:column;gap:5px}
+.kb-ipucu{font-size:.76em;color:var(--text3);line-height:1.5}
+@media(max-width:560px){
+  .kb-ad{font-size:.72em}
+  .kb-durum{font-size:.86em}
+  .kb-zar{width:50px;height:50px;font-size:1.4em}
+}
+
+/* ---------- 9b-2d) METROPOL ----------
+   11×11 çerçeve: 40 kare kenarlarda, orta alan bilgi paneli. Kare boyu
+   (--mp-k) JS'te ölçülür (js/metropol-online.js → olcuYaz), çünkü ızgaranın
+   kenarı hem genişliğe hem yüksekliğe bağlı. Kenar karelerinde yazı
+   kenara göre DÖNER: alt/üst kenarda düz, yan kenarlarda 90°.
+   -------------------------------------------------------------------- */
+.mp-wrap{display:flex;flex-direction:column;gap:10px}
+.mp-oyuncular{display:flex;flex-wrap:wrap;gap:6px}
+.mp-oy{display:flex;align-items:center;gap:6px;padding:5px 9px;border-radius:999px;
+  border:1px solid var(--border);background:var(--bg2);font-size:.84em;min-width:0}
+.mp-oy.sirada{border-color:#f0a23c;box-shadow:0 0 0 2px rgba(240,162,60,.2)}
+.mp-oy.ben{background:var(--bg3)}
+.mp-oy.iflas{opacity:.5;text-decoration:line-through}
+.mp-oy-sim{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;
+  font-size:.8em;flex:0 0 auto;box-shadow:inset 0 -2px 3px rgba(0,0,0,.3)}
+.mp-oy-ad{font-weight:700;max-width:9ch;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mp-oy-para{font-family:var(--mono);font-weight:800;color:#3ddc84;font-variant-numeric:tabular-nums}
+.mp-oy-varlik{font-size:.82em;color:var(--text3);white-space:nowrap}
+.mp-oy-ceza,.mp-oy-kart{font-size:.82em}
+.mp-oy-iflas{font-size:.72em;font-weight:900;color:#e74c3c}
+.mp-alan{display:flex;gap:14px;align-items:flex-start}
+.mp-alan.dar{flex-direction:column;align-items:center}
+.mp-sol{flex:0 0 auto;display:flex;justify-content:center}
+.mp-sag{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;gap:8px}
+.mp-alan.dar .mp-sag{width:100%}
+.mp-tahta{--mp-k:34px;position:relative;display:grid;
+  grid-template-columns:repeat(11,var(--mp-k));grid-template-rows:repeat(11,var(--mp-k));
+  border-radius:12px;overflow:hidden;background:#cfe3cd;border:2px solid #1d2a1c}
+/* Kare içi: renk bandı MUTLAK konumlu, yazı da bandın ÜSTÜNE denk gelmesin
+   diye band tarafına PAY (padding) bırakılıyor. Önce justify-content ile
+   hizalanıyordu ve üst kenarda yazının ikinci satırı bandın altında
+   kalıyordu ("CADDEBOSTAN" → "CADDEBOS" görünüyordu). */
+.mp-kare{position:relative;background:#e9f3e6;border:1px solid rgba(0,0,0,.25);
+  overflow:hidden;display:flex;flex-direction:column;align-items:center;
+  justify-content:center;padding:1px;box-sizing:border-box}
+.mp-kare.kenar-alt{padding-top:25%}
+.mp-kare.kenar-ust{padding-bottom:25%}
+.mp-kare.kenar-sol{padding-right:25%}
+.mp-kare.kenar-sag{padding-left:25%}
+.mp-kare.kose{padding:1px}
+.mp-kare.kose{background:#dcebd8}
+.mp-kare.satilik{box-shadow:inset 0 0 0 2px #f0a23c}
+.mp-kare.k-sans{background:#ffe9b8}
+.mp-kare.k-fon{background:#cfe6ff}
+.mp-kare.k-vergi{background:#f3dada}
+.mp-bant{position:absolute;left:0;right:0;height:22%;box-shadow:inset 0 -1px 0 rgba(0,0,0,.3)}
+.mp-kare.kenar-alt .mp-bant{top:0}
+.mp-kare.kenar-ust .mp-bant{bottom:0}
+.mp-kare.kenar-sol .mp-bant{top:0;bottom:0;height:auto;width:22%;left:auto;right:0}
+.mp-kare.kenar-sag .mp-bant{top:0;bottom:0;height:auto;width:22%;right:auto;left:0}
+/* Kare adı: 40 kareyi tek ekrana sığdırmak için yazı KÜÇÜK. "KARAKÖY" gibi
+   adlar tek satıra sığsın diye .155 seçildi; "BAHÇELİEVLER" gibi uzun olanlar
+   kelime sonundan bölünür (anywhere DEĞİL — yoksa "KARAKÖ / Y" oluyordu). */
+.mp-ad{font-size:calc(var(--mp-k) * .155);line-height:1.08;font-weight:800;color:#15210f;
+  text-align:center;overflow:hidden;max-width:100%;overflow-wrap:break-word;hyphens:auto;
+  display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical}
+.mp-fiyat{font-size:calc(var(--mp-k) * .155);color:#3a4a33;font-family:var(--mono)}
+/* Sarma için KESİN bir ölçü gerekiyor: yoksa uzun adlar tek satırda taşıp
+   üç nokta ile kırpılıyordu ("CADDEBOS…"). Yatay kenarlarda genişlik,
+   dik kenarlarda (yazı 90° döndüğü için) yükseklik sınırlar. */
+.mp-ad{width:100%}
+/* Yan kenarlarda yazı MERKEZE BAKAR (gerçek tahtadaki gibi): sol sütunda
+   harflerin tepesi sağa, sağ sütunda sola döner. (Önce tersti; sağ sütun
+   baş aşağı okunuyordu.) */
+.mp-kare.kenar-sol .mp-ad,.mp-kare.kenar-sol .mp-fiyat{writing-mode:vertical-rl}
+.mp-kare.kenar-sag .mp-ad,.mp-kare.kenar-sag .mp-fiyat{writing-mode:vertical-rl;transform:rotate(180deg)}
+.mp-kare.kenar-sol .mp-ad,.mp-kare.kenar-sag .mp-ad{width:auto;height:100%;max-height:100%}
+.mp-sahip{position:absolute;top:2px;right:2px;width:calc(var(--mp-k) * .2);
+  height:calc(var(--mp-k) * .2);border-radius:50%;box-shadow:0 0 0 1px rgba(0,0,0,.4)}
+/* Binalar RENK BANDININ üzerine oturur (gerçek tahtadaki gibi), yoksa kare
+   adının üstüne denk gelip yazıyı okunmaz yapıyordu. */
+.mp-bina{position:absolute;z-index:2;text-align:center;
+  font-size:calc(var(--mp-k) * .19);line-height:1}
+.mp-kare.kenar-alt .mp-bina{top:1px;left:0;right:0}
+.mp-kare.kenar-ust .mp-bina{bottom:1px;left:0;right:0}
+.mp-kare.kenar-sol .mp-bina{right:0;top:0;bottom:0;width:25%;display:grid;place-items:center}
+.mp-kare.kenar-sag .mp-bina{left:0;top:0;bottom:0;width:25%;display:grid;place-items:center}
+.mp-ipotek{position:absolute;bottom:1px;left:2px;font-size:calc(var(--mp-k) * .22)}
+.mp-piyon{position:relative;z-index:3;align-self:center;justify-self:center;
+  width:calc(var(--mp-k) * .36);height:calc(var(--mp-k) * .36);border-radius:50%;
+  display:grid;place-items:center;font-size:calc(var(--mp-k) * .2);
+  transform:translate(calc((var(--mp-dx) - .5) * var(--mp-k) * .34),
+                      calc((var(--mp-dy) - .5) * var(--mp-k) * .34));
+  box-shadow:0 1px 3px rgba(0,0,0,.5);transition:transform .2s ease}
+.mp-piyon.sirada{outline:2px solid #ffd666;outline-offset:1px}
+.mp-orta{grid-row:2 / 11;grid-column:2 / 11;background:#dfeedb;display:flex;
+  flex-direction:column;align-items:center;justify-content:center;gap:4px;
+  padding:4px;overflow:hidden;text-align:center}
+.mp-logo{font-size:calc(var(--mp-k) * .42);font-weight:900;letter-spacing:.14em;
+  color:#c0392b;transform:rotate(-8deg)}
+.mp-kart{background:#fff;border-radius:6px;padding:4px 6px;max-width:92%;
+  box-shadow:0 2px 6px rgba(0,0,0,.25)}
+.mp-kart.sans{border-left:4px solid #e8a81c}
+.mp-kart.fon{border-left:4px solid #2a63d8}
+.mp-kart-bas{font-size:calc(var(--mp-k) * .18);font-weight:900;color:#444}
+.mp-kart-metin{font-size:calc(var(--mp-k) * .2);color:#111;line-height:1.2}
+.mp-gunluk{font-size:calc(var(--mp-k) * .17);color:#2b3a26;line-height:1.35;
+  max-width:96%;overflow:hidden}
+.mp-havuz{font-size:calc(var(--mp-k) * .18);font-weight:800;color:#1b7a3c}
+.mp-durum{font-weight:700;font-size:.95em}
+.mp-sure{font-weight:400;color:var(--text3);font-size:.85em}
+.mp-tur{font-size:.8em;color:var(--text3)}
+.mp-zarlar{display:flex;align-items:center;gap:8px}
+.mp-zar{width:42px;height:42px;border-radius:10px;display:grid;place-items:center;
+  font-size:1.3em;font-weight:900;background:#f6f3e8;color:#1d2a1c;
+  box-shadow:inset 0 -3px 0 rgba(0,0,0,.18),0 3px 9px rgba(0,0,0,.35)}
+.mp-cift{font-size:.78em;color:#f0a23c;font-weight:700}
+.mp-dugmeler{display:flex;flex-wrap:wrap;gap:6px}
+.mp-mulk-bas{font-size:.82em;font-weight:800;color:var(--text2);margin-top:2px}
+.mp-mulk{display:flex;flex-direction:column;gap:4px;max-height:210px;overflow-y:auto}
+.mp-mulk.bos{color:var(--text3);font-size:.82em}
+.mp-mulk-sat{display:flex;align-items:center;gap:6px;padding:3px 6px;border-radius:8px;
+  background:var(--bg2);border:1px solid var(--border);font-size:.8em}
+.mp-mulk-bant{width:10px;height:16px;border-radius:3px;flex:0 0 auto}
+.mp-mulk-ad{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mp-mulk-ev{font-size:.9em}
+.mp-mulk-ip{font-size:.82em;color:var(--text3)}
+.btn.mini{padding:3px 7px;font-size:.82em;border-radius:7px}
+.mp-ipucu{font-size:.76em;color:var(--text3);line-height:1.5}
+@media(max-width:560px){
+  .mp-durum{font-size:.86em}
+  .mp-zar{width:34px;height:34px;font-size:1.05em}
+  .mp-oy-varlik{display:none}
+  .mp-mulk{max-height:150px}
+}
+
 @media(max-width:700px){
   .tb-kartlar{grid-template-columns:minmax(0,1fr)}
   .tb-top{width:58px;height:58px;font-size:1.5em}
@@ -3188,7 +3423,7 @@ const TWO_PLAYER_GAMES = ['chess', 'tavla', 'dama', 'turkdamasi', 'reversi', 'go
 // SUNUCUDA GERÇEK MASALARI OLAN OYUNLAR: lobi listesi Render'dan gelir.
 // Damalar/reversi/gomoku/connect4/bilardo da 10'ar hazır masa açıldı —
 // bekleme odaları (otur/kalk/hazırım) tümünde aynı şekilde çalışır.
-const ONLINE_GAMES = ['chess', 'tavla', 'okey', 'okey101', 'dama', 'turkdamasi', 'reversi', 'gomoku', 'connect4', 'bilardo', 'battleship', 'kelimelik', 'tombala', 'adamasmaca', 'passaparola', 'cenga', 'langirt', 'havahokeyi'];
+const ONLINE_GAMES = ['chess', 'tavla', 'okey', 'okey101', 'dama', 'turkdamasi', 'reversi', 'gomoku', 'connect4', 'bilardo', 'battleship', 'kelimelik', 'tombala', 'adamasmaca', 'passaparola', 'cenga', 'langirt', 'havahokeyi', 'fark', 'kizmabirader', 'metropol'];
 // Okey VE 101 Okey ONLINE (gerçek oyuncular, sunucu yetkili). Bot yedeği
 // yalnızca henüz online motoru olmayan (pişti, batak) oyunlarda devrede.
 const BOT_FALLBACK_GAMES = ['pisti', 'batak'];
@@ -3219,10 +3454,13 @@ const GAMES={
   passaparola:{name:'Passaparola',icon:'🔠',cat:'board',bg:'linear-gradient(150deg,#06243a,#0d4f6e 55%,#eab308)',cover:'assets/covers/passaparola.jpg'},
   cenga:{name:'Cenga',icon:'🧱',cat:'board',bg:'linear-gradient(150deg,#2a1b0c,#6b4420 55%,#c99155)',cover:'assets/covers/cenga.jpg'},
   langirt:{name:'Langırt',icon:'⚽',cat:'strategy',bg:'linear-gradient(150deg,#06301c,#10532f 55%,#2bbd6b)',cover:'assets/covers/langirt.jpg'},
-  havahokeyi:{name:'Hava Hokeyi',icon:'🏒',cat:'strategy',bg:'linear-gradient(150deg,#041c2e,#0e3550 55%,#36b6f0)',cover:'assets/covers/havahokeyi.jpg'}
+  havahokeyi:{name:'Hava Hokeyi',icon:'🏒',cat:'strategy',bg:'linear-gradient(150deg,#041c2e,#0e3550 55%,#36b6f0)',cover:'assets/covers/havahokeyi.jpg'},
+  fark:{name:'Fark Bulmaca',icon:'🔍',cat:'board',bg:'linear-gradient(150deg,#123049,#1d6f8f 55%,#67d3c6)',cover:'assets/covers/fark.jpg'},
+  kizmabirader:{name:'Kızma Birader',icon:'🎲',cat:'board',bg:'linear-gradient(150deg,#2a1230,#6b2454 55%,#e0567f)',cover:'assets/covers/kizmabirader.jpg'},
+  metropol:{name:'Metropol',icon:'🏦',cat:'board',bg:'linear-gradient(150deg,#10210f,#1f5c2c 52%,#8bd16a)',cover:'assets/covers/metropol.jpg'}
 };
 
-const ROOMS = { chess:[], tavla:[], dama:[], turkdamasi:[], okey:[], okey101:[], pisti:[], batak:[], reversi:[], gomoku:[], connect4:[], bilardo:[], battleship:[], kelimelik:[], tombala:[], adamasmaca:[], passaparola:[], cenga:[], langirt:[], havahokeyi:[] };
+const ROOMS = { chess:[], tavla:[], dama:[], turkdamasi:[], okey:[], okey101:[], pisti:[], batak:[], reversi:[], gomoku:[], connect4:[], bilardo:[], battleship:[], kelimelik:[], tombala:[], adamasmaca:[], passaparola:[], cenga:[], langirt:[], havahokeyi:[], fark:[], kizmabirader:[], metropol:[] };
 
 const RULES={
   kelimelik:`<div class="rules-content"><h3>🎯 Kelimelik — Amaç</h3><p>Istakandaki yedi harfle 15×15 tahtaya kelime dizerek rakibinden çok puan toplamak. Masa <b>iki kişiliktir</b>.</p><h3>📖 Sözlük</h3><p>TDK Güncel Türkçe Sözlük esas alınır ve denetim <b>kapatılamaz</b>. Sözlükte <b>madde başı</b> ne ise o geçerlidir; ek almış biçimler (kediler, evde, geldim) geçerli DEĞİLDİR. Fiiller mastar hâliyle bulunur: <b>gel</b> ✗ · <b>gelmek</b> ✓. Özel adlar, element simgeleri ve kısaltmalar yoktur; ülke adları kabul edilir. Sözlükte olduğunu düşündüğün bir kelime reddedilirse <b>📣 Kelime Bildir</b> ile iletebilirsin; doğrulanırsa sözlüğe eklenir.</p><h3>📋 Nasıl Oynanır</h3><p>İlk hamle ★ başlangıç karesinden geçmeli ve en az iki harfli olmalıdır. Sonraki her hamle tahtadaki bir kelimeye değmeli; harfler tek hat üzerinde ve aralarında boşluk kalmadan dizilmelidir. Kesişmeden doğan yan kelimeler de denetlenir ve ayrıca puanlanır.</p><h3>🎯 Puanlama</h3><ul><li>H²/H³ harfin, K²/K³ kelimenin puanını çarpar; bonus yalnız üzerine İLK konulduğu hamlede sayılır.</li><li>Yedi harfin tamamı kullanılırsa <b>+35 Bingo</b>.</li><li>Joker (★) her harfin yerine geçer, 0 puandır.</li></ul><h3>⚙️ Bu Platformda</h3><ul><li>Hamle süresi masa tipindedir: ⚡ Hızlı 30 sn · ♟️ Normal 45 sn · 🧠 Düşünen 60 sn. Süresi dolan oyuncu <b>pas geçmiş sayılır</b> (hükmen mağlup olmaz).</li><li>Hamle bulunamazsa oyuncu masadan atılmaz, sırası <b>otomatik pas</b> geçilir.</li><li>Bir oyuncu <b>üst üste 3 kez</b> pas geçerse (elle, otomatik ya da süre aşımıyla) <b>diskalifiye</b> olur: puanı silinir, rakip hükmen kazanır.</li><li>İki oyuncu da üst üste ikişer kez pas geçerse maç biter.</li><li>Torba boşalıp bir oyuncu taşlarını bitirince maç biter; rakibin elinde kalan taşların puanı ondan düşülüp bitirene eklenir.</li><li>Ayrılma ve pes etme hükmen mağlubiyettir: puanın silinir ve terk cezası uygulanır.</li><li>Rövanş için masadaki <b>her iki oyuncunun da</b> kabul etmesi gerekir.</li></ul></div>`,
@@ -3244,6 +3482,9 @@ const RULES={
   cenga:`<div class="rules-content"><h3>🧱 Cenga — Amaç</h3><p>Üçerli dizilmiş <b>18 kattan</b> oluşan kuleden sırayla taş çekip en üste koymak. <b>Kuleyi deviren kaybeder.</b></p><h3>🚫 Hangi Taş Çekilebilir?</h3><p>En üstteki <b>tamamlanmış kat</b> ve onun üstündeki katlar kilitlidir — oradan taş çekilemez. Çekilen taş en üste konur: önce üstteki eksik kat tamamlanır (orta → sol → sağ), dolduysa yeni kat açılır.</p><h3>✊ Çekiş</h3><p>Taşı seçtiğinizde bir <b>tolerans bandı</b> açılır ve iğne sağa sola gider. İğneyi bandın içinde durdurursanız taş temiz çıkar; dışında durdurursanız taşı zorlamış olur ve kule devrilir. <b>Hedef sunucuda gizlidir</b>, siz yalnız bandın genişliğini görürsünüz — bu yüzden oyun hile yapılamaz biçimde beceriye dayanır.</p><p>Bant; taşın sıkılığına, kulenin o anki riskine ve kaçıncı turda olduğunuza göre daralır. Sıkı bir taşı riskli bir kuleden çekmek en zorudur.</p><h3>⚖️ Denge</h3><p>Her çekişten sonra sunucu kuleyi analiz eder: her katın üstündeki yığının ağırlık merkezi o katın taşıma alanının dışına çıkarsa kule kendiliğinden devrilir. Üstteki <b>Denge</b> çubuğu kulenin ne kadar payı kaldığını gösterir.</p><h3>🏅 Puan</h3><p>Her temiz çekiş puan kazandırır: taşın yüksekliği, sıkılığı, kulenin riski ve iğneyi ne kadar ortada durdurduğunuz puanı artırır. Üst üste iyi çekişler <b>çarpan</b> kazandırır. Puan sıralama içindir; maçı kazanmak için kuleyi ayakta tutmak yeter.</p><h3>🏁 Bitiş</h3><p>Kule devrildiğinde o anda sırası olan oyuncu kaybeder. Çekilecek taş kalmazsa da oyun biter.</p><h3>⏱️ Süre</h3><p>Süresi dolan oyuncu masadan <b>atılmaz</b>: taş seçmediyse sunucu en güvenli taşı onun adına seçer, çekişte beklediyse el kayar — ve çoğu zaman kule devrilir.</p></div>`,
   langirt:`<div class="rules-content"><h3>⚽ Langırt — Amaç</h3><p>Masa futbolu. İki oyuncu <b>aynı anda</b> oynar; sıra beklemek yoktur. Hedef gol sayısına ilk ulaşan kazanır: ⚡ 10 dk → 3 gol · ♟️ 15 dk → 5 gol · 🧠 20 dk → 7 gol.</p><h3>🎮 Nasıl Oynanır</h3><ul><li>Altta dört çubuk vardır: <b>Kaleci, Defans, Orta saha, Forvet</b>. Önce oynatmak istediğiniz çubuğu seçin.</li><li>Saha üzerinde parmağınızı (ya da fareyi) yukarı-aşağı sürükleyerek seçili çubuğu oynatın. Yavaş sürüklerseniz çubuk <b>hassas</b> modda daha kontrollü gider — nişan almak için kullanışlıdır.</li><li>Topa yakınken <b>ŞUT</b> düğmesini basılı tutun: güç çubuğu dolar, bıraktığınızda vuruş yapılır. Çubuğunuz topa uzaksa vuruş boşa gider.</li><li>Vuruşun açısı, çubuğun o anki hedef yüksekliğine göre belirlenir; hızlı hareket eden çubuk topa ek hız katar.</li></ul><h3>🥅 Saha</h3><p>Kırmızı soldan sağa, mavi sağdan sola atar. Top kale ağzından çıkarsa gol olur; yan bantlardan seker. Her golden sonra top ortaya döner ve kısa bir geri sayımla yeniden başlar.</p><h3>⏱️ Süre</h3><p>Hedef gole ulaşılamazsa masa süresi dolduğunda maç biter ve <b>skor üstünlüğü</b> kazanır; skorlar eşitse maç berabere biter. Sıra olmadığı için hamle süresi ve hamle cezası yoktur.</p><h3>⚙️ Bu Platformda</h3><ul><li><b>Fizik tamamen sunucudadır</b> ve sabit 50 Hz adımlarla işler; iki oyuncu da aynı maçı oynar. Hızlı bilgisayar avantaj sağlamaz.</li><li>İstemci saniyede yaklaşık 20 durum paketi alır ve aradaki boşluğu yumuşatarak çizer.</li><li>Dikey telefonda saha otomatik olarak çevrilir — kaleler yukarı-aşağı gelir ve ekran boşa gitmez.</li><li>Masadan ayrılan ya da pes eden hükmen kaybeder.</li></ul></div>`,
   havahokeyi:`<div class="rules-content"><h3>🏒 Hava Hokeyi — Amaç</h3><p>İki oyuncu <b>aynı anda</b> oynar; sıra beklemek yoktur. Hedef gol sayısına ilk ulaşan kazanır: ⚡ 10 dk → 3 gol · ♟️ 15 dk → 5 gol · 🧠 20 dk → 7 gol.</p><h3>🎮 Nasıl Oynanır</h3><ul><li>Parmağınızı (ya da fareyi) masada gezdirin — <b>tokmağınız oraya koşar</b>. Dokunmatikte basılı tutarak sürükleyin, farede basmanıza gerek yok.</li><li>Tokmak <b>kendi yarı sahanızın dışına çıkamaz</b>; bu sınırı sunucu uygular.</li><li>Sert vuruş yapmak için tokmağı hızlı hareket ettirin: diske çarpan tokmağın hızı topa geçer. Yandan sıyırmak diske açı verir.</li><li>Disk kale ağzından çıkarsa gol olur; köşelerdeki <b>direkler</b> dışarıdan gelen diski geri seker.</li></ul><h3>🥅 Masa</h3><p>Kırmızı solda, mavi sağda. Her oyuncu kendi yarısını ekranın <b>altında</b> görür — masa ona göre çevrilir, yani iki taraf da aynı rahatlıkta oynar. Disk uzun süre ortada takılı kalırsa oyun durmasın diye kendiliğinden itilir.</p><h3>⏱️ Süre</h3><p>Hedef gole ulaşılamazsa masa süresi dolduğunda maç biter ve <b>skor üstünlüğü</b> kazanır; skorlar eşitse maç berabere biter. Sıra olmadığı için hamle süresi ve hamle cezası yoktur.</p><h3>⚙️ Bu Platformda</h3><ul><li><b>Fizik tamamen sunucudadır</b> ve sabit <b>120 Hz</b> adımlarla işler. Disk çok hızlandığı için daha seyrek adımda tokmağın içinden geçebiliyordu; bu hızda geçemez. Hızlı bilgisayar avantaj sağlamaz.</li><li>İstemci saniyede yaklaşık 20 durum paketi alır ve aradaki boşluğu yumuşatarak çizer.</li><li>Masadan ayrılan ya da pes eden hükmen kaybeder.</li></ul></div>`,
+  fark:`<div class="rules-content"><h3>🔍 Fark Bulmaca — Amaç</h3><p>Ekranda aynı sahnenin iki kopyası vardır: <b>A</b> özgün, <b>B</b> ise <b>7 nesnesi değiştirilmiş</b> hâli. Farkları rakibinizden önce bulun.</p><h3>📋 Nasıl Oynanır</h3><ul><li>Farkı gördüğünüz yere dokunun; doğruysa <b>iki kopyada da</b> yeşil halkayla işaretlenir.</li><li><b>Boşa dokunmak kısa süre kilitler</b> (1,5 sn) — ekrana rastgele tıklayarak farkları süpürmek işe yaramaz. Zaten bulduğunuz bir yere yeniden dokunmak ceza değildir.</li><li>İki oyuncu da <b>aynı sahneyi ve aynı 7 farkı</b> görür; kimse daha kolay bir resim almaz.</li><li>Rakibinizin kaç fark bulduğunu görürsünüz, <b>hangilerini</b> bulduğunu göremezsiniz.</li></ul><h3>⏱️ El ve Süre</h3><p>Her el kısa bir geri sayımla başlar. El süresi masa tipine göre değişir: ⚡ 10 dk → 60 sn · ♟️ 15 dk → 90 sn · 🧠 20 dk → 120 sn. 7 farkı önce bulan eli alır; süre dolarsa <b>çok fark bulan</b> kazanır, eşitse el berabere biter.</p><p>El bitince kaçırdığınız farklar kırmızı kesikli halkayla gösterilir.</p><h3>🏁 Bitiş</h3><p>Maç <b>3 elin 2'sini</b> alanındır. Sahneler dönüşümlüdür: Gün Batımı Plajı, Kamp Gecesi, Derin Uzay ve Neşeli Çiftlik.</p><h3>⚙️ Bu Platformda</h3><ul><li>Sahne, tohum ve hangi 7 farkın seçildiği sunucuda belirlenir; istemci kendi sahnesini seçemez.</li><li><b>Her tıklama sunucuda ölçülür</b>: nokta gerçekten o farkın alanında mı, o fark bu elde seçilmiş mi, daha önce bulunmuş mu.</li><li>Farkların hangileri olduğu istemciye gitmek zorundadır — B kopyasını çizen odur, yani bilgi zaten resmin içindedir. Bu yüzden korumayı tıklama doğrulaması ve yanlış tıklama kilidi sağlar.</li><li>Masadan ayrılan ya da pes eden hükmen kaybeder.</li></ul></div>`,
+  kizmabirader:`<div class="rules-content"><h3>🎲 Kızma Birader — Amaç</h3><p>Dört piyonunuzu üsten çıkarıp turu tamamlatın ve <b>merkeze</b> sokun. Dördünü de ilk sokan kazanır.</p><h3>🎲 Zar</h3><ul><li>Üsten piyon çıkarmak için <b>6</b> atmak gerekir.</li><li><b>6 atan tekrar atar.</b> Ama <b>üst üste üç kez 6</b> atarsanız sıra yanar — yoksa bir oyuncu sonsuza kadar oynayabilirdi.</li><li>Rakip piyonu <b>yiyen</b> ve bir piyonunu <b>merkeze sokan</b> da tekrar atar.</li></ul><h3>⚔️ Yeme ve Blok</h3><ul><li>Bir karede tek başına duran rakip piyonun üzerine gelirseniz onu <b>üssüne yollarsınız</b>.</li><li><b>Güvenli kareler</b> (başlangıçlar ve yıldızlı kareler) içinde piyon yenmez.</li><li>Aynı renkten <b>iki piyon</b> bir kareyi <b>kapatır</b>: rakip oradan geçemez, üzerine de konamaz.</li></ul><h3>🏠 Merkez</h3><p>Tur bitince beş kareli ev yoluna girilir. Merkeze <b>tam sayıyla</b> girilir; fazla atarsanız o piyon oynayamaz.</p><h3>🏁 Bitiş</h3><p>Dört piyonunu merkeze sokan sırayı tamamlar ve artık oynamaz; kalanlar devam eder, son kalan sonuncu olur. Masa 2, 3 veya 4 kişilik olabilir.</p><h3>⚙️ Bu Platformda</h3><ul><li><b>Zar sunucuda atılır</b> ve geçerli hamleler sunucuda hesaplanır; istemci yalnız "zar at" ve "şu piyonu oyna" der.</li><li>Geçerli hamleler <b>yalnız sırası olana</b> gönderilir; rakip neyi oynayabileceğinizi paketten okuyamaz.</li><li>Süresi dolan oyuncu masadan <b>atılmaz</b>: zar atmadıysa sunucu atar, hamle seçmediyse ilk geçerli hamle oynanır.</li><li>Masa sayısı, kişi sayısı ve hamle süresi kurucu panelinden yönetilir.</li></ul></div>`,
+  metropol:`<div class="rules-content"><h3>🏦 Metropol — Amaç</h3><p>Mülk alın, bina kurun, kira toplayın. <b>Son ayakta kalan</b> ya da tur limiti dolduğunda <b>en yüksek varlığa</b> sahip olan kazanır.</p><h3>🎲 Zar ve Tur</h3><ul><li>Kalkış'tan her geçişte <b>200₺ maaş</b> alırsınız.</li><li><b>Çift atan tekrar atar.</b> Ama <b>üst üste üç çift</b> doğruca cezaevine yollar — yoksa bir oyuncu sonsuza kadar oynayabilirdi.</li><li>Cezaevinden çıkış üç yolla olur: <b>çift atmak</b>, <b>50₺ kefalet</b> ya da <b>çıkış kartı</b>. Üçüncü denemede çift gelmezse kefalet zorunludur.</li></ul><h3>🏷️ Mülk Alma</h3><ul><li>Sahipsiz bir kareye düşen oyuncu onu <b>liste fiyatından</b> alabilir.</li><li><b>Almazsa</b> o kare diğer oyunculara sırayla, <b>aynı fiyattan ve tek tur</b> boyunca teklif edilir; ilk kabul eden alır. Kimse almazsa kare sahipsiz kalır.</li></ul><h3>💰 Kira</h3><ul><li>Bir rengin <b>tamamı</b> tek sahipteyse ve hiç bina yoksa taban kira <b>iki katı</b> işler.</li><li><b>Gar</b> kirası sahip olunan gar sayısına göre 25 / 50 / 100 / 200₺.</li><li><b>İdare</b> (elektrik-su) kirası zar toplamının 4 ya da 10 katı.</li><li><b>İpotekli</b> mülkte kira alınmaz.</li></ul><h3>🏠 Bina</h3><ul><li>Bina ancak o rengin <b>tüm karelerine</b> sahipken kurulur.</li><li><b>Dengeli inşaat:</b> aynı renkteki kareler arasında en çok bir bina fark olabilir. Beşinci kademe <b>oteldir</b>.</li><li>Bina satışı <b>yarı fiyatına</b>, ve en çok binası olan kareden başlar.</li></ul><h3>📄 İpotek ve İflas</h3><ul><li>İpotekte mülk değerinin <b>yarısı</b> alınır; geri alırken <b>%110</b> ödenir. Grubunda bina varken ipotek edilemez.</li><li>Parası yetmeyen oyuncunun binaları ve mülkleri <b>sunucu tarafından otomatik nakde çevrilir</b>; yine yetmezse <b>iflas</b> eder ve varlıkları alacaklıya geçer.</li></ul><h3>🏁 Bitiş</h3><p>Tek oyuncu kalınca maç biter. <b>Tur limiti</b> dolduğunda en yüksek varlık kazanır; varlıklar eşitse masa berabere biter. Masa 2, 3 veya 4 kişilik olabilir.</p><h3>⚙️ Bu Platformda</h3><ul><li><b>Zar, kart destesi, kira hesabı ve iflas tasfiyesi tamamen sunucudadır.</b> İstemci yalnız niyet bildirir ("zar at", "al", "ev kur", "turu bitir").</li><li><b>Deste sırası istemciye gönderilmez</b> — yoksa bir sonraki kart önceden bilinirdi. Para, mülk ve binalar ise masada açıktır; Metropol'de gizli bilgi yoktur.</li><li><b>Açık artırma yerine tek tur teklif:</b> prototipte alınmayan mülk açık artırmaya çıkıyordu. Dört kişilik bir masada bu tek kare için dakikalar demekti, bu yüzden liste fiyatından sıralı teklife çevrildi. Gizli bir sapma değil — kural burada yazıyor.</li><li>Süresi dolan oyuncu masadan <b>atılmaz</b>: zar atmadıysa sunucu atar, karar vermediyse parası bolsa alır yoksa reddeder, turu bitirmediyse sunucu bitirir.</li><li>Masa sayısı, kişi sayısı, <b>tur limiti</b> ve hamle süresi kurucu panelinden yönetilir.</li></ul></div>`,
   battleship:`<div class="rules-content"><h3>🎯 Amiral Battı — Amaç</h3><p>10x10 haritada filonu gizle, rakibinkini önce sen bul ve batır.</p><h3>📋 Nasıl Oynanır</h3><ul><li>Filo: Uçak Gemisi (5 hücre), Zırhlı (4), Kruvazör (3), Denizaltı (3), Muhrip (2) — toplam 17 hücre.</li><li>Her iki oyuncu da gemilerini kendi haritasına gizlice yerleştirir; yerleştirme bitince sırayla karşı haritaya ateş edilir.</li></ul><h3>⚙️ Bu Platformda</h3><p>İsabet etsen bile ekstra atış hakkın yoktur — her atıştan sonra (vuruş ya da vuramama fark etmeksizin) sıra rakibe geçer.</p><h3>🏁 Kazanma</h3><p>Rakibin filosundaki TÜM hücreleri (17 hücrenin tamamını) batıran kazanır.</p></div>`
 };
 
@@ -6667,6 +6908,11 @@ GV.init();
 <script src="js/cenga-online.js?v=20261011a" defer></script>
 <script src="js/langirt-online.js?v=20261011a" defer></script>
 <script src="js/havahokeyi-online.js?v=20261011a" defer></script>
+<!-- Fark Bulmaca sahneleri: sunucu ile AYNI dosya (fark-sahneler.js). -->
+<script src="fark-sahneler.js?v=20261011a" defer></script>
+<script src="js/fark-online.js?v=20261011a" defer></script>
+<script src="js/kizmabirader-online.js?v=20261011a" defer></script>
+<script src="js/metropol-online.js?v=20261011a" defer></script>
 <script src="js/chat.js?v=20260821c" defer></script>
 <script src="js/leave-guard.js?v=20260927c" defer></script>
 <!-- Tarayıcı GERİ/İLERİ tuşu: sayfa geçişleri geçmişe adım bırakır,
