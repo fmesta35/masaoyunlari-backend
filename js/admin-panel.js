@@ -1123,7 +1123,15 @@
       <div style="display:flex;justify-content:flex-end;margin-top:14px">
         <button type="button" id="adminSaveBtn" style="background:linear-gradient(135deg,#6c5ce7,#8f7bff);color:#fff;border:none;padding:11px 22px;border-radius:10px;font-weight:800;cursor:pointer">💾 Kaydet ve Uygula</button>
       </div>`;
-    body.querySelectorAll('[data-act]').forEach(btn => btn.addEventListener('click', () => onGameAction(btn.getAttribute('data-act'), btn.getAttribute('data-gid'), btn.getAttribute('data-i'), btn)));
+    /* ⚠ HATA (kullanıcı raporu): "masa düzenlerinde çöp ikonuna tıklandığında
+       faaliyete geçmiyor". SEBEBİ: dinleyiciler burada TEK TEK, yalnız o anda
+       var olan düğmelere bağlanıyordu. Masa satırları ("✏️ Düzenle" ile)
+       SONRADAN çiziliyor (paintTableRows), dolayısıyla 🗑 düğmeleri hiç
+       bağlanmıyordu — tıklama sessizce yutuluyordu.
+       ÇÖZÜMÜ: olay DEVRİ. Dinleyici gövdeye bir kez takılır; sonradan çizilen
+       her [data-act] düğmesi de kendiliğinden çalışır. Yeni bir düğme eklemek
+       için artık burada yapılacak bir şey yok. */
+    aksiyonDevriKur(body);
     if (settingsCache._popular.mode === 'manual') paintPopularOrder();
     const countInp = document.getElementById('popCountInput');
     if (countInp) countInp.addEventListener('change', () => {
@@ -1190,7 +1198,8 @@
           <button type="button" data-act="popDown" data-gid="${gid}" ${i === order.length - 1 ? 'disabled style="opacity:.3"' : ''} style="border:none;background:var(--bg2);color:var(--text);border-radius:6px;padding:4px 8px;cursor:pointer" title="Aşağı taşı">▼</button>
         </div>`;
     }).join('');
-    wrap.querySelectorAll('[data-act]').forEach(btn => btn.addEventListener('click', () => onGameAction(btn.getAttribute('data-act'), btn.getAttribute('data-gid'), null, btn)));
+    /* Bağlama GEREKMEZ: gövdedeki olay devri (aksiyonDevriKur) bu düğmeleri
+       de yakalar. Burada tekrar bağlamak çift tetiklemeye yol açardı. */
   }
 
   function gameRow(gid) {
@@ -1338,6 +1347,19 @@
     });
   }
 
+  /* Bir kapsayıcıya [data-act] tıklamaları için TEK dinleyici takar. İçerik
+     sonradan yeniden çizilse bile çalışır; aynı kapsayıcıya iki kez takılmaz. */
+  function aksiyonDevriKur(kap) {
+    if (!kap || kap.__gvActDevri) return;
+    kap.__gvActDevri = true;
+    kap.addEventListener('click', function (e) {
+      const btn = e.target && e.target.closest ? e.target.closest('[data-act]') : null;
+      if (!btn || !kap.contains(btn) || btn.disabled) return;
+      onGameAction(btn.getAttribute('data-act'), btn.getAttribute('data-gid'),
+                   btn.getAttribute('data-i'), btn);
+    });
+  }
+
   function onGameAction(act, gid, iAttr, target) {
     // Popüler Oyun Sıralaması eylemleri — bir oyunun tablo ayarına değil
     // settingsCache._popular'a yazar, o yüzden aşağıdaki genel `cfg` denetiminden
@@ -1417,9 +1439,14 @@
       return;
     }
     if (act === 'delRow') {
-      if (Array.isArray(cfg.tables)) cfg.tables.splice(i, 1);
+      /* i'yi DENETLE: -1/NaN gelirse splice(-1,1) sondaki masayı silerdi —
+         kurucu başka bir satıra bastığını sanırken yanlış masa giderdi. */
+      if (!Array.isArray(cfg.tables) || !(i >= 0) || i >= cfg.tables.length) return;
+      cfg.tables.splice(i, 1);
       paintTableRows(gid);
       updateTableCount(gid);
+      /* Sınıra dayanmış bir oyunda satır silinince ➕ yeniden açılmalı. */
+      ekleDugmesiTazele(gid);
       return;
     }
     if (act === 'editTables') {

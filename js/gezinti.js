@@ -31,6 +31,7 @@
   var ANAHTAR = 'gv-gezinti';
   var geriGidiyor = false;      // popstate işlenirken yeni adım ekleme
   var hazir = false;
+  var izleyici = null;          // görünüm izleyicisinin zamanlayıcısı
 
   function S() { try { return (typeof st !== 'undefined') ? st : null; } catch (_) { return null; } }
   function GVx() { return window.GV || null; }
@@ -62,15 +63,40 @@
     try { history.pushState(yeni, '', location.pathname + location.search); } catch (_) {}
   }
 
+  /* ⚠ SARMALAMA TEK BAŞINA YETMEZ. index.html'in kendi içinde `openLobby(...)`
+     ve `page('room')` DOĞRUDAN çağrılıyor (maç bitince lobiye dönüş, masaya
+     katılma vb.); bu çağrılar GV nesnesinin üzerinden geçmediği için sarmalanan
+     kopyaya hiç uğramıyor ve geçmişe adım BIRAKILMIYORDU. Sonuç: oyuncu masaya
+     girip GERİ'ye bastığında site tamamen terk ediliyor, "Siteye dön" ile
+     gelinen gizlilik/hesap-silme sayfası açılıyordu.
+     ÇÖZÜMÜ: görünümü İZLE. Sarmalayıcılar anında adım bırakmayı sürdürür
+     (hızlı tepki), izleyici de kaçan her geçişi yakalar.
+     İki ÜST ÜSTE aynı okunduğunda adım atılır; böylece geçiş sırasındaki
+     yarım durumlar geçmişe yazılmaz. */
+  var sonOkuma = null;
+  function izleTik() {
+    if (!hazir || geriGidiyor) return;
+    var simdi = simdikiDurum();
+    if (!ayniMi(simdi, sonOkuma)) { sonOkuma = simdi; return; }  // önce oturması beklenir
+    adimBirak();
+  }
+
   /* Bir fonksiyonu sarmala: çalıştıktan sonra geçmişe adım bırak. */
   function sarmala(nesne, ad) {
     if (!nesne || typeof nesne[ad] !== 'function' || nesne[ad].__gvGezinti) return;
     var eski = nesne[ad];
     var yeni = function () {
       var r = eski.apply(this, arguments);
-      /* Görünüm değişimi guardNavigation yüzünden iptal edilmiş olabilir;
-         bu yüzden adımı DURUMA bakarak bırakıyoruz, çağrıya değil. */
-      setTimeout(adimBirak, 0);
+      /* ⚠ ADIM SENKRON BIRAKILIR. Eskiden `setTimeout(adimBirak, 0)` vardı ve
+         bu GERÇEK bir hataydı: index.html'in sayfa fonksiyonları st.curPage'i
+         ZATEN senkron yazar, ama 0 ms'lik geri çağrı meşgul bir ana iş
+         parçacığında (yavaş telefon, oyun açılışı, soket trafiği) BİR SONRAKİ
+         geçişten SONRA çalışabiliyordu. O zaman adım yanlış görünümle
+         yazılıyor ya da hiç yazılmıyordu — masaya girip GERİ'ye basan
+         kullanıcı lobiye değil siteden dışarı düşüyordu.
+         Görünüm değişimi guardNavigation ile iptal edilmişse adimBirak
+         zaten DURUMA bakar ve aynı görünüm için adım atmaz. */
+      adimBirak();
       return r;
     };
     yeni.__gvGezinti = true;
@@ -106,21 +132,48 @@
            onay ister; kullanıcı vazgeçerse masada kalırız ve attığımız adımı
            geri koyarız (yoksa bir sonraki GERİ siteden atardı). */
         var gv = GVx();
-        if (gv && typeof gv.leaveRoom === 'function') gv.leaveRoom();
+        /* sorma:true → bekleme odasından çıkarken "emin misin?" SORULMAZ.
+           Geri tuşu zaten açık bir "geri dön" isteğidir; onay kutusu çıkınca
+           kullanıcı masada kilitli kalıyordu (her GERİ bir kutu açıp hiçbir
+           yere gitmiyordu). Maç sürüyorsa terk uyarısı yine çıkar. */
+        if (gv && typeof gv.leaveRoom === 'function') gv.leaveRoom({ sorma: true });
         else hedefeGit(hedef);
+        /* Çıkış sunucuya bildiriliyorsa lobiye geçiş ASENKRONdur; bu yüzden
+           hemen değil, kısa bir süre sonra bakılır. Hâlâ masadaysak çıkış
+           iptal edilmiş demektir (maç sürüyordu, kullanıcı vazgeçti) ve
+           attığımız adım geri konur — yoksa bir sonraki GERİ siteden atardı. */
         setTimeout(function () {
           var s2 = S();
           if (s2 && s2.curPage === 'room') {
-            /* Çıkış iptal edildi → adımı geri koy, masada kal. */
-            try { history.pushState(simdikiDurum(), '', location.pathname + location.search); } catch (_) {}
+            /* Hâlâ masadayız. İKİ ayrı sebep olabilir, ayırt etmek şart:
+               (a) MAÇ SÜRÜYOR ve kullanıcı terk uyarısında vazgeçti →
+                   masada kalmak DOĞRU; attığımız adımı geri koyarız,
+                   yoksa bir sonraki GERİ siteden atardı.
+               (b) Maç yok ama çıkış sunucuya bildirilip lobiye geçiş
+                   HİÇ GELMEDİ (soket yanıtı düşmüş/gecikmiş) → kullanıcı
+                   masada KİLİTLİ kalır, geri tuşu "çalışmıyor" görünür.
+                   Bu durumda lobiye kendimiz götürürüz. Geri tuşu
+                   sunucunun yanıtına bağlı kalmamalı. */
+            var macVar = false;
+            try { macVar = !!(gv && typeof gv.hasActiveGame === 'function' && gv.hasActiveGame()); } catch (_) {}
+            if (macVar) {
+              try { history.pushState(simdikiDurum(), '', location.pathname + location.search); } catch (_) {}
+            } else if (gv && typeof gv.openLobby === 'function') {
+              var s3 = S();
+              gv.openLobby((s3 && s3.curGame) || undefined);
+            }
           }
+          sonOkuma = simdikiDurum();
           geriGidiyor = false;
-        }, 0);
+        }, 600);
         return;
       }
       hedefeGit(hedef);
     } finally {
-      if (oncekiSayfa !== 'room') setTimeout(function () { geriGidiyor = false; }, 0);
+      if (oncekiSayfa !== 'room') setTimeout(function () {
+        sonOkuma = simdikiDurum();
+        geriGidiyor = false;
+      }, 0);
     }
   });
 
@@ -142,6 +195,8 @@
     } catch (_) {}
     hazir = true;
     adimBirak();
+    sonOkuma = simdikiDurum();
+    if (!izleyici) izleyici = setInterval(izleTik, 200);
     return true;
   }
 
@@ -157,6 +212,11 @@
   window.__gvGezinti = {
     durum: simdikiDurum,
     adimBirak: adimBirak,
-    hazir: function () { return hazir; }
+    hazir: function () { return hazir; },
+    /* Teşhis: GERİ işlenirken adım bırakma kapalıdır; kilitli kalırsa
+       hiçbir geçiş geçmişe yazılmaz (gerçekten yaşanan bir hataydı). */
+    gerideMi: function () { return geriGidiyor; },
+    /* Testler zamanlayıcı beklemesin diye izleme adımı elle tetiklenebilir. */
+    izleTik: function () { izleTik(); izleTik(); }
   };
 })();

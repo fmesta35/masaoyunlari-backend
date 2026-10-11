@@ -1,0 +1,210 @@
+{
+  "fark-sahneler.js": {
+    "v": "20261011b",
+    "sha": "63e5f931efd9"
+  },
+  "js/adamasmaca-online.js": {
+    "v": "20261011a",
+    "sha": "72c89cfda6c4"
+  },
+  "js/admin-panel.js": {
+    "v": "20261011a",
+    "sha": "e16febd0063b"
+  },
+  "js/app.js": {
+    "v": "20260820a",
+    "sha": "f634343774ed"
+  },
+  "js/auth.js": {
+    "v": "20260912a",
+    "sha": "e70674c765a8"
+  },
+  "js/battleship-online.js": {
+    "v": "20260920c",
+    "sha": "ecb544f0fa21"
+  },
+  "js/bilardo-online.js": {
+    "v": "20260927d",
+    "sha": "a310b9591e7c"
+  },
+  "js/board-fit.js": {
+    "v": "20260927a",
+    "sha": "7f1f8a9d16cc"
+  },
+  "js/card-online.js": {
+    "v": "20260904b",
+    "sha": "4556aadb6eb9"
+  },
+  "js/cenga-online.js": {
+    "v": "20261011b",
+    "sha": "7ed3ece59e98"
+  },
+  "js/chat.js": {
+    "v": "20260821c",
+    "sha": "ec4de5b4940c"
+  },
+  "js/chess-online.js": {
+    "v": "20260908d",
+    "sha": "c941e653eb49"
+  },
+  "js/config.js": {
+    "v": "20260822a",
+    "sha": "3ebb15cea11c"
+  },
+  "js/connect4-online.js": {
+    "v": "20260904b",
+    "sha": "37fd9a1d3cfa"
+  },
+  "js/dama-online.js": {
+    "v": "20260908b",
+    "sha": "7c3ae5108c7e"
+  },
+  "js/deniz-kopru.js": {
+    "v": "20260920a",
+    "sha": "aabb2f30fe74"
+  },
+  "js/deniz-sinematik.js": {
+    "v": "20260927d",
+    "sha": "67e7c941caa6"
+  },
+  "js/fark-online.js": {
+    "v": "20261011b",
+    "sha": "1d8098825717"
+  },
+  "js/games.js": {
+    "v": "20260823b",
+    "sha": "f5422f097024"
+  },
+  "js/gezinti.js": {
+    "v": "20261011c",
+    "sha": "e6cf22fb4fcd"
+  },
+  "js/gomoku-online.js": {
+    "v": "20260904b",
+    "sha": "b478e2dbeaaa"
+  },
+  "js/havahokeyi-online.js": {
+    "v": "20261011b",
+    "sha": "47d3f02f4b4a"
+  },
+  "js/izleyici.js": {
+    "v": "20261004a",
+    "sha": "cea784ae9a35"
+  },
+  "js/kelimelik-online.js": {
+    "v": "20261003a",
+    "sha": "46d54c143594"
+  },
+  "js/kizmabirader-online.js": {
+    "v": "20261011b",
+    "sha": "8c47a6385654"
+  },
+  "js/langirt-online.js": {
+    "v": "20261011b",
+    "sha": "b69cffea6efd"
+  },
+  "js/leave-guard.js": {
+    "v": "20260927c",
+    "sha": "7ad57f91f2f7"
+  },
+  "js/live-stats.js": {
+    "v": "20260912a",
+    "sha": "a6223fa6be5b"
+  },
+  "js/lobby-sync.js": {
+    "v": "20261011a",
+    "sha": "8d847ec1803e"
+  },
+  "js/masa-oylama.js": {
+    "v": "20261005a",
+    "sha": "418cf5e5a090"
+  },
+  "js/messages.js": {
+    "v": "20261011a",
+    "sha": "6809f2d1cb81"
+  },
+  "js/metropol-online.js": {
+    "v": "20261011b",
+    "sha": "58b3559db696"
+  },
+  "js/move-clock.js": {
+    "v": "20260908a",
+    "sha": "9e5913744179"
+  },
+  "js/no-bots.js": {
+    "v": "20260823b",
+    "sha": "3e4a9123b6ba"
+  },
+  "js/okey-online.js": {
+    "v": "20261005a",
+    "sha": "00757f3cd9e5"
+  },
+  "js/okey101-ac.js": {
+    "v": "20261005a",
+    "sha": "02f0595c29fc"
+  },
+  "js/online-arena.js": {
+    "v": "20260927d",
+    "sha": "92ca4615ea1f"
+  },
+  "js/passaparola-online.js": {
+    "v": "20261011b",
+    "sha": "c0a77e904601"
+  },
+  "js/rematch.js": {
+    "v": "20260927d",
+    "sha": "50cb12b72025"
+  },
+  "js/report.js": {
+    "v": "20260920a",
+    "sha": "8f1bdb14d1a4"
+  },
+  "js/resume-match.js": {
+    "v": "20260912a",
+    "sha": "50fb6f52ee9f"
+  },
+  "js/reversi-online.js": {
+    "v": "20260904b",
+    "sha": "02cc675da6a7"
+  },
+  "js/room-waiting-fix.js": {
+    "v": "20261011a",
+    "sha": "ddf92790460e"
+  },
+  "js/scores.js": {
+    "v": "20260912a",
+    "sha": "c835dd6bc38c"
+  },
+  "js/social.js": {
+    "v": "20260823e",
+    "sha": "07f1ffa38b66"
+  },
+  "js/socket.io.min.js": {
+    "v": "20260819c",
+    "sha": "83df4abc7eec"
+  },
+  "js/tavla-online.js": {
+    "v": "20260908d",
+    "sha": "6e805a54d7f8"
+  },
+  "js/tombala-online.js": {
+    "v": "20261011a",
+    "sha": "e8b722344794"
+  },
+  "js/tournaments.js": {
+    "v": "20260927a",
+    "sha": "e2b3e70b17bb"
+  },
+  "js/turkdamasi-online.js": {
+    "v": "20260908b",
+    "sha": "8447076794f1"
+  },
+  "js/utils.js": {
+    "v": "20260819c",
+    "sha": "41657366bce9"
+  },
+  "js/webview.js": {
+    "v": "20260908b",
+    "sha": "8971cd1a61c6"
+  }
+}

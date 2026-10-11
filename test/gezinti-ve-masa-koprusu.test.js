@@ -32,7 +32,9 @@
  *     5) Sayfa geçişleri geçmişe adım bırakıyor.
  *     6) GERİ tuşu sitenin İÇİNDE geri gidiyor (lobi → ana sayfa), belgeyi
  *        terk etmiyor.
- *     7) Masada GERİ tuşu "Ayrıl" yolundan geçiyor, oyuncu lobiye düşüyor.
+ *     7) Masada GERİ: MAÇ YOKKEN onay sormadan lobiye düşüyor (eskiden onay
+        kutusu çıkıp oyuncuyu masada kilitliyordu), MAÇ SÜRERKEN terk
+        uyarısı çıkıyor ve vazgeçen masada kalıyor.
  * ========================================================================= */
 const fs = require('fs');
 const os = require('os');
@@ -129,7 +131,8 @@ async function tarayiciTesti(BASE) {
     20000, 'gezinti hazır');
 
   // 4) YENİ OYUNUN MASASI: bekleme görünümü çizilmeli
-  for (const oyun of ['cenga', 'passaparola', 'adamasmaca', 'langirt', 'tombala']) {
+  for (const oyun of ['cenga', 'passaparola', 'adamasmaca', 'langirt', 'tombala',
+                      'havahokeyi', 'fark', 'kizmabirader', 'metropol']) {
     win.st.curGame = oyun;
     win.GV.openLobby(oyun);
     /* "Masalar yükleniyor..." satırı da .room sınıfını taşıyor; gerçek
@@ -162,8 +165,13 @@ async function tarayiciTesti(BASE) {
     assert.ok(/HAZIR|BEKLİYOR|Boş Sandalye|Rakip bekleniyor/i.test(yazi),
       oyun + ' masasında otur/hazırım görünümü olmalı — bulunan: ' + yazi.slice(0, 90));
     assert.ok(yazi.includes('#' + masaId), 'bekleme başlığı doğru masayı göstermeli');
-    win.GV.leaveRoom();
-    await sleep(300);
+    /* sorma:true ile GERÇEKTEN çık: argümansız leaveRoom onay sorar ve
+       jsdom'un varsayılan confirm'i false döndürdüğü için oyuncu masada
+       KALIYORDU — sonraki bölümler kirli durumla başlıyordu. */
+    win.GV.leaveRoom({ sorma: true });
+    await waitFor(() => (win.st.curPage !== 'room' ? true : null), 10000,
+      oyun + ' masasından çıkılamadı');
+    await sleep(250);
   }
   console.log('  ✓ 4) yeni oyunların masasında bekleme görünümü çiziliyor (ekran boş değil)');
 
@@ -204,24 +212,64 @@ async function tarayiciTesti(BASE) {
   win.GV.joinRoom(id2);
   await waitFor(() => (win.st.curPage === 'room' ? true : null), 10000, 'masaya girilmedi');
 
-  /* 7a) VAZGEÇME: masada GERİ "Ayrıl" ile aynı yoldan geçer, yani önce
-     onay sorar. Kullanıcı vazgeçerse MASADA KALINMALI — ve attığımız adım
-     geri konmalı ki bir sonraki GERİ siteden atmasın. */
-  win.confirm = () => false;
-  win.history.back();
-  await sleep(700);
-  assert.strictEqual(win.st.curPage, 'room', 'onay reddedilince masada kalınmalı');
-  assert.ok(win.history.state && win.history.state.gv === 'gv-gezinti' &&
-    win.history.state.page === 'room', 'vazgeçilince geçmiş adımı geri konmalı');
-
-  /* 7b) ONAYLAMA: lobiye düşülmeli, belge terk edilmemeli. */
-  win.confirm = () => true;
+  /* 7a) MAÇ YOKKEN: GERİ onay SORMADAN lobiye düşürmeli.
+     ⚠ Eskiden burada da "Ayrılmak istediğine emin misin?" çıkıyordu ve
+     kullanıcı masada KİLİTLİ kalıyordu: geri tuşuna her basışta kutu
+     açılıyor, hiçbir yere gidilmiyordu (kullanıcı raporu). Geri tuşu zaten
+     açık bir "geri dön" isteğidir; onay kutusuyla karşılanmaz. */
+  let soruldu = 0;
+  win.confirm = (m) => { soruldu++; return false; };
   win.history.back();
   await waitFor(() => (win.st.curPage !== 'room' ? true : null), 10000,
-    'masada GERİ tuşu çalışmadı');
-  assert.strictEqual(win.st.curPage, 'lobby', 'masadan GERİ lobiye düşmeli');
+    'maç yokken GERİ masadan çıkarmadı');
+  assert.strictEqual(soruldu, 0,
+    'bekleme odasında GERİ onay SORMAMALI — sorulan: ' + soruldu);
+  assert.strictEqual(win.st.curPage, 'lobby', 'maç yokken GERİ lobiye düşürmeli');
   assert.strictEqual(win.document, belge, 'masada GERİ de belgeyi terk etmemeli');
-  console.log('  ✓ 7) masada GERİ "Ayrıl" yolundan geçiyor: vazgeçince kalıyor, onaylayınca lobiye düşüyor');
+
+  /* 7b) MAÇ SÜRERKEN sessiz çıkış YASAK. Geri tuşunun kullandığı
+     `leaveRoom({sorma:true})` yalnız bekleme odasındaki "Ayrılmak istediğine
+     emin misin?" sorusunu atlar. Maç sürerken devreye js/leave-guard.js
+     girer ve KENDİ terk uyarısını açar (yerleşik confirm'i bilerek susturur);
+     oyuncu "Hayır, Oyunda Kal" derse masada kalır. Böylece geri tuşu bir
+     maçı sessizce terk ettirip hükmen yenilgi ve ceza puanı yazdıramaz. */
+  const cl2 = await waitFor(() => {
+    const r = [...win.document.querySelectorAll('#roomList .room')]
+      .filter(x => x.querySelector('[onclick*="joinRoom"]'));
+    return r.length > 2 ? r : null;
+  }, 20000, 'cenga lobisi (2. tur)');
+  const d3 = cl2[2].querySelector('[onclick*="joinRoom"]');
+  const id3 = (cl2[2].textContent.match(/#(\d+)/) || [])[1] ||
+    ((d3 && d3.getAttribute('onclick') || '').match(/joinRoom\('([^']+)'/) || [])[1];
+  win.GV.joinRoom(id3);
+  await waitFor(() => (win.st.curPage === 'room' ? true : null), 10000, 'masaya girilmedi (2)');
+
+  /* "Maç sürüyor" durumunu arena üzerinden taklit et: hem hasActiveMatch()
+     hem de leave-guard'ın canliTahta() denetimi buraya bakar. */
+  const arenaEski = win.GVArena && win.GVArena.state;
+  if (win.GVArena) win.GVArena.state = () => ({ status: 'playing' });
+  assert.ok(win.GV.hasActiveGame(), 'test kurulumu: maç aktif sayılmalı');
+
+  win.GV.leaveRoom({ sorma: true });
+  const uyari = await waitFor(() => win.document.querySelector('.gvlg-overlay'), 6000,
+    'maç sürerken sessiz çıkış YASAK: terk uyarısı açılmalı');
+  assert.ok(/hükmen mağlup/i.test(uyari.textContent),
+    'uyarı hükmen yenilgiyi söylemeli — bulunan: ' + uyari.textContent.replace(/\s+/g, ' ').slice(0, 80));
+  uyari.querySelector('.gvlg-no').click();
+  await sleep(400);
+  assert.strictEqual(win.st.curPage, 'room', '"Oyunda Kal" denince masada kalınmalı');
+  assert.ok(!win.document.querySelector('.gvlg-overlay'), 'uyarı kapanmalı');
+
+  /* "Evet, Terk Et" → masadan çıkılmalı. */
+  win.GV.leaveRoom({ sorma: true });
+  const uyari2 = await waitFor(() => win.document.querySelector('.gvlg-overlay'), 6000,
+    'terk uyarısı ikinci kez açılmalı');
+  if (win.GVArena && arenaEski) win.GVArena.state = arenaEski;   // artık maç yok
+  uyari2.querySelector('.gvlg-yes').click();
+  await waitFor(() => (win.st.curPage !== 'room' ? true : null), 10000,
+    'terk onaylandığı hâlde masadan çıkılmadı');
+
+  console.log('  ✓ 7) masada GERİ maç yokken sormadan lobiye düşürüyor; maç sürerken sessiz çıkış yasak');
 
   win.close();
 }
