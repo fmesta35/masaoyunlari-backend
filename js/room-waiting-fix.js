@@ -52,9 +52,29 @@
   // Bu oyunlarda lobi masaları, özel masa ve "özel oyun oluştur" aynı
   // masada-bekleme görünümünü (otur/kalk/hazırım/izle) kullanır.
   // (Kart oyunları ve diğerleri için ilgili online modül ayrıca devreye girer.)
-  const BRIDGE_GAMES = ['chess', 'satranc', 'satranç', 'tavla', 'okey', 'okey101',
+  /* HATA (kullanıcı raporu): "yeni eklenen oyunlar eşleşme lobisini
+     bulmadığı için oyuna bağlanılamıyor" — Cenga ve Passaparola masasına
+     girilince ekranın ortası bomboş kalıyordu.
+     SEBEBİ: bu liste ELLE yazılmıştı. Yeni bir oyun index.html'deki
+     ONLINE_GAMES'e eklendiğinde burası unutuluyor, isChess() false dönüyor
+     ve masada-bekleme görünümü (otur/kalk/hazırım) HİÇ çizilmiyordu.
+     ÇÖZÜMÜ: liste artık ONLINE_GAMES'ten türetiliyor; yeni oyun eklemek
+     için burada yapılacak bir şey yok. Aşağıdaki dizi yalnızca ONLINE_GAMES
+     henüz yüklenmemişse kullanılan yedektir. */
+  const BRIDGE_YEDEK = ['chess', 'satranc', 'satranç', 'tavla', 'okey', 'okey101',
     'pisti', 'batak', 'dama', 'turkdamasi', 'reversi', 'gomoku', 'connect4', 'bilardo', 'battleship',
     'kelimelik'];
+  /* Takma adlar: sayfa içinde 'satranc'/'satranç' da kullanılıyor, kart
+     oyunları ONLINE_GAMES'te değil ama bu köprüyü kullanıyor. */
+  const BRIDGE_EK = ['satranc', 'satranç', 'pisti', 'batak'];
+  function bridgeGames() {
+    const liste = window.ONLINE_GAMES;
+    if (!Array.isArray(liste) || !liste.length) return BRIDGE_YEDEK;
+    const out = liste.slice();
+    BRIDGE_EK.forEach(function (g) { if (out.indexOf(g) === -1) out.push(g); });
+    return out;
+  }
+  function bridgeGame(g) { return bridgeGames().indexOf(g) !== -1; }
   const normGame = (g) => {
     g = String(g || '').toLowerCase().trim();
     if (g === 'satranc' || g === 'satranç') return 'chess';
@@ -69,13 +89,14 @@
 
     // curGame AÇIKÇA tanımlıysa onunla karar ver: köprü oyunu ise evet,
     // değilse (Pişti, Batak) hayır — yerel akış korunur.
-    if (g) return BRIDGE_GAMES.includes(g);
+    if (g) return bridgeGame(g);
 
     // curGame boşsa başlık/istemci bayrağından çıkar:
     const title = (document.getElementById('grTitle')?.textContent || '').toLowerCase();
     if (/satranç|satranc|tavla/i.test(title)) return true;
     if (/okey/i.test(title)) return true; // 'Okey' ve '101 Okey' ikisi de sunucu yetkili
     if (/pişti|pisti|batak|dama|reversi|gomoku|connect|bilardo|amiral|battleship/i.test(title)) return true;
+    if (/kelimelik|tombala|adam asmaca|passaparola|cenga|langırt|langirt|hava hokeyi/i.test(title)) return true;
 
     return !!window.__gvChessOnlineRequested || !!window.__gvTavlaOnlineRequested || !!window.__gvOkeyOnlineRequested || !!window.__gvOnlineRequested;
   }
@@ -86,7 +107,7 @@
     let g = s?.curGame || window.__gvCurrentGame || window.currentGame || '';
     if (g === null || g === undefined || g === 'null' || g === 'undefined') g = '';
     g = normGame(g);
-    if (BRIDGE_GAMES.includes(g)) return g;
+    if (bridgeGame(g)) return g;
     if (!g) {
       const title = (document.getElementById('grTitle')?.textContent || '').toLowerCase();
       if (/tavla/i.test(title)) return 'tavla';
@@ -101,6 +122,13 @@
       if (/connect/i.test(title)) return 'connect4';
       if (/bilardo/i.test(title)) return 'bilardo';
       if (/amiral|battleship/i.test(title)) return 'battleship';
+      if (/kelimelik/i.test(title)) return 'kelimelik';
+      if (/tombala/i.test(title)) return 'tombala';
+      if (/adam\s*asmaca/i.test(title)) return 'adamasmaca';
+      if (/passaparola/i.test(title)) return 'passaparola';
+      if (/cenga/i.test(title)) return 'cenga';
+      if (/langırt|langirt/i.test(title)) return 'langirt';
+      if (/hava\s*hokeyi/i.test(title)) return 'havahokeyi';
     }
     return 'chess';
   }
@@ -122,7 +150,7 @@
       const s = state();
       if (!s || !r || !r.gameId) return;
       const g = normGame(r.gameId);
-      if (!BRIDGE_GAMES.includes(g)) return; // köprü dışı oyun: dokunma
+      if (!bridgeGame(g)) return; // köprü dışı oyun: dokunma
       if (s.curGame !== g) s.curGame = g;
     } catch (_) {}
   }
@@ -391,8 +419,10 @@
     // Online motoru henüz olmayan oyunlarda "başlatılıyor" yerine dürüst
     // bir bekleme mesajı göster (masada otur/kalk/hazırım çalışmaya devam
     // eder; motor eklendiğinde oyun otomatik başlar).
-    const engineReady = ['chess', 'tavla', 'okey', 'okey101', 'dama', 'turkdamasi',
-      'reversi', 'gomoku', 'connect4', 'bilardo', 'battleship', 'kelimelik'].includes(_ag);
+    /* Online motoru olan oyunlar: ONLINE_GAMES listesindekilerin HEPSİNİN
+       motoru var. Bu da elle yazılıyordu ve yeni oyunlarda "online oyun bu
+       masada aktif edildiğinde başlayacak" diyordu — oysa oyun hazırdı. */
+    const engineReady = bridgeGame(_ag);
     const status = watching
       ? (full ? '👁️ İzleyici olarak bekliyorsunuz. Oyun başlayınca masayı göreceksiniz.' : '👁️ İzleyici olarak bekliyorsunuz.')
       : allReady ? (engineReady ? '🚀 Oyun başlatılıyor...' : '⏳ Tüm oyuncular hazır — online oyun bu masada aktif edildiğinde başlayacak.') : full

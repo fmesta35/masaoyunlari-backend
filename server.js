@@ -31,6 +31,10 @@ const cengaEngine = require('./cenga-engine.js');
 /* LANGIRT — saf fizik (langirt-engine.js). Fizik SUNUCUDA sabit 50 Hz
    adımlarla işler; istemciler yalnız çubuk hedefi ve şut gönderir. */
 const langirtEngine = require('./langirt-engine.js');
+/* HAVA HOKEYİ — saf fizik (havahokeyi-engine.js). Langırt gibi gerçek
+   zamanlı; fizik sunucuda 120 Hz işler (disk çok hızlanıyor, 50 Hz'de
+   tokmağın içinden geçiyordu). */
+const havahokeyiEngine = require('./havahokeyi-engine.js');
 const kelimelikBildirim = require('./kelimelik-bildirim');
 const connect4Engine = require('./connect4-engine');
 const bilardoEngine = require('./bilardo-engine');
@@ -359,7 +363,7 @@ const disconnectTimers = new Map();
 const ADMIN_EMAIL = String(process.env.GV_ADMIN_EMAIL || '').trim().toLowerCase();
 const ALL_GAMES = ['chess', 'tavla', 'okey', 'okey101', 'pisti', 'batak',
   'dama', 'turkdamasi', 'reversi', 'gomoku', 'connect4', 'bilardo', 'battleship', 'kelimelik',
-  'tombala', 'adamasmaca', 'passaparola', 'cenga', 'langirt'];
+  'tombala', 'adamasmaca', 'passaparola', 'cenga', 'langirt', 'havahokeyi'];
 
 /* ===================== HAMLE SÜRESİ (masa başına) =====================
    Kullanıcı isteği: "kurucu panelinde masa düzenlemeler bölümünde oyun
@@ -445,7 +449,7 @@ const PRESET_GAME_BASES = {
   /* "Diğer Oyunlar"dan taşınan oyunlar 2000'li bloğa alındı: 1400-1700
      aralığını test süiti ÖZEL ODA kimliği olarak kullanıyor (örn. 1501,
      1601) ve hazır masa oraya düşerse özel oda hiç yaratılamıyordu. */
-  adamasmaca: 2001, passaparola: 2101, cenga: 2201, langirt: 2301
+  adamasmaca: 2001, passaparola: 2101, cenga: 2201, langirt: 2301, havahokeyi: 2401
 };
 const STANDARD_PRESET_GAMES = Object.keys(PRESET_GAME_BASES);
 /* Okey ve 101 Okey'in hazır masaları "taban ID + indeks" şemasını DEĞİL,
@@ -960,6 +964,8 @@ function resetRoomToWaiting(room) {
   room.cenga = null;
   if (room.langirt) langirtDurdur(room);
   room.langirt = null;
+  if (room.havahokeyi) havahokeyiDurdur(room);
+  room.havahokeyi = null;
   room.connect4 = null;
   room.bilardo = null;
   /* AMİRAL BATTI: bu satır eksikti. Rövanş kabul edilince oda "waiting"e
@@ -1312,6 +1318,7 @@ function turnSeatOf(room) {
   if (room.adamasmaca) return adamasmacaEngine.siradaki(room.adamasmaca);
   if (room.passaparola) return room.passaparola.status === 'playing' ? room.passaparola.turn : null;
   if (room.cenga) return room.cenga.status === 'playing' ? room.cenga.turn : null;
+  /* Langırt ve hava hokeyi sıra tabanlı DEĞİL: sırası olan kimse yok. */
   if (room.connect4) return room.connect4.turn === 'r' ? 0 : 1;
   if (room.bilardo) return room.bilardo.turn;
   // Yerleştirme (placing) fazında tur sahibi yok — her iki oyuncu da
@@ -1522,6 +1529,132 @@ function adamasmacaSonrasi(room, elOzeti) {
   }
   emitAdamasmacaState(room);
   return false;
+}
+
+/* ========================================================================
+ * HAVA HOKEYİ — oda akışı (GERÇEK ZAMANLI)
+ * ========================================================================
+ * Langırt ile aynı kalıp, iki farkla:
+ *   · Fizik 120 Hz işler. Disk saniyede 1450 birime kadar çıkıyor; 50 Hz'de
+ *     bir adımda 29 birim yol alır ve 20 birimlik yarıçapıyla tokmağın
+ *     İÇİNDEN geçebilirdi. Prototip de bu yüzden 1/120 kullanıyordu.
+ *   · Oyuncu tek bir tokmak sürer (dört çubuk yerine), bu yüzden istemci
+ *     yalnız tokmağın hedef noktasını yollar.
+ *
+ * Hedef gol masa tipinden gelir: ⚡10 dk → 3 · ♟️15 dk → 5 · 🧠20 dk → 7.
+ * ===================================================================== */
+const HOKEY_ADIM_MS = 1000 / 120;   // 120 Hz fizik
+const HOKEY_YAYIN_MS = 50;          // 20 Hz durum paketi
+const hokeyOdalari = new Set();
+let hokeyTimer = null;
+
+function havahokeyiGolHedefi(room) {
+  return ({ 10: 3, 15: 5, 20: 7 })[Number(room && room.durationMinutes)] || 5;
+}
+function havahokeyiState(room, seat) {
+  const h = room.havahokeyi;
+  if (!h) return null;
+  return havahokeyiEngine.gorunum(h.st, (seat === 0 || seat === 1) ? seat : null,
+    { status: room.status, serverNow: now() });
+}
+function emitHavahokeyiState(room, event = 'gameStateUpdated') {
+  room.players.forEach(p => emitToPlayer(p, event, {
+    roomId: room.id, seat: p.seat, isSpectator: false, gameState: havahokeyiState(room, p.seat)
+  }));
+  (room.spectators || []).forEach(p => emitToPlayer(p, event, {
+    roomId: room.id, seat: null, isSpectator: true, gameState: havahokeyiState(room, null)
+  }));
+}
+function havahokeyiKare(room) {
+  const st = room.havahokeyi.st;
+  io.to(room.id).emit('hokeyFrame', {
+    roomId: room.id, t: now(),
+    faz: st.faz, fazSn: Math.round(st.fazSn * 10) / 10,
+    disk: { x: Math.round(st.disk.x * 10) / 10, y: Math.round(st.disk.y * 10) / 10,
+            vx: Math.round(st.disk.vx), vy: Math.round(st.disk.vy) },
+    tokmak: st.tokmak.map(t => ({ x: Math.round(t.x), y: Math.round(t.y) })),
+    skor: st.skor, olayNo: st.olayNo, sonOlay: st.sonOlay
+  });
+}
+function havahokeyiDurdur(room) {
+  if (room) hokeyOdalari.delete(String(room.id));
+  if (!hokeyOdalari.size && hokeyTimer) { clearInterval(hokeyTimer); hokeyTimer = null; }
+}
+function havahokeyiBasla(room) {
+  hokeyOdalari.add(String(room.id));
+  if (hokeyTimer) return;
+  hokeyTimer = setInterval(havahokeyiDonguAdimi, 16);   // zamanlayıcı 60 Hz,
+  if (typeof hokeyTimer.unref === 'function') hokeyTimer.unref();
+}
+/* Tek genel zamanlayıcı bütün hokey masalarını işletir. Zamanlayıcı 60 Hz
+   uyansa da fizik HER ZAMAN 120 Hz sabit adımlarla ilerler: uyanışta ne
+   kadar süre geçtiyse o kadar küçük adım atılır. */
+function havahokeyiDonguAdimi() {
+  for (const id of Array.from(hokeyOdalari)) {
+    const room = rooms.get(id);
+    if (!room || !room.havahokeyi || room.status !== 'playing') { hokeyOdalari.delete(id); continue; }
+    const h = room.havahokeyi;
+    const simdi = now();
+    let kalan = Math.min(250, simdi - (h.sonAdim || simdi));
+    h.sonAdim = simdi;
+    let n = 0;
+    while (kalan >= HOKEY_ADIM_MS && n < 40) {
+      havahokeyiEngine.adim(h.st, HOKEY_ADIM_MS / 1000);
+      kalan -= HOKEY_ADIM_MS;
+      n++;
+      if (h.st.status !== 'playing') break;
+    }
+    h.sonAdim = simdi - kalan;
+    if (h.st.status !== 'playing') { havahokeyiBitir(room); continue; }
+    const sinirSn = Math.max(60, Number(room.durationMinutes || 15) * 60);
+    if (h.st.gecenSn >= sinirSn) { havahokeyiBitir(room, 'timeout'); continue; }
+    if (simdi - (h.sonYayin || 0) >= HOKEY_YAYIN_MS) {
+      h.sonYayin = simdi;
+      havahokeyiKare(room);
+    }
+  }
+  if (!hokeyOdalari.size && hokeyTimer) { clearInterval(hokeyTimer); hokeyTimer = null; }
+}
+function startHavahokeyi(room) {
+  if (room.status === 'playing' || room.players.length !== 2 || !room.players.every(p => p.isReady)) return;
+  room.status = 'playing'; room.result = null;
+  room.havahokeyi = {
+    st: havahokeyiEngine.macBaslat({
+      seats: room.players.map(p => p.seat).sort((a, b) => a - b),
+      golHedefi: havahokeyiGolHedefi(room)
+    }),
+    sonAdim: now(), sonYayin: 0
+  };
+  room.turnStartedAt = now(); touchMoveTimer(room); emitRoom(room);
+  room.players.forEach(p => emitToPlayer(p, 'gameStarted', {
+    roomId: room.id, seat: p.seat, isSpectator: false,
+    players: publicRoom(room).players, gameState: havahokeyiState(room, p.seat)
+  }));
+  (room.spectators || []).forEach(p => emitToPlayer(p, 'gameStarted', {
+    roomId: room.id, seat: null, isSpectator: true, gameState: havahokeyiState(room, null)
+  }));
+  emitHavahokeyiState(room);
+  havahokeyiBasla(room);
+}
+function havahokeyiBitir(room, reason) {
+  const h = room.havahokeyi;
+  if (!h || room.status === 'finished') return;
+  havahokeyiDurdur(room);
+  if (h.st.status === 'playing') havahokeyiEngine.macBitir(h.st, reason || 'finished');
+  room.status = 'finished';
+  const w = h.st.winner;
+  const neden = (w === null || w === undefined) ? 'draw' : (reason || h.st.result.reason || 'finished');
+  room.result = { reason: neden, winnerSeat: w == null ? null : w, skor: h.st.skor };
+  room.players.forEach(p => emitToPlayer(p, 'gameEnded', {
+    roomId: room.id, reason: neden, winnerSeat: room.result.winnerSeat,
+    youWon: room.result.winnerSeat !== null && p.seat === room.result.winnerSeat,
+    gameState: havahokeyiState(room, p.seat)
+  }));
+  (room.spectators || []).forEach(p => emitToPlayer(p, 'gameEnded', {
+    roomId: room.id, reason: neden, winnerSeat: room.result.winnerSeat,
+    youWon: false, isSpectator: true, gameState: havahokeyiState(room, null)
+  }));
+  emitHavahokeyiState(room); emitRoom(room); scheduleRoomReset(room);
 }
 
 /* ========================================================================
@@ -2067,6 +2200,7 @@ function buildBoardState(room, opts) {
   if (room.passaparola) return passaparolaState(room, opts && opts.seat);
   if (room.cenga) return cengaState(room, opts && opts.seat);
   if (room.langirt) return langirtState(room, opts && opts.seat);
+  if (room.havahokeyi) return havahokeyiState(room, opts && opts.seat);
   if (room.connect4) return connect4State(room, opts && opts.seat);
   if (room.bilardo) return bilardoState(room, opts && opts.seat);
   if (room.battleship) return battleshipState(room, opts && opts.seat);
@@ -2134,6 +2268,7 @@ function emitPlayingSnapshot(room, socketId, player) {
   if (room && room.status === 'playing' && room.bilardo) { const p=bakis; io.to(socketId).emit('gameStarted',{roomId:room.id,seat:p,isSpectator:!player,players:publicRoom(room).players,gameState:bilardoState(room,p)}); io.to(socketId).emit('gameStateUpdated',{roomId:room.id,seat:p,isSpectator:!player,gameState:bilardoState(room,p)}); return; }
   if (room && room.status === 'playing' && room.battleship) { const p=bakis; io.to(socketId).emit('gameStarted',{roomId:room.id,seat:p,isSpectator:!player,players:publicRoom(room).players,gameState:battleshipState(room,p)}); io.to(socketId).emit('gameStateUpdated',{roomId:room.id,seat:p,isSpectator:!player,gameState:battleshipState(room,p)}); return; }
   if (room && room.status === 'playing' && room.connect4) { const p=bakis; io.to(socketId).emit('gameStarted',{roomId:room.id,seat:p,isSpectator:!player,players:publicRoom(room).players,gameState:connect4State(room,p)}); io.to(socketId).emit('gameStateUpdated',{roomId:room.id,seat:p,isSpectator:!player,gameState:connect4State(room,p)}); return; }
+  if (room && room.status === 'playing' && room.havahokeyi) { const p=bakis; io.to(socketId).emit('gameStarted',{roomId:room.id,seat:p,isSpectator:!player,players:publicRoom(room).players,gameState:havahokeyiState(room,p)}); io.to(socketId).emit('gameStateUpdated',{roomId:room.id,seat:p,isSpectator:!player,gameState:havahokeyiState(room,p)}); return; }
   if (room && room.status === 'playing' && room.langirt) { const p=bakis; io.to(socketId).emit('gameStarted',{roomId:room.id,seat:p,isSpectator:!player,players:publicRoom(room).players,gameState:langirtState(room,p)}); io.to(socketId).emit('gameStateUpdated',{roomId:room.id,seat:p,isSpectator:!player,gameState:langirtState(room,p)}); return; }
   if (room && room.status === 'playing' && room.cenga) { const p=bakis; io.to(socketId).emit('gameStarted',{roomId:room.id,seat:p,isSpectator:!player,players:publicRoom(room).players,gameState:cengaState(room,p)}); io.to(socketId).emit('gameStateUpdated',{roomId:room.id,seat:p,isSpectator:!player,gameState:cengaState(room,p)}); return; }
   if (room && room.status === 'playing' && room.passaparola) { const p=bakis; io.to(socketId).emit('gameStarted',{roomId:room.id,seat:p,isSpectator:!player,players:publicRoom(room).players,gameState:passaparolaState(room,p)}); io.to(socketId).emit('gameStateUpdated',{roomId:room.id,seat:p,isSpectator:!player,gameState:passaparolaState(room,p)}); return; }
@@ -2266,6 +2401,7 @@ function startRoomGame(room) {
   if (room.gameId === 'passaparola') return startPassaparola(room);
   if (room.gameId === 'cenga') return startCenga(room);
   if (room.gameId === 'langirt') return startLangirt(room);
+  if (room.gameId === 'havahokeyi') return startHavahokeyi(room);
   if (room.gameId === 'connect4') return startConnect4(room);
   if (room.gameId === 'bilardo') return startBilardo(room);
   if (room.gameId === 'battleship') return startBattleship(room);
@@ -3269,6 +3405,11 @@ function resignMatch(room, player) {
     langirtEngine.pesEt(room.langirt.st, loserSeat);
     langirtDurdur(room);
   }
+  /* HAVA HOKEYİ: pes edince fizik döngüsü de durmalı. */
+  if (room.havahokeyi && room.havahokeyi.st.status === 'playing') {
+    havahokeyiEngine.pesEt(room.havahokeyi.st, loserSeat);
+    havahokeyiDurdur(room);
+  }
 
   room.status = 'finished';
 
@@ -3314,6 +3455,7 @@ function resignMatch(room, player) {
       room.passaparola ? passaparolaState(room, seat) :
       room.cenga ? cengaState(room, seat) :
       room.langirt ? langirtState(room, seat) :
+      room.havahokeyi ? havahokeyiState(room, seat) :
       room.connect4 ? connect4State(room, seat) :
       room.bilardo ? bilardoState(room, seat) :
       room.battleship ? battleshipState(room, seat) :
@@ -3625,7 +3767,7 @@ function removePlayerFromRoom(room, player, message) {
   // aşağıdaki resetRoomToWaiting()'e düşer, status 'waiting' olur ve o andan
   // sonra hamle süresi denetimi de çalışmaz (saat 0'da donar). Amiral Battı
   // tam olarak bu yüzden rakip ayrılınca bitmiyordu.
-  if (wasPlaying && (room.dama || room.reversi || room.gomoku || room.kelimelik || room.adamasmaca || room.passaparola || room.cenga || room.langirt || room.connect4 || room.bilardo || room.battleship || room.cardGame || room.tombala)) {
+  if (wasPlaying && (room.dama || room.reversi || room.gomoku || room.kelimelik || room.adamasmaca || room.passaparola || room.cenga || room.langirt || room.havahokeyi || room.connect4 || room.bilardo || room.battleship || room.cardGame || room.tombala)) {
     const kalanKoltuklar = room.players.map(p => p.seat);
     let winnerSeat = kalanKoltuklar[0];
     if (kalanKoltuklar.length > 1) {
@@ -3646,6 +3788,7 @@ function removePlayerFromRoom(room, player, message) {
       room.passaparola ? passaparolaState(room, seat) :
       room.cenga ? cengaState(room, seat) :
       room.langirt ? langirtState(room, seat) :
+      room.havahokeyi ? havahokeyiState(room, seat) :
       room.connect4 ? connect4State(room, seat) :
       room.bilardo ? bilardoState(room, seat) :
       room.battleship ? battleshipState(room, seat) :
@@ -4817,6 +4960,19 @@ io.on('connection', socket => {
   }
   /* Çubuk hedefleri saniyede onlarca kez gelir: en ucuz yol, doğrulayıp
      kontrol nesnesine yazmak. Fizik döngüsü bunu kendi adımında okur. */
+  /* ===================================================================== */
+  /* HAVA HOKEYİ — fizik SUNUCUDA. İstemci yalnız tokmağın hedef noktasını  */
+  /* yollar; hangi yarı sahada oynayacağını KOLTUK belirler.                */
+  /* ===================================================================== */
+  socket.on('hokeyMove', data => {
+    const room = rooms.get(socket.roomId || String(data && data.roomId || ''));
+    const p = room && room.havahokeyi && room.players.find(x => x.id === socket.id);
+    if (!p || room.status !== 'playing') return;
+    const r = havahokeyiEngine.hedefYaz(room.havahokeyi.st, p.seat,
+      data && data.x, data && data.y);
+    if (!r.ok) socket.emit('hokeyRejected', { roomId: room.id, reason: r.reason });
+  });
+
   socket.on('langirtRods', data => {
     const room = lgOda(data);
     const p = room && room.players.find(x => x.id === socket.id);

@@ -18,19 +18,33 @@
     console.log('[Lobby]', msg);
   }
 
+  /* Lobi başlığındaki OYUN ADINDAN oyun kimliği.
+     HATA: bu eşleme ELLE yazılmıştı; Tombala, Adam Asmaca, Passaparola,
+     Cenga ve Langırt listede olmadığı için başlıkta "Cenga" yazarken
+     lobi 'chess' masalarını çekiyordu (kullanıcı raporu: yeni oyunlar
+     eşleşme lobisini bulamıyor). Artık eşleme window.GAMES'ten üretiliyor;
+     yeni oyun eklemek için burada yapılacak bir şey yok. */
+  const EL_ESLEME = {
+    satranç: 'chess', satranc: 'chess', chess: 'chess',
+    'ingiliz daması': 'dama', 'türk daması': 'turkdamasi',
+    'amiral battı': 'battleship', battleship: 'battleship',
+    pisti: 'pisti', '101 okey': 'okey101'
+  };
+  function oyunEslemesi() {
+    const m = Object.assign({}, EL_ESLEME);
+    try {
+      const G = window.GAMES || {};
+      Object.keys(G).forEach(id => {
+        const ad = String((G[id] && G[id].name) || '').toLowerCase().trim();
+        if (ad) m[ad] = id;
+        m[id] = id;                       // kimlikle de bulunabilsin
+      });
+    } catch (_) {}
+    return m;
+  }
   function gameFromDom() {
-    const name = (document.getElementById('lobbyName')?.textContent || '').toLowerCase();
-    const map = {
-      satranç: 'chess', satranc: 'chess', chess: 'chess',
-      tavla: 'tavla', okey: 'okey', '101 okey': 'okey101',
-      pişti: 'pisti', pisti: 'pisti', batak: 'batak',
-      'ingiliz daması': 'dama', dama: 'dama',
-      'türk daması': 'turkdamasi', reversi: 'reversi',
-      gomoku: 'gomoku', connect4: 'connect4', bilardo: 'bilardo',
-      'amiral battı': 'battleship', battleship: 'battleship',
-      kelimelik: 'kelimelik'
-    };
-    return map[name] || currentGame || 'chess';
+    const name = (document.getElementById('lobbyName')?.textContent || '').toLowerCase().trim();
+    return oyunEslemesi()[name] || currentGame || 'chess';
   }
 
   function esc(v) {

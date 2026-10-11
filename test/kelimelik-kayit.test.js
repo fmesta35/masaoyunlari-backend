@@ -84,10 +84,20 @@ assert.ok(/!room\.dama && !room\.reversi && !room\.gomoku && !room\.kelimelik/.t
 icerir(server, "app.get('/api/kelimelik/reports'", 'yönetici bildirim ucu');
 
 // ---------------- istemci köprüleri ----------------
-icerir(lobi, "kelimelik: 'kelimelik'", 'lobi başlık→gameId eşlemesi');
-icerir(bekleme, "'kelimelik']", 'BRIDGE_GAMES');
-assert.ok(/engineReady = \[[^\]]*'kelimelik'/.test(bekleme.replace(/\n/g, ' ')),
-  'engineReady listesi (bekleme odası "başlatılıyor" demeli)');
+/* Bu üç köprü eskiden ELLE yazılmış oyun listeleriydi ve her yeni oyunda
+   biri unutuluyordu (kullanıcı raporu: yeni oyunlar masada açılmıyor).
+   Üçü de artık ONLINE_GAMES / GAMES'ten türüyor; test de mekanizmayı
+   doğruluyor, liste içeriğini değil. */
+icerir(lobi, 'function oyunEslemesi()', 'lobi başlık→gameId eşlemesi GAMES\'ten türemeli');
+icerir(lobi, 'window.GAMES', 'lobi eşlemesi GAMES\'i okumalı');
+icerir(bekleme, 'function bridgeGames()', 'BRIDGE listesi ONLINE_GAMES\'ten türemeli');
+icerir(bekleme, 'window.ONLINE_GAMES', 'köprü listesi ONLINE_GAMES\'i okumalı');
+assert.ok(/engineReady = bridgeGame\(/.test(bekleme),
+  'engineReady de aynı listeden gelmeli (bekleme odası "başlatılıyor" demeli)');
+/* Kelimelik gerçekten listede mi? Kaynak değil, DAVRANIŞ üzerinden:
+   index.html'in ONLINE_GAMES dizisi kelimelik'i içermeli. */
+assert.ok(/ONLINE_GAMES = \[[^\]]*'kelimelik'/.test(oku('index.html')),
+  'kelimelik ONLINE_GAMES içinde olmalı');
 
 // ---------------- adaptör ----------------
 const adaptor = oku('js/kelimelik-online.js');

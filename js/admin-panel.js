@@ -31,7 +31,7 @@
      Kelimelik satırında yalnız "Görünür" vardı). Artık şema SUNUCUDAN
      (/api/admin/tables → sema) okunur; aşağıdakiler yalnız sunucuya
      ulaşılamadığında kullanılan yedektir. */
-  let STANDARD = ['chess', 'tavla', 'okey', 'okey101', 'pisti', 'batak', 'dama', 'turkdamasi', 'reversi', 'gomoku', 'connect4', 'bilardo', 'battleship', 'kelimelik', 'adamasmaca', 'passaparola', 'cenga', 'langirt'];
+  let STANDARD = ['chess', 'tavla', 'okey', 'okey101', 'pisti', 'batak', 'dama', 'turkdamasi', 'reversi', 'gomoku', 'connect4', 'bilardo', 'battleship', 'kelimelik', 'adamasmaca', 'passaparola', 'cenga', 'langirt', 'havahokeyi'];
   let FIXED = [];
   /* Masası eklenip çıkarılabilen oyunlar. Eskiden bunun yerine doğrudan
      STANDARD'a bakılıyordu; okey ve 101 okey orada olmadığı için satırlarında
@@ -218,7 +218,7 @@
   }
 
   // Varsayılan ayarlar (sunucudakiyle aynı kalıp):
-  const BASE = { chess: 101, tavla: 201, dama: 401, turkdamasi: 501, reversi: 601, gomoku: 701, connect4: 801, bilardo: 921, okey: 301, okey101: 1201, pisti: 341, batak: 361, battleship: 1001, kelimelik: 1101, tombala: 1301, adamasmaca: 2001, passaparola: 2101, cenga: 2201, langirt: 2301 };
+  const BASE = { chess: 101, tavla: 201, dama: 401, turkdamasi: 501, reversi: 601, gomoku: 701, connect4: 801, bilardo: 921, okey: 301, okey101: 1201, pisti: 341, batak: 361, battleship: 1001, kelimelik: 1101, tombala: 1301, adamasmaca: 2001, passaparola: 2101, cenga: 2201, langirt: 2301, havahokeyi: 2401 };
   /* Taban numarası bilinmeyen (sunucu şeması gelmemiş) bir oyun için bile
      masa adı üretilebilsin; yoksa "Masa #NaN" yazıyordu. */
   function tabanOf(gid) { return Number(BASE[gid]) > 0 ? Number(BASE[gid]) : 1; }
