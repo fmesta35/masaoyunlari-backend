@@ -2652,7 +2652,8 @@ body.gv-app input,body.gv-app textarea,body.gv-app .chat-msgs,body.gv-app .moves
 
 /* --------- TAHTA --------- */
 .mp-tahta{--mp-d:56px;--mp-wt:64px;--mp-hs:46px;position:relative;display:grid;
-  grid-template-columns:var(--mp-d) repeat(9,var(--mp-wt)) var(--mp-d);
+  --mp-dx:var(--mp-d);
+  grid-template-columns:var(--mp-dx) repeat(9,var(--mp-wt)) var(--mp-dx);
   grid-template-rows:var(--mp-d) repeat(9,var(--mp-hs)) var(--mp-d);
   border-radius:10px;overflow:hidden;background:#cfe3cd;border:2px solid #1d2a1c;
   box-shadow:0 10px 30px rgba(0,0,0,.45)}
@@ -2660,8 +2661,10 @@ body.gv-app input,body.gv-app textarea,body.gv-app .chat-msgs,body.gv-app .moves
   overflow:hidden;display:flex;flex-direction:column;align-items:center;
   justify-content:center;padding:1px;box-sizing:border-box}
 /* Yazı, renk bandının ÜSTÜNE denk gelmesin diye band tarafına pay bırakılır. */
-.mp-kare.kenar-alt{padding-top:24%}
-.mp-kare.kenar-ust{padding-bottom:24%}
+/* ⚠ Yüzde dolgu GENİŞLİĞE göredir; bant ise YÜKSEKLİĞİN %22'si. Bu yüzden
+   üst/alt kenarda dolgu çerçeve derinliğinden (--mp-d) hesaplanır. */
+.mp-kare.kenar-alt{padding-top:calc(var(--mp-d) * .24)}
+.mp-kare.kenar-ust{padding-bottom:calc(var(--mp-d) * .24)}
 .mp-kare.kenar-sol{padding-right:24%}
 .mp-kare.kenar-sag{padding-left:24%}
 .mp-kare.kose{padding:2px;background:#dcebd8}
@@ -2679,8 +2682,12 @@ body.gv-app input,body.gv-app textarea,body.gv-app .chat-msgs,body.gv-app .moves
    olan ölçü budur. */
 .mp-ad{width:100%;font-size:calc(var(--mp-d) * .20);line-height:1.08;font-weight:800;
   color:#15210f;text-align:center;overflow:hidden;max-width:100%;
-  overflow-wrap:break-word;hyphens:auto;
-  display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical}
+  overflow-wrap:normal;word-break:keep-all;
+  display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical}
+/* Yazı sığdırma en küçük puntoya rağmen sığmadıysa son çare: kelime içinden kır. */
+.mp-ad.kir{overflow-wrap:anywhere;word-break:normal}
+.mp-kare{cursor:pointer}
+.mp-kare:hover{filter:brightness(1.04)}
 .mp-fiyat{font-size:calc(var(--mp-d) * .18);color:#3a4a33;font-family:var(--mono);font-weight:700}
 /* Yan kenarlarda yazı merkeze bakar: solda harflerin tepesi sağa, sağda sola. */
 .mp-kare.kenar-sol .mp-ad,.mp-kare.kenar-sol .mp-fiyat{writing-mode:vertical-rl}
@@ -2760,11 +2767,50 @@ body.gv-app input,body.gv-app textarea,body.gv-app .chat-msgs,body.gv-app .moves
   border-color:rgba(0,0,0,.18);color:#1b2a17}
 .mp-wrap.genis .mp-panel .mp-mulk.bos{color:#55634d}
 
-/* --------- TAM EKRAN: oyuncu çipleri YAN PANELDE ---------
+/* --------- YATAY TAHTA: yan sütunlarda yazı YATAY ---------
+   Geniş tahtada yan sütunlar daha geniştir (--mp-dx) ve kare adları
+   döndürülmeden yazılır (js → yaziSigdir punto hesaplar). Renk bandı
+   ince bir dikey şerit olarak tahtanın içine bakar. */
+.mp-tahta.yan-yatay .mp-kare.kenar-sol,.mp-tahta.yan-yatay .mp-kare.kenar-sag{
+  flex-direction:column;gap:0}
+.mp-tahta.yan-yatay .mp-kare.kenar-sol{padding:1px 20% 1px 3px}
+.mp-tahta.yan-yatay .mp-kare.kenar-sag{padding:1px 3px 1px 20%}
+.mp-tahta.yan-yatay .mp-kare.kenar-sol .mp-bant,.mp-tahta.yan-yatay .mp-kare.kenar-sag .mp-bant{width:16%}
+.mp-tahta.yan-yatay .mp-kare.kenar-sol .mp-ad,.mp-tahta.yan-yatay .mp-kare.kenar-sol .mp-fiyat,
+.mp-tahta.yan-yatay .mp-kare.kenar-sag .mp-ad,.mp-tahta.yan-yatay .mp-kare.kenar-sag .mp-fiyat{
+  writing-mode:horizontal-tb;transform:none;width:100%;height:auto}
+.mp-tahta.yan-yatay .mp-kare.kenar-sol .mp-bina,.mp-tahta.yan-yatay .mp-kare.kenar-sag .mp-bina{width:16%;
+  writing-mode:vertical-rl;font-size:calc(var(--mp-d) * .15)}
+
+/* --------- KARE BİLGİ KARTI (kareye tıklayınca) --------- */
+.mp-kb{position:fixed;z-index:3500;width:236px;max-width:calc(100vw - 12px);
+  background:#fffdf6;color:#1b2a17;border-radius:12px;overflow:hidden;
+  box-shadow:0 12px 34px rgba(0,0,0,.55),0 0 0 1px rgba(0,0,0,.2);font-size:13px;
+  animation:mp-kb-ac .14s ease-out}
+@keyframes mp-kb-ac{from{opacity:0;transform:translateY(4px) scale(.97)}to{opacity:1;transform:none}}
+.mp-kb-bas{padding:9px 34px 8px 12px;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.35)}
+.mp-kb-grup{font-size:.72em;font-weight:700;letter-spacing:.06em;text-transform:uppercase;opacity:.9}
+.mp-kb-ad{font-size:1.12em;font-weight:900;letter-spacing:.02em;line-height:1.2}
+.mp-kb-kapat{position:absolute;top:6px;right:6px;width:26px;height:26px;border-radius:50%;
+  border:0;background:rgba(0,0,0,.28);color:#fff;font-size:13px;line-height:26px;padding:0;
+  cursor:pointer;display:grid;place-items:center}
+.mp-kb-kapat:hover{background:rgba(0,0,0,.5)}
+.mp-kb-govde{padding:8px 12px 10px}
+.mp-kb-sat{display:flex;justify-content:space-between;gap:8px;padding:2px 0;font-size:.95em}
+.mp-kb-sat b{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.mp-kb-sat.vurgu{background:#fff2c2;margin:0 -6px;padding:2px 6px;border-radius:5px}
+.mp-kb-ara{margin:6px 0 2px;font-size:.74em;font-weight:800;color:#6b7763;text-transform:uppercase;
+  letter-spacing:.05em;border-top:1px dashed rgba(0,0,0,.15);padding-top:5px}
+.mp-kb-ara:empty{padding-top:0;margin:6px 0}
+.mp-kb-not{margin:2px 0;line-height:1.45}
+.mp-kb-sahip{margin-top:8px;padding-top:7px;border-top:1px solid rgba(0,0,0,.12);font-size:.9em;
+  display:flex;align-items:center;gap:5px;flex-wrap:wrap}
+.mp-kb-nokta{width:11px;height:11px;border-radius:50%;box-shadow:0 0 0 1px rgba(0,0,0,.4)}
+
+/* --------- OYUNCU ÇİPLERİ YAN PANELDE ---------
    Tam ekranda .mp-oyuncular tahtanın üstünden alınıp yan panele, puan
    tablosunun üstüne taşınır (js/metropol-online.js → oyuncuYerlestir).
    Tahta böylece o şeridin yüksekliği kadar dikeyde büyür. */
-#pg-room:not(.gv-fs) #mpYanOyuncular{display:none}
 #mpYanOyuncular{flex:none;min-width:0}
 #mpYanOyuncular .mp-oyuncular{flex-direction:column;flex-wrap:nowrap;gap:5px}
 #mpYanOyuncular .mp-oy{border-radius:10px;flex-wrap:wrap;row-gap:2px;padding:6px 8px}
@@ -7000,7 +7046,7 @@ GV.init();
 <script src="js/fark-sahneler.js?v=20261011b" defer></script>
 <script src="js/fark-online.js?v=20261011b" defer></script>
 <script src="js/kizmabirader-online.js?v=20261011b" defer></script>
-<script src="js/metropol-online.js?v=20261012a" defer></script>
+<script src="js/metropol-online.js?v=20261012b" defer></script>
 <script src="js/chat.js?v=20260821c" defer></script>
 <script src="js/leave-guard.js?v=20260927c" defer></script>
 <!-- Tarayıcı GERİ/İLERİ tuşu: sayfa geçişleri geçmişe adım bırakır,

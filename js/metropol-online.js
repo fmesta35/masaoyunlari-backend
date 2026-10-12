@@ -87,7 +87,7 @@
     if (k.t === 'go') return 'KALKIŞ';
     if (k.t === 'cezaevi') return 'CEZAEVİ';
     if (k.t === 'park') return 'PARK';
-    if (k.t === 'gocezaevi') return 'CEZAEVİNE';
+    if (k.t === 'cezaevineGit' || k.t === 'gocezaevi') return 'CEZAEVİNE GİT';
     if (k.t === 'sans') return 'ŞANS';
     if (k.t === 'fon') return 'FON';
     if (k.t === 'vergi') return 'VERGİ';
@@ -128,6 +128,123 @@
     h += '</div>';
     return h;
   }
+
+  /* ===================================================================
+     KARE BİLGİ KARTI — bir kareye tıklanınca/dokununca açılan minik
+     pencere: fiyat, kira kademeleri, bina maliyeti, ipotek, sahip.
+     Pencere #pg-room'un içine eklenir (tam ekranda da görünsün diye) ve
+     tahta yeniden çizildiğinde içeriği tazelenir (bkz. bind → kartTazele).
+     =================================================================== */
+  var acikKart = null;        // açık bilgi kartının kare indeksi
+  function kartHtml(s, i) {
+    var k = (s.kareler || [])[i];
+    if (!k) return '';
+    var d = (s.durum || [])[i] || {};
+    var renk = k.g ? (s.grupRenkleri || {})[k.g] : null;
+    var basRenk = renk || (k.t === 'sans' ? '#e8a81c' : k.t === 'fon' ? '#2a63d8'
+                : k.t === 'vergi' ? '#c0392b' : k.t === 'gar' ? '#2d3436'
+                : k.t === 'idare' ? '#00838f' : '#3b6b35');
+    var ad = k.ad || kisaAd(k);
+    if (k.t === 'sans') ad = 'ŞANS';
+    if (k.t === 'fon') ad = 'TOPLULUK FONU';
+    var h = '<div class="mp-kb-bas" style="background:' + basRenk + '">' +
+      (k.g ? '<div class="mp-kb-grup">' + esc((s.grupAdlari || {})[k.g] || '') + ' grubu</div>' : '') +
+      '<div class="mp-kb-ad">' + esc(ad) + '</div></div><div class="mp-kb-govde">';
+    var satir = function (a, b, vurgu) {
+      return '<div class="mp-kb-sat' + (vurgu ? ' vurgu' : '') + '"><span>' + a + '</span><b>' + b + '</b></div>';
+    };
+    if (k.t === 'mulk' && k.r) {
+      h += satir('Fiyat', para(k.p));
+      h += '<div class="mp-kb-ara">Kira</div>';
+      h += satir('Arsa', para(k.r[0]), d.sahip !== null && d.ev === 0);
+      h += satir('Grubun tamamı (binasız)', para(k.r[0] * 2));
+      for (var e = 1; e <= 4; e++) h += satir(Array(e + 1).join('🏠') + ' ' + e + ' ev', para(k.r[e]), d.ev === e);
+      h += satir('🏨 Otel', para(k.r[5]), d.ev >= 5);
+      h += '<div class="mp-kb-ara"></div>';
+      h += satir('Ev / otel maliyeti', para(k.b));
+      h += satir('İpotek değeri', para(Math.floor(k.p / 2)));
+    } else if (k.t === 'gar') {
+      h += satir('Fiyat', para(k.p));
+      h += '<div class="mp-kb-ara">Kira (sahibin gar sayısına göre)</div>';
+      h += satir('1 gar', para(25)) + satir('2 gar', para(50)) + satir('3 gar', para(100)) + satir('4 gar', para(200));
+      h += satir('İpotek değeri', para(Math.floor(k.p / 2)));
+    } else if (k.t === 'idare') {
+      h += satir('Fiyat', para(k.p));
+      h += '<div class="mp-kb-ara">Kira (atılan zarın toplamı ×)</div>';
+      h += satir('1 idare', 'zar × 4') + satir('2 idare', 'zar × 10');
+      h += satir('İpotek değeri', para(Math.floor(k.p / 2)));
+    } else if (k.t === 'vergi') {
+      h += '<p class="mp-kb-not">Bu kareye gelen <b>' + para(k.a) + '</b> vergi öder.</p>';
+    } else if (k.t === 'sans') {
+      h += '<p class="mp-kb-not">Bu kareye gelen bir <b>Şans</b> kartı çeker: para kazanabilir, ödeyebilir ya da başka bir kareye gidebilir.</p>';
+    } else if (k.t === 'fon') {
+      h += '<p class="mp-kb-not">Bu kareye gelen bir <b>Topluluk Fonu</b> kartı çeker.</p>';
+    } else if (k.t === 'go') {
+      h += '<p class="mp-kb-not">Buradan her geçişte <b>' + para(s.maas || 200) + '</b> maaş alınır.</p>';
+    } else if (k.t === 'cezaevi') {
+      h += '<p class="mp-kb-not">Yalnızca ziyaret. Cezaevindeyseniz çift atarak, <b>' + para(s.kefalet || 50) + '</b> kefalet ödeyerek ya da çıkış kartıyla çıkarsınız.</p>';
+    } else if (k.t === 'park') {
+      h += '<p class="mp-kb-not">Ücretsiz park — burada hiçbir şey olmaz.' +
+           (s.havuz ? ' Park havuzu: <b>' + para(s.havuz) + '</b>.' : '') + '</p>';
+    } else {
+      h += '<p class="mp-kb-not">Bu kareye gelen doğrudan <b>cezaevine</b> gider.</p>';
+    }
+    if (k.t === 'mulk' || k.t === 'gar' || k.t === 'idare') {
+      var sahip = d.sahip === null || d.sahip === undefined ? null : d.sahip;
+      h += '<div class="mp-kb-sahip">' + (sahip === null
+        ? '🏷️ Satılık — henüz sahibi yok'
+        : '<span class="mp-kb-nokta" style="background:' + PIYON_RENK[s.seats.indexOf(sahip) % 4] + '"></span>' +
+          'Sahibi: <b>' + esc(adOf(sahip)) + '</b>' + (sahip === s.seat ? ' (siz)' : '') +
+          (d.ev > 0 ? ' · ' + (d.ev >= 5 ? '🏨' : Array(d.ev + 1).join('🏠')) : '') +
+          (d.ipotek ? ' · 📄 ipotekli' : '')) + '</div>';
+    }
+    return h + '</div>';
+  }
+  function kartKapat() {
+    acikKart = null;
+    var p = document.getElementById('mpKartPop');
+    if (p && p.parentNode) p.parentNode.removeChild(p);
+  }
+  /* Pencereyi tıklanan karenin yanına, ekranın içinde kalacak biçimde koy. */
+  function kartKonumla(pop, kare) {
+    if (!pop || !kare) return;
+    var r = kare.getBoundingClientRect();
+    var vw = window.innerWidth || 800, vh = window.innerHeight || 600;
+    var pw = pop.offsetWidth || 240, ph = pop.offsetHeight || 260;
+    var x = r.left + r.width / 2 - pw / 2;
+    var y = r.bottom + 6;
+    if (y + ph > vh - 6) y = r.top - ph - 6;              // altta yer yoksa üste
+    if (y < 6) { y = Math.max(6, (vh - ph) / 2); x = r.right + 6 > vw - pw - 6 ? r.left - pw - 6 : r.right + 6; }
+    x = Math.max(6, Math.min(x, vw - pw - 6));
+    y = Math.max(6, Math.min(y, vh - ph - 6));
+    pop.style.left = Math.round(x) + 'px';
+    pop.style.top = Math.round(y) + 'px';
+  }
+  function kartAc(s, i, kare) {
+    var oda = document.getElementById('pg-room') || document.body;
+    var pop = document.getElementById('mpKartPop');
+    if (!pop) {
+      pop = document.createElement('div');
+      pop.id = 'mpKartPop';
+      pop.className = 'mp-kb';
+      pop.setAttribute('role', 'dialog');
+      pop.addEventListener('click', function (e) {
+        if (e.target.closest('.mp-kb-kapat')) kartKapat();
+        e.stopPropagation();
+      });
+    }
+    if (pop.parentNode !== oda) oda.appendChild(pop);
+    acikKart = i;
+    pop.innerHTML = '<button type="button" class="mp-kb-kapat" aria-label="Kapat">✕</button>' + kartHtml(s, i);
+    kartKonumla(pop, kare);
+  }
+  /* Dışarı tıklayınca / Esc ile kapanır. Bir kez bağlanır. */
+  document.addEventListener('click', function (e) {
+    if (acikKart === null) return;
+    if (e.target.closest && (e.target.closest('#mpKartPop') || e.target.closest('.mp-kare'))) return;
+    kartKapat();
+  });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && acikKart !== null) kartKapat(); });
 
   function ortaHtml(s) {
     var h = '';
@@ -362,6 +479,21 @@
       bagla('.mp-sat', 'metropolSell', function (b) { return { kare: Number(b.dataset.kare) }; });
       bagla('.mp-ipotek', 'metropolMortgage', function (b) { return { kare: Number(b.dataset.kare) }; });
 
+      /* Kareye tıklama/dokunma → bilgi kartı. Aynı kareye tekrar basınca kapanır. */
+      var tahtaEl = root.querySelector('.mp-tahta');
+      if (tahtaEl) tahtaEl.addEventListener('click', function (e) {
+        var kare = e.target.closest('.mp-kare');
+        if (!kare) return;
+        var i = Number(kare.getAttribute('data-kare'));
+        if (acikKart === i) { kartKapat(); return; }
+        kartAc(s, i, kare);
+      });
+      /* Durum değiştiyse (sahip, ev, ipotek) açık kartın içeriği güncellenir. */
+      if (acikKart !== null) {
+        var acikKare = root.querySelector('.mp-kare[data-kare="' + acikKart + '"]');
+        if (acikKare) kartAc(s, acikKart, acikKare); else kartKapat();
+      }
+
       /* ===================================================================
          ÖLÇÜ — TAHTA EKRANIN YATAYINI DOLDURUR
          ===================================================================
@@ -389,7 +521,16 @@
         var yan = oda && oda.querySelector('.game-side');
         var yuva = document.getElementById('mpYanOyuncular');
         var oy = wrap.querySelector('.mp-oyuncular') || (yuva && yuva.querySelector('.mp-oyuncular'));
-        if (fs && yan) {
+        /* Yan panel tahtanın SAĞINDA duruyorsa (masaüstü) ya da tam ekransa
+           çipler oraya gider. Telefonda dikeyde yan panel tahtanın ALTINDA
+           kalır; orada çipler tahtanın üstünde, tek satırda kalır. */
+        var alanEl = document.getElementById('boardArea');
+        var yanda = false;
+        if (yan && alanEl && yan.offsetParent !== null) {
+          var ra = alanEl.getBoundingClientRect(), ry = yan.getBoundingClientRect();
+          yanda = ry.width > 0 && ry.left >= ra.right - 4;
+        }
+        if ((fs || yanda) && yan) {
           if (!yuva) { yuva = document.createElement('div'); yuva.id = 'mpYanOyuncular'; }
           if (yuva.parentNode !== yan) {
             var puan = yan.querySelector('.score-panel');
@@ -408,6 +549,59 @@
         var panel = root.querySelector('.mp-panel');
         var yuva = root.querySelector(genis ? '.mp-orta-yuva' : '.mp-alt-yuva');
         if (panel && yuva && panel.parentNode !== yuva) yuva.appendChild(panel);
+      }
+      /* HER KAREYE AYRI YAZI BOYU: kare adındaki EN UZUN KELİME tek satıra
+         sığacak, satırlar da (fiyatla birlikte) karenin yüksekliğine
+         sığacak en büyük punto seçilir. Böylece "BAKIRKÖY" → "BAKIRKO Y"
+         gibi kelime ortasından kırılma olmaz, kısa adlar da büyük yazılır.
+         ⚠ CSS min()/clamp() kullanılmaz (jsdom'u bozuyor, bkz. index.html). */
+      function yaziSigdir(tahta, D, Dx, Wt, Hs, yanYatay) {
+        var KAR = 0.72;       // ölçüm yoksa: kalın büyük harf ortalama genişliği (em)
+        /* Kelime genişliği GERÇEK yazı tipiyle canvas'ta ölçülür (100 px'te
+           bir kez, sonra orantılanır). Canvas yoksa (jsdom) tahmine düşer. */
+        var ctx = null, aile = null, olcu = {};
+        try { ctx = (yaziSigdir.c = yaziSigdir.c || document.createElement('canvas')).getContext('2d'); } catch (_) { ctx = null; }
+        function gen(k, f) {
+          if (!ctx) return k.length * f * KAR;
+          if (olcu[k] === undefined) { ctx.font = '800 100px ' + aile; olcu[k] = ctx.measureText(k).width / 100; }
+          return olcu[k] * f;
+        }
+        tahta.querySelectorAll('.mp-kare').forEach(function (kare) {
+          var adEl = kare.querySelector('.mp-ad');
+          if (!adEl) return;
+          var fiyatEl = kare.querySelector('.mp-fiyat');
+          var fiyatVar = !!(fiyatEl && fiyatEl.textContent);
+          var kose = kare.classList.contains('kose');
+          var yan = kare.classList.contains('kenar-sol') || kare.classList.contains('kenar-sag');
+          var w, h;
+          if (kose) { w = Dx - 6; h = D - 6; }
+          else if (!yan) { w = Wt - 5; h = D * 0.76 - 3; }
+          else if (yanYatay) { w = Dx * 0.80 - 6; h = Hs - 4; }
+          else { w = Hs - 5; h = D * 0.76 - 4; }    // döndürülmüş yazı
+          if (aile === null) { try { aile = getComputedStyle(adEl).fontFamily || 'sans-serif'; } catch (_) { aile = 'sans-serif'; } }
+          var kelimeler = String(adEl.textContent || '').split(/\s+/).filter(Boolean);
+          w -= 2;   // yuvarlama/kenarlık payı
+          var fMax = Math.min(18, D * 0.24, kose ? D * 0.22 : 99);
+          var f = fMax, sigdi = false;
+          for (; f >= 6.5; f -= 0.5) {
+            var tasti = kelimeler.some(function (k) { return gen(k, f) > w; });
+            if (tasti) continue;
+            /* Kelimeleri satırlara diz. */
+            var satir = 1, uz = 0;
+            kelimeler.forEach(function (k) {
+              var l = gen(k, f);
+              if (uz === 0) uz = l;
+              else if (uz + f * 0.28 + l <= w) uz += f * 0.28 + l;
+              else { satir++; uz = l; }
+            });
+            var yuk = satir * f * 1.1 + (fiyatVar ? f * 0.82 * 1.25 : 0);
+            if (yuk <= h) { sigdi = true; break; }
+          }
+          if (!sigdi) f = 6.5;
+          adEl.style.fontSize = f + 'px';
+          adEl.classList.toggle('kir', !sigdi);
+          if (fiyatEl) fiyatEl.style.fontSize = Math.max(6, Math.min(f * 0.82, 14)) + 'px';
+        });
       }
       function olcuYaz() {
         var odaEl = document.getElementById('pg-room');
@@ -445,25 +639,35 @@
 
         /* Dar ekranda tahta yüksekliğin yalnız bir kısmını alır (altında
            panel var); geniş ekranda tüm alanı kaplar. */
-        var BW = G, BH = ortada ? Y : Math.min(Y * 0.62, G * 1.1);
+        /* Dar ekranda (telefon dikey) tahta altındaki panele yer bırakır ama
+           eskisinden UZUNDUR: yan karelerin yüksekliği artar, dik yazılan
+           kare adları sığar ("HARBİY E" gibi kırılmalar biter). */
+        var BW = G, BH = ortada ? Y : Math.min(Y * 0.74, G * 1.42);
         /* En-boy oranını makul tut: çok yayvan tahta okunmaz olur. Telefon
            tam ekranında (kompakt) yatayda daha yayvan, dikeyde daha uzun
            tahtaya izin verilir: amaç ekranın EN GENİŞ kullanımı. */
-        var oranUst = kompakt ? 2.4 : 1.95, oranAlt = kompakt ? 0.6 : 0.82;
+        var oranUst = kompakt ? 2.4 : 1.95, oranAlt = kompakt ? 0.6 : (ortada ? 0.82 : 0.7);
         if (BW / BH > oranUst) BW = BH * oranUst;
         if (BW / BH < oranAlt) BH = BW / oranAlt;
 
         /* Çerçeve derinliği: gerçek tahtadaki gibi kenarın ~%10'u. */
-        /* Kompakt (telefon tam ekran) tahtada kısa kenar çok dar kalır; çerçeve
-           biraz daha derin tutulur ki kenar kare adları okunabilsin. */
+        /* ÇERÇEVE ASİMETRİKTİR: üst/alt kenarın derinliği D, yan sütunların
+           genişliği Dx. Yatay (geniş) tahtada yan karelerin yüksekliği azdır;
+           eskiden bu karelerde yazı 90° döndürülüp 58 px'e sıkışıyordu
+           ("HARBİY E"). Artık yan sütunlar daha geniştir ve yazı YATAY
+           yazılır — okunur. Dikey/kare tahtada eski döndürülmüş düzen kalır. */
         var D = Math.round(Math.min(BW, BH) * (kompakt ? 0.135 : 0.108));
         D = Math.max(22, Math.min(D, 96));
-        var Wt = Math.max(16, (BW - 2 * D) / 9);
+        var yanYatay = BW / BH >= 1.15;
+        var Dx = yanYatay ? Math.round(Math.max(D, Math.min(BW * (kompakt ? 0.095 : 0.088), 150))) : D;
+        var Wt = Math.max(16, (BW - 2 * Dx) / 9);
         var Hs = Math.max(16, (BH - 2 * D) / 9);
 
         var tahta = root.querySelector('.mp-tahta');
         if (tahta) {
           tahta.style.setProperty('--mp-d', D + 'px');
+          tahta.style.setProperty('--mp-dx', Dx + 'px');
+          tahta.classList.toggle('yan-yatay', yanYatay);
           tahta.style.setProperty('--mp-wt', Wt + 'px');
           tahta.style.setProperty('--mp-hs', Hs + 'px');
           /* Yazı boyları BURADA hesaplanır (CSS min() değil): kare adı hem
@@ -474,8 +678,15 @@
           tahta.style.setProperty('--mp-fi-ust', kucuk(D * 0.18, Wt * 0.17) + 'px');
           tahta.style.setProperty('--mp-ad-yan', kucuk(D * 0.20, Hs * 0.21) + 'px');
           tahta.style.setProperty('--mp-fi-yan', kucuk(D * 0.18, Hs * 0.19) + 'px');
-          tahta.style.width = Math.round(2 * D + 9 * Wt) + 'px';
+          tahta.style.width = Math.round(2 * Dx + 9 * Wt) + 'px';
           tahta.style.height = Math.round(2 * D + 9 * Hs) + 'px';
+          yaziSigdir(tahta, D, Dx, Wt, Hs, yanYatay);
+        }
+        /* Açık bilgi kartı varsa yeni ölçüye göre yeniden konumlansın. */
+        if (acikKart !== null) {
+          var kp = document.getElementById('mpKartPop');
+          var kk = root.querySelector('.mp-kare[data-kare="' + acikKart + '"]');
+          if (kp && kk) kartKonumla(kp, kk);
         }
       }
       olcuYaz();
@@ -527,6 +738,7 @@
   }
   window.addEventListener('gv:roomLeft', function () {
     acikGrup = null; sonKart = null; aktifOlcu = null;
+    kartKapat();
     sonZarAnahtar = null; sonZarZaman = 0;
     oyuncuYuvasiniSil();
   });
