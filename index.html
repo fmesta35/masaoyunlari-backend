@@ -2663,8 +2663,8 @@ body.gv-app input,body.gv-app textarea,body.gv-app .chat-msgs,body.gv-app .moves
 /* Yazı, renk bandının ÜSTÜNE denk gelmesin diye band tarafına pay bırakılır. */
 /* ⚠ Yüzde dolgu GENİŞLİĞE göredir; bant ise YÜKSEKLİĞİN %22'si. Bu yüzden
    üst/alt kenarda dolgu çerçeve derinliğinden (--mp-d) hesaplanır. */
-.mp-kare.kenar-alt{padding-top:calc(var(--mp-d) * .24)}
-.mp-kare.kenar-ust{padding-bottom:calc(var(--mp-d) * .24)}
+.mp-kare.kenar-alt{padding:calc(var(--mp-d) * .24) 4px 4px;gap:2px}
+.mp-kare.kenar-ust{padding:4px 4px calc(var(--mp-d) * .24);gap:2px}
 .mp-kare.kenar-sol{padding-right:24%}
 .mp-kare.kenar-sag{padding-left:24%}
 .mp-kare.kose{padding:2px;background:#dcebd8}
@@ -2741,6 +2741,7 @@ body.gv-app input,body.gv-app textarea,body.gv-app .chat-msgs,body.gv-app .moves
 .mp-wrap.genis .mp-orta-ust{flex-direction:row;flex-wrap:wrap;justify-content:center;gap:10px}
 .mp-orta-yuva{flex:1 1 auto;width:100%;min-height:0;display:flex;overflow:hidden}
 .mp-wrap.dar .mp-orta-yuva{display:none}
+.mp-tahta.uyarli .mp-logo{display:none}
 .mp-logo{font-size:calc(var(--mp-d) * .40);font-weight:900;letter-spacing:.14em;
   color:#c0392b;transform:rotate(-4deg);white-space:nowrap}
 .mp-kart{background:#fff;border-radius:7px;padding:5px 9px;max-width:92%;
@@ -7070,7 +7071,7 @@ GV.init();
 <script src="js/fark-sahneler.js?v=20261011b" defer></script>
 <script src="js/fark-online.js?v=20261011b" defer></script>
 <script src="js/kizmabirader-online.js?v=20261011b" defer></script>
-<script src="js/metropol-online.js?v=20261012d" defer></script>
+<script src="js/metropol-online.js?v=20261012e" defer></script>
 <script src="js/chat.js?v=20260821c" defer></script>
 <script src="js/leave-guard.js?v=20260927c" defer></script>
 <!-- Tarayıcı GERİ/İLERİ tuşu: sayfa geçişleri geçmişe adım bırakır,
