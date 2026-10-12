@@ -555,11 +555,11 @@
          sığacak en büyük punto seçilir. Böylece "BAKIRKÖY" → "BAKIRKO Y"
          gibi kelime ortasından kırılma olmaz, kısa adlar da büyük yazılır.
          ⚠ CSS min()/clamp() kullanılmaz (jsdom'u bozuyor, bkz. index.html). */
-      function yaziSigdir(tahta, D, Dx, Wt, Hs, yanYatay) {
+      function yaziSigdir(tahta, D, Dx, Wt, Hs, yanYatay, ustDik) {
         var KAR = 0.72;       // ölçüm yoksa: kalın büyük harf ortalama genişliği (em)
         /* Kelime genişliği GERÇEK yazı tipiyle canvas'ta ölçülür (100 px'te
            bir kez, sonra orantılanır). Canvas yoksa (jsdom) tahmine düşer. */
-        var ctx = null, aile = null, olcu = {};
+        var ctx = null, aile = null, olcu = {}, gruplar = {};
         try { ctx = (yaziSigdir.c = yaziSigdir.c || document.createElement('canvas')).getContext('2d'); } catch (_) { ctx = null; }
         function gen(k, f) {
           if (!ctx) return k.length * f * KAR;
@@ -575,6 +575,7 @@
           var yan = kare.classList.contains('kenar-sol') || kare.classList.contains('kenar-sag');
           var w, h;
           if (kose) { w = Dx - 6; h = D - 6; }
+          else if (!yan && ustDik) { w = D * 0.76 - 5; h = Wt - 4; }   // döndürülmüş üst/alt
           else if (!yan) { w = Wt - 5; h = D * 0.76 - 3; }
           else if (yanYatay) { w = Dx * 0.80 - 6; h = Hs - 4; }
           else { w = Hs - 5; h = D * 0.76 - 4; }    // döndürülmüş yazı
@@ -583,7 +584,7 @@
           w -= 2;   // yuvarlama/kenarlık payı
           var fMax = Math.min(18, D * 0.24, kose ? D * 0.22 : 99);
           var f = fMax, sigdi = false;
-          for (; f >= 6.5; f -= 0.5) {
+          for (; f >= 6; f -= 0.25) {
             var tasti = kelimeler.some(function (k) { return gen(k, f) > w; });
             if (tasti) continue;
             /* Kelimeleri satırlara diz. */
@@ -597,10 +598,23 @@
             var yuk = satir * f * 1.1 + (fiyatVar ? f * 0.82 * 1.25 : 0);
             if (yuk <= h) { sigdi = true; break; }
           }
-          if (!sigdi) f = 6.5;
-          adEl.style.fontSize = f + 'px';
-          adEl.classList.toggle('kir', !sigdi);
-          if (fiyatEl) fiyatEl.style.fontSize = Math.max(6, Math.min(f * 0.82, 14)) + 'px';
+          if (!sigdi) f = 6;
+          var grup = kose ? 'kose' : yan ? 'yan' : 'ust';
+          (gruplar[grup] = gruplar[grup] || []).push({ ad: adEl, fiyat: fiyatEl, f: f, kir: !sigdi });
+        });
+        /* AYNI KENARDAKİ kareler göze eşit görünsün: hiçbir kare kendi
+           kenarının ortanca puntosundan büyük yazılmaz (kısa adlar — "ŞİŞLİ",
+           "FON" — tek başına kocaman olmasın). Uzun adlar zaten küçüktür. */
+        Object.keys(gruplar).forEach(function (g) {
+          var liste = gruplar[g];
+          var sirali = liste.map(function (x) { return x.f; }).sort(function (a, b) { return a - b; });
+          var tavan = sirali[Math.floor(sirali.length / 2)] * 1.06;
+          liste.forEach(function (x) {
+            var f = Math.min(x.f, tavan);
+            x.ad.style.fontSize = f + 'px';
+            x.ad.classList.toggle('kir', x.kir);
+            if (x.fiyat) x.fiyat.style.fontSize = Math.max(6, Math.min(f * 0.82, 14)) + 'px';
+          });
         });
       }
       function olcuYaz() {
@@ -642,11 +656,11 @@
         /* Dar ekranda (telefon dikey) tahta altındaki panele yer bırakır ama
            eskisinden UZUNDUR: yan karelerin yüksekliği artar, dik yazılan
            kare adları sığar ("HARBİY E" gibi kırılmalar biter). */
-        var BW = G, BH = ortada ? Y : Math.min(Y * 0.74, G * 1.42);
+        var BW = G, BH = ortada ? Y : Math.min(Y * 0.8, G * 1.6);
         /* En-boy oranını makul tut: çok yayvan tahta okunmaz olur. Telefon
            tam ekranında (kompakt) yatayda daha yayvan, dikeyde daha uzun
            tahtaya izin verilir: amaç ekranın EN GENİŞ kullanımı. */
-        var oranUst = kompakt ? 2.4 : 1.95, oranAlt = kompakt ? 0.6 : (ortada ? 0.82 : 0.7);
+        var oranUst = kompakt ? 2.4 : 1.95, oranAlt = kompakt ? 0.6 : (ortada ? 0.82 : 0.62);
         if (BW / BH > oranUst) BW = BH * oranUst;
         if (BW / BH < oranAlt) BH = BW / oranAlt;
 
@@ -658,16 +672,31 @@
            yazılır — okunur. Dikey/kare tahtada eski döndürülmüş düzen kalır. */
         var D = Math.round(Math.min(BW, BH) * (kompakt ? 0.135 : 0.108));
         D = Math.max(22, Math.min(D, 96));
-        var yanYatay = BW / BH >= 1.15;
-        var Dx = yanYatay ? Math.round(Math.max(D, Math.min(BW * (kompakt ? 0.095 : 0.088), 150))) : D;
+        /* Yan sütunlarda yazı HER ZAMAN yataydır (masaüstündeki görünüm).
+           Dikey/dar tahtada (telefon) yan sütunlar tahta genişliğinin ~%19'u
+           olur; bu durumda üst/alt kareler daralır ve oradaki yazı DÖNDÜRÜLÜR
+           (ustDik), çerçeve derinliği de buna göre artar. */
+        var yanYatay = true;
+        var genisTahta = BW / BH >= 1.15;
+        var Dx = genisTahta ? Math.round(Math.max(D, Math.min(BW * (kompakt ? 0.095 : 0.088), 150)))
+                            : Math.round(Math.max(D, BW * 0.18));
         var Wt = Math.max(16, (BW - 2 * Dx) / 9);
+        var ustDik = Wt < 44;
+        if (ustDik) {
+          D = Math.round(Math.max(D, Math.min(BH * 0.15, 96)));
+        }
         var Hs = Math.max(16, (BH - 2 * D) / 9);
 
         var tahta = root.querySelector('.mp-tahta');
         if (tahta) {
           tahta.style.setProperty('--mp-d', D + 'px');
-          tahta.style.setProperty('--mp-dx', Dx + 'px');
+          tahta.style.setProperty('--mp-yan', Dx + 'px');
           tahta.classList.toggle('yan-yatay', yanYatay);
+          tahta.classList.toggle('ust-dik', ustDik);
+          /* Piyon ve bina boyu en dar hücreye göre: dar üst/alt karelerde taşmasın. */
+          var enDar = Math.min(D, Wt * 1.3, Hs * 1.3, Dx);
+          tahta.style.setProperty('--mp-pyn', Math.round(Math.max(12, enDar * 0.36)) + 'px');
+          tahta.style.setProperty('--mp-bf', Math.round(Math.max(8, Math.min(D * 0.19, Wt * 0.22, Hs * 0.3))) + 'px');
           tahta.style.setProperty('--mp-wt', Wt + 'px');
           tahta.style.setProperty('--mp-hs', Hs + 'px');
           /* Yazı boyları BURADA hesaplanır (CSS min() değil): kare adı hem
@@ -680,7 +709,7 @@
           tahta.style.setProperty('--mp-fi-yan', kucuk(D * 0.18, Hs * 0.19) + 'px');
           tahta.style.width = Math.round(2 * Dx + 9 * Wt) + 'px';
           tahta.style.height = Math.round(2 * D + 9 * Hs) + 'px';
-          yaziSigdir(tahta, D, Dx, Wt, Hs, yanYatay);
+          yaziSigdir(tahta, D, Dx, Wt, Hs, yanYatay, ustDik);
         }
         /* Açık bilgi kartı varsa yeni ölçüye göre yeniden konumlansın. */
         if (acikKart !== null) {

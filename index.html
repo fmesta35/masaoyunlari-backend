@@ -2652,8 +2652,8 @@ body.gv-app input,body.gv-app textarea,body.gv-app .chat-msgs,body.gv-app .moves
 
 /* --------- TAHTA --------- */
 .mp-tahta{--mp-d:56px;--mp-wt:64px;--mp-hs:46px;position:relative;display:grid;
-  --mp-dx:var(--mp-d);
-  grid-template-columns:var(--mp-dx) repeat(9,var(--mp-wt)) var(--mp-dx);
+  --mp-yan:var(--mp-d);
+  grid-template-columns:var(--mp-yan) repeat(9,var(--mp-wt)) var(--mp-yan);
   grid-template-rows:var(--mp-d) repeat(9,var(--mp-hs)) var(--mp-d);
   border-radius:10px;overflow:hidden;background:#cfe3cd;border:2px solid #1d2a1c;
   box-shadow:0 10px 30px rgba(0,0,0,.45)}
@@ -2717,17 +2717,17 @@ body.gv-app input,body.gv-app textarea,body.gv-app .chat-msgs,body.gv-app .moves
   height:calc(var(--mp-d) * .17);border-radius:50%;box-shadow:0 0 0 1px rgba(0,0,0,.45);z-index:2}
 /* Binalar renk bandının üzerine oturur (gerçek tahtadaki gibi). */
 .mp-bina{position:absolute;z-index:2;text-align:center;
-  font-size:calc(var(--mp-d) * .19);line-height:1;letter-spacing:-1px}
+  font-size:var(--mp-bf,calc(var(--mp-d) * .19));line-height:1;letter-spacing:-1px}
 .mp-kare.kenar-alt .mp-bina{top:1px;left:0;right:0}
 .mp-kare.kenar-ust .mp-bina{bottom:1px;left:0;right:0}
 .mp-kare.kenar-sol .mp-bina{right:0;top:0;bottom:0;width:24%;display:grid;place-items:center}
 .mp-kare.kenar-sag .mp-bina{left:0;top:0;bottom:0;width:24%;display:grid;place-items:center}
 .mp-ipotek{position:absolute;bottom:1px;left:2px;font-size:calc(var(--mp-d) * .2);z-index:2}
 .mp-piyon{position:relative;z-index:3;align-self:center;justify-self:center;
-  width:calc(var(--mp-d) * .34);height:calc(var(--mp-d) * .34);border-radius:50%;
-  display:grid;place-items:center;font-size:calc(var(--mp-d) * .19);
-  transform:translate(calc((var(--mp-dx) - .5) * var(--mp-d) * .32),
-                      calc((var(--mp-dy) - .5) * var(--mp-d) * .32));
+  width:var(--mp-pyn,calc(var(--mp-d) * .34));height:var(--mp-pyn,calc(var(--mp-d) * .34));border-radius:50%;
+  display:grid;place-items:center;font-size:calc(var(--mp-pyn,calc(var(--mp-d) * .34)) * .56);
+  transform:translate(calc((var(--mp-dx) - .5) * var(--mp-pyn,calc(var(--mp-d) * .34)) * .95),
+                      calc((var(--mp-dy) - .5) * var(--mp-pyn,calc(var(--mp-d) * .34)) * .95));
   box-shadow:0 1px 3px rgba(0,0,0,.5);transition:transform .2s ease}
 .mp-piyon.sirada{outline:2px solid #ffd666;outline-offset:1px}
 
@@ -2768,7 +2768,7 @@ body.gv-app input,body.gv-app textarea,body.gv-app .chat-msgs,body.gv-app .moves
 .mp-wrap.genis .mp-panel .mp-mulk.bos{color:#55634d}
 
 /* --------- YATAY TAHTA: yan sütunlarda yazı YATAY ---------
-   Geniş tahtada yan sütunlar daha geniştir (--mp-dx) ve kare adları
+   Geniş tahtada yan sütunlar daha geniştir (--mp-yan) ve kare adları
    döndürülmeden yazılır (js → yaziSigdir punto hesaplar). Renk bandı
    ince bir dikey şerit olarak tahtanın içine bakar. */
 .mp-tahta.yan-yatay .mp-kare.kenar-sol,.mp-tahta.yan-yatay .mp-kare.kenar-sag{
@@ -2781,6 +2781,14 @@ body.gv-app input,body.gv-app textarea,body.gv-app .chat-msgs,body.gv-app .moves
   writing-mode:horizontal-tb;transform:none;width:100%;height:auto}
 .mp-tahta.yan-yatay .mp-kare.kenar-sol .mp-bina,.mp-tahta.yan-yatay .mp-kare.kenar-sag .mp-bina{width:16%;
   writing-mode:vertical-rl;font-size:calc(var(--mp-d) * .15)}
+
+/* DAR (telefon dikey) tahta: üst/alt kareler incedir; ad ve fiyat 90°
+   döndürülüp yan yana dizilir (masaüstündeki yan sütunların aynısı). */
+.mp-tahta.ust-dik .mp-kare.kenar-ust:not(.kose),.mp-tahta.ust-dik .mp-kare.kenar-alt:not(.kose){flex-direction:row;gap:1px}
+.mp-tahta.ust-dik .mp-kare.kenar-ust:not(.kose) .mp-ad,.mp-tahta.ust-dik .mp-kare.kenar-ust:not(.kose) .mp-fiyat,
+.mp-tahta.ust-dik .mp-kare.kenar-alt:not(.kose) .mp-ad,.mp-tahta.ust-dik .mp-kare.kenar-alt:not(.kose) .mp-fiyat{
+  writing-mode:vertical-rl;width:auto;height:100%;max-height:100%}
+.mp-tahta.ust-dik .mp-kare.kenar-alt:not(.kose) .mp-ad,.mp-tahta.ust-dik .mp-kare.kenar-alt:not(.kose) .mp-fiyat{transform:rotate(180deg)}
 
 /* --------- KARE BİLGİ KARTI (kareye tıklayınca) --------- */
 .mp-kb{position:fixed;z-index:3500;width:236px;max-width:calc(100vw - 12px);
@@ -7046,7 +7054,7 @@ GV.init();
 <script src="js/fark-sahneler.js?v=20261011b" defer></script>
 <script src="js/fark-online.js?v=20261011b" defer></script>
 <script src="js/kizmabirader-online.js?v=20261011b" defer></script>
-<script src="js/metropol-online.js?v=20261012b" defer></script>
+<script src="js/metropol-online.js?v=20261012c" defer></script>
 <script src="js/chat.js?v=20260821c" defer></script>
 <script src="js/leave-guard.js?v=20260927c" defer></script>
 <!-- Tarayıcı GERİ/İLERİ tuşu: sayfa geçişleri geçmişe adım bırakır,
