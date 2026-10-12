@@ -526,7 +526,13 @@
          yüksekliği kadar dikeyde büyür. Tam ekrandan çıkınca geri döner.
          Yuva #boardArea'nın DIŞINDA olduğundan yeniden çizimde silinmez;
          bu yüzden her çizimde içi tazelenir. */
-      function oyuncuYerlestir(fs) {
+      /* MOBİL (dokunmatik, dar) — yalnız telefon/küçük tablet; masaüstüne dokunmaz. */
+      function mobilMi() {
+        try {
+          return !!(window.matchMedia && window.matchMedia('(pointer:coarse)').matches && (window.innerWidth || 0) <= 1000);
+        } catch (_) { return false; }
+      }
+      function oyuncuYerlestir(fs, mobilYatay) {
         var wrap = root.querySelector('.mp-wrap');
         if (!wrap) return;
         var oda = document.getElementById('pg-room');
@@ -542,7 +548,7 @@
           var ra = alanEl.getBoundingClientRect(), ry = yan.getBoundingClientRect();
           yanda = ry.width > 0 && ry.left >= ra.right - 4;
         }
-        if ((fs || yanda) && yan) {
+        if ((fs || yanda || mobilYatay) && yan) {
           if (!yuva) { yuva = document.createElement('div'); yuva.id = 'mpYanOyuncular'; }
           if (yuva.parentNode !== yan) {
             var puan = yan.querySelector('.score-panel');
@@ -625,7 +631,7 @@
       function duzenSec(kareler, G, Y, ortada, kompakt) {
         var adaylar = [[9, 0]];
         if (G < Y * 0.9) [8, 7, 6, 5, 4, 3, 2].forEach(function (C) {
-          [0.22, 0.26, 0.3].forEach(function (o) { adaylar.push([C, o]); });
+          [0.22, 0.26, 0.3, 0.34, 0.38].forEach(function (o) { adaylar.push([C, o]); });
         });
         /* Basık yatay ekran (telefon yatay tam ekran): yan kareler alçak
            kalıyorsa yan sütunlar genişler; gerekirse üst/alta 1-3 kare
@@ -705,7 +711,10 @@
       function olcuYaz() {
         var odaEl = document.getElementById('pg-room');
         var fs = !!(odaEl && odaEl.classList.contains('gv-fs'));
-        oyuncuYerlestir(fs);
+        var mobil = mobilMi() && !fs;
+        var yatayEkran = (window.innerWidth || 0) > (window.innerHeight || 0);
+        var mobilYatay = mobil && yatayEkran, mobilDikey = mobil && !yatayEkran;
+        oyuncuYerlestir(fs, mobilYatay);
         var alan = document.getElementById('boardArea');
         var r = alan ? alan.getBoundingClientRect() : { width: 1000, height: 640 };
         var oy = root.querySelector('.mp-oyuncular');
@@ -720,11 +729,17 @@
         /* Panel ortaya ancak yeterli yer varsa girer: orta alan 9 hücre
            genişliğinde ve 9 hücre yüksekliğindedir, bu da en az ~420×300
            piksel ister. Altında kalırsa panel okunmaz hâle gelirdi. */
+        /* MOBİL standart pencere: sayfa zaten aşağı kayar, bu yüzden tahta
+           görünen yüksekliğe SIKIŞTIRILMAZ. Yatayda klasik oran (genişliğin
+           ~%62'si), dikeyde uzun isimler 2 satıra sığsın diye genişliğin
+           ~2.2 katı kadar yükseklik verilir. */
+        if (mobilYatay) Y = Math.max(Y, Math.round(G * 0.62));
+        if (mobilDikey) Y = Math.round(G * 2.2);
         var genis = G >= 900 && Y >= 430;
         /* KOMPAKT: tam ekran ama alan dar (telefon). Tahta TÜM alanı alır,
            panel yine tahtanın ortasına girer ama sadeleşir: zar + düğmeler
            + mülkler; zarlar atıştan sonra kaybolur. */
-        var kompakt = fs && !genis;
+        var kompakt = (fs || mobil) && !genis;
         var ortada = genis || kompakt;
         /* ⚠ Sınıf .mp-wrap'a yazılır, root'a DEĞİL: arena bind'e #boardArea'yı
            veriyor; sınıf oraya yazılınca .mp-wrap.genis kuralları hiç
@@ -734,6 +749,7 @@
         sarmal.classList.toggle('genis', genis);
         sarmal.classList.toggle('kompakt', kompakt);
         sarmal.classList.toggle('dar', !ortada);
+        sarmal.classList.toggle('dikey', mobilDikey);
         panelYerlestir(ortada);
 
         var tahta = root.querySelector('.mp-tahta');

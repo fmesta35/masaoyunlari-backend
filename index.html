@@ -318,8 +318,8 @@ button,input,select{font-family:var(--font)}
   #pg-room.gv-fs .game-side>*:not(.timers){display:none!important}
   /* Metropol: oyuncu çipleri dar şeritte de görünür (simge + para). */
   #pg-room.gv-fs .game-side>#mpYanOyuncular{display:block!important;margin-top:6px}
-  #mpYanOyuncular .mp-oy{flex-direction:column;gap:2px;padding:4px 2px;font-size:.72em}
-  #mpYanOyuncular .mp-oy-ad,#mpYanOyuncular .mp-oy-varlik{display:none}
+  #pg-room.gv-fs #mpYanOyuncular .mp-oy{flex-direction:column;gap:2px;padding:4px 2px;font-size:.72em}
+  #pg-room.gv-fs #mpYanOyuncular .mp-oy-ad,#pg-room.gv-fs #mpYanOyuncular .mp-oy-varlik{display:none}
   #pg-room.gv-fs .timer{padding:5px 4px}
   #pg-room.gv-fs .timer-name{font-size:.62em}
   #pg-room.gv-fs .timer-time,#pg-room.gv-fs .timer-move{font-size:1em}
@@ -2822,6 +2822,7 @@ body.gv-app input,body.gv-app textarea,body.gv-app .chat-msgs,body.gv-app .moves
    Tahta böylece o şeridin yüksekliği kadar dikeyde büyür. */
 #mpYanOyuncular{flex:none;min-width:0}
 #mpYanOyuncular .mp-oyuncular{flex-direction:column;flex-wrap:nowrap;gap:5px}
+@media(pointer:coarse){#pg-room:not(.gv-fs) #mpYanOyuncular .mp-oyuncular{display:grid;grid-template-columns:1fr 1fr}}
 #mpYanOyuncular .mp-oy{border-radius:10px;flex-wrap:wrap;row-gap:2px;padding:6px 8px}
 #mpYanOyuncular .mp-oy-ad{max-width:none;flex:1 1 0}
 #mpYanOyuncular .mp-oy-varlik{flex:1 0 100%;padding-left:28px}
@@ -2832,6 +2833,8 @@ body.gv-app input,body.gv-app textarea,body.gv-app .chat-msgs,body.gv-app .moves
    (.zar-yeni, birkaç saniyede söner) görünür. */
 .mp-wrap.kompakt .mp-alt-yuva{display:none}
 .mp-wrap.kompakt .mp-orta{padding:4px;gap:2px;justify-content:center}
+.mp-wrap.dikey.kompakt .mp-orta{justify-content:flex-start;padding-top:10px}
+.mp-wrap.dikey.kompakt .mp-orta-yuva{flex:0 0 auto;justify-content:flex-start;margin-top:6px}
 .mp-wrap.kompakt .mp-logo,.mp-wrap.kompakt .mp-gunluk{display:none}
 .mp-wrap.kompakt .mp-orta-ust:empty{display:none}
 .mp-wrap.kompakt .mp-orta-yuva{flex:1 1 auto;align-items:center;justify-content:center}
@@ -7071,7 +7074,7 @@ GV.init();
 <script src="js/fark-sahneler.js?v=20261011b" defer></script>
 <script src="js/fark-online.js?v=20261011b" defer></script>
 <script src="js/kizmabirader-online.js?v=20261011b" defer></script>
-<script src="js/metropol-online.js?v=20261012e" defer></script>
+<script src="js/metropol-online.js?v=20261012f" defer></script>
 <script src="js/chat.js?v=20260821c" defer></script>
 <script src="js/leave-guard.js?v=20260927c" defer></script>
 <!-- Tarayıcı GERİ/İLERİ tuşu: sayfa geçişleri geçmişe adım bırakır,

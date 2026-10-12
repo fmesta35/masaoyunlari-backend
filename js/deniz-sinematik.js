@@ -345,6 +345,43 @@
     klRed: function () {
       ton({ f0: 420, f1: 420, sure: 0.11, hacim: 0.16, dalga: 'square' });
       ton({ f0: 280, f1: 196, sure: 0.22, hacim: 0.15, dalga: 'square', gecikme: 0.10 });
+    },
+
+    /* ==================== METROPOL SESLERİ ====================
+       Kullanıcı isteği: "Metropolde gerçek zar atma sesi gelsin; ses açılırsa
+       duyulur, kapatılırsa duyulmaz." Hepsi ana ses motorundan geçer, yani
+       Ses düğmesi kapalıyken çalmaz.
+
+       ZAR: önce avuçta sallanan iki zarın hızlı, kuru "takırtı"sı; sonra
+       masaya düşüp sekerek durması (aralıklar kısalır, vuruşlar kısılır). */
+    zar: function () {
+      var t, i;
+      /* Avuçta takırtı: ~0.42 sn, sık ve düzensiz küçük vuruşlar. */
+      for (i = 0; i < 13; i++) {
+        t = i * 0.032 + Math.random() * 0.016;
+        gurultu({ f0: 3800 + Math.random() * 2400, f1: 1500, sure: 0.022, hacim: 0.10 + Math.random() * 0.07,
+                  tip: 'bandpass', q: 1.3, atak: 0.001, gecikme: t });
+        if (i % 3 === 0) ton({ f0: 900 + Math.random() * 500, f1: 520, sure: 0.03, hacim: 0.05,
+                               dalga: 'triangle', gecikme: t });
+      }
+      /* Masaya düşüş ve seken zarlar: ahşap/plastik "tok-tak". */
+      [[0.46, 1.0], [0.60, 0.8], [0.69, 0.55], [0.76, 0.42], [0.81, 0.3], [0.85, 0.2]].forEach(function (b, k) {
+        var v = b[1], g = b[0] + (Math.random() * 0.012);
+        gurultu({ f0: 4200 + 1200 * v, f1: 900, sure: 0.030 + 0.012 * v, hacim: 0.10 + 0.30 * v,
+                  tip: 'bandpass', q: 1.0, atak: 0.001, gecikme: g });
+        ton({ f0: 330 + 80 * v, f1: 150, sure: 0.06 + 0.03 * v, hacim: 0.08 + 0.26 * v,
+              dalga: 'triangle', gecikme: g });
+        if (k < 4) {                                   // ikinci zar, azıcık sonra
+          gurultu({ f0: 3600 + 900 * v, f1: 800, sure: 0.028, hacim: 0.07 + 0.22 * v,
+                    tip: 'bandpass', q: 1.0, atak: 0.001, gecikme: g + 0.035 + Math.random() * 0.02 });
+        }
+      });
+    },
+
+    /* PİYON ADIMI: kare kare ilerlerken her karede kısa, hafif bir "tık". */
+    piyonAdim: function () {
+      gurultu({ f0: 3000, f1: 1200, sure: 0.025, hacim: 0.14, tip: 'bandpass', q: 1.1, atak: 0.001 });
+      ton({ f0: 520, f1: 300, sure: 0.05, hacim: 0.12, dalga: 'triangle' });
     }
   };
 
