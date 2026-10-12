@@ -316,6 +316,10 @@ button,input,select{font-family:var(--font)}
      bu yüzden burada !important şart, yoksa puan panosu mobil tam ekranda
      gizlenmiyordu. */
   #pg-room.gv-fs .game-side>*:not(.timers){display:none!important}
+  /* Metropol: oyuncu çipleri dar şeritte de görünür (simge + para). */
+  #pg-room.gv-fs .game-side>#mpYanOyuncular{display:block!important;margin-top:6px}
+  #mpYanOyuncular .mp-oy{flex-direction:column;gap:2px;padding:4px 2px;font-size:.72em}
+  #mpYanOyuncular .mp-oy-ad,#mpYanOyuncular .mp-oy-varlik{display:none}
   #pg-room.gv-fs .timer{padding:5px 4px}
   #pg-room.gv-fs .timer-name{font-size:.62em}
   #pg-room.gv-fs .timer-time,#pg-room.gv-fs .timer-move{font-size:1em}
@@ -2755,6 +2759,41 @@ body.gv-app input,body.gv-app textarea,body.gv-app .chat-msgs,body.gv-app .moves
 .mp-wrap.genis .mp-panel .mp-mulk-sat{background:rgba(255,255,255,.72);
   border-color:rgba(0,0,0,.18);color:#1b2a17}
 .mp-wrap.genis .mp-panel .mp-mulk.bos{color:#55634d}
+
+/* --------- TAM EKRAN: oyuncu çipleri YAN PANELDE ---------
+   Tam ekranda .mp-oyuncular tahtanın üstünden alınıp yan panele, puan
+   tablosunun üstüne taşınır (js/metropol-online.js → oyuncuYerlestir).
+   Tahta böylece o şeridin yüksekliği kadar dikeyde büyür. */
+#pg-room:not(.gv-fs) #mpYanOyuncular{display:none}
+#mpYanOyuncular{flex:none;min-width:0}
+#mpYanOyuncular .mp-oyuncular{flex-direction:column;flex-wrap:nowrap;gap:5px}
+#mpYanOyuncular .mp-oy{border-radius:10px;flex-wrap:wrap;row-gap:2px;padding:6px 8px}
+#mpYanOyuncular .mp-oy-ad{max-width:none;flex:1 1 0}
+#mpYanOyuncular .mp-oy-varlik{flex:1 0 100%;padding-left:28px}
+
+/* --------- KOMPAKT: telefon tam ekranı ---------
+   Tahta tüm alanı kaplar; panel ortaya girer ama sadeleşir. Zar kutusu
+   yalnız atış beklenirken (.zar-goster) ya da atıştan hemen sonra
+   (.zar-yeni, birkaç saniyede söner) görünür. */
+.mp-wrap.kompakt .mp-alt-yuva{display:none}
+.mp-wrap.kompakt .mp-orta{padding:4px;gap:2px;justify-content:center}
+.mp-wrap.kompakt .mp-logo,.mp-wrap.kompakt .mp-gunluk{display:none}
+.mp-wrap.kompakt .mp-orta-ust:empty{display:none}
+.mp-wrap.kompakt .mp-orta-yuva{flex:1 1 auto;align-items:center;justify-content:center}
+.mp-wrap.kompakt .mp-panel{color:#1b2a17;font-size:.8em;gap:5px;padding:2px;
+  max-width:560px;max-height:100%;margin:auto;align-items:center;text-align:center;flex:0 1 auto}
+.mp-wrap.kompakt .mp-panel .mp-durum{color:#12210c}
+.mp-wrap.kompakt .mp-panel .mp-tur{color:#44553c}
+.mp-wrap.kompakt .mp-ipucu,
+.mp-wrap.kompakt .mp-mulk-bas.bos,.mp-wrap.kompakt .mp-mulk.bos{display:none}
+.mp-wrap.kompakt .mp-dugmeler{justify-content:center}
+.mp-wrap.kompakt .mp-mulk-bas{color:#24351d;align-self:stretch;text-align:left}
+.mp-wrap.kompakt .mp-mulk{align-self:stretch;max-height:none}
+.mp-wrap.kompakt .mp-mulk-sat{background:rgba(255,255,255,.72);border-color:rgba(0,0,0,.18);color:#1b2a17}
+.mp-wrap.kompakt .mp-zarlar{display:none;justify-content:center}
+.mp-wrap.kompakt .mp-zarlar.zar-goster{display:flex}
+.mp-wrap.kompakt .mp-zarlar.zar-yeni{display:flex;overflow:hidden;animation:mp-zar-son 2.6s ease forwards}
+@keyframes mp-zar-son{0%,72%{opacity:1;max-height:70px}100%{opacity:0;max-height:0}}
 .mp-durum{font-weight:800;font-size:1em;line-height:1.3}
 .mp-sure{font-weight:400;color:var(--text3);font-size:.85em}
 .mp-tur{font-size:.82em;color:var(--text3)}
@@ -6961,7 +7000,7 @@ GV.init();
 <script src="js/fark-sahneler.js?v=20261011b" defer></script>
 <script src="js/fark-online.js?v=20261011b" defer></script>
 <script src="js/kizmabirader-online.js?v=20261011b" defer></script>
-<script src="js/metropol-online.js?v=20261011g" defer></script>
+<script src="js/metropol-online.js?v=20261012a" defer></script>
 <script src="js/chat.js?v=20260821c" defer></script>
 <script src="js/leave-guard.js?v=20260927c" defer></script>
 <!-- Tarayıcı GERİ/İLERİ tuşu: sayfa geçişleri geçmişe adım bırakır,

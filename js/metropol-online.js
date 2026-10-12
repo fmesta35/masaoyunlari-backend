@@ -24,6 +24,11 @@
   var N = 11;                 // 11×11 çerçeve: 40 kare kenarlarda
   var acikGrup = null;        // sağ panelde açık duran mülk grubu
   var sonKart = null;
+  /* Son zar atışının anahtarı ve zamanı. KOMPAKT (telefon tam ekran)
+     düzende zarlar tahtanın ortasında yalnız atış beklenirken ve atıştan
+     sonraki birkaç saniye görünür, sonra kaybolur (bkz. render). */
+  var sonZarAnahtar = null, sonZarZaman = 0;
+  var ZAR_GORUNME_MS = 2600;
 
   function esc(s) {
     return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
@@ -255,6 +260,16 @@
       var satilikKare = (s.satilik !== null && s.satilik !== undefined) ? s.kareler[s.satilik] : null;
       var teklifKare = s.teklif ? s.kareler[s.teklif.kare] : null;
 
+      /* Yeni atış mı? Anahtar tur+sıra+zar+çift: aynı değerlerin art arda
+         gelmesi (3-4 ardından yine 3-4) yeni atışı gizlemesin. */
+      var zarAnahtar = (s.zar && s.zar[0]) ? (s.tur + '|' + s.turn + '|' + s.zar.join(',') + '|' + s.cift) : '';
+      if (zarAnahtar && zarAnahtar !== sonZarAnahtar) {
+        /* İlk çizimde (sayfa yenileme/yeniden bağlanma) eski atışı "yeni"
+           saymayalım. */
+        sonZarZaman = sonZarAnahtar === null ? 0 : Date.now();
+        sonZarAnahtar = zarAnahtar;
+      } else if (sonZarAnahtar === null) sonZarAnahtar = zarAnahtar;
+
       var h = '<div class="mp-wrap">';
       h += oyuncularHtml(s);
       h += '<div class="mp-alan">';
@@ -280,7 +295,16 @@
         ' <span class="mp-sure">(<span class="gv-arena-clock">—</span>)</span></div>';
 
       h += '<div class="mp-tur">Tur ' + s.tur + (s.turLimiti ? ' / ' + s.turLimiti : '') + '</div>';
-      h += '<div class="mp-zarlar">' +
+      /* Zar kutusunun KOMPAKT düzendeki görünürlüğü: atış bekleniyorsa sabit,
+         atıştan hemen sonra ise kısa süre görünüp sönen bir animasyonla.
+         Gecikme NEGATİF verilir ki araya giren yeniden çizimler animasyonu
+         baştan başlatmasın. */
+      var zarBekliyor = benimSira && s.faz === 'zar';
+      var zarGecen = Date.now() - sonZarZaman;
+      var zarSinif = zarBekliyor ? ' zar-goster'
+                   : (zarAnahtar && zarGecen < ZAR_GORUNME_MS ? ' zar-yeni' : '');
+      var zarStil = zarSinif === ' zar-yeni' ? ' style="animation-delay:-' + zarGecen + 'ms"' : '';
+      h += '<div class="mp-zarlar' + zarSinif + '"' + zarStil + '>' +
         '<span class="mp-zar">' + (s.zar && s.zar[0] ? s.zar[0] : '—') + '</span>' +
         '<span class="mp-zar">' + (s.zar && s.zar[1] ? s.zar[1] : '—') + '</span>' +
         (s.cift > 0 ? '<span class="mp-cift">çift ' + s.cift + '/3</span>' : '') + '</div>';
@@ -309,7 +333,8 @@
       }
       h += '</div>';
 
-      h += '<div class="mp-mulk-bas">Mülkleriniz</div>';
+      var mulkYok = !(s.durum || []).some(function (d) { return d.sahip === s.seat; });
+      h += '<div class="mp-mulk-bas' + (mulkYok ? ' bos' : '') + '">Mülkleriniz</div>';
       h += mulkPaneli(s, benimSira && (s.faz === 'zar' || s.faz === 'bitir'));
       h += '<div class="mp-ipucu">Grubun <b>tamamına</b> sahip olunca bina kurulur ve binalar <b>dengeli</b> yükselir. ' +
            'Nakit sıkıştığında bina satın ya da mülk ipotek edin — yetmezse sunucu otomatik tasfiye eder. ' +
@@ -352,12 +377,42 @@
          GENİŞ ekranda kontrol paneli tahtanın ORTASINA taşınır — gerçek
          tahtada da orası boştur ve böylece hiçbir piksel boşa gitmez.
          DAR ekranda panel tahtanın altına iner. */
+      /* TAM EKRANDA oyuncu çipleri tahtanın üstünden alınıp YAN PANELE,
+         puan tablosunun (Sen vs Rakip) üstüne taşınır: tahta o şeridin
+         yüksekliği kadar dikeyde büyür. Tam ekrandan çıkınca geri döner.
+         Yuva #boardArea'nın DIŞINDA olduğundan yeniden çizimde silinmez;
+         bu yüzden her çizimde içi tazelenir. */
+      function oyuncuYerlestir(fs) {
+        var wrap = root.querySelector('.mp-wrap');
+        if (!wrap) return;
+        var oda = document.getElementById('pg-room');
+        var yan = oda && oda.querySelector('.game-side');
+        var yuva = document.getElementById('mpYanOyuncular');
+        var oy = wrap.querySelector('.mp-oyuncular') || (yuva && yuva.querySelector('.mp-oyuncular'));
+        if (fs && yan) {
+          if (!yuva) { yuva = document.createElement('div'); yuva.id = 'mpYanOyuncular'; }
+          if (yuva.parentNode !== yan) {
+            var puan = yan.querySelector('.score-panel');
+            var tim = yan.querySelector('.timers');
+            var once = (puan && puan.parentNode === yan) ? puan
+                     : (tim && tim.parentNode === yan) ? tim.nextSibling : yan.firstChild;
+            yan.insertBefore(yuva, once || null);
+          }
+          if (oy && oy.parentNode !== yuva) { yuva.innerHTML = ''; yuva.appendChild(oy); }
+        } else {
+          if (oy && oy.parentNode !== wrap) wrap.insertBefore(oy, wrap.firstChild);
+          if (yuva && yuva.parentNode) yuva.parentNode.removeChild(yuva);
+        }
+      }
       function panelYerlestir(genis) {
         var panel = root.querySelector('.mp-panel');
         var yuva = root.querySelector(genis ? '.mp-orta-yuva' : '.mp-alt-yuva');
         if (panel && yuva && panel.parentNode !== yuva) yuva.appendChild(panel);
       }
       function olcuYaz() {
+        var odaEl = document.getElementById('pg-room');
+        var fs = !!(odaEl && odaEl.classList.contains('gv-fs'));
+        oyuncuYerlestir(fs);
         var alan = document.getElementById('boardArea');
         var r = alan ? alan.getBoundingClientRect() : { width: 1000, height: 640 };
         var oy = root.querySelector('.mp-oyuncular');
@@ -373,24 +428,35 @@
            genişliğinde ve 9 hücre yüksekliğindedir, bu da en az ~420×300
            piksel ister. Altında kalırsa panel okunmaz hâle gelirdi. */
         var genis = G >= 900 && Y >= 430;
+        /* KOMPAKT: tam ekran ama alan dar (telefon). Tahta TÜM alanı alır,
+           panel yine tahtanın ortasına girer ama sadeleşir: zar + düğmeler
+           + mülkler; zarlar atıştan sonra kaybolur. */
+        var kompakt = fs && !genis;
+        var ortada = genis || kompakt;
         /* ⚠ Sınıf .mp-wrap'a yazılır, root'a DEĞİL: arena bind'e #boardArea'yı
            veriyor; sınıf oraya yazılınca .mp-wrap.genis kuralları hiç
            tutmuyordu (panel ortaya taşınıyor ama koyu zemin yazı rengiyle
            okunmaz kalıyordu). */
         var sarmal = root.querySelector('.mp-wrap') || root;
         sarmal.classList.toggle('genis', genis);
-        sarmal.classList.toggle('dar', !genis);
-        panelYerlestir(genis);
+        sarmal.classList.toggle('kompakt', kompakt);
+        sarmal.classList.toggle('dar', !ortada);
+        panelYerlestir(ortada);
 
         /* Dar ekranda tahta yüksekliğin yalnız bir kısmını alır (altında
            panel var); geniş ekranda tüm alanı kaplar. */
-        var BW = G, BH = genis ? Y : Math.min(Y * 0.62, G * 1.1);
-        /* En-boy oranını makul tut: çok yayvan tahta okunmaz olur. */
-        if (BW / BH > 1.95) BW = BH * 1.95;
-        if (BW / BH < 0.82) BH = BW / 0.82;
+        var BW = G, BH = ortada ? Y : Math.min(Y * 0.62, G * 1.1);
+        /* En-boy oranını makul tut: çok yayvan tahta okunmaz olur. Telefon
+           tam ekranında (kompakt) yatayda daha yayvan, dikeyde daha uzun
+           tahtaya izin verilir: amaç ekranın EN GENİŞ kullanımı. */
+        var oranUst = kompakt ? 2.4 : 1.95, oranAlt = kompakt ? 0.6 : 0.82;
+        if (BW / BH > oranUst) BW = BH * oranUst;
+        if (BW / BH < oranAlt) BH = BW / oranAlt;
 
         /* Çerçeve derinliği: gerçek tahtadaki gibi kenarın ~%10'u. */
-        var D = Math.round(Math.min(BW, BH) * 0.108);
+        /* Kompakt (telefon tam ekran) tahtada kısa kenar çok dar kalır; çerçeve
+           biraz daha derin tutulur ki kenar kare adları okunabilsin. */
+        var D = Math.round(Math.min(BW, BH) * (kompakt ? 0.135 : 0.108));
         D = Math.max(22, Math.min(D, 96));
         var Wt = Math.max(16, (BW - 2 * D) / 9);
         var Hs = Math.max(16, (BH - 2 * D) / 9);
@@ -419,6 +485,10 @@
         window.removeEventListener('orientationchange', root.__mpOlcu);
       }
       root.__mpOlcu = function () { olcuYaz(); setTimeout(olcuYaz, 80); };
+      /* Tam ekrana geçiş/çıkış: düzen sınıfı (gv-fs) olaydan bir kare sonra
+         değişebiliyor; sınıf değişimini doğrudan izle. */
+      aktifOlcu = root.__mpOlcu;
+      gozcuKur();
       window.addEventListener('resize', root.__mpOlcu);
       window.addEventListener('orientationchange', root.__mpOlcu);
       if (window.visualViewport) {
@@ -430,6 +500,35 @@
     }
   });
 
-  window.addEventListener('gv:roomLeft', function () { acikGrup = null; sonKart = null; });
+  var aktifOlcu = null, gozcu = null;
+  function gozcuKur() {
+    if (gozcu || typeof MutationObserver === 'undefined') return;
+    var oda = document.getElementById('pg-room');
+    if (!oda) return;
+    var onceki = oda.classList.contains('gv-fs');
+    gozcu = new MutationObserver(function () {
+      var simdi = oda.classList.contains('gv-fs');
+      if (simdi === onceki) return;
+      onceki = simdi;
+      if (aktifOlcu && document.querySelector('#boardArea .mp-wrap')) aktifOlcu();
+      else oyuncuYuvasiniSil();
+    });
+    gozcu.observe(oda, { attributes: true, attributeFilter: ['class'] });
+    /* Masada başka bir oyuna geçilirse (#boardArea yeniden çizilir, Metropol
+       yoktur) yan paneldeki oyuncu çipleri artık kalmasın. */
+    var alan = document.getElementById('boardArea');
+    if (alan) new MutationObserver(function () {
+      if (!alan.querySelector('.mp-wrap')) oyuncuYuvasiniSil();
+    }).observe(alan, { childList: true });
+  }
+  function oyuncuYuvasiniSil() {
+    var y = document.getElementById('mpYanOyuncular');
+    if (y && y.parentNode) y.parentNode.removeChild(y);
+  }
+  window.addEventListener('gv:roomLeft', function () {
+    acikGrup = null; sonKart = null; aktifOlcu = null;
+    sonZarAnahtar = null; sonZarZaman = 0;
+    oyuncuYuvasiniSil();
+  });
   window.__gvMetropol = { kart: function () { return sonKart; } };
 })();
