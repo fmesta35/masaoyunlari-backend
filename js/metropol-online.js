@@ -35,7 +35,7 @@
   var TIKER_SATIR = 5, TIKER_OMUR_MS = 10000;
   /* Piyon animasyonu: gösterilen konum hedefe KARE KARE yaklaşır. */
   var piyonGoster = {}, piyonHedef = {}, piyonDongu = null, piyonBaslama = 0, piyonHazir = false;
-  var PIYON_ADIM_MS = 120, aktifKok = null;
+  var PIYON_ADIM_MS = 330, aktifKok = null, dikeyKaydirildi = false;
 
   function esc(s) {
     return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
@@ -445,7 +445,7 @@
           var atan = (s.oyuncular || []).filter(function (o) { return o.seat === s.turn; })[0];
           var hedefKare = atan && s.kareler[atan.konum];
           var zt = s.zar[0] + '-' + s.zar[1] + (hedefKare ? ' → ' + hedefKare.ad : '');
-          kayitEkle(adOfTam(s.turn) + ' 🎲 ' + zt, (PIYON_SIM[s.seats.indexOf(s.turn) % 4] || '') + ' 🎲 ' + zt);
+          kayitEkle(adOfTam(s.turn) + ' 🎲 ' + zt, (PIYON_SIM[s.seats.indexOf(s.turn) % 4] || '') + ' 🎲 ' + s.zar[0] + '-' + s.zar[1] + (hedefKare ? ' → ' + kisaAd(hedefKare) : ''));
         }
         sonZarAnahtar = zarAnahtar;
       } else if (sonZarAnahtar === null) sonZarAnahtar = zarAnahtar;
@@ -684,12 +684,13 @@
       function duzenSec(kareler, G, Y, ortada, kompakt, dikeyMobil) {
         var adaylar = [[9, 0]];
         if (dikeyMobil) {
-          /* DİKEY TELEFON: en sıkı (kısa) tahta, yazı ≥ ~9.5 px kalsın.
-             Aday: yan sütun genişliği × tahta yüksekliği. */
+          /* DİKEY TELEFON: tahta + panel kaydırma gerektirmeden GÖRÜNEN alana
+             sığar; yan sütun genişliği × tahta yüksekliği (≤ Y) adayları
+             denenir, en okunur olan seçilir. */
           adaylar = [];
-          [2, 3, 4].forEach(function (C) {
+          [2, 3, 4, 5].forEach(function (C) {
             [0.2, 0.23, 0.26, 0.29, 0.32, 0.35, 0.38].forEach(function (o) {
-              [1.45, 1.55, 1.65, 1.75, 1.85, 2.0, 2.2].forEach(function (bh) { adaylar.push([C, o, G * bh]); });
+              [0.88, 0.94, 1.0].forEach(function (bh) { adaylar.push([C, o, Y * bh]); });
             });
           });
         }
@@ -706,7 +707,7 @@
         adaylar.forEach(function (a) {
           var d = duzenAday(a[0], G, Y, ortada, kompakt, a[1], a[2]);
           if (d.Wt < 18 || d.Hs < 18) return;
-          if (dikeyMobil && (d.BW - 2 * d.Dx < 116 || d.BH - 2 * d.D < 300)) return;   // orta alan zar+şerit sığsın
+          if (dikeyMobil && (d.BW - 2 * d.Dx < 116 || d.BH - 2 * d.D < 280)) return;   // orta alan zar+şerit sığsın
           var enKucuk = 99, sonuc = [];
           kareler.forEach(function (k) {
             var y = yerHesapla(k.i, d.C, d.R);
@@ -720,10 +721,7 @@
           d.puan = enKucuk; d.sonuc = sonuc;
           if (!enIyi) { enIyi = d; return; }
           if (dikeyMobil) {
-            var HEDEF = 8.5, dOk = d.puan >= HEDEF, eOk = enIyi.puan >= HEDEF;
-            if (dOk && !eOk) enIyi = d;
-            else if (dOk && eOk) { if (d.BH < enIyi.BH - 1 || (Math.abs(d.BH - enIyi.BH) <= 1 && d.puan > enIyi.puan + 0.2)) enIyi = d; }
-            else if (!dOk && !eOk && d.puan > enIyi.puan + 0.2) enIyi = d;
+            if (d.puan > enIyi.puan + 0.15 || (Math.abs(d.puan - enIyi.puan) <= 0.15 && d.BH > enIyi.BH + 1)) enIyi = d;
             return;
           }
           if (enIyi.C === 9 && enIyi.puan >= 9) return;           // klasik tahta yeterince okunur
@@ -782,6 +780,8 @@
         var mobil = mobilMi() && !fs;
         var yatayEkran = (window.innerWidth || 0) > (window.innerHeight || 0);
         var mobilYatay = mobil && yatayEkran, mobilDikey = mobil && !yatayEkran;
+        var sarmal0 = root.querySelector('.mp-wrap');
+        if (sarmal0) sarmal0.classList.toggle('dikey', mobilDikey);   // çipler ölçümden ÖNCE sadeleşsin
         oyuncuYerlestir(fs, mobilYatay);
         var alan = document.getElementById('boardArea');
         var r = alan ? alan.getBoundingClientRect() : { width: 1000, height: 640 };
@@ -802,7 +802,19 @@
            ~%62'si), dikeyde uzun isimler 2 satıra sığsın diye genişliğin
            ~2.2 katı kadar yükseklik verilir. */
         if (mobilYatay) Y = Math.max(Y, Math.round(G * 0.62));
-        if (mobilDikey) Y = Math.round(G * 2.0);
+        if (mobilDikey) {
+          /* Görünen alan = kaydırılan kap (main.content) yüksekliği. Tahta +
+             çipler tam bu alana sığar; ilk kez bir kez oraya kaydırılır. */
+          var kap = document.querySelector('main.content');
+          var Hc = kap ? kap.clientHeight : ((window.innerHeight || 700) - 100);
+          Y = Math.max(300, Math.round(Hc - pay - 6));
+          if (!dikeyKaydirildi && sarmal0 && kap) {
+            dikeyKaydirildi = true;
+            try {
+              kap.scrollTop += sarmal0.getBoundingClientRect().top - kap.getBoundingClientRect().top - 4;
+            } catch (_) {}
+          }
+        } else dikeyKaydirildi = false;
         var genis = G >= 900 && Y >= 430;
         /* KOMPAKT: tam ekran ama alan dar (telefon). Tahta TÜM alanı alır,
            panel yine tahtanın ortasına girer ama sadeleşir: zar + düğmeler
@@ -900,7 +912,16 @@
       if (!bekle) { piyonGoster[sd] = (piyonGoster[sd] + 1) % 40; ilerledi = true; }
       if (piyonGoster[sd] !== piyonHedef[sd]) kalan = true;
     });
-    if (ilerledi) { piyonGuncelle(); ses('piyonAdim'); }
+    if (ilerledi) {
+      piyonGuncelle(); ses('piyonAdim');
+      /* Her adımda piyon kısa bir "zıplama" yapar: hareket göz önünde olsun. */
+      document.querySelectorAll('.mp-piyon.hop').forEach(function (p) { p.classList.remove('hop'); });
+      void document.body.offsetWidth;
+      document.querySelectorAll('.mp-piyon[data-seat]').forEach(function (p) {
+        if (piyonGoster[p.getAttribute('data-seat')] !== piyonHedef[p.getAttribute('data-seat')] ||
+            Number(p.getAttribute('data-kare')) !== piyonGoster[p.getAttribute('data-seat')]) p.classList.add('hop');
+      });
+    }
     var bekleyen = Object.keys(piyonHedef).some(function (sd) { return piyonGoster[sd] !== piyonHedef[sd]; });
     if (bekleyen || kalan) piyonDongu = setTimeout(piyonAdimla, bekle ? 60 : PIYON_ADIM_MS);
   }
@@ -951,7 +972,7 @@
     kartKapat();
     sonZarAnahtar = null; sonZarZaman = 0;
     gorulenGunluk = null; tikerKayit = [];
-    piyonGoster = {}; piyonHedef = {}; piyonHazir = false; piyonBaslama = 0;
+    piyonGoster = {}; piyonHedef = {}; piyonHazir = false; piyonBaslama = 0; dikeyKaydirildi = false;
     if (piyonDongu) { clearTimeout(piyonDongu); piyonDongu = null; }
     oyuncuYuvasiniSil();
   });

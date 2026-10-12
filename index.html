@@ -2758,6 +2758,14 @@ body.gv-app input,body.gv-app textarea,body.gv-app .chat-msgs,body.gv-app .moves
   color:#2b3a26;pointer-events:none;
   -webkit-mask-image:linear-gradient(to bottom,transparent 0,#000 55%);mask-image:linear-gradient(to bottom,transparent 0,#000 55%)}
 .mp-wrap.mobil .mp-tiker{display:flex}
+.mp-piyon.hop{animation:mp-hop .3s ease}
+@keyframes mp-hop{0%,100%{scale:1}45%{scale:1.45}}
+/* DİKEY TELEFON: oyuncu çipleri tek satırda, yalnız simge + para (dikeyde yer kazanmak için). */
+.mp-wrap.dikey .mp-oyuncular{flex-wrap:nowrap;gap:4px}
+.mp-wrap.dikey .mp-oy{flex:1 1 0;justify-content:center;padding:3px 4px;gap:4px;font-size:.74em}
+.mp-wrap.dikey .mp-oy-ad,.mp-wrap.dikey .mp-oy-varlik{display:none}
+.mp-wrap.dikey .mp-oy.ben{border-color:var(--accent)}
+.mp-wrap.dikey .mp-oy-sim{width:18px;height:18px}
 .mp-tk{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:0 4px;
   animation:mp-tk-sol 10s linear forwards}
 .mp-tk.yeni{animation:mp-tk-gir .35s ease-out,mp-tk-sol 10s linear forwards}
@@ -7085,7 +7093,7 @@ GV.init();
 <script src="js/fark-sahneler.js?v=20261011b" defer></script>
 <script src="js/fark-online.js?v=20261011b" defer></script>
 <script src="js/kizmabirader-online.js?v=20261011b" defer></script>
-<script src="js/metropol-online.js?v=20261012g" defer></script>
+<script src="js/metropol-online.js?v=20261012h" defer></script>
 <script src="js/chat.js?v=20260821c" defer></script>
 <script src="js/leave-guard.js?v=20260927c" defer></script>
 <!-- Tarayıcı GERİ/İLERİ tuşu: sayfa geçişleri geçmişe adım bırakır,
