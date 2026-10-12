@@ -194,6 +194,8 @@ button,input,select{font-family:var(--font)}
   display:grid;grid-template-columns:minmax(0,1fr) minmax(190px,240px);
   grid-template-rows:auto minmax(0,1fr);column-gap:12px;row-gap:8px
 }
+#pg-room.gv-fs-sahte{position:fixed;left:0;top:0;right:0;bottom:0;z-index:3000;margin:0}
+html.gv-fs-kilit,html.gv-fs-kilit body{overflow:hidden}
 #pg-room.gv-fs .gr-header{grid-column:1/-1;grid-row:1;margin:0}
 #pg-room.gv-fs .game-layout{display:contents}
 #pg-room.gv-fs .game-board-area{grid-column:1;grid-row:2;min-width:0;min-height:0;
@@ -5413,7 +5415,11 @@ function _gvFsSupported(){
 function toggleFullscreen(){
   const el = document.getElementById('pg-room');
   if(!el) return;
-  if(!_gvFsSupported()){ toast('Tarayıcınız tam ekranı desteklemiyor', 'error'); return; }
+  /* UYUMLU TAM EKRAN: tarayıcı gerçek tam ekranı vermiyorsa (iPhone, uygulama
+     içi tarayıcı, izin reddi) oda tüm görünür alanı kaplayan sabit bir
+     katmana alınır; düzen gerçek tam ekranla aynıdır. */
+  if(el.classList.contains('gv-fs-sahte')){ _gvSahteTamEkran(false); return; }
+  if(!_gvFsSupported()){ _gvSahteTamEkran(true); return; }
   if(_gvFsEl()){
     const exit = document.exitFullscreen || document.webkitExitFullscreen || document.mozCancelFullScreen || document.msExitFullscreen;
     if(exit) exit.call(document);
@@ -5433,10 +5439,21 @@ function toggleFullscreen(){
           if (o && o.lock) { const k = o.lock('landscape'); if (k && k.catch) k.catch(() => {}); }
         } catch (_) {}
       };
-      if (r && r.then) r.then(yatayaKilitle).catch(() => toast('Tam ekrana geçilemedi', 'error'));
+      if (r && r.then) r.then(yatayaKilitle).catch(() => _gvSahteTamEkran(true));
       else yatayaKilitle();
-    }
+    } else _gvSahteTamEkran(true);
   }
+}
+function _gvSahteTamEkran(ac){
+  const oda = document.getElementById('pg-room');
+  if(!oda) return;
+  oda.classList.toggle('gv-fs-sahte', !!ac);
+  oda.classList.toggle('gv-fs', !!ac);
+  try { document.documentElement.classList.toggle('gv-fs-kilit', !!ac); } catch(_) {}
+  _gvFsMoveModals(!!ac);
+  const btn = document.getElementById('gvFullscreenBtn');
+  if(btn){ btn.classList.toggle('is-full', !!ac); btn.innerHTML = ac ? '⛶ Standart' : '⛶ Tam Ekran'; }
+  setTimeout(()=>{ try { window.dispatchEvent(new Event('resize')); } catch(_) {} }, 60);
 }
 /* Tam ekranda modallar (Kurallar DAHİL) ARKA PLANDA kalıyordu (kullanıcı
    raporu: "Tam ekran bastığımda kurallar arka planda kalıyor, tam
@@ -5509,7 +5526,8 @@ window.__gvTamEkrandanCik = function(){
     /* Tarayıcı çıkış olayını bir kare sonra yayınlıyor; düzen sınıfını
        hemen kaldır ki oda boş bir tam ekran olarak takılı kalmasın. */
     const oda = document.getElementById('pg-room');
-    if (oda) oda.classList.remove('gv-fs');
+    if (oda) { oda.classList.remove('gv-fs'); oda.classList.remove('gv-fs-sahte'); }
+    document.documentElement.classList.remove('gv-fs-kilit');
     _gvFsMoveModals(false);
   } catch(_) {}
   return cikti;
@@ -5531,7 +5549,7 @@ setInterval(function(){
     if (oda.classList.contains('active')) return;
     if (_gvFsEl()) { window.__gvTamEkrandanCik(); return; }
     if (oda.classList.contains('gv-fs')) {
-      oda.classList.remove('gv-fs');
+      oda.classList.remove('gv-fs'); oda.classList.remove('gv-fs-sahte'); document.documentElement.classList.remove('gv-fs-kilit');
       _gvFsMoveModals(false);
     }
   } catch(_) {}
@@ -5539,7 +5557,7 @@ setInterval(function(){
 
 function _gvSyncFullscreenBtn(){
   const oda = document.getElementById('pg-room');
-  const dolu = _gvFsEl() === oda;
+  const dolu = _gvFsEl() === oda || !!(oda && oda.classList.contains('gv-fs-sahte'));
   /* Tam ekran düzeni CSS'te `:fullscreen` yerine BU SINIFA bağlıdır.
      Sebep: `:fullscreen` ile `:-webkit-full-screen` aynı seçici listesinde
      olamaz (tarayıcı tanımadığı birini görünce kuralın TAMAMINI atar), ayrı
