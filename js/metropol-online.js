@@ -595,10 +595,10 @@
       function kutu(y, d, bantVar) {
         if (y.kose) {
           var yatayBant = bantVar && (y.kenar === 'alt' || y.kenar === 'ust');
-          return { w: d.Dx * (bantVar && !yatayBant ? 0.80 : 1) - 6, h: (yatayBant ? d.D * 0.76 : d.D) - 5, g: 'kose' };
+          return { w: d.Dx * (bantVar && !yatayBant ? 0.80 : 1) - 14, h: (yatayBant ? d.D * 0.76 : d.D) - 10, g: 'kose' };
         }
-        if (y.kenar === 'ust' || y.kenar === 'alt') return { w: d.Wt - 5, h: d.D * 0.76 - 3, g: 'ust' };
-        return { w: d.Dx * 0.80 - 6, h: d.Hs - 4, g: 'yan' };
+        if (y.kenar === 'ust' || y.kenar === 'alt') return { w: d.Wt - 9, h: d.D * 0.76 - 13, g: 'ust' };
+        return { w: d.Dx * 0.80 - 8, h: d.Hs - 8, g: 'yan' };
       }
       /* Aday çerçevenin ölçüleri. */
       function duzenAday(C, G, Y, ortada, kompakt, yanOran) {
