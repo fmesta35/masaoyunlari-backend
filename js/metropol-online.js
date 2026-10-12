@@ -35,7 +35,7 @@
   var TIKER_SATIR = 5, TIKER_OMUR_MS = 10000;
   /* Piyon animasyonu: gösterilen konum hedefe KARE KARE yaklaşır. */
   var piyonGoster = {}, piyonHedef = {}, piyonDongu = null, piyonBaslama = 0, piyonHazir = false;
-  var PIYON_ADIM_MS = 330, aktifKok = null, dikeyKaydirildi = false;
+  var PIYON_ADIM_MS = 330, aktifKok = null, dikeyKaydirildi = 0;
 
   function esc(s) {
     return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
@@ -806,15 +806,24 @@
           /* Görünen alan = kaydırılan kap (main.content) yüksekliği. Tahta +
              çipler tam bu alana sığar; ilk kez bir kez oraya kaydırılır. */
           var kap = document.querySelector('main.content');
-          var Hc = kap ? kap.clientHeight : ((window.innerHeight || 700) - 100);
-          Y = Math.max(300, Math.round(Hc - pay - 6));
-          if (!dikeyKaydirildi && sarmal0 && kap) {
-            dikeyKaydirildi = true;
+          /* Telefon tarayıcısında adres çubuğu açıkken 100vh görünen alandan
+             BÜYÜKTÜR; bu yüzden kap yüksekliği yerine gerçekten görünen
+             alan (innerHeight / visualViewport) esas alınır. */
+          var vv = window.visualViewport;
+          var gorH = Math.min(window.innerHeight || 9999, vv && vv.height ? vv.height : 9999);
+          var kapUst = kap ? kap.getBoundingClientRect().top : 0;
+          var Hc = kap ? Math.min(kap.clientHeight, gorH - kapUst) : (gorH - 100);
+          Y = Math.max(300, Math.round(Hc - pay - 14));
+          /* Girişte kısa süre (düzen oturana dek) oyun alanı kaydırma kabının
+             en üstüne hizalanır; sonra oyuncu serbestçe kaydırabilir. */
+          if (!dikeyKaydirildi) { dikeyKaydirildi = Date.now() + 1800; setTimeout(olcuYaz, 150); setTimeout(olcuYaz, 600); }
+          if (Date.now() < dikeyKaydirildi && sarmal0 && kap) {
             try {
-              kap.scrollTop += sarmal0.getBoundingClientRect().top - kap.getBoundingClientRect().top - 4;
+              var dlt = sarmal0.getBoundingClientRect().top - kap.getBoundingClientRect().top - 3;
+              if (Math.abs(dlt) > 2) kap.scrollTop += dlt;
             } catch (_) {}
           }
-        } else dikeyKaydirildi = false;
+        } else dikeyKaydirildi = 0;
         var genis = G >= 900 && Y >= 430;
         /* KOMPAKT: tam ekran ama alan dar (telefon). Tahta TÜM alanı alır,
            panel yine tahtanın ortasına girer ama sadeleşir: zar + düğmeler
@@ -972,7 +981,7 @@
     kartKapat();
     sonZarAnahtar = null; sonZarZaman = 0;
     gorulenGunluk = null; tikerKayit = [];
-    piyonGoster = {}; piyonHedef = {}; piyonHazir = false; piyonBaslama = 0; dikeyKaydirildi = false;
+    piyonGoster = {}; piyonHedef = {}; piyonHazir = false; piyonBaslama = 0; dikeyKaydirildi = 0;
     if (piyonDongu) { clearTimeout(piyonDongu); piyonDongu = null; }
     oyuncuYuvasiniSil();
   });
