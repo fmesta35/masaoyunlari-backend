@@ -534,12 +534,15 @@ function reddet(st, seat) {
   if (st.pazar) return { ok: false, reason: 'pazar_acik' };
   if (st.faz === 'karar') {
     if (seat !== siradakiKoltuk(st)) return { ok: false, reason: 'not_your_turn' };
-    const kareIdx = st.oyuncu[seat].konum;
-    const digerleri = ayakta(st).filter(s => s !== seat);
-    if (!digerleri.length) return { ok: true, sonuc: turSonu(st, false) };
-    st.teklif = { kareIdx, sira: digerleri, idx: 0 };
-    st.faz = 'teklif';
-    return { ok: true, teklif: { kareIdx, seat: digerleri[0] } };
+    /* "Almayacağım": kimseye teklif edilmez, işlem yapılmaz, el sıradaki
+       oyuncuya geçer. Kare boş kalır; biri sonradan o kareye gelirse kendi
+       alır. Zar değeri ekranda kalsın diye sıfırlanmaz. */
+    const z = st.zar.slice(), zt = st.zarToplam;
+    gunluge(st, 'almadi:' + seat + ':' + st.oyuncu[seat].konum);
+    turSonu(st, false);
+    const r = turuBitir(st, seat);
+    if (st.status === 'playing') { st.zar = z; st.zarToplam = zt; }
+    return { ok: true, almadi: true, sira: r && r.sira };
   }
   if (st.faz === 'teklif') {
     const t = st.teklif;

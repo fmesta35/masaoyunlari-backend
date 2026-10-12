@@ -144,29 +144,22 @@ function motorTesti() {
     assert.strictEqual(E.gorunum(st, 0).satilik, kare, 'satılık kare istemciye bildirilmeli');
     /* Sırası olmayan "karar" fazında alamaz. */
     assert.strictEqual(E.satinAl(st, 1).reason, 'not_your_turn', 'sırası olmayan alamamalı');
-    /* Reddedince TEKLİF turu başlar: sıradaki diğer oyuncular, sırayla. */
+    /* "Almayacağım": teklif turu YOK, işlem yapılmaz, el sıradakine geçer. */
     const r = E.reddet(st, 0);
-    assert.ok(r.ok, 'reddetmek geçerli olmalı');
-    assert.strictEqual(st.faz, 'teklif', 'reddedilince teklif turu başlamalı');
-    assert.strictEqual(r.teklif.seat, 1, 'teklif sıradaki oyuncuya gitmeli');
-    /* Teklif sırası 1'deyken 2 alamaz. */
-    assert.strictEqual(E.satinAl(st, 2).reason, 'not_your_turn', 'teklif sırası dışında alınamaz');
-    const r2 = E.reddet(st, 1);
-    assert.strictEqual(r2.teklif.seat, 2, 'teklif sonraki oyuncuya geçmeli');
-    const al = E.satinAl(st, 2);
-    assert.ok(al.ok, 'teklif turunda alım geçerli olmalı');
-    assert.strictEqual(st.kare[kare].sahip, 2, 'teklifi kabul eden sahip olmalı');
-    assert.strictEqual(st.oyuncu[2].para, E.BASLANGIC_PARA - E.KARELER[kare].p,
-      'liste fiyatı ödenmeli (açık artırma YOK)');
-    assert.strictEqual(st.teklif, null, 'teklif turu kapanmalı');
-    /* Kimse almazsa kare sahipsiz kalmalı. */
-    const st2 = E.macBaslat({ seats: [0, 1] });
-    koy(st2, 0, kare - 3); sabitZar(st2, [1, 2]);
-    E.zarAt(st2, 0); E.reddet(st2, 0); E.reddet(st2, 1);
-    assert.strictEqual(st2.kare[kare].sahip, null, 'kimse almazsa kare sahipsiz kalmalı');
-    assert.strictEqual(st2.faz, 'bitir', 'teklif turu bitince tur sonuna geçilmeli');
+    assert.ok(r.ok && r.almadi, 'reddetmek geçerli olmalı');
+    assert.strictEqual(st.faz, 'zar', 'reddedince el sıradaki oyuncuya geçmeli');
+    assert.strictEqual(E.siradakiKoltuk(st), 1, 'sıra 1. oyuncuda');
+    assert.strictEqual(st.teklif, null, 'teklif turu açılmamalı');
+    assert.strictEqual(st.kare[kare].sahip, null, 'kare sahipsiz kalmalı');
+    assert.strictEqual(E.satinAl(st, 1).ok, false, 'diğer oyuncu o kareyi alamaz');
+    /* Sonradan o kareye gelen kendi alır. */
+    koy(st, 1, kare - 3); sabitZar(st, [1, 2]);
+    E.zarAt(st, 1);
+    assert.strictEqual(st.faz, 'karar', 'kareye gelen kendi karar vermeli');
+    const al = E.satinAl(st, 1);
+    assert.ok(al.ok && st.kare[kare].sahip === 1, 'gelen oyuncu alabilmeli');
   }
-  console.log('  ✓ 4) satın alma ve TEKLİF turu (açık artırma yerine liste fiyatı)');
+  console.log('  ✓ 4) satın alma; almayana teklif yok, el geçer');
 
   // 5) KİRA
   {
@@ -388,9 +381,8 @@ function motorTesti() {
     const d = E.macBaslat({ seats: [0, 1] });
     koy(d, 0, kare); d.faz = 'karar'; d.oyuncu[0].para = 10;
     assert.strictEqual(E.sureDoldu(d, 0).tur, 'reddeder', 'parası kıt oyuncu adına reddedilmeli');
-    /* Teklif fazında bekleyen reddetmiş sayılır. */
-    assert.strictEqual(d.faz, 'teklif', 'reddedilince teklif turu açılmalı');
-    assert.strictEqual(E.sureDoldu(d, 1).tur, 'teklif', 'teklifte bekleyen reddetmiş sayılmalı');
+    assert.strictEqual(d.faz, 'zar', 'reddedilince el sıradakine geçmeli');
+    assert.strictEqual(E.siradakiKoltuk(d), 1, 'sıra rakibe geçmeli');
     /* Bitir fazında turu sunucu kapatır. */
     const t = E.macBaslat({ seats: [0, 1] });
     t.faz = 'bitir';
@@ -499,25 +491,13 @@ async function onlineTesti() {
       const yayin = once(B, 'metropolAction', 8000);
       sSok.emit('metropolDecline', { roomId: String(oda.id) });
       assert.strictEqual((await yayin).eylem, 'reddet', 'ret masaya duyurulmalı');
-      assert.strictEqual(m.faz, 'teklif', 'reddedince teklif turu açılmalı');
-      assert.strictEqual(m.teklif.sira[m.teklif.idx], diger, 'teklif diğer oyuncuya gitmeli');
-      assert.strictEqual(serverModule.turnSeatOf
-        ? serverModule.turnSeatOf(odaNes) : diger, diger,
-        'hamle saati teklifin yapıldığı oyuncuya geçmeli');
-    }
-    /* SONRA DİĞER OYUNCU ALSIN: liste fiyatından, açık artırma olmadan. */
-    {
-      const once0 = m.oyuncu[diger].para;
-      const yayin = once(A, 'metropolAction', 8000);
-      dSok.emit('metropolBuy', { roomId: String(oda.id) });
-      const y = await yayin;
-      assert.strictEqual(y.eylem, 'al', 'alım masaya duyurulmalı');
-      assert.strictEqual(m.kare[kareIdx].sahip, diger, 'teklifi kabul eden sahip olmalı');
-      assert.strictEqual(m.oyuncu[diger].para, once0 - E.KARELER[kareIdx].p,
-        'liste fiyatı düşülmeli');
+      assert.strictEqual(m.faz, 'zar', 'reddedince el sıradakine geçmeli');
+      assert.strictEqual(m.teklif, null, 'teklif turu açılmamalı');
+      assert.strictEqual(E.siradakiKoltuk(m), diger, 'sıra diğer oyuncuya geçmeli');
+      assert.strictEqual(m.kare[kareIdx].sahip, null, 'kare sahipsiz kalmalı');
     }
   }
-  console.log('  ✓ 14) oyun başladı, sıra ve TEKLİF turu işliyor, zar iki istemciye yansıyor');
+  console.log('  ✓ 14) oyun başladı, sıra ve ret sonrası el geçiyor, zar iki istemciye yansıyor');
 
   acik.forEach(s => { try { s.close(); } catch (_) {} });
   server.close();
@@ -533,7 +513,7 @@ function arayuzTesti() {
   assert.ok(/ONLINE_GAMES = \[[^\]]*'metropol'/.test(sayfa), 'online oyun listesinde olmalı');
   assert.ok(/metropol:\[\]/.test(sayfa), 'ROOMS kaydı olmalı');
   /* Açık artırma yerine teklif turu kuralı AÇIKÇA yazmalı — gizli sapma olmasın. */
-  assert.ok(/teklif edilir/.test(sayfa), 'teklif turu kuralı kurallarda anlatılmalı');
+  assert.ok(/el sıradaki oyuncuya geçer/.test(sayfa), 'ret kuralı kurallarda anlatılmalı');
 
   const istemci = oku('js/metropol-online.js');
   assert.ok(/kinds: \['metropol'\]/.test(istemci), 'adaptör türü karşılamalı');

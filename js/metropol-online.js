@@ -312,6 +312,7 @@
       case 'vergi':       return adOf(+pr[1]) + ' vergi ödedi ' + para(pr[2]);
       case 'kart':        return adOf(+pr[1]) + ' ' + (pr[2] === 'sans' ? 'şans' : 'fon') + ' kartı: ' + (pr.length > 3 ? pr.slice(3).join(':') : 'çekti');
       case 'onarim':      return adOf(+pr[1]) + ' onarım gideri ödedi ' + para(pr[2]);
+      case 'almadi':      return adOf(+pr[1]) + ' ' + kareAd(pr[2]) + ' karesini almadı';
       case 'sabitRed':    return adOf(+pr[1]) + ' satış teklifini reddetti';
       case 'sabitHepsiRed': return adOf(+pr[1]) + ' ' + kareAd(pr[2]) + ' satışı: kimse almadı, kapandı';
       case 'sabitSat':    return adOf(+pr[1]) + ' ' + kareAd(pr[2]) + ' tapusunu ' + para(pr[3]) + ' fiyatla satışa çıkardı';
@@ -398,7 +399,7 @@
   function tikerHtml() {
     var simdi = Date.now();
     var liste = tikerKayit.filter(function (k) { return simdi - k.t < TIKER_OMUR_MS + 400; }).slice(-TIKER_SATIR);
-    return '<div class="mp-tiker" aria-hidden="true"><i class="mp-surum">r</i>' + liste.map(function (k, i) {
+    return '<div class="mp-tiker" aria-hidden="true"><i class="mp-surum">s</i>' + liste.map(function (k, i) {
       var yas = simdi - k.t;
       var yeni = i === liste.length - 1 && yas < 600;
       return '<div class="mp-tk' + (yeni ? ' yeni' : '') + '" style="animation-delay:' + (yeni ? '0s,' : '') + '-' + yas + 'ms">' +
@@ -826,7 +827,7 @@
       h += mulkPaneli(s, benimSira && (s.faz === 'zar' || s.faz === 'bitir'));
       h += '<div class="mp-ipucu">Grubun <b>tamamına</b> sahip olunca bina kurulur ve binalar <b>dengeli</b> yükselir. ' +
            'Nakit sıkıştığında bina satın ya da mülk ipotek edin — yetmezse sunucu otomatik tasfiye eder. ' +
-           'Almadığınız kare diğer oyunculara <b>liste fiyatından tek tur</b> teklif edilir.</div>';
+           'Almadığınız kare boş kalır ve el sıradaki oyuncuya geçer.</div>';
       h += '</div></div>';
       return h;
     },
