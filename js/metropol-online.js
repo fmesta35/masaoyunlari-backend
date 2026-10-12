@@ -29,6 +29,13 @@
      sonraki birkaç saniye görünür, sonra kaybolur (bkz. render). */
   var sonZarAnahtar = null, sonZarZaman = 0;
   var ZAR_GORUNME_MS = 2600;
+  /* Hamle günlüğü: yeni olaylar sağ paneldeki "Hamleler"e yazılır; mobilde
+     tahtanın ortasında SABİT boyutlu küçük bir şeritte son 5 olay görünür. */
+  var gorulenGunluk = null, tikerKayit = [];
+  var TIKER_SATIR = 5, TIKER_OMUR_MS = 10000;
+  /* Piyon animasyonu: gösterilen konum hedefe KARE KARE yaklaşır. */
+  var piyonGoster = {}, piyonHedef = {}, piyonDongu = null, piyonBaslama = 0, piyonHazir = false;
+  var PIYON_ADIM_MS = 120, aktifKok = null;
 
   function esc(s) {
     return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
@@ -37,7 +44,7 @@
   }
   function uyar(t, tur) { try { if (window.GV && GV.toast) GV.toast(t, tur || 'info'); } catch (_) {} }
   function ses(ad) { try { if (window.GVDeniz && GVDeniz.ses) GVDeniz.ses.cal(ad); } catch (_) {} }
-  function adOf(seat) {
+  function adOfTam(seat) {
     try {
       var r = window.__gvActiveRoom || (window.st && st.roomWaitingState && st.roomWaitingState.room);
       var p = r && (r.players || []).find(function (x) { return x.seat === seat; });
@@ -45,6 +52,7 @@
     } catch (_) {}
     return 'Koltuk ' + (seat + 1);
   }
+  var adOf = adOfTam;
   function para(n) {
     /* Binlik ayracı: 1500 → "1.500₺". Oyuncu rakamı bir bakışta okusun. */
     return String(Math.round(Number(n) || 0)).replace(/\B(?=(\d{3})+(?!\d))/g, '.') + '₺';
@@ -126,7 +134,7 @@
       var rc = kareYeri(i);
       var n = sayac[i]++;
       var bekleyenP = (s.faz === 'teklif' && s.teklif) ? s.teklif.seat : s.turn;
-      h += '<div class="mp-piyon' + (bekleyenP === o.seat ? ' sirada' : '') + '" data-kare="' + i + '" style="grid-row:' +
+      h += '<div class="mp-piyon' + (bekleyenP === o.seat ? ' sirada' : '') + '" data-seat="' + o.seat + '" data-kare="' + i + '" style="grid-row:' +
            (rc[0] + 1) + ';grid-column:' + (rc[1] + 1) + ';--mp-dx:' + (n % 2) + ';--mp-dy:' +
            Math.floor(n / 2) + ';background:' + PIYON_RENK[s.seats.indexOf(o.seat) % 4] + '">' +
            PIYON_SIM[s.seats.indexOf(o.seat) % 4] + '</div>';
@@ -136,7 +144,7 @@
        ekranın tüm genişliğini kullanabiliyor ve hiçbir yere boşluk kalmıyor. */
     h += '<div class="mp-orta">' +
          '<div class="mp-orta-ust"><div class="mp-logo">METROPOL</div>' + ortaHtml(s) + '</div>' +
-         '<div class="mp-orta-yuva"></div></div>';
+         '<div class="mp-orta-yuva"></div>' + tikerHtml() + '</div>';
     h += '</div>';
     return h;
   }
@@ -265,17 +273,15 @@
            '<div class="mp-kart-bas">' + (s.sonKart.tur === 'sans' ? '🎲 ŞANS' : '🏛️ TOPLULUK FONU') + '</div>' +
            '<div class="mp-kart-metin">' + esc(s.sonKart.metin) + '</div></div>';
     }
-    h += '<div class="mp-gunluk">' + (s.gunluk || []).slice(-6).map(function (g) {
-      return '<div>' + esc(gunlukMetni(s, g)) + '</div>';
-    }).join('') + '</div>';
     if (s.havuz !== null && s.havuz !== undefined && s.havuz > 0) {
       h += '<div class="mp-havuz">🅿️ Park havuzu: ' + para(s.havuz) + '</div>';
     }
     return h;
   }
   /* Sunucu günlüğü makine okunur ("kira:1:0:28"); burada Türkçeleşir. */
-  function gunlukMetni(s, g) {
+  function gunlukMetni(s, g, kisa) {
     var pr = String(g).split(':');
+    var adOf = kisa ? function (seat) { return PIYON_SIM[s.seats.indexOf(seat) % 4] || '•'; } : adOfTam;
     var kareAd = function (i) { return ((s.kareler || [])[Number(i)] || {}).ad || ('#' + i); };
     switch (pr[0]) {
       case 'aldi':        return adOf(+pr[1]) + ' ' + kareAd(pr[2]) + ' aldı';
@@ -290,6 +296,43 @@
       case 'havuz':       return adOf(+pr[1]) + ' park havuzunu aldı ' + para(pr[2]);
       default:            return String(g);
     }
+  }
+
+  /* ------------------ HAMLE GÜNLÜĞÜ ------------------ */
+  function kayitEkle(tam, kisa, eski) {
+    try {
+      var el = document.getElementById('moveHist');
+      if (el) {
+        el.insertAdjacentHTML('beforeend', '<div class="mv"><span>' + (el.children.length + 1) + '.</span><span>' + esc(tam) + '</span></div>');
+        el.scrollTop = el.scrollHeight;
+      }
+    } catch (_) {}
+    tikerKayit.push({ m: kisa, t: eski ? 0 : Date.now() });
+    if (tikerKayit.length > 30) tikerKayit.shift();
+  }
+  function gunlukYaz(s) {
+    var simdi = (s.gunluk || []).slice();
+    var yeni, ilk = gorulenGunluk === null;
+    if (ilk) yeni = simdi;
+    else {
+      var k = Math.min(gorulenGunluk.length, simdi.length);
+      for (; k > 0; k--) {
+        if (gorulenGunluk.slice(-k).join('\u0001') === simdi.slice(0, k).join('\u0001')) break;
+      }
+      yeni = simdi.slice(k);
+    }
+    gorulenGunluk = simdi;
+    yeni.forEach(function (g) { kayitEkle(gunlukMetni(s, g), gunlukMetni(s, g, true), ilk); });
+  }
+  function tikerHtml() {
+    var simdi = Date.now();
+    var liste = tikerKayit.filter(function (k) { return simdi - k.t < TIKER_OMUR_MS + 400; }).slice(-TIKER_SATIR);
+    return '<div class="mp-tiker" aria-hidden="true">' + liste.map(function (k, i) {
+      var yas = simdi - k.t;
+      var yeni = i === liste.length - 1 && yas < 600;
+      return '<div class="mp-tk' + (yeni ? ' yeni' : '') + '" style="animation-delay:' + (yeni ? '0s,' : '') + '-' + yas + 'ms">' +
+             esc(k.m) + '</div>';
+    }).join('') + '</div>';
   }
 
   function oyuncularHtml(s) {
@@ -346,7 +389,7 @@
     events: {
       metropolDice: function (p) {
         if (!p) return;
-        ses('tasKoy');
+        ses('zar');
         if (p.ucCift) uyar('🎲 Üçüncü çift — doğruca cezaevine!', 'warning');
         else if (p.cezaevinde) uyar('🔒 Çift gelmedi — cezaevinde kaldınız (' + (3 - (p.kalanHak || 0)) + '/3).', 'info');
         else if (p.cezadanCikti) uyar('🎉 Çift attınız — cezaevinden çıktınız!', 'success');
@@ -396,9 +439,18 @@
         /* İlk çizimde (sayfa yenileme/yeniden bağlanma) eski atışı "yeni"
            saymayalım. */
         sonZarZaman = sonZarAnahtar === null ? 0 : Date.now();
+        if (sonZarAnahtar !== null) {
+          /* Yeni atış: Hamleler'e yazılır, piyon zar görüldükten SONRA yürür. */
+          piyonBaslama = Date.now() + 900;
+          var atan = (s.oyuncular || []).filter(function (o) { return o.seat === s.turn; })[0];
+          var hedefKare = atan && s.kareler[atan.konum];
+          var zt = s.zar[0] + '-' + s.zar[1] + (hedefKare ? ' → ' + hedefKare.ad : '');
+          kayitEkle(adOfTam(s.turn) + ' 🎲 ' + zt, (PIYON_SIM[s.seats.indexOf(s.turn) % 4] || '') + ' 🎲 ' + zt);
+        }
         sonZarAnahtar = zarAnahtar;
       } else if (sonZarAnahtar === null) sonZarAnahtar = zarAnahtar;
 
+      gunlukYaz(s);
       var h = '<div class="mp-wrap">';
       h += oyuncularHtml(s);
       h += '<div class="mp-alan">';
@@ -607,7 +659,7 @@
         return { w: d.Dx * 0.80 - 8, h: d.Hs - 8, g: 'yan' };
       }
       /* Aday çerçevenin ölçüleri. */
-      function duzenAday(C, G, Y, ortada, kompakt, yanOran) {
+      function duzenAday(C, G, Y, ortada, kompakt, yanOran, bhZorla) {
         var R = 18 - C, BW = G, BH;
         if (C === 9) {
           BH = ortada ? Y : Math.min(Y * 0.8, G * 1.6);
@@ -617,6 +669,7 @@
         } else {
           BH = ortada ? Y : Math.min(Y * 0.96, G * 2.1);
         }
+        if (bhZorla) BH = bhZorla;
         var D = Math.round(Math.min(BW, BH) * (kompakt ? 0.135 : 0.108));
         D = Math.max(22, Math.min(D, 96));
         var genisTahta = BW / BH >= 1.15;
@@ -628,8 +681,18 @@
       }
       /* Her aday için tüm karelerin puntosu hesaplanır; EN KÜÇÜK puntosu en
          büyük olan çerçeve seçilir (klasik 9×9 okunur kalıyorsa o tercih). */
-      function duzenSec(kareler, G, Y, ortada, kompakt) {
+      function duzenSec(kareler, G, Y, ortada, kompakt, dikeyMobil) {
         var adaylar = [[9, 0]];
+        if (dikeyMobil) {
+          /* DİKEY TELEFON: en sıkı (kısa) tahta, yazı ≥ ~9.5 px kalsın.
+             Aday: yan sütun genişliği × tahta yüksekliği. */
+          adaylar = [];
+          [2, 3, 4].forEach(function (C) {
+            [0.2, 0.23, 0.26, 0.29, 0.32, 0.35, 0.38].forEach(function (o) {
+              [1.45, 1.55, 1.65, 1.75, 1.85, 2.0, 2.2].forEach(function (bh) { adaylar.push([C, o, G * bh]); });
+            });
+          });
+        }
         if (G < Y * 0.9) [8, 7, 6, 5, 4, 3, 2].forEach(function (C) {
           [0.22, 0.26, 0.3, 0.34, 0.38].forEach(function (o) { adaylar.push([C, o]); });
         });
@@ -641,8 +704,9 @@
         });
         var enIyi = null;
         adaylar.forEach(function (a) {
-          var d = duzenAday(a[0], G, Y, ortada, kompakt, a[1]);
+          var d = duzenAday(a[0], G, Y, ortada, kompakt, a[1], a[2]);
           if (d.Wt < 18 || d.Hs < 18) return;
+          if (dikeyMobil && (d.BW - 2 * d.Dx < 116 || d.BH - 2 * d.D < 300)) return;   // orta alan zar+şerit sığsın
           var enKucuk = 99, sonuc = [];
           kareler.forEach(function (k) {
             var y = yerHesapla(k.i, d.C, d.R);
@@ -655,6 +719,13 @@
           });
           d.puan = enKucuk; d.sonuc = sonuc;
           if (!enIyi) { enIyi = d; return; }
+          if (dikeyMobil) {
+            var HEDEF = 8.5, dOk = d.puan >= HEDEF, eOk = enIyi.puan >= HEDEF;
+            if (dOk && !eOk) enIyi = d;
+            else if (dOk && eOk) { if (d.BH < enIyi.BH - 1 || (Math.abs(d.BH - enIyi.BH) <= 1 && d.puan > enIyi.puan + 0.2)) enIyi = d; }
+            else if (!dOk && !eOk && d.puan > enIyi.puan + 0.2) enIyi = d;
+            return;
+          }
           if (enIyi.C === 9 && enIyi.puan >= 9) return;           // klasik tahta yeterince okunur
           if (d.puan > enIyi.puan + 0.2) enIyi = d;
         });
@@ -678,10 +749,7 @@
         tahta.style.height = Math.round(2 * d.D + R * d.Hs) + 'px';
         var orta = tahta.querySelector('.mp-orta');
         if (orta) { orta.style.gridRow = '2 / ' + (R + 2); orta.style.gridColumn = '2 / ' + (C + 2); }
-        tahta.querySelectorAll('.mp-piyon[data-kare]').forEach(function (p) {
-          var y = yerHesapla(Number(p.getAttribute('data-kare')), C, R);
-          p.style.gridRow = y.r; p.style.gridColumn = y.c;
-        });
+        piyonYerlestir(tahta, C, R);
         /* Aynı kenardaki kareler eşit görünsün: kenarın ortanca puntosu tavan. */
         var gruplar = {};
         d.sonuc.forEach(function (x) { (gruplar[x.g] = gruplar[x.g] || []).push(x.f); });
@@ -734,7 +802,7 @@
            ~%62'si), dikeyde uzun isimler 2 satıra sığsın diye genişliğin
            ~2.2 katı kadar yükseklik verilir. */
         if (mobilYatay) Y = Math.max(Y, Math.round(G * 0.62));
-        if (mobilDikey) Y = Math.round(G * 2.2);
+        if (mobilDikey) Y = Math.round(G * 2.0);
         var genis = G >= 900 && Y >= 430;
         /* KOMPAKT: tam ekran ama alan dar (telefon). Tahta TÜM alanı alır,
            panel yine tahtanın ortasına girer ama sadeleşir: zar + düğmeler
@@ -750,6 +818,7 @@
         sarmal.classList.toggle('kompakt', kompakt);
         sarmal.classList.toggle('dar', !ortada);
         sarmal.classList.toggle('dikey', mobilDikey);
+        sarmal.classList.toggle('mobil', mobilMi());
         panelYerlestir(ortada);
 
         var tahta = root.querySelector('.mp-tahta');
@@ -764,7 +833,7 @@
               fiyatVar: !!(fiyat && fiyat.textContent), bant: !!el.querySelector('.mp-bant'),
               kelimeler: String(ad.textContent || '').split(/\s+/).filter(Boolean) });
           });
-          var duz = duzenSec(kareler, G, Y, ortada, kompakt);
+          var duz = duzenSec(kareler, G, Y, ortada, kompakt, mobilDikey);
           if (duz) duzenUygula(tahta, duz);
           root.__mpDuzen = duz;
         }
@@ -776,6 +845,7 @@
         }
       }
       olcuYaz();
+      piyonKur(root);
       requestAnimationFrame(olcuYaz);
       if (root.__mpOlcu) {
         window.removeEventListener('resize', root.__mpOlcu);
@@ -796,6 +866,60 @@
       void s;
     }
   });
+
+
+  /* ------------------ PİYON ANİMASYONU ------------------
+     Sunucu piyonu doğrudan hedef kareye koyar; burada ekranda gösterilen
+     konum hedefe kare kare yaklaşır (zar atıldıktan sonra hızlandırılmış
+     yürüyüş). Cezaevine gidiş/geri gitme gibi uzun sıçrayışlar direkt olur. */
+  function piyonYerlestir(tahta, C, R) {
+    if (!tahta) return;
+    var sayac = {};
+    tahta.querySelectorAll('.mp-piyon[data-seat]').forEach(function (p) {
+      var sd = p.getAttribute('data-seat');
+      var kare = piyonGoster[sd] != null ? piyonGoster[sd] : Number(p.getAttribute('data-kare'));
+      var y = yerHesapla(kare, C, R);
+      var n = sayac[kare] = (sayac[kare] || 0);
+      sayac[kare]++;
+      p.style.gridRow = y.r; p.style.gridColumn = y.c;
+      p.style.setProperty('--mp-dx', n % 2);
+      p.style.setProperty('--mp-dy', Math.floor(n / 2));
+    });
+  }
+  function piyonGuncelle() {
+    var tahta = aktifKok && aktifKok.querySelector ? aktifKok.querySelector('.mp-tahta') : null;
+    var d = aktifKok && aktifKok.__mpDuzen;
+    if (tahta && d) piyonYerlestir(tahta, d.C, d.R);
+  }
+  function piyonAdimla() {
+    piyonDongu = null;
+    if (!aktifKok || !document.body.contains(aktifKok)) return;
+    var bekle = Date.now() < piyonBaslama, ilerledi = false, kalan = false;
+    Object.keys(piyonHedef).forEach(function (sd) {
+      if (piyonGoster[sd] === piyonHedef[sd]) return;
+      if (!bekle) { piyonGoster[sd] = (piyonGoster[sd] + 1) % 40; ilerledi = true; }
+      if (piyonGoster[sd] !== piyonHedef[sd]) kalan = true;
+    });
+    if (ilerledi) { piyonGuncelle(); ses('piyonAdim'); }
+    var bekleyen = Object.keys(piyonHedef).some(function (sd) { return piyonGoster[sd] !== piyonHedef[sd]; });
+    if (bekleyen || kalan) piyonDongu = setTimeout(piyonAdimla, bekle ? 60 : PIYON_ADIM_MS);
+  }
+  function piyonKur(kok) {
+    aktifKok = kok;
+    var yeniHedef = {};
+    kok.querySelectorAll('.mp-piyon[data-seat]').forEach(function (p) {
+      var sd = p.getAttribute('data-seat'), h = Number(p.getAttribute('data-kare'));
+      yeniHedef[sd] = h;
+      if (piyonGoster[sd] == null || !piyonHazir) { piyonGoster[sd] = h; return; }
+      var ileri = (h - piyonGoster[sd] + 40) % 40;
+      if (ileri > 13) piyonGoster[sd] = h;           // sıçrayış: kare kare yürütme
+    });
+    piyonHedef = yeniHedef;
+    piyonHazir = true;
+    piyonGuncelle();
+    var bekleyen = Object.keys(piyonHedef).some(function (sd) { return piyonGoster[sd] !== piyonHedef[sd]; });
+    if (bekleyen && !piyonDongu) piyonDongu = setTimeout(piyonAdimla, 60);
+  }
 
   var aktifOlcu = null, gozcu = null;
   function gozcuKur() {
@@ -826,6 +950,9 @@
     acikGrup = null; sonKart = null; aktifOlcu = null;
     kartKapat();
     sonZarAnahtar = null; sonZarZaman = 0;
+    gorulenGunluk = null; tikerKayit = [];
+    piyonGoster = {}; piyonHedef = {}; piyonHazir = false; piyonBaslama = 0;
+    if (piyonDongu) { clearTimeout(piyonDongu); piyonDongu = null; }
     oyuncuYuvasiniSil();
   });
   window.__gvMetropol = { kart: function () { return sonKart; } };
