@@ -571,7 +571,9 @@ function binaKurulabilirMi(st, seat, kareIdx) {
   if (grup.some(i => st.kare[i].ipotek)) return 'ipotekli';
   /* DENGELİ İNŞAAT: kareler arasında en çok bir fark olabilir. */
   const enAz = Math.min.apply(null, grup.map(i => st.kare[i].ev));
-  if (d.ev > enAz) return 'dengesiz';
+  /* OTEL: gruptaki BÜTÜN arsalarda 4'er ev olmalı; evler bankaya döner, yerine otel konur. */
+  if (d.ev === 4 && enAz < 4) return 'otel_sartlari';
+  if (d.ev > enAz) return 'dengesiz'; 
   if (st.oyuncu[seat].para < (tanim.b || 0)) return 'para_yetmiyor';
   return null;
 }

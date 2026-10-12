@@ -142,3 +142,18 @@ test('cezaevi: düşen oyuncuya soru yok, el kendiliğinden geçer; 3. başarıs
   const r3 = E.zarAt(st, 0);              // 3. başarısız deneme: kefalet ödenir, çıkar
   assert.ok(!st.oyuncu[0].cezaevi && (r3.kefalet || r3.ok));
 });
+
+test('bina: otel için gruptaki tüm arsalarda 4 ev gerekir; ipotekli grupta ev kurulmaz', () => {
+  const st = oyun([0, 1]);
+  const grup = E.KARELER.filter(k => k.t === 'mulk' && k.g === E.KARELER[1].g).map(k => k.i);
+  grup.forEach(i => { st.kare[i].sahip = 0; });
+  st.oyuncu[0].para = 100000;
+  grup.forEach(i => { st.kare[i].ev = 4; });
+  st.kare[grup[0]].ev = 3;
+  assert.strictEqual(E.binaKur(st, 0, grup[1]).reason, 'otel_sartlari');
+  assert.ok(E.binaKur(st, 0, grup[0]).ok);          // 4. ev
+  assert.ok(E.binaKur(st, 0, grup[1]).ok);          // artık otel
+  assert.strictEqual(st.kare[grup[1]].ev, 5);
+  st.kare[grup[0]].ipotek = true;
+  assert.strictEqual(E.binaKur(st, 0, grup[1]).ok, false);
+});

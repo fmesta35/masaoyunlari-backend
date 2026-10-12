@@ -147,6 +147,7 @@
     grup_eksik:      '🏘️ Bina kurmak için o rengin TÜM karelerine sahip olmalısınız.',
     ipotekli:        '📄 İpotekli mülke bina kurulamaz — önce ipoteği kaldırın.',
     bina_dolu:       '🏨 Bu karede bina sınırına ulaşıldı (4 ev + 1 otel).',
+    otel_sartlari:   '🏨 Otel için aynı renk gruptaki TÜM arsalarda 4\'er ev olmalı. Önce diğer arsalara da 4. evi kurun.',
     dengesiz:        '⚖️ Dengeli inşaat kuralı: aynı renkteki kareler arasında en çok bir bina fark olabilir.',
     bina_yok:        '🏚️ Bu karede satılacak bina yok.',
     once_binalari_sat: '🏗️ İpotek için önce o rengin üzerindeki tüm binaları satmalısınız.',

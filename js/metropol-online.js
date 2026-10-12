@@ -399,7 +399,7 @@
   function tikerHtml() {
     var simdi = Date.now();
     var liste = tikerKayit.filter(function (k) { return simdi - k.t < TIKER_OMUR_MS + 400; }).slice(-TIKER_SATIR);
-    return '<div class="mp-tiker" aria-hidden="true"><i class="mp-surum">s</i>' + liste.map(function (k, i) {
+    return '<div class="mp-tiker" aria-hidden="true"><i class="mp-surum">t</i>' + liste.map(function (k, i) {
       var yas = simdi - k.t;
       var yeni = i === liste.length - 1 && yas < 600;
       return '<div class="mp-tk' + (yeni ? ' yeni' : '') + '" style="animation-delay:' + (yeni ? '0s,' : '') + '-' + yas + 'ms">' +
@@ -443,7 +443,7 @@
         (d.ipotek ? '<span class="mp-mulk-ip">📄 ipotekli</span>'
                   : '<span class="mp-mulk-ev">' + (d.ev >= 5 ? '🏨' : d.ev ? Array(d.ev + 1).join('🏠') : '—') + '</span>') +
         (benim ? (
-          (kur.indexOf(d.i) !== -1 ? '<button class="btn mini mp-kur" type="button" data-kare="' + d.i + '">+🏠 ' + para(k.b) + '</button>' : '') +
+          (kur.indexOf(d.i) !== -1 ? '<button class="btn mini mp-kur" type="button" data-kare="' + d.i + '" title="' + (d.ev === 4 ? 'Dört evi bankaya ver, otel kur' : 'Ev kur') + '">' + (d.ev === 4 ? '+🏨 ' : '+🏠 ') + para(k.b) + '</button>' : '') +
           (d.ev > 0 ? '<button class="btn mini secondary mp-sat" type="button" data-kare="' + d.i + '">-🏠</button>' : '') +
           (s.pazar ? '' : '<span class="mp-mulk-ok" aria-hidden="true">⋯</span>')
         ) : '') +
