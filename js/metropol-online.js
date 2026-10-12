@@ -327,7 +327,7 @@
   function tikerHtml() {
     var simdi = Date.now();
     var liste = tikerKayit.filter(function (k) { return simdi - k.t < TIKER_OMUR_MS + 400; }).slice(-TIKER_SATIR);
-    return '<div class="mp-tiker" aria-hidden="true">' + liste.map(function (k, i) {
+    return '<div class="mp-tiker" aria-hidden="true"><i class="mp-surum">l</i>' + liste.map(function (k, i) {
       var yas = simdi - k.t;
       var yeni = i === liste.length - 1 && yas < 600;
       return '<div class="mp-tk' + (yeni ? ' yeni' : '') + '" style="animation-delay:' + (yeni ? '0s,' : '') + '-' + yas + 'ms">' +
@@ -813,12 +813,16 @@
           vh = Math.min(vh, window.innerHeight || vh);
           var kapUst = kap ? kap.getBoundingClientRect().top : 100;
           var Hc = Math.min(kap ? kap.clientHeight : 9999, vh - Math.max(0, kapUst));
-          Y = Math.max(300, Math.round(Hc - pay - 24));
-          if (dikeyKaydirildi !== vh && sarmal0 && kap) {
-            dikeyKaydirildi = vh;
-            try {
-              kap.scrollTop += sarmal0.getBoundingClientRect().top - kap.getBoundingClientRect().top - 4;
-            } catch (_) {}
+          Y = Math.max(300, Math.round(Hc - pay - 28));
+          /* Görünen yüksekliği veya genişliği değişince oyun alanı kabın en
+             üstüne hizalanır (düzen oturana dek birkaç kez denenir). */
+          var anahtarK = Math.round(vh) + 'x' + Math.round(G);
+          if (dikeyKaydirildi !== anahtarK && sarmal0) {
+            dikeyKaydirildi = anahtarK;
+            var hizala = function () {
+              try { sarmal0.scrollIntoView({ block: 'start', behavior: 'auto' }); } catch (_) {}
+            };
+            hizala(); setTimeout(hizala, 250); setTimeout(hizala, 800);
           }
         } else dikeyKaydirildi = false;
         var genis = G >= 900 && Y >= 430;
