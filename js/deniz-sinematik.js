@@ -382,6 +382,30 @@
     piyonAdim: function () {
       gurultu({ f0: 3000, f1: 1200, sure: 0.025, hacim: 0.14, tip: 'bandpass', q: 1.1, atak: 0.001 });
       ton({ f0: 520, f1: 300, sure: 0.05, hacim: 0.12, dalga: 'triangle' });
+    },
+
+    /* KELEPÇE: bileğe takılırken çarkın "tırrr-tık"ı — hızlanan dişli
+       tıkları, sonunda kilidin metalik klik'i. */
+    kelepce: function () {
+      var i, t = 0;
+      for (i = 0; i < 7; i++) {
+        t += 0.045 - i * 0.003;
+        gurultu({ f0: 5200 + i * 260, f1: 2600, sure: 0.018, hacim: 0.13, tip: 'bandpass', q: 3.2, atak: 0.001, gecikme: t });
+        ton({ f0: 1900 + i * 90, f1: 1500, sure: 0.02, hacim: 0.05, dalga: 'square', gecikme: t });
+      }
+      gurultu({ f0: 7000, f1: 3200, sure: 0.05, hacim: 0.22, tip: 'bandpass', q: 4, atak: 0.001, gecikme: t + 0.07 });
+      ton({ f0: 2400, f1: 1500, sure: 0.16, hacim: 0.10, dalga: 'triangle', gecikme: t + 0.07 });
+    },
+
+    /* HAPİS KAPISI: ağır demir kapının çarpması — alçak gümbürtü, metal
+       çınlaması ve sürgünün kilitlenme "çak"ı. */
+    hapisKapi: function () {
+      ton({ f0: 110, f1: 42, sure: 0.38, hacim: 0.42, dalga: 'sine' });
+      gurultu({ f0: 1400, f1: 120, sure: 0.30, hacim: 0.34, tip: 'lowpass', q: 0.8, atak: 0.002 });
+      ton({ f0: 640, f1: 600, sure: 0.60, hacim: 0.10, dalga: 'triangle', gecikme: 0.015 });
+      ton({ f0: 1040, f1: 980, sure: 0.50, hacim: 0.07, dalga: 'triangle', gecikme: 0.015 });
+      gurultu({ f0: 4200, f1: 1800, sure: 0.04, hacim: 0.24, tip: 'bandpass', q: 2.5, atak: 0.001, gecikme: 0.30 });
+      ton({ f0: 260, f1: 140, sure: 0.10, hacim: 0.20, dalga: 'square', gecikme: 0.30 });
     }
   };
 

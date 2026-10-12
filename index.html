@@ -2895,6 +2895,47 @@ body.gv-app input,body.gv-app textarea,body.gv-app .chat-msgs,body.gv-app .moves
 .mp-mulk-ev{font-size:.95em}
 .mp-mulk-ip{font-size:.84em;color:var(--text3)}
 .btn.mini{padding:3px 7px;font-size:.82em;border-radius:7px}
+/* ---- METROPOL: FON destesi, köşe bildirimi, yatay telefon düzeni ---- */
+.mp-fon-deste{flex:0 0 auto;width:34px;height:22px;border-radius:4px;background:#2a63d8;color:#fff;display:grid;
+  place-items:center;font-size:10px;letter-spacing:.08em;box-shadow:2px 2px 0 #1d4cae,4px 4px 0 rgba(0,0,0,.2);
+  margin:0 4px 4px 0}
+.mp-fon-deste b{font-weight:900}
+.mp-wrap.kompakt .mp-orta{position:relative}
+.mp-wrap.kompakt .mp-fon-deste{position:absolute;left:7px;top:6px;margin:0;width:30px;height:19px;font-size:9px;z-index:1}
+.mp-wrap.dikey .mp-fon-deste{left:auto;right:7px;top:auto;bottom:6px}
+.mp-wrap.dikey .mp-tiker{padding-right:42px;box-sizing:border-box}
+.mp-bildirim{position:fixed;right:10px;bottom:10px;z-index:3450;width:max-content;max-width:250px;
+  background:rgba(16,26,14,.94);color:#fff;border-left:4px solid #4aa3ff;border-radius:9px;padding:7px 10px;
+  font-size:12px;line-height:1.35;box-shadow:0 6px 18px rgba(0,0,0,.45);pointer-events:none;
+  opacity:0;transform:translateY(8px);transition:opacity .22s,transform .22s}
+.mp-bildirim.goster{opacity:1;transform:none}
+.mp-bildirim.gider{border-left-color:#ef5350}
+.mp-bildirim.gelir{border-left-color:#43c463}
+.mp-bildirim b{font-weight:900}
+/* YATAY TELEFON (tam ekran): panel iki sütun — solda durum + zar + düğme, sağda
+   "Mülkleriniz". Kaydırma gerekmez; zar ve mülk listesi hep görünür. */
+.mp-wrap.kompakt:not(.dikey) .mp-tiker{height:calc(3 * 1.25em + 3px)}
+.mp-wrap.kompakt:not(.dikey) .mp-orta{padding:3px 6px 2px;gap:2px;justify-content:flex-start}
+.mp-wrap.kompakt:not(.dikey) .mp-orta-yuva{align-items:flex-start;justify-content:center;flex:1 1 auto;overflow:hidden}
+.mp-wrap.kompakt:not(.dikey) .mp-panel{display:grid;grid-template-columns:minmax(0,.95fr) minmax(0,1.35fr);
+  column-gap:10px;row-gap:3px;align-items:start;align-content:start;text-align:left;max-width:none;width:100%;
+  margin:0;overflow:hidden;font-size:.82em;flex:1 1 auto}
+.mp-wrap.kompakt:not(.dikey) .mp-panel>.mp-durum,
+.mp-wrap.kompakt:not(.dikey) .mp-panel>.mp-tur,
+.mp-wrap.kompakt:not(.dikey) .mp-panel>.mp-zarlar,
+.mp-wrap.kompakt:not(.dikey) .mp-panel>.mp-dugmeler{grid-column:1}
+.mp-wrap.kompakt:not(.dikey) .mp-panel>.mp-mulk-bas{grid-column:2;grid-row:1;margin:0}
+.mp-wrap.kompakt:not(.dikey) .mp-panel>.mp-mulk{grid-column:2;grid-row:2 / span 4;flex-direction:row;flex-wrap:wrap;
+  align-content:flex-start;gap:3px;max-height:112px;overflow-y:auto}
+.mp-wrap.kompakt:not(.dikey) .mp-mulk-sat{padding:2px 5px;gap:4px;font-size:.88em;border-radius:6px;flex:0 1 auto;max-width:100%}
+.mp-wrap.kompakt:not(.dikey) .mp-mulk-bant{height:11px;width:7px}
+.mp-wrap.kompakt:not(.dikey) .mp-mulk-ok{display:none}
+.mp-wrap.kompakt:not(.dikey) .mp-zarlar{justify-content:flex-start}
+.mp-wrap.kompakt:not(.dikey) .mp-zar{width:34px;height:34px;font-size:1.05em;border-radius:8px}
+.mp-wrap.kompakt:not(.dikey) .mp-dugmeler{justify-content:flex-start;gap:5px}
+.mp-wrap.kompakt:not(.dikey) .mp-dugmeler .btn{padding:6px 12px;font-size:.95em}
+.mp-wrap.kompakt:not(.dikey) .mp-orta-ust{flex-direction:row;flex-wrap:nowrap;gap:8px;justify-content:center}
+.mp-wrap.kompakt:not(.dikey) .mp-fon-deste{left:auto;right:8px;top:5px}
 /* ---- METROPOL PAZAR: işlem + satış/açık artırma pencereleri ---- */
 .mp-mulk-sat.tik{cursor:pointer;-webkit-tap-highlight-color:transparent}
 .mp-mulk-sat.tik:hover,.mp-mulk-sat.tik:focus-visible{outline:2px solid #3b82f6;outline-offset:0}
@@ -7135,7 +7176,7 @@ GV.init();
 <script src="js/gomoku-online.js?v=20260904b" defer></script>
 <script src="js/connect4-online.js?v=20260904b" defer></script>
 <script src="js/bilardo-online.js?v=20260927d" defer></script>
-<script src="js/deniz-sinematik.js?v=20261012a" defer></script>
+<script src="js/deniz-sinematik.js?v=20261012b" defer></script>
 <script src="js/deniz-kopru.js?v=20260920a" defer></script>
 <script src="js/tournaments.js?v=20260927a" defer></script>
 <script src="js/battleship-online.js?v=20260920c" defer></script>
@@ -7154,7 +7195,7 @@ GV.init();
 <script src="js/fark-sahneler.js?v=20261011b" defer></script>
 <script src="js/fark-online.js?v=20261011b" defer></script>
 <script src="js/kizmabirader-online.js?v=20261011b" defer></script>
-<script src="js/metropol-online.js?v=20261012o" defer></script>
+<script src="js/metropol-online.js?v=20261012p" defer></script>
 <script src="js/chat.js?v=20260821c" defer></script>
 <script src="js/leave-guard.js?v=20260927c" defer></script>
 <!-- Tarayıcı GERİ/İLERİ tuşu: sayfa geçişleri geçmişe adım bırakır,

@@ -302,7 +302,7 @@ function ilerle(st, seat, adim, maasVar) {
   const yeni = ((p.konum + adim) % KARE_SAYISI + KARE_SAYISI) % KARE_SAYISI;
   if (maasVar !== false && adim > 0 && yeni < p.konum) {
     p.para += MAAS;
-    gunluge(st, 'maas:' + seat);
+    gunluge(st, 'maas:' + seat + ':' + MAAS);
   }
   p.konum = yeni;
   return yeni;
@@ -399,7 +399,7 @@ function kareyeDus(st, seat, cift) {
   const tutar = kira(st, p.konum, st.zarToplam, garX2, idareOn);
   if (tutar > 0) {
     ode(st, seat, tutar, d.sahip, false);
-    gunluge(st, 'kira:' + seat + ':' + d.sahip + ':' + tutar);
+    gunluge(st, 'kira:' + seat + ':' + d.sahip + ':' + tutar + ':' + p.konum);
   }
   return turSonu(st, cift);
 }
@@ -414,10 +414,11 @@ function kartCek(st, seat, tur, cift) {
   }
   const idx = deste.shift();
   const kart = liste[idx];
-  st.sonKart = { tur, metin: kart.t };
+  st.kartSayac = (st.kartSayac || 0) + 1;
+  st.sonKart = { tur, metin: kart.t, n: st.kartSayac, seat };
   /* Günlüğe de yazılır: kart metni panelde birkaç saniye sonra kaybolur,
      oyuncu "ne olmuştu?" diye günlüğe bakabilsin. */
-  gunluge(st, 'kart:' + seat + ':' + tur);
+  gunluge(st, 'kart:' + seat + ':' + tur + ':' + kart.t);
   const geriKoy = () => { if (kart.k !== 'cikisKarti') deste.push(idx); };
   const p = st.oyuncu[seat];
 
@@ -439,7 +440,7 @@ function kartCek(st, seat, tur, cift) {
       let ev = 0, otel = 0;
       mulkleri(st, seat).forEach(d => { if (d.ev === 5) otel++; else ev += d.ev; });
       const bedel = ev * kart.ev + otel * kart.otel;
-      if (bedel > 0) ode(st, seat, bedel, null, true);
+      if (bedel > 0) { ode(st, seat, bedel, null, true); gunluge(st, 'onarim:' + seat + ':' + bedel); }
       geriKoy(); return turSonu(st, cift);
     }
     case 'cikisKarti': p.cikisKarti++; return turSonu(st, cift);
@@ -740,6 +741,21 @@ function pazarVazgec(st, seat) {
   st.pazar = null;
   return { ok: true };
 }
+/* Sabit fiyatlı satışta bir alıcı "istemiyorum" der: o kişi alıcı listesinden
+   çıkar, süre dolmasını beklemez. Son alıcı da reddedince satış kapanır. */
+function pazarReddet(st, seat) {
+  const pz = st.pazar;
+  if (st.status !== 'playing' || !pz || pz.mod !== 'sabit') return { ok: false, reason: 'pazar_yok' };
+  if (pz.alicilar.indexOf(seat) === -1) return { ok: false, reason: 'alici_degil' };
+  pz.alicilar = pz.alicilar.filter(x => x !== seat);
+  gunluge(st, 'sabitRed:' + seat + ':' + pz.kare);
+  let hepsi = false;
+  if (!pz.alicilar.length) {
+    gunluge(st, 'sabitHepsiRed:' + pz.satici + ':' + pz.kare);
+    st.pazar = null; hepsi = true;
+  }
+  return { ok: true, kapandi: hepsi };
+}
 function pazarTeklif(st, seat, tutar, simdi) {
   const pz = st.pazar;
   if (st.status !== 'playing' || !pz || pz.mod !== 'artirma' || pz.asama !== 'teklif') return { ok: false, reason: 'pazar_yok' };
@@ -1004,6 +1020,6 @@ module.exports = {
   gorunum, kira, varlik, siradakiKoltuk, ayakta, grupKareleri,
   binaKurulabilirMi, iflasEt, ode,
   PAZAR_SURE_MS, ARTIRMA_HAK, TUR_ARTIRMA_LIMITI, MIN_ARTIS, artirmaBaslangic,
-  pazarAc, pazarSatinAl, pazarVazgec, pazarTeklif, pazarCekil, pazarKarar,
+  pazarAc, pazarSatinAl, pazarVazgec, pazarReddet, pazarTeklif, pazarCekil, pazarKarar,
   pazarSureDoldu, pazarOyuncuCikar, pazarSatilabilirMi
 };

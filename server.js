@@ -5402,6 +5402,7 @@ io.on('connection', socket => {
   socket.on('metropolMarketOpen', data => mpEylem(data, 'pazarAc', (m, seat) =>
     metropolEngine.pazarAc(m, seat, Number(data && data.kare), String(data && data.mod || ''), Number(data && data.fiyat), now())));
   socket.on('metropolMarketBuy',  data => mpEylem(data, 'pazarAl', (m, seat) => metropolEngine.pazarSatinAl(m, seat, now())));
+  socket.on('metropolMarketDecline', data => mpEylem(data, 'pazarRed', (m, seat) => metropolEngine.pazarReddet(m, seat)));
   socket.on('metropolMarketCancel', data => mpEylem(data, 'pazarVazgec', (m, seat) => metropolEngine.pazarVazgec(m, seat)));
   socket.on('metropolBid',        data => mpEylem(data, 'teklif', (m, seat) =>
     metropolEngine.pazarTeklif(m, seat, Number(data && data.tutar), now())));

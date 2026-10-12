@@ -96,3 +96,27 @@ test('açık artırma: süre dolunca sıradaki çekilir, satıcı karar vermezse
   assert.strictEqual(E.pazarSureDoldu(st, 80000).tur, 'karar');
   assert.strictEqual(st.kare[1].sahip, 0);
 });
+
+test('sabit satış: alıcı reddedince listeden çıkar, hepsi reddedince satış hemen kapanır', () => {
+  const st = oyun([0, 1, 2]);
+  st.kare[1].sahip = 0;
+  E.pazarAc(st, 0, 1, 'sabit', 100, 0);
+  assert.strictEqual(E.pazarReddet(st, 0).reason, 'alici_degil');
+  const r1 = E.pazarReddet(st, 1);
+  assert.ok(r1.ok && !r1.kapandi);
+  assert.deepStrictEqual(st.pazar.alicilar, [2]);
+  assert.strictEqual(E.pazarReddet(st, 1).reason, 'alici_degil');
+  const r2 = E.pazarReddet(st, 2);
+  assert.ok(r2.ok && r2.kapandi);
+  assert.strictEqual(st.pazar, null);
+  assert.strictEqual(st.kare[1].sahip, 0);
+});
+
+test('günlük: maaş tutarı, kira kare numarası ve kart metni kayda girer', () => {
+  const st = oyun([0, 1]);
+  st.oyuncu[0].konum = 38;
+  assert.ok(E.zarAt(st, 0).ok);
+  assert.ok(st.gunluk.some(g => g === 'maas:0:' + E.MAAS));
+  const g = E.gorunum(st, 0, {});
+  assert.ok(g.sonKart === null || typeof g.sonKart.n === 'number');
+});

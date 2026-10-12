@@ -134,7 +134,7 @@
       var rc = kareYeri(i);
       var n = sayac[i]++;
       var bekleyenP = (s.faz === 'teklif' && s.teklif) ? s.teklif.seat : s.turn;
-      h += '<div class="mp-piyon' + (bekleyenP === o.seat ? ' sirada' : '') + '" data-seat="' + o.seat + '" data-kare="' + i + '" style="grid-row:' +
+      h += '<div class="mp-piyon' + (bekleyenP === o.seat ? ' sirada' : '') + '" data-seat="' + o.seat + '" data-kare="' + i + '"' + (o.cezaevi ? ' data-ceza="1"' : '') + ' style="grid-row:' +
            (rc[0] + 1) + ';grid-column:' + (rc[1] + 1) + ';--mp-dx:' + (n % 2) + ';--mp-dy:' +
            Math.floor(n / 2) + ';background:' + PIYON_RENK[s.seats.indexOf(o.seat) % 4] + '">' +
            PIYON_SIM[s.seats.indexOf(o.seat) % 4] + '</div>';
@@ -266,11 +266,29 @@
   });
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && acikKart !== null) kartKapat(); });
 
+  /* Çekilen kart ortada yalnız birkaç saniye görünür; sonra kaybolur (eskiden
+     bir sonraki kart çekilene dek ekranda takılı kalıyordu). Kart "yeni"
+     sayılmak için sunucudaki sayacı (n) değişmiş olmalı; ilk çizimde (sayfa
+     yenileme) eski kart gösterilmez. */
+  var kartGorulenN = null, kartBitis = 0, kartZaman = null;
+  var KART_SURE_MS = 5000;
+  function kartKaldir() {
+    kartBitis = 0;
+    document.querySelectorAll('.mp-kart').forEach(function (k) { if (k.parentNode) k.parentNode.removeChild(k); });
+  }
   function ortaHtml(s) {
-    var h = '';
-    if (s.sonKart && s.sonKart.metin) {
+    var h = '<div class="mp-fon-deste" title="Topluluk Fonu destesi" aria-hidden="true"><b>FON</b></div>';
+    var kn = s.sonKart && s.sonKart.n !== undefined ? s.sonKart.n : null;
+    if (kartGorulenN === null) kartGorulenN = kn;
+    else if (kn !== null && kn !== kartGorulenN) {
+      kartGorulenN = kn; kartBitis = Date.now() + KART_SURE_MS;
+      if (kartZaman) clearTimeout(kartZaman);
+      kartZaman = setTimeout(kartKaldir, KART_SURE_MS);
+    }
+    if (s.sonKart && s.sonKart.metin && Date.now() < kartBitis) {
       h += '<div class="mp-kart ' + (s.sonKart.tur === 'sans' ? 'sans' : 'fon') + '">' +
-           '<div class="mp-kart-bas">' + (s.sonKart.tur === 'sans' ? '🎲 ŞANS' : '🏛️ TOPLULUK FONU') + '</div>' +
+           '<div class="mp-kart-bas">' + (s.sonKart.tur === 'sans' ? '🎲 ŞANS' : '🏛️ TOPLULUK FONU') +
+           (s.sonKart.seat !== undefined && s.sonKart.seat !== null ? ' · ' + esc(adOfTam(s.sonKart.seat)) : '') + '</div>' +
            '<div class="mp-kart-metin">' + esc(s.sonKart.metin) + '</div></div>';
     }
     if (s.havuz !== null && s.havuz !== undefined && s.havuz > 0) {
@@ -286,13 +304,16 @@
     switch (pr[0]) {
       case 'aldi':        return adOf(+pr[1]) + ' ' + kareAd(pr[2]) + ' aldı';
       case 'teklifAldi':  return adOf(+pr[1]) + ' teklifle ' + kareAd(pr[2]) + ' aldı';
-      case 'kira':        return adOf(+pr[1]) + ' → ' + adOf(+pr[2]) + ' kira ' + para(pr[3]);
-      case 'maas':        return adOf(+pr[1]) + ' maaş aldı';
+      case 'kira':        return adOf(+pr[1]) + ' → ' + adOf(+pr[2]) + (pr[4] !== undefined ? ' ' + kareAd(pr[4]) : '') + ' kira ' + para(pr[3]);
+      case 'maas':        return adOf(+pr[1]) + ' Kalkış maaşı aldı +' + para(pr[2] || 200);
       case 'bina':        return adOf(+pr[1]) + ' ' + kareAd(pr[2]) + ' bina ' + pr[3];
       case 'iflas':       return adOf(+pr[1]) + ' İFLAS etti';
       case 'cezaevi':     return adOf(+pr[1]) + ' cezaevine gitti';
       case 'vergi':       return adOf(+pr[1]) + ' vergi ödedi ' + para(pr[2]);
-      case 'kart':        return adOf(+pr[1]) + ' ' + (pr[2] === 'sans' ? 'şans' : 'fon') + ' kartı çekti';
+      case 'kart':        return adOf(+pr[1]) + ' ' + (pr[2] === 'sans' ? 'şans' : 'fon') + ' kartı: ' + (pr.length > 3 ? pr.slice(3).join(':') : 'çekti');
+      case 'onarim':      return adOf(+pr[1]) + ' onarım gideri ödedi ' + para(pr[2]);
+      case 'sabitRed':    return adOf(+pr[1]) + ' satış teklifini reddetti';
+      case 'sabitHepsiRed': return adOf(+pr[1]) + ' ' + kareAd(pr[2]) + ' satışı: kimse almadı, kapandı';
       case 'sabitSat':    return adOf(+pr[1]) + ' ' + kareAd(pr[2]) + ' tapusunu ' + para(pr[3]) + ' fiyatla satışa çıkardı';
       case 'artirmaAc':   return adOf(+pr[1]) + ' ' + kareAd(pr[2]) + ' için açık artırma başlattı (' + para(pr[3]) + ')';
       case 'artirmaTeklif': return adOf(+pr[1]) + ' ' + kareAd(pr[2]) + ' için ' + para(pr[3]) + ' teklif verdi';
@@ -337,12 +358,47 @@
       var ad = (pr[1] !== undefined && /^\d+$/.test(pr[1])) ? adOfTam(+pr[1]) : '';
       var kisa = ad && tam.indexOf(ad) === 0 ? ad + ':' + tam.slice(ad.length) : tam;
       kayitEkle(tam, kisa, ilk);
+      if (!ilk) benimBildirim(s, pr);
     });
+  }
+  /* KÖŞE BİLDİRİMİ: kira / maaş / vergi gibi bana dokunan olaylar köşede 4 sn
+     görünür. Tek kutu: yeni bildirim eskisinin yerine geçer, yığılma olmaz;
+     tıklamayı engellemez. */
+  var bildirimZaman = null;
+  function bildir(metin, tur) {
+    var oda = document.getElementById('pg-room') || document.body;
+    var el = document.getElementById('mpBildirim');
+    if (!el) { el = document.createElement('div'); el.id = 'mpBildirim'; el.setAttribute('role', 'status'); el.setAttribute('aria-live', 'polite'); }
+    if (el.parentNode !== oda) oda.appendChild(el);
+    el.className = 'mp-bildirim ' + (tur || 'bilgi');
+    el.innerHTML = metin;
+    void el.offsetWidth;
+    el.classList.add('goster');
+    if (bildirimZaman) clearTimeout(bildirimZaman);
+    bildirimZaman = setTimeout(bildirimKaldir, 4000);
+  }
+  function bildirimKaldir() {
+    var el = document.getElementById('mpBildirim');
+    if (el) el.classList.remove('goster');
+  }
+  function benimBildirim(s, pr) {
+    var ben = s.seat;
+    if (ben === null || ben === undefined) return;
+    var kareAd = function (i) { return ((s.kareler || [])[Number(i)] || {}).ad || ''; };
+    var k = pr[0], a = Number(pr[1]), b = Number(pr[2]);
+    if (k === 'kira' && pr[3] !== undefined) {
+      var kn = pr[4] !== undefined ? '<b>' + esc(kareAd(pr[4])) + '</b>' : 'mülküne';
+      if (a === ben) bildir('🏠 ' + esc(adOfTam(b)) + ' oyuncusunun ' + kn + ' mülküne geldiniz.<br>Kira ödüyorsunuz: <b>−' + para(pr[3]) + '</b>', 'gider');
+      else if (b === ben) bildir('💰 ' + esc(adOfTam(a)) + ' ' + kn + ' mülkünüze geldi.<br>Kira ödedi: <b>+' + para(pr[3]) + '</b>', 'gelir');
+    } else if (k === 'maas' && a === ben) bildir('💵 Kalkış\'tan geçtiniz — maaş <b>+' + para(pr[2] || 200) + '</b>', 'gelir');
+    else if (k === 'vergi' && a === ben) bildir('🧾 Vergi ödediniz: <b>−' + para(pr[2]) + '</b>', 'gider');
+    else if (k === 'onarim' && a === ben) bildir('🔧 Onarım gideri: <b>−' + para(pr[2]) + '</b>', 'gider');
+    else if (k === 'havuz' && a === ben) bildir('🅿️ Park havuzunu aldınız: <b>+' + para(pr[2]) + '</b>', 'gelir');
   }
   function tikerHtml() {
     var simdi = Date.now();
     var liste = tikerKayit.filter(function (k) { return simdi - k.t < TIKER_OMUR_MS + 400; }).slice(-TIKER_SATIR);
-    return '<div class="mp-tiker" aria-hidden="true"><i class="mp-surum">o</i>' + liste.map(function (k, i) {
+    return '<div class="mp-tiker" aria-hidden="true"><i class="mp-surum">p</i>' + liste.map(function (k, i) {
       var yas = simdi - k.t;
       var yeni = i === liste.length - 1 && yas < 600;
       return '<div class="mp-tk' + (yeni ? ' yeni' : '') + '" style="animation-delay:' + (yeni ? '0s,' : '') + '-' + yas + 'ms">' +
@@ -525,9 +581,10 @@
         '<div class="mp-pz-ac"><b>' + esc(satici) + '</b> bu tapuyu ' + para(pz.fiyat) + ' karşılığında satıyor. İlk satın alan tapuyu alır.</div>';
       if (alici) {
         var yeter = oyuncu.para >= pz.fiyat;
-        h += '<button type="button" class="btn mp-pz-btn" data-pz="al"' + (yeter ? '' : ' disabled') + '>Satın al (' + para(pz.fiyat) + ')</button>' +
+        h += '<div class="mp-pz-cift"><button type="button" class="btn mp-pz-btn" data-pz="al"' + (yeter ? '' : ' disabled') + '>Satın al (' + para(pz.fiyat) + ')</button>' +
+             '<button type="button" class="btn secondary mp-pz-btn" data-pz="reddet">Reddet</button></div>' +
              (yeter ? '' : '<div class="mp-pz-not">Nakdiniz yetmiyor (' + para(oyuncu.para) + ').</div>') +
-             '<div class="mp-pz-ipucu">Almak istemezseniz bekleyin; süre dolunca teklif kapanır.</div>';
+             '<div class="mp-pz-ipucu">İstemiyorsanız Reddet\'e basın; beklemeniz gerekmez.</div>';
       } else if (!seyirci && pz.satici === ben) {
         h += '<button type="button" class="btn secondary mp-pz-btn" data-pz="vazgec">Satıştan vazgeç</button>' +
              '<div class="mp-pz-ipucu">Rakipler karar veriyor…</div>';
@@ -576,6 +633,9 @@
   function pazarCiz(m, s) {
     if (!s.pazar || s.status !== 'playing') { pazarKapat(); return; }
     var pz = s.pazar;
+    /* Sabit satışı reddetmiş oyuncunun penceresi kapanır (oyun ekranı serbest). */
+    if (pz.mod === 'sabit' && s.seat !== null && s.seat !== undefined && !m.isSpectator &&
+        pz.satici !== s.seat && (pz.alicilar || []).indexOf(s.seat) === -1) { pazarKapat(); return; }
     var imza = [pz.mod, pz.kare, pz.asama, pz.bekleyen, pz.satici, pz.fiyat, pz.enYuksek ? pz.enYuksek.tutar : '',
       JSON.stringify(pz.hak), JSON.stringify(pz.cekildi), (pz.alicilar || []).join(','), s.seat,
       (s.oyuncular || []).map(function (o) { return o.para; }).join(',')].join('#');
@@ -600,6 +660,7 @@
       else if (ne === 'hizli' && alan) alan.value = min + Number(b.getAttribute('data-v'));
       else if (ne === 'al') pazarModel.emit('metropolMarketBuy', {});
       else if (ne === 'vazgec') pazarModel.emit('metropolMarketCancel', {});
+      else if (ne === 'reddet') pazarModel.emit('metropolMarketDecline', {});
       else if (ne === 'cekil') pazarModel.emit('metropolBidPass', {});
       else if (ne === 'kabul') pazarModel.emit('metropolMarketDecide', { kabul: true });
       else if (ne === 'red') pazarModel.emit('metropolMarketDecide', { kabul: false });
@@ -1178,7 +1239,7 @@
     if (!aktifKok || !document.body.contains(aktifKok)) return;
     var bekle = Date.now() < piyonBaslama, ilerledi = false, kalan = false;
     Object.keys(piyonHedef).forEach(function (sd) {
-      if (piyonGoster[sd] === piyonHedef[sd]) return;
+      if (piyonGoster[sd] === piyonHedef[sd] || piyonCezaBekle[sd]) return;
       if (!bekle) { piyonGoster[sd] = (piyonGoster[sd] + 1) % 40; ilerledi = true; }
       if (piyonGoster[sd] !== piyonHedef[sd]) kalan = true;
     });
@@ -1195,12 +1256,47 @@
     var bekleyen = Object.keys(piyonHedef).some(function (sd) { return piyonGoster[sd] !== piyonHedef[sd]; });
     if (bekleyen || kalan) piyonDongu = setTimeout(piyonAdimla, bekle ? 60 : PIYON_ADIM_MS);
   }
+  /* CEZAEVİNE GİDİŞ: piyon bulunduğu kareden cezaevine doğrudan, kısa bir
+     "götürülme" hareketiyle kayar; kelepçe takılma sesi, ardından hapis kapısı
+     kapanma sesi çalar. Zar görüldükten sonra (piyonBaslama) başlar. */
+  var piyonCezaGorulen = {}, piyonCezaBekle = {};
+  function cezaeviyeGotur(sd) {
+    piyonCezaBekle[sd] = true;
+    var bekle = Math.max(0, piyonBaslama - Date.now()) + 350;
+    setTimeout(function () {
+      var tahta = aktifKok && aktifKok.querySelector ? aktifKok.querySelector('.mp-tahta') : null;
+      var el = tahta && tahta.querySelector('.mp-piyon[data-seat="' + sd + '"]');
+      ses('kelepce');
+      var r0 = el ? el.getBoundingClientRect() : null;
+      piyonGoster[sd] = piyonHedef[sd] != null ? piyonHedef[sd] : 10;
+      piyonGuncelle();
+      var r1 = el ? el.getBoundingClientRect() : null;
+      if (el && r0 && r1 && el.animate) {
+        try {
+          el.animate([
+            { translate: (r0.left - r1.left) + 'px ' + (r0.top - r1.top) + 'px', scale: '1.15' },
+            { translate: ((r0.left - r1.left) * 0.5) + 'px ' + ((r0.top - r1.top) * 0.5 - 14) + 'px', scale: '1.5', offset: 0.5 },
+            { translate: '0px 0px', scale: '1' }
+          ], { duration: 780, easing: 'cubic-bezier(.45,0,.25,1)' });
+        } catch (_) {}
+      }
+      setTimeout(function () { ses('hapisKapi'); piyonCezaBekle[sd] = false; piyonGuncelle(); }, 800);
+    }, bekle);
+  }
   function piyonKur(kok) {
     aktifKok = kok;
     var yeniHedef = {};
     kok.querySelectorAll('.mp-piyon[data-seat]').forEach(function (p) {
       var sd = p.getAttribute('data-seat'), h = Number(p.getAttribute('data-kare'));
+      var ceza = p.getAttribute('data-ceza') === '1';
       yeniHedef[sd] = h;
+      if (piyonCezaBekle[sd]) { piyonCezaGorulen[sd] = ceza; return; }
+      if (piyonGoster[sd] != null && piyonHazir && ceza && !piyonCezaGorulen[sd] && piyonGoster[sd] !== h) {
+        piyonCezaGorulen[sd] = true;
+        cezaeviyeGotur(sd);
+        return;
+      }
+      piyonCezaGorulen[sd] = ceza;
       if (piyonGoster[sd] == null || !piyonHazir) { piyonGoster[sd] = h; return; }
       var ileri = (h - piyonGoster[sd] + 40) % 40;
       if (ileri > 13) piyonGoster[sd] = h;           // sıçrayış: kare kare yürütme
@@ -1253,7 +1349,8 @@
   }
   window.addEventListener('gv:roomLeft', function () {
     acikGrup = null; sonKart = null; aktifOlcu = null;
-    kartKapat(); islemKapat(); pazarKapat();
+    kartKapat(); islemKapat(); pazarKapat(); bildirimKaldir(); kartGorulenN = null; kartBitis = 0;
+    piyonCezaGorulen = {}; piyonCezaBekle = {};
     sonZarAnahtar = null; sonZarZaman = 0;
     gorulenGunluk = null; tikerKayit = [];
     piyonGoster = {}; piyonHedef = {}; piyonHazir = false; piyonBaslama = 0; dikeyKaydirildi = false;
