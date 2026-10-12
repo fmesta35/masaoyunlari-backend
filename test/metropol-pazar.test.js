@@ -120,3 +120,25 @@ test('günlük: maaş tutarı, kira kare numarası ve kart metni kayda girer', (
   const g = E.gorunum(st, 0, {});
   assert.ok(g.sonKart === null || typeof g.sonKart.n === 'number');
 });
+
+test('cezaevi: düşen oyuncuya soru yok, el kendiliğinden geçer; 3. başarısız turda çıkar', () => {
+  const st = oyun([0, 1]);
+  st.cift = 2;                       // (4,4) = üçüncü çift → cezaevi
+  const r = E.zarAt(st, 0);
+  assert.ok(r.ok && r.ucCift && r.otoBitir);
+  assert.ok(st.oyuncu[0].cezaevi);
+  assert.strictEqual(E.siradakiKoltuk(st), 1, 'sıra kendiliğinden rakibe geçti');
+  assert.strictEqual(st.faz, 'zar');
+  /* Cezaevindeyken çift gelmezse: el yine kendiliğinden geçer. (1,2) zarı. */
+  const seq = [0, 0, 0.2, 0.2, 0, 0.2];   // d1=1,d2=2 hep
+  let k = 0; st.rng = () => seq[k++ % 2 === 0 ? 0 : 2];
+  st.sira = 0; st.faz = 'zar';
+  const r1 = E.zarAt(st, 0);
+  assert.ok(r1.cezaevinde && r1.otoBitir && E.siradakiKoltuk(st) === 1);
+  st.sira = 0; st.faz = 'zar';
+  E.zarAt(st, 0);
+  assert.ok(st.oyuncu[0].cezaevi);
+  st.sira = 0; st.faz = 'zar';
+  const r3 = E.zarAt(st, 0);              // 3. başarısız deneme: kefalet ödenir, çıkar
+  assert.ok(!st.oyuncu[0].cezaevi && (r3.kefalet || r3.ok));
+});

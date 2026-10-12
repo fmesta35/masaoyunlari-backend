@@ -398,7 +398,7 @@
   function tikerHtml() {
     var simdi = Date.now();
     var liste = tikerKayit.filter(function (k) { return simdi - k.t < TIKER_OMUR_MS + 400; }).slice(-TIKER_SATIR);
-    return '<div class="mp-tiker" aria-hidden="true"><i class="mp-surum">p</i>' + liste.map(function (k, i) {
+    return '<div class="mp-tiker" aria-hidden="true"><i class="mp-surum">r</i>' + liste.map(function (k, i) {
       var yas = simdi - k.t;
       var yeni = i === liste.length - 1 && yas < 600;
       return '<div class="mp-tk' + (yeni ? ' yeni' : '') + '" style="animation-delay:' + (yeni ? '0s,' : '') + '-' + yas + 'ms">' +
@@ -801,7 +801,7 @@
       var benKoltuk = s.seat, benOyuncu = (s.oyuncular || []).find(function (o) { return o.seat === benKoltuk; }) || {};
       h += '<div class="mp-dugmeler">';
       if (s.status === 'playing' && !s.pazar) {
-        if (benimSira && benOyuncu.cezaevi) {
+        if (benimSira && benOyuncu.cezaevi && s.faz === 'zar') {
           h += '<button class="btn mp-at" type="button">🎲 ÇİFT DENE</button>';
           h += '<button class="btn secondary mp-kefalet" type="button">💸 Kefalet ' + para(s.kefalet) + '</button>';
           if (benOyuncu.cikisKarti > 0) {

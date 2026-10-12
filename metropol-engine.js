@@ -315,7 +315,23 @@ function cezaeviNeGonder(st, seat) {
 }
 
 /* ----------------------------------------------------------------- ZAR */
+/* Cezaevine düşen (ya da cezaevinde çift atamayan) oyuncuya "turu bitir" ya da
+   "kefalet / çift dene" SORULMAZ: el kendiliğinden bir sonraki oyuncuya geçer.
+   Zar değeri ekranda kalsın diye sıfırlanmaz. */
 function zarAt(st, seat) {
+  const r = zarAtIc(st, seat);
+  if (r && r.ok && st.status === 'playing' && st.faz === 'bitir' && !st.pazar) {
+    const p = st.oyuncu[seat];
+    if (p && p.cezaevi && !r.iflas) {
+      const z = st.zar.slice(), zt = st.zarToplam;
+      turuBitir(st, seat);
+      if (st.status === 'playing') { st.zar = z; st.zarToplam = zt; }
+      r.otoBitir = true;
+    }
+  }
+  return r;
+}
+function zarAtIc(st, seat) {
   if (st.status !== 'playing') return { ok: false, reason: 'game_over' };
   if (st.pazar) return { ok: false, reason: 'pazar_acik' };
   if (seat !== siradakiKoltuk(st)) return { ok: false, reason: 'not_your_turn' };
