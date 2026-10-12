@@ -322,12 +322,18 @@
       yeni = simdi.slice(k);
     }
     gorulenGunluk = simdi;
-    yeni.forEach(function (g) { kayitEkle(gunlukMetni(s, g), gunlukMetni(s, g, true), ilk); });
+    yeni.forEach(function (g) {
+      var tam = gunlukMetni(s, g), pr = String(g).split(':');
+      /* Mobil şerit: "Ziyaretçi#282: PANGALTI aldı" — oyuncu adı + iki nokta + eylem. */
+      var ad = (pr[1] !== undefined && /^\d+$/.test(pr[1])) ? adOfTam(+pr[1]) : '';
+      var kisa = ad && tam.indexOf(ad) === 0 ? ad + ':' + tam.slice(ad.length) : tam;
+      kayitEkle(tam, kisa, ilk);
+    });
   }
   function tikerHtml() {
     var simdi = Date.now();
     var liste = tikerKayit.filter(function (k) { return simdi - k.t < TIKER_OMUR_MS + 400; }).slice(-TIKER_SATIR);
-    return '<div class="mp-tiker" aria-hidden="true"><i class="mp-surum">l</i>' + liste.map(function (k, i) {
+    return '<div class="mp-tiker" aria-hidden="true"><i class="mp-surum">m</i>' + liste.map(function (k, i) {
       var yas = simdi - k.t;
       var yeni = i === liste.length - 1 && yas < 600;
       return '<div class="mp-tk' + (yeni ? ' yeni' : '') + '" style="animation-delay:' + (yeni ? '0s,' : '') + '-' + yas + 'ms">' +
@@ -445,7 +451,7 @@
           var atan = (s.oyuncular || []).filter(function (o) { return o.seat === s.turn; })[0];
           var hedefKare = atan && s.kareler[atan.konum];
           var zt = s.zar[0] + '-' + s.zar[1] + (hedefKare ? ' → ' + hedefKare.ad : '');
-          kayitEkle(adOfTam(s.turn) + ' 🎲 ' + zt, (PIYON_SIM[s.seats.indexOf(s.turn) % 4] || '') + ' 🎲 ' + s.zar[0] + '-' + s.zar[1] + (hedefKare ? ' → ' + kisaAd(hedefKare) : ''));
+          kayitEkle(adOfTam(s.turn) + ' 🎲 ' + zt, adOfTam(s.turn) + ': 🎲 ' + s.zar[0] + '-' + s.zar[1] + (hedefKare ? ' → ' + kisaAd(hedefKare) : ''));
         }
         sonZarAnahtar = zarAnahtar;
       } else if (sonZarAnahtar === null) sonZarAnahtar = zarAnahtar;
