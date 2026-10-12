@@ -333,7 +333,7 @@
   function tikerHtml() {
     var simdi = Date.now();
     var liste = tikerKayit.filter(function (k) { return simdi - k.t < TIKER_OMUR_MS + 400; }).slice(-TIKER_SATIR);
-    return '<div class="mp-tiker" aria-hidden="true"><i class="mp-surum">m</i>' + liste.map(function (k, i) {
+    return '<div class="mp-tiker" aria-hidden="true"><i class="mp-surum">n</i>' + liste.map(function (k, i) {
       var yas = simdi - k.t;
       var yeni = i === liste.length - 1 && yas < 600;
       return '<div class="mp-tk' + (yeni ? ' yeni' : '') + '" style="animation-delay:' + (yeni ? '0s,' : '') + '-' + yas + 'ms">' +
@@ -590,7 +590,7 @@
           return !!(window.matchMedia && window.matchMedia('(pointer:coarse)').matches && (window.innerWidth || 0) <= 1000);
         } catch (_) { return false; }
       }
-      function oyuncuYerlestir(fs, mobilYatay) {
+      function oyuncuYerlestir(fs, mobilYatay, mobilDikey) {
         var wrap = root.querySelector('.mp-wrap');
         if (!wrap) return;
         var oda = document.getElementById('pg-room');
@@ -605,6 +605,15 @@
         if (yan && alanEl && yan.offsetParent !== null) {
           var ra = alanEl.getBoundingClientRect(), ry = yan.getBoundingClientRect();
           yanda = ry.width > 0 && ry.left >= ra.right - 4;
+        }
+        /* DİKEY TELEFON: para çipleri tahtanın ÜSTÜNDE yer kaplamasın diye
+           ortadaki panelde "Mülkleriniz"in hemen üstüne alınır. */
+        if (mobilDikey && oy) {
+          var pnl = wrap.querySelector('.mp-panel') || (yuva && yuva.querySelector('.mp-panel')) || root.querySelector('.mp-panel');
+          var mb = pnl && pnl.querySelector('.mp-mulk-bas');
+          if (pnl && mb && oy.parentNode !== pnl) pnl.insertBefore(oy, mb);
+          if (yuva && yuva.parentNode) yuva.parentNode.removeChild(yuva);
+          return;
         }
         if ((fs || yanda || mobilYatay) && yan) {
           if (!yuva) { yuva = document.createElement('div'); yuva.id = 'mpYanOyuncular'; }
@@ -785,14 +794,14 @@
         var fs = !!(odaEl && odaEl.classList.contains('gv-fs'));
         var mobil = mobilMi() && !fs;
         var yatayEkran = (window.innerWidth || 0) > (window.innerHeight || 0);
-        var mobilYatay = mobil && yatayEkran, mobilDikey = mobil && !yatayEkran;
+        var mobilYatay = mobil && yatayEkran, mobilDikey = mobil && !yatayEkran, hizalaIste = false;
         var sarmal0 = root.querySelector('.mp-wrap');
         if (sarmal0) sarmal0.classList.toggle('dikey', mobilDikey);   // çipler ölçümden ÖNCE sadeleşsin
-        oyuncuYerlestir(fs, mobilYatay);
+        oyuncuYerlestir(fs, mobilYatay, mobilDikey);
         var alan = document.getElementById('boardArea');
         var r = alan ? alan.getBoundingClientRect() : { width: 1000, height: 640 };
         var oy = root.querySelector('.mp-oyuncular');
-        var pay = (oy ? oy.getBoundingClientRect().height : 0) + 26;
+        var pay = mobilDikey ? 8 : (oy ? oy.getBoundingClientRect().height : 0) + 26;
         var G = Math.max(260, r.width);
         /* ⚠ Kullanılabilir YÜKSEKLİK, #boardArea'nın kendi yüksekliği DEĞİL:
            o kutu sayfanın altından taşabiliyor ve tahtanın son sırası ekranın
@@ -819,17 +828,11 @@
           vh = Math.min(vh, window.innerHeight || vh);
           var kapUst = kap ? kap.getBoundingClientRect().top : 100;
           var Hc = Math.min(kap ? kap.clientHeight : 9999, vh - Math.max(0, kapUst));
-          Y = Math.max(300, Math.round(Hc - pay - 28));
-          /* Görünen yüksekliği veya genişliği değişince oyun alanı kabın en
-             üstüne hizalanır (düzen oturana dek birkaç kez denenir). */
+          Y = Math.max(300, Math.round(Hc - pay - 22));
+          /* Görünen yükseklik/genişlik değişince oyun alanı kabın en üstüne
+             hizalanır; bu, DÜZEN UYGULANDIKTAN SONRA yapılır (aşağıda). */
           var anahtarK = Math.round(vh) + 'x' + Math.round(G);
-          if (dikeyKaydirildi !== anahtarK && sarmal0) {
-            dikeyKaydirildi = anahtarK;
-            var hizala = function () {
-              try { sarmal0.scrollIntoView({ block: 'start', behavior: 'auto' }); } catch (_) {}
-            };
-            hizala(); setTimeout(hizala, 250); setTimeout(hizala, 800);
-          }
+          if (dikeyKaydirildi !== anahtarK) { dikeyKaydirildi = anahtarK; hizalaIste = true; }
         } else dikeyKaydirildi = false;
         var genis = G >= 900 && Y >= 430;
         /* KOMPAKT: tam ekran ama alan dar (telefon). Tahta TÜM alanı alır,
@@ -864,6 +867,7 @@
           var duz = duzenSec(kareler, G, Y, ortada, kompakt, mobilDikey);
           if (duz) duzenUygula(tahta, duz);
           root.__mpDuzen = duz;
+          if (hizalaIste) dikeyHizala();
         }
         /* Açık bilgi kartı varsa yeni ölçüye göre yeniden konumlansın. */
         if (acikKart !== null) {
@@ -956,6 +960,20 @@
     piyonGuncelle();
     var bekleyen = Object.keys(piyonHedef).some(function (sd) { return piyonGoster[sd] !== piyonHedef[sd]; });
     if (bekleyen && !piyonDongu) piyonDongu = setTimeout(piyonAdimla, 60);
+  }
+
+
+  /* DİKEY TELEFON: oyun alanını kaydırma kabının en üstüne getirir. Düzen ve
+     yükseklik oturana dek birkaç kez, her seferinde GÜNCEL öğeyle denenir
+     (yeniden çizimde eski öğe DOM'dan kopabiliyor). */
+  function dikeyHizala() {
+    [0, 120, 400, 900, 1800].forEach(function (ms) {
+      setTimeout(function () {
+        var w = aktifKok && aktifKok.querySelector ? aktifKok.querySelector('.mp-wrap.dikey') : null;
+        if (!w) return;
+        try { w.scrollIntoView({ block: 'start', behavior: 'auto' }); } catch (_) {}
+      }, ms);
+    });
   }
 
   var aktifOlcu = null, gozcu = null;
