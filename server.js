@@ -1399,10 +1399,14 @@ function moveClockOf(room) {
   // Sırası olan KİMSE YOKSA (ör. Amiral Battı'nın yerleştirme fazı) hamle
   // sayacı da olmamalı: eskiden üstteki şerit orada anlamsız bir geri
   // sayım gösteriyordu. Yerleştirmenin kendi süresi ayrı alanda gider.
+  /* METROPOL pazarı açıkken saat donuk: kalan süre sabit görünür. */
+  const donuk = !!(room.metropol && room.metropol.pazar && room.mpDondur !== null && room.mpDondur !== undefined);
   return {
     turnSeat: seat,
     turnLimitMs: limit,
-    turnRemainingMs: (playing && seat !== null) ? Math.max(0, limit - (now() - room.moveStartedAt)) : null,
+    turnFrozen: donuk,
+    turnRemainingMs: (playing && seat !== null)
+      ? Math.max(0, limit - (donuk ? room.mpDondur : (now() - room.moveStartedAt))) : null,
     serverNow: now()
   };
 }
@@ -1686,8 +1690,10 @@ function metropolTurLimiti(room) {
 function metropolState(room, seat) {
   const m = room.metropol;
   if (!m) return null;
-  return metropolEngine.gorunum(m, (typeof seat === 'number') ? seat : null,
+  const g = metropolEngine.gorunum(m, (typeof seat === 'number') ? seat : null,
     Object.assign({ status: room.status }, moveClockOf(room)));
+  if (g.pazar) g.pazar.kalanMs = Math.max(0, g.pazar.bitis - now());
+  return g;
 }
 function emitMetropolState(room, event = 'gameStateUpdated') {
   room.players.forEach(p => emitToPlayer(p, event, {
@@ -1736,7 +1742,21 @@ function metropolBitisYayinla(room, reason) {
 }
 function metropolSonrasi(room) {
   const m = room.metropol;
-  touchMoveTimer(room);
+  /* PAZAR (satış / açık artırma) açıkken HAMLE SAATİ DURUR: oturum açılırken
+     o ana dek geçen süre saklanır; oturum kapanınca saat kaldığı yerden
+     işlemeye devam eder. Başka her durumda her eylem saati sıfırlar. */
+  if (m.pazar) {
+    if (room.mpDondur === null || room.mpDondur === undefined) {
+      room.mpDondur = Math.max(0, now() - (room.moveStartedAt || now()));
+    }
+    room.moveStartedAt = now() - room.mpDondur;
+  } else if (room.mpDondur !== null && room.mpDondur !== undefined) {
+    room.moveStartedAt = now() - room.mpDondur;
+    room.mpDondur = null;
+    room.moveWarned = false;
+  } else {
+    touchMoveTimer(room);
+  }
   if (m.status !== 'playing') {
     metropolBitisYayinla(room);
     emitMetropolState(room); emitRoom(room); scheduleRoomReset(room);
@@ -5378,6 +5398,16 @@ io.on('connection', socket => {
   socket.on('metropolBail',     data => mpEylem(data, 'kefalet', (m, seat) => metropolEngine.kefaletOde(m, seat)));
   socket.on('metropolJailCard', data => mpEylem(data, 'cikisKarti', (m, seat) => metropolEngine.cikisKartiKullan(m, seat)));
   socket.on('metropolEndTurn',  data => mpEylem(data, 'turuBitir', (m, seat) => metropolEngine.turuBitir(m, seat)));
+  /* PAZAR: satış / açık artırma. Süreler sunucuda (now()) işler. */
+  socket.on('metropolMarketOpen', data => mpEylem(data, 'pazarAc', (m, seat) =>
+    metropolEngine.pazarAc(m, seat, Number(data && data.kare), String(data && data.mod || ''), Number(data && data.fiyat), now())));
+  socket.on('metropolMarketBuy',  data => mpEylem(data, 'pazarAl', (m, seat) => metropolEngine.pazarSatinAl(m, seat, now())));
+  socket.on('metropolMarketCancel', data => mpEylem(data, 'pazarVazgec', (m, seat) => metropolEngine.pazarVazgec(m, seat)));
+  socket.on('metropolBid',        data => mpEylem(data, 'teklif', (m, seat) =>
+    metropolEngine.pazarTeklif(m, seat, Number(data && data.tutar), now())));
+  socket.on('metropolBidPass',    data => mpEylem(data, 'cekil', (m, seat) => metropolEngine.pazarCekil(m, seat, now())));
+  socket.on('metropolMarketDecide', data => mpEylem(data, 'pazarKarar', (m, seat) =>
+    metropolEngine.pazarKarar(m, seat, !!(data && data.kabul), now())));
 
   socket.on('farkClick', data => {
     const room = rooms.get(socket.roomId || String(data && data.roomId || ''));
@@ -5930,6 +5960,17 @@ function enforceOnlineMoveTimeout(room) {
       room.players.forEach(p => emitToPlayer(p, 'gameEnded', { roomId: room.id, reason: 'placement_timeout', winnerSeat: winner, youWon: p.seat === winner, gameState: stateFor(p.seat) }));
     }
     emitBattleshipState(room); emitRoom(room); scheduleRoomReset(room);
+    return true;
+  }
+  /* METROPOL pazarı: 30 sn'lik pazar adımı ana saat yerine işler; hamle
+     saati donuk olduğu için hamle zaman aşımı hiç uygulanmaz. */
+  if (room.metropol && room.metropol.pazar) {
+    const pr = metropolEngine.pazarSureDoldu(room.metropol, now());
+    if (!pr) return false;
+    io.to(room.id).emit('metropolTimeout', { roomId: room.id, seat: pr.seat === undefined ? null : pr.seat,
+      ad: ((room.players.find(x => x.seat === pr.seat) || {}).name) || 'Oyuncu', tur: 'pazar_' + pr.tur });
+    metropolSonrasi(room);
+    emitRoom(room);
     return true;
   }
   const elapsed=now()-room.moveStartedAt, seat=cardMoveTurn(room); if (seat===null) return false;

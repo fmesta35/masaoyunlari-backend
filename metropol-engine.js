@@ -169,6 +169,7 @@ function macBaslat(opts) {
     cift: 0,
     sonKart: null,
     teklif: null,     // { kareIdx, sira: [koltuk...], idx }
+    pazar: null,      // açık satış/artırma oturumu (bkz. PAZAR)
     garX2: false,
     idareX10: false,
     gunluk: [],       // son olaylar (en çok 40)
@@ -316,6 +317,7 @@ function cezaeviNeGonder(st, seat) {
 /* ----------------------------------------------------------------- ZAR */
 function zarAt(st, seat) {
   if (st.status !== 'playing') return { ok: false, reason: 'game_over' };
+  if (st.pazar) return { ok: false, reason: 'pazar_acik' };
   if (seat !== siradakiKoltuk(st)) return { ok: false, reason: 'not_your_turn' };
   if (st.faz !== 'zar') return { ok: false, reason: 'wrong_phase' };
   const p = st.oyuncu[seat];
@@ -476,6 +478,7 @@ function kartCek(st, seat, tur, cift) {
 /* --------------------------------------------------------- SATIN ALMA */
 function satinAl(st, seat) {
   if (st.status !== 'playing') return { ok: false, reason: 'game_over' };
+  if (st.pazar) return { ok: false, reason: 'pazar_acik' };
   const sirada = siradakiKoltuk(st);
   /* Hem sıradaki oyuncunun kararı hem de teklif turundaki alım burada. */
   if (st.faz === 'karar') {
@@ -511,6 +514,7 @@ function satinAl(st, seat) {
    turunda reddeden sıradakine geçer. */
 function reddet(st, seat) {
   if (st.status !== 'playing') return { ok: false, reason: 'game_over' };
+  if (st.pazar) return { ok: false, reason: 'pazar_acik' };
   if (st.faz === 'karar') {
     if (seat !== siradakiKoltuk(st)) return { ok: false, reason: 'not_your_turn' };
     const kareIdx = st.oyuncu[seat].konum;
@@ -553,6 +557,7 @@ function binaKurulabilirMi(st, seat, kareIdx) {
 }
 function binaKur(st, seat, kareIdx) {
   if (st.status !== 'playing') return { ok: false, reason: 'game_over' };
+  if (st.pazar) return { ok: false, reason: 'pazar_acik' };
   if (seat !== siradakiKoltuk(st)) return { ok: false, reason: 'not_your_turn' };
   if (st.faz !== 'zar' && st.faz !== 'bitir') return { ok: false, reason: 'wrong_phase' };
   const sebep = binaKurulabilirMi(st, seat, Number(kareIdx));
@@ -565,6 +570,7 @@ function binaKur(st, seat, kareIdx) {
 }
 function binaSat(st, seat, kareIdx) {
   if (st.status !== 'playing') return { ok: false, reason: 'game_over' };
+  if (st.pazar) return { ok: false, reason: 'pazar_acik' };
   if (seat !== siradakiKoltuk(st)) return { ok: false, reason: 'not_your_turn' };
   const i = Number(kareIdx);
   const tanim = KARELER[i];
@@ -581,6 +587,7 @@ function binaSat(st, seat, kareIdx) {
 }
 function ipotek(st, seat, kareIdx) {
   if (st.status !== 'playing') return { ok: false, reason: 'game_over' };
+  if (st.pazar) return { ok: false, reason: 'pazar_acik' };
   if (seat !== siradakiKoltuk(st)) return { ok: false, reason: 'not_your_turn' };
   const i = Number(kareIdx);
   const tanim = KARELER[i];
@@ -601,9 +608,221 @@ function ipotek(st, seat, kareIdx) {
   return { ok: true, ipotek: false, bedel };
 }
 
+/* --------------------------------------------------------- PAZAR
+   Oyuncu KENDİ turunda (zar öncesi ya da tur bitirmeden önce) bir tapusunu
+   iki yoldan satışa çıkarabilir:
+     · SABİT FİYAT: satıcı fiyatı belirler; diğer oyuncuların HEPSİNE aynı
+       anda sunulur, parası yetip ilk "satın al"a basan alır.
+     · AÇIK ARTIRMA: tapunun liste fiyatının biraz üstünde sabit bir
+       başlangıçla açılır. Teklif sırası dönüşümlüdür; herkes oturumda en çok
+       3 kez teklif verir, istediği an "çekil" diyebilir. Sonunda en yüksek
+       teklif tapu sahibine sunulur: kabul ederse tapu o oyuncuya satılır,
+       reddederse artırma kapanır. Bir oyuncu bir tur içinde en çok 3 tapuyu
+       açık artırmaya sunabilir.
+   Her adımın süresi 30 saniyedir (süre dolunca: alıcı çekilir / satıcı
+   reddetmiş sayılır / sabit fiyat teklifi kapanır). Pazar açıkken HAMLE
+   SAATİ sunucuda DURDURULUR (bkz. server.js → metropolSonrasi). Motor
+   saf kalsın diye zamanı çağıran verir (`simdi`, ms).
+   Pazar açıkken başka hiçbir oyun eylemi kabul edilmez (`pazar_acik`). */
+const PAZAR_SURE_MS = 30000;
+const ARTIRMA_HAK = 3;          // oturumda kişi başı en çok teklif sayısı
+const TUR_ARTIRMA_LIMITI = 3;   // bir turda en çok açık artırmaya çıkan tapu
+const MIN_ARTIS = 10;
+const SATILABILIR_TURLER = { mulk: 1, gar: 1, idare: 1 };
+
+function artirmaBaslangic(fiyat) { return Math.ceil(fiyat * 1.1 / 5) * 5; }
+function turArtirmaKullanilan(st, seat) {
+  const a = st.oyuncu[seat].artirma;
+  return (a && a.tur === st.tur) ? a.n : 0;
+}
+function pazarSatilabilirMi(st, seat, kareIdx) {
+  const i = Number(kareIdx);
+  const tanim = KARELER[i];
+  const d = st.kare[i];
+  if (!tanim || !d || !SATILABILIR_TURLER[tanim.t]) return 'gecersiz_kare';
+  if (d.sahip !== seat) return 'sizin_degil';
+  if (d.ipotek) return 'ipotekli';
+  if (tanim.t === 'mulk' && grupKareleri(tanim.g).some(x => st.kare[x].ev > 0)) return 'once_binalari_sat';
+  return null;
+}
+function tapuDevret(st, satici, alici, kareIdx, tutar) {
+  st.oyuncu[alici].para -= tutar;
+  st.oyuncu[satici].para += tutar;
+  st.kare[kareIdx].sahip = alici;
+}
+function pazarAc(st, seat, kareIdx, mod, fiyat, simdi) {
+  if (st.status !== 'playing') return { ok: false, reason: 'game_over' };
+  if (st.pazar) return { ok: false, reason: 'pazar_acik' };
+  if (seat !== siradakiKoltuk(st)) return { ok: false, reason: 'not_your_turn' };
+  if (st.faz !== 'zar' && st.faz !== 'bitir') return { ok: false, reason: 'wrong_phase' };
+  const i = Number(kareIdx);
+  const sebep = pazarSatilabilirMi(st, seat, i);
+  if (sebep) return { ok: false, reason: sebep };
+  const rakipler = ayakta(st).filter(x => x !== seat);
+  if (!rakipler.length) return { ok: false, reason: 'rakip_yok' };
+  const tanim = KARELER[i];
+  const t0 = Number(simdi) || 0;
+  if (mod === 'sabit') {
+    const f = Math.floor(Number(fiyat));
+    if (!(f >= 10 && f <= tanim.p * 4)) return { ok: false, reason: 'fiyat_gecersiz' };
+    st.pazar = { mod: 'sabit', kare: i, satici: seat, fiyat: f, alicilar: rakipler,
+                 bitis: t0 + PAZAR_SURE_MS };
+    gunluge(st, 'sabitSat:' + seat + ':' + i + ':' + f);
+    return { ok: true, mod: 'sabit', kare: i, fiyat: f };
+  }
+  if (mod === 'artirma') {
+    if (turArtirmaKullanilan(st, seat) >= TUR_ARTIRMA_LIMITI) return { ok: false, reason: 'artirma_limiti' };
+    /* Teklif sırası: satıcıdan sonraki koltuktan başlayarak dönüşümlü. */
+    const bas = st.seats.indexOf(seat);
+    const sira = [];
+    for (let k = 1; k < st.seats.length; k++) {
+      const x = st.seats[(bas + k) % st.seats.length];
+      if (rakipler.indexOf(x) !== -1) sira.push(x);
+    }
+    const hak = {}, cekildi = {};
+    sira.forEach(x => { hak[x] = ARTIRMA_HAK; cekildi[x] = false; });
+    const a = st.oyuncu[seat].artirma;
+    st.oyuncu[seat].artirma = { tur: st.tur, n: (a && a.tur === st.tur ? a.n : 0) + 1 };
+    st.pazar = { mod: 'artirma', kare: i, satici: seat, baslangic: artirmaBaslangic(tanim.p),
+                 enYuksek: null, sira, idx: -1, hak, cekildi, asama: 'teklif', gecmis: [],
+                 bitis: t0 + PAZAR_SURE_MS };
+    gunluge(st, 'artirmaAc:' + seat + ':' + i + ':' + st.pazar.baslangic);
+    artirmaIlerle(st, t0);
+    return { ok: true, mod: 'artirma', kare: i, baslangic: st.pazar.baslangic };
+  }
+  return { ok: false, reason: 'mod_gecersiz' };
+}
+function artirmaMinTeklif(pz) {
+  return pz.enYuksek ? pz.enYuksek.tutar + MIN_ARTIS : pz.baslangic;
+}
+function artirmaAktifMi(st, pz, x) {
+  const o = st.oyuncu[x];
+  return !pz.cekildi[x] && pz.hak[x] > 0 && !o.iflas && o.para >= artirmaMinTeklif(pz) &&
+         !(pz.enYuksek && pz.enYuksek.seat === x);
+}
+/* Sıradaki teklif verebilecek oyuncuya geç; kimse kalmadıysa artırmayı bitir
+   (en yüksek teklif varsa satıcının kararına sun). */
+function artirmaIlerle(st, simdi) {
+  const pz = st.pazar;
+  const n = pz.sira.length;
+  for (let k = 1; k <= n; k++) {
+    const j = ((pz.idx < 0 ? -1 : pz.idx) + k + n) % n;
+    if (artirmaAktifMi(st, pz, pz.sira[j])) {
+      pz.idx = j; pz.bitis = (Number(simdi) || 0) + PAZAR_SURE_MS;
+      return;
+    }
+  }
+  if (!pz.enYuksek) {
+    gunluge(st, 'artirmaBos:' + pz.satici + ':' + pz.kare);
+    st.pazar = null;
+    return;
+  }
+  pz.asama = 'karar';
+  pz.idx = -1;
+  pz.bitis = (Number(simdi) || 0) + PAZAR_SURE_MS;
+}
+function pazarSatinAl(st, seat, simdi) {
+  const pz = st.pazar;
+  if (st.status !== 'playing' || !pz || pz.mod !== 'sabit') return { ok: false, reason: 'pazar_yok' };
+  if (pz.alicilar.indexOf(seat) === -1 || st.oyuncu[seat].iflas) return { ok: false, reason: 'alici_degil' };
+  if (st.oyuncu[seat].para < pz.fiyat) return { ok: false, reason: 'para_yetmiyor' };
+  tapuDevret(st, pz.satici, seat, pz.kare, pz.fiyat);
+  gunluge(st, 'satti:' + pz.satici + ':' + seat + ':' + pz.kare + ':' + pz.fiyat);
+  const r = { ok: true, kare: pz.kare, alici: seat, satici: pz.satici, tutar: pz.fiyat };
+  st.pazar = null;
+  return r;
+}
+function pazarVazgec(st, seat) {
+  const pz = st.pazar;
+  if (st.status !== 'playing' || !pz || pz.mod !== 'sabit') return { ok: false, reason: 'pazar_yok' };
+  if (pz.satici !== seat) return { ok: false, reason: 'satici_degil' };
+  gunluge(st, 'sabitIptal:' + seat + ':' + pz.kare);
+  st.pazar = null;
+  return { ok: true };
+}
+function pazarTeklif(st, seat, tutar, simdi) {
+  const pz = st.pazar;
+  if (st.status !== 'playing' || !pz || pz.mod !== 'artirma' || pz.asama !== 'teklif') return { ok: false, reason: 'pazar_yok' };
+  if (pz.sira[pz.idx] !== seat) return { ok: false, reason: 'not_your_turn' };
+  const t = Math.floor(Number(tutar));
+  if (!(t >= artirmaMinTeklif(pz))) return { ok: false, reason: 'teklif_dusuk', min: artirmaMinTeklif(pz) };
+  if (t > st.oyuncu[seat].para) return { ok: false, reason: 'para_yetmiyor' };
+  pz.enYuksek = { seat, tutar: t };
+  pz.hak[seat]--;
+  pz.gecmis.push({ seat, tutar: t });
+  if (pz.gecmis.length > 12) pz.gecmis.shift();
+  gunluge(st, 'artirmaTeklif:' + seat + ':' + pz.kare + ':' + t);
+  artirmaIlerle(st, simdi);
+  return { ok: true, tutar: t };
+}
+function pazarCekil(st, seat, simdi) {
+  const pz = st.pazar;
+  if (st.status !== 'playing' || !pz || pz.mod !== 'artirma' || pz.asama !== 'teklif') return { ok: false, reason: 'pazar_yok' };
+  if (pz.sira[pz.idx] !== seat) return { ok: false, reason: 'not_your_turn' };
+  pz.cekildi[seat] = true;
+  gunluge(st, 'artirmaCekil:' + seat + ':' + pz.kare);
+  artirmaIlerle(st, simdi);
+  return { ok: true };
+}
+function pazarKarar(st, seat, kabul, simdi) {
+  const pz = st.pazar;
+  if (st.status !== 'playing' || !pz || pz.mod !== 'artirma' || pz.asama !== 'karar') return { ok: false, reason: 'pazar_yok' };
+  if (pz.satici !== seat) return { ok: false, reason: 'satici_degil' };
+  const eh = pz.enYuksek;
+  if (kabul && eh) {
+    if (st.oyuncu[eh.seat].iflas || st.oyuncu[eh.seat].para < eh.tutar) {
+      gunluge(st, 'artirmaRed:' + seat + ':' + pz.kare);
+      st.pazar = null;
+      return { ok: true, satildi: false };
+    }
+    tapuDevret(st, seat, eh.seat, pz.kare, eh.tutar);
+    gunluge(st, 'satti:' + seat + ':' + eh.seat + ':' + pz.kare + ':' + eh.tutar);
+    const r = { ok: true, satildi: true, kare: pz.kare, alici: eh.seat, tutar: eh.tutar };
+    st.pazar = null;
+    return r;
+  }
+  gunluge(st, 'artirmaRed:' + seat + ':' + pz.kare);
+  st.pazar = null;
+  return { ok: true, satildi: false };
+}
+/* 30 sn doldu: sabit teklif kapanır; sıradaki alıcı çekilmiş sayılır; satıcı
+   reddetmiş sayılır. Süre dolmadıysa null döner. */
+function pazarSureDoldu(st, simdi) {
+  const pz = st.pazar;
+  if (st.status !== 'playing' || !pz || (Number(simdi) || 0) < pz.bitis) return null;
+  if (pz.mod === 'sabit') {
+    gunluge(st, 'sabitSure:' + pz.satici + ':' + pz.kare);
+    st.pazar = null;
+    return { tur: 'sabit' };
+  }
+  if (pz.asama === 'teklif') {
+    const kim = pz.sira[pz.idx];
+    pazarCekil(st, kim, simdi);
+    return { tur: 'teklif', seat: kim };
+  }
+  const satici = pz.satici;
+  pazarKarar(st, satici, false, simdi);
+  return { tur: 'karar', seat: satici };
+}
+/* Pes eden / iflas eden oyuncu pazardan çıkarılır. */
+function pazarOyuncuCikar(st, seat, simdi) {
+  const pz = st.pazar;
+  if (!pz) return;
+  if (pz.satici === seat) { st.pazar = null; return; }
+  if (pz.mod === 'sabit') {
+    pz.alicilar = pz.alicilar.filter(x => x !== seat);
+    if (!pz.alicilar.length) st.pazar = null;
+    return;
+  }
+  if (pz.enYuksek && pz.enYuksek.seat === seat) { st.pazar = null; return; }
+  pz.cekildi[seat] = true;
+  if (pz.asama === 'teklif' && pz.sira[pz.idx] === seat) artirmaIlerle(st, simdi);
+}
+
 /* --------------------------------------------------------- CEZAEVİ */
 function kefaletOde(st, seat) {
   if (st.status !== 'playing') return { ok: false, reason: 'game_over' };
+  if (st.pazar) return { ok: false, reason: 'pazar_acik' };
   if (seat !== siradakiKoltuk(st)) return { ok: false, reason: 'not_your_turn' };
   const p = st.oyuncu[seat];
   if (!p.cezaevi) return { ok: false, reason: 'wrong_phase' };
@@ -614,6 +833,7 @@ function kefaletOde(st, seat) {
 }
 function cikisKartiKullan(st, seat) {
   if (st.status !== 'playing') return { ok: false, reason: 'game_over' };
+  if (st.pazar) return { ok: false, reason: 'pazar_acik' };
   if (seat !== siradakiKoltuk(st)) return { ok: false, reason: 'not_your_turn' };
   const p = st.oyuncu[seat];
   if (!p.cezaevi) return { ok: false, reason: 'wrong_phase' };
@@ -635,6 +855,7 @@ function turSonu(st, cift) {
 }
 function turuBitir(st, seat) {
   if (st.status !== 'playing') return { ok: false, reason: 'game_over' };
+  if (st.pazar) return { ok: false, reason: 'pazar_acik' };
   if (seat !== undefined && seat !== siradakiKoltuk(st)) return { ok: false, reason: 'not_your_turn' };
   if (st.faz === 'karar' || st.faz === 'teklif') return { ok: false, reason: 'wrong_phase' };
   st.cift = 0;
@@ -697,6 +918,7 @@ function macBitir(st, reason) {
 }
 function pesEt(st, seat) {
   if (st.status !== 'playing') return st.result;
+  pazarOyuncuCikar(st, seat, 0);
   iflasEt(st, seat, null);
   if (st.status === 'playing') {
     /* Sırası pes edendeyse sırayı ilerlet. */
@@ -741,9 +963,29 @@ function gorunum(st, seat, ekstra) {
     satilik: (st.faz === 'karar' && sirada !== null) ? st.oyuncu[sirada].konum : null,
     teklif: st.teklif ? { kare: st.teklif.kareIdx, seat: st.teklif.sira[st.teklif.idx] } : null,
     /* Bina/ipotek düğmeleri için: bu oyuncu şu anda ne yapabilir? */
-    kurulabilir: (bakan !== null && bakan === sirada && (st.faz === 'zar' || st.faz === 'bitir'))
+    kurulabilir: (!st.pazar && bakan !== null && bakan === sirada && (st.faz === 'zar' || st.faz === 'bitir'))
       ? st.kare.filter(d => d.sahip === bakan && !binaKurulabilirMi(st, bakan, d.i)).map(d => d.i)
       : [],
+    /* PAZAR: satışa çıkarılabilecek tapular, kalan açık artırma hakkı ve açık oturum. */
+    satilabilir: (!st.pazar && bakan !== null && bakan === sirada && (st.faz === 'zar' || st.faz === 'bitir'))
+      ? st.kare.filter(d => d.sahip === bakan && !pazarSatilabilirMi(st, bakan, d.i)).map(d => d.i)
+      : [],
+    artirmaKalan: bakan !== null ? Math.max(0, TUR_ARTIRMA_LIMITI - turArtirmaKullanilan(st, bakan)) : 0,
+    pazar: st.pazar ? {
+      mod: st.pazar.mod, kare: st.pazar.kare, satici: st.pazar.satici,
+      fiyat: st.pazar.fiyat || null, alicilar: st.pazar.alicilar ? st.pazar.alicilar.slice() : null,
+      baslangic: st.pazar.baslangic || null,
+      enYuksek: st.pazar.enYuksek ? { seat: st.pazar.enYuksek.seat, tutar: st.pazar.enYuksek.tutar } : null,
+      sira: st.pazar.sira ? st.pazar.sira.slice() : null,
+      bekleyen: st.pazar.mod === 'artirma'
+        ? (st.pazar.asama === 'teklif' ? st.pazar.sira[st.pazar.idx] : st.pazar.satici) : null,
+      asama: st.pazar.asama || 'sabit',
+      hak: st.pazar.hak ? Object.assign({}, st.pazar.hak) : null,
+      cekildi: st.pazar.cekildi ? Object.assign({}, st.pazar.cekildi) : null,
+      gecmis: (st.pazar.gecmis || []).slice(-6),
+      minTeklif: st.pazar.mod === 'artirma' ? artirmaMinTeklif(st.pazar) : null,
+      bitis: st.pazar.bitis, sureMs: PAZAR_SURE_MS
+    } : null,
     sonKart: st.sonKart,
     gunluk: st.gunluk.slice(-12),
     grupAdlari: GRUP_ADLARI, grupRenkleri: GRUP_RENKLERI,
@@ -760,5 +1002,8 @@ module.exports = {
   macBaslat, zarAt, kareyeDus, satinAl, reddet, binaKur, binaSat, ipotek,
   kefaletOde, cikisKartiKullan, turuBitir, sureDoldu, macBitir, pesEt,
   gorunum, kira, varlik, siradakiKoltuk, ayakta, grupKareleri,
-  binaKurulabilirMi, iflasEt, ode
+  binaKurulabilirMi, iflasEt, ode,
+  PAZAR_SURE_MS, ARTIRMA_HAK, TUR_ARTIRMA_LIMITI, MIN_ARTIS, artirmaBaslangic,
+  pazarAc, pazarSatinAl, pazarVazgec, pazarTeklif, pazarCekil, pazarKarar,
+  pazarSureDoldu, pazarOyuncuCikar, pazarSatilabilirMi
 };

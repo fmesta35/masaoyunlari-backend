@@ -120,16 +120,16 @@
     "sha": "418cf5e5a090"
   },
   "js/messages.js": {
-    "v": "20261011a",
-    "sha": "6809f2d1cb81"
+    "v": "20261012a",
+    "sha": "d72068f45922"
   },
   "js/metropol-online.js": {
-    "v": "20261012n",
-    "sha": "acd98e74bdbe"
+    "v": "20261012o",
+    "sha": "c180cd0afcdd"
   },
   "js/move-clock.js": {
-    "v": "20260908a",
-    "sha": "9e5913744179"
+    "v": "20261012a",
+    "sha": "499f0345e8a4"
   },
   "js/no-bots.js": {
     "v": "20260823b",
@@ -144,8 +144,8 @@
     "sha": "02f0595c29fc"
   },
   "js/online-arena.js": {
-    "v": "20260927d",
-    "sha": "92ca4615ea1f"
+    "v": "20261012a",
+    "sha": "8273cd14b455"
   },
   "js/passaparola-online.js": {
     "v": "20261011b",

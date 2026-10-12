@@ -293,6 +293,15 @@
       case 'cezaevi':     return adOf(+pr[1]) + ' cezaevine gitti';
       case 'vergi':       return adOf(+pr[1]) + ' vergi ödedi ' + para(pr[2]);
       case 'kart':        return adOf(+pr[1]) + ' ' + (pr[2] === 'sans' ? 'şans' : 'fon') + ' kartı çekti';
+      case 'sabitSat':    return adOf(+pr[1]) + ' ' + kareAd(pr[2]) + ' tapusunu ' + para(pr[3]) + ' fiyatla satışa çıkardı';
+      case 'artirmaAc':   return adOf(+pr[1]) + ' ' + kareAd(pr[2]) + ' için açık artırma başlattı (' + para(pr[3]) + ')';
+      case 'artirmaTeklif': return adOf(+pr[1]) + ' ' + kareAd(pr[2]) + ' için ' + para(pr[3]) + ' teklif verdi';
+      case 'artirmaCekil': return adOf(+pr[1]) + ' açık artırmadan çekildi';
+      case 'artirmaBos':  return adOf(+pr[1]) + ' ' + kareAd(pr[2]) + ' açık artırması teklifsiz kapandı';
+      case 'artirmaRed':  return adOf(+pr[1]) + ' en yüksek teklifi reddetti — açık artırma kapandı';
+      case 'satti':       return adOf(+pr[1]) + ' → ' + adOf(+pr[2]) + ': ' + kareAd(pr[3]) + ' ' + para(pr[4]) + ' karşılığında satıldı';
+      case 'sabitIptal':  return adOf(+pr[1]) + ' satıştan vazgeçti';
+      case 'sabitSure':   return adOf(+pr[1]) + ' ' + kareAd(pr[2]) + ' satışı alıcı çıkmadan kapandı';
       case 'havuz':       return adOf(+pr[1]) + ' park havuzunu aldı ' + para(pr[2]);
       default:            return String(g);
     }
@@ -333,7 +342,7 @@
   function tikerHtml() {
     var simdi = Date.now();
     var liste = tikerKayit.filter(function (k) { return simdi - k.t < TIKER_OMUR_MS + 400; }).slice(-TIKER_SATIR);
-    return '<div class="mp-tiker" aria-hidden="true"><i class="mp-surum">n</i>' + liste.map(function (k, i) {
+    return '<div class="mp-tiker" aria-hidden="true"><i class="mp-surum">o</i>' + liste.map(function (k, i) {
       var yas = simdi - k.t;
       var yeni = i === liste.length - 1 && yas < 600;
       return '<div class="mp-tk' + (yeni ? ' yeni' : '') + '" style="animation-delay:' + (yeni ? '0s,' : '') + '-' + yas + 'ms">' +
@@ -370,7 +379,8 @@
     return '<div class="mp-mulk">' + sahipli.map(function (d) {
       var k = (s.kareler || [])[d.i] || {};
       var renk = k.g ? (s.grupRenkleri || {})[k.g] : '#888';
-      return '<div class="mp-mulk-sat">' +
+      var tik = benim && !s.pazar;
+      return '<div class="mp-mulk-sat' + (tik ? ' tik' : '') + '"' + (tik ? ' data-islem="' + d.i + '" role="button" tabindex="0" title="Sat / ipotek et"' : '') + '>' +
         '<span class="mp-mulk-bant" style="background:' + renk + '"></span>' +
         '<span class="mp-mulk-ad">' + esc(k.ad || '') + '</span>' +
         (d.ipotek ? '<span class="mp-mulk-ip">📄 ipotekli</span>'
@@ -378,11 +388,233 @@
         (benim ? (
           (kur.indexOf(d.i) !== -1 ? '<button class="btn mini mp-kur" type="button" data-kare="' + d.i + '">+🏠 ' + para(k.b) + '</button>' : '') +
           (d.ev > 0 ? '<button class="btn mini secondary mp-sat" type="button" data-kare="' + d.i + '">-🏠</button>' : '') +
-          '<button class="btn mini secondary mp-ipotek" type="button" data-kare="' + d.i + '">' +
-            (d.ipotek ? 'İpoteği kaldır' : 'İpotek ' + para(Math.floor((k.p || 0) / 2))) + '</button>'
+          (s.pazar ? '' : '<span class="mp-mulk-ok" aria-hidden="true">⋯</span>')
         ) : '') +
         '</div>';
     }).join('') + '</div>';
+  }
+
+  /* ===================== PAZAR: SATIŞ / AÇIK ARTIRMA / İPOTEK =====================
+     Mülk satırına dokunmak "işlem penceresi"ni (#mpIslemPop) açar: sabit
+     fiyattan sat, açık artırmaya çıkar, ipotek et / kaldır. Satış açılınca
+     TÜM oyunculara "pazar penceresi" (#mpPazarPop) çıkar; 30 sn'lik geri sayım
+     sunucudaki süreyi gösterir (hamle saati o sürece donuktur). Pencereler
+     #pg-room'a eklenir, yani tahtanın yeniden çizimiyle silinmez; içerik
+     yalnız imzası değişince yeniden kurulur (yazılan fiyat kaybolmasın). */
+  var islemKare = null, islemImza = '', pazarImza = '', pazarBitisYerel = 0, pazarSayac = null, pazarModel = null;
+  function odaKok() { return document.getElementById('pg-room') || document.body; }
+  function popOlustur(id, sinif) {
+    var pop = document.getElementById(id);
+    if (!pop) {
+      pop = document.createElement('div');
+      pop.id = id; pop.className = sinif;
+      pop.setAttribute('role', 'dialog'); pop.setAttribute('aria-modal', 'true');
+    }
+    if (pop.parentNode !== odaKok()) odaKok().appendChild(pop);
+    return pop;
+  }
+  function popKaldir(id) { var p = document.getElementById(id); if (p && p.parentNode) p.parentNode.removeChild(p); }
+  function islemKapat() { islemKare = null; islemImza = ''; popKaldir('mpIslemPop'); }
+  function pazarKapat() {
+    pazarImza = ''; pazarModel = null;
+    if (pazarSayac) { clearInterval(pazarSayac); pazarSayac = null; }
+    popKaldir('mpPazarPop');
+  }
+  function kareBasi(s, i) {
+    var k = (s.kareler || [])[i] || {};
+    var renk = k.g ? (s.grupRenkleri || {})[k.g] : '#6b7280';
+    return '<div class="mp-pz-bas" style="background:' + renk + '"><span class="mp-pz-grup">' +
+      esc(k.g ? ((s.grupAdlari || {})[k.g] || '') : (k.t === 'gar' ? 'İstasyon' : 'Şirket')) + '</span>' +
+      '<span class="mp-pz-ad">' + esc(k.ad || '') + '</span><span class="mp-pz-deger">Değer ' + para(k.p) + '</span></div>';
+  }
+
+  /* ---- MÜLK İŞLEM PENCERESİ ---- */
+  function islemHtml(s, i) {
+    var k = (s.kareler || [])[i] || {};
+    var d = (s.durum || []).filter(function (x) { return x.i === i; })[0] || {};
+    var satilabilir = (s.satilabilir || []).indexOf(i) !== -1;
+    var kalan = s.artirmaKalan === undefined ? 3 : s.artirmaKalan;
+    var h = kareBasi(s, i) + '<button type="button" class="mp-pz-x" data-pz="kapat" aria-label="Kapat">✕</button><div class="mp-pz-govde">';
+    /* İPOTEK */
+    var ipBlok;
+    if (d.ipotek) {
+      var bedel = Math.ceil((k.p || 0) * 0.55);
+      ipBlok = '<div class="mp-pz-blok"><div class="mp-pz-bt">📄 İpotekli</div><div class="mp-pz-ac">İpoteği ' + para(bedel) +
+        ' ödeyerek (değerin %55\'i) kaldırabilirsiniz.</div><button type="button" class="btn mp-pz-btn" data-pz="ipotek">İpoteği kaldır (−' + para(bedel) + ')</button></div>';
+    } else {
+      ipBlok = '<div class="mp-pz-blok"><div class="mp-pz-bt">📄 İpotek et</div><div class="mp-pz-ac">Bankadan anında <b>' +
+        para(Math.floor((k.p || 0) / 2)) + '</b> alırsınız; mülk sizde kalır, ipotekliyken kira getirmez. Geri almak ' +
+        para(Math.ceil((k.p || 0) * 0.55)) + '.</div><button type="button" class="btn secondary mp-pz-btn" data-pz="ipotek">İpotek et (+' +
+        para(Math.floor((k.p || 0) / 2)) + ')</button></div>';
+    }
+    if (d.ipotek) {
+      h += '<div class="mp-pz-not">İpotekli mülk satılamaz — önce ipoteği kaldırın.</div>' + ipBlok;
+    } else if (!satilabilir) {
+      h += '<div class="mp-pz-not">🏗️ Bu rengin üzerinde bina var — satmak için önce tüm binaları satın.</div>' + ipBlok;
+    } else {
+      var varsayilan = Math.max(10, Math.round(k.p || 10));
+      h += '<div class="mp-pz-blok"><div class="mp-pz-bt">🏷️ Sabit fiyattan sat</div>' +
+        '<div class="mp-pz-ac">Fiyatı siz belirleyin; rakiplerden parası yetip <b>ilk satın alan</b> tapuyu alır. Süre: 30 sn.</div>' +
+        '<div class="mp-pz-giris"><button type="button" class="mp-pz-adim" data-pz="eksi" data-v="50" aria-label="50 azalt">−</button>' +
+        '<input type="number" inputmode="numeric" class="mp-pz-input" id="mpSabitFiyat" min="10" max="' + ((k.p || 0) * 4) + '" step="10" value="' + varsayilan + '">' +
+        '<button type="button" class="mp-pz-adim" data-pz="arti" data-v="50" aria-label="50 artır">+</button></div>' +
+        '<div class="mp-pz-ipucu">En çok ' + para((k.p || 0) * 4) + ', en az 10₺</div>' +
+        '<button type="button" class="btn mp-pz-btn" data-pz="sabit">Sabit fiyattan satışa çıkar</button></div>';
+      h += '<div class="mp-pz-blok"><div class="mp-pz-bt">🔨 Açık artırma</div>' +
+        '<div class="mp-pz-ac">Başlangıç <b>' + para(Math.ceil((k.p || 0) * 1.1 / 5) * 5) + '</b>. Rakipler sırayla teklif verir (kişi başı en çok 3 teklif), istediği an çekilebilir. ' +
+        'En yüksek teklifi kabul ya da reddedersiniz. Bu turda kalan hakkınız: <b>' + kalan + '/3</b>.</div>' +
+        '<button type="button" class="btn mp-pz-btn" data-pz="artirma"' + (kalan <= 0 ? ' disabled' : '') + '>Açık artırmaya çıkar</button></div>';
+      h += ipBlok;
+    }
+    return h + '</div>';
+  }
+  function islemCiz(m, s) {
+    if (islemKare === null) return;
+    var benim = s.turn === s.seat && s.status === 'playing' && !m.isSpectator && !s.pazar && (s.faz === 'zar' || s.faz === 'bitir');
+    var d = (s.durum || []).filter(function (x) { return x.i === islemKare; })[0];
+    if (!benim || !d || d.sahip !== s.seat) { islemKapat(); return; }
+    var imza = [islemKare, d.ev, d.ipotek ? 1 : 0, (s.satilabilir || []).indexOf(islemKare), s.artirmaKalan].join('|');
+    var pop = popOlustur('mpIslemPop', 'mp-pz-kaplama');
+    if (imza === islemImza && pop.firstChild) return;
+    islemImza = imza;
+    pop.innerHTML = '<div class="mp-pz-kutu mp-pz-islem" role="document">' + islemHtml(s, islemKare) + '</div>';
+    pop.onclick = function (e) {
+      var b = e.target.closest ? e.target.closest('[data-pz]') : null;
+      if (e.target === pop) { islemKapat(); return; }
+      if (!b) return;
+      var ne = b.getAttribute('data-pz'), inp = pop.querySelector('#mpSabitFiyat');
+      if (ne === 'kapat') { islemKapat(); return; }
+      if (ne === 'eksi' || ne === 'arti') {
+        if (inp) inp.value = Math.max(10, (Number(inp.value) || 10) + (ne === 'arti' ? 1 : -1) * Number(b.getAttribute('data-v'))); return;
+      }
+      var i = islemKare;
+      if (ne === 'ipotek') { m.emit('metropolMortgage', { kare: i }); islemKapat(); }
+      else if (ne === 'sabit') {
+        var f = Math.floor(Number(inp && inp.value));
+        var kk = (s.kareler || [])[i] || {};
+        if (!(f >= 10 && f <= (kk.p || 0) * 4)) { uyar('Fiyat 10₺ ile ' + para((kk.p || 0) * 4) + ' arasında olmalı.', 'warning'); return; }
+        m.emit('metropolMarketOpen', { kare: i, mod: 'sabit', fiyat: f }); islemKapat();
+      } else if (ne === 'artirma') { m.emit('metropolMarketOpen', { kare: i, mod: 'artirma' }); islemKapat(); }
+    };
+  }
+  function islemAc(m, s, i) {
+    islemKare = i; islemImza = '';
+    islemCiz(m, s);
+  }
+
+  /* ---- PAZAR PENCERESİ (herkese) ---- */
+  function sureSatiri() {
+    var el = document.querySelector('#mpPazarPop .mp-pz-sure b');
+    if (!el) return;
+    var sn = Math.max(0, Math.ceil((pazarBitisYerel - Date.now()) / 1000));
+    el.textContent = sn;
+    var cubuk = document.querySelector('#mpPazarPop .mp-pz-cubuk i');
+    if (cubuk) cubuk.style.width = Math.max(0, Math.min(100, (pazarBitisYerel - Date.now()) / 300)) + '%';
+  }
+  function pazarHtml(s, m) {
+    var pz = s.pazar, ben = s.seat, seyirci = !!m.isSpectator || ben === null || ben === undefined;
+    var k = (s.kareler || [])[pz.kare] || {};
+    var satici = adOfTam(pz.satici);
+    var h = kareBasi(s, pz.kare) +
+      '<div class="mp-pz-govde"><div class="mp-pz-sure">⏱ <b>30</b> sn</div><div class="mp-pz-cubuk"><i></i></div>';
+    if (pz.mod === 'sabit') {
+      var alici = !seyirci && (pz.alicilar || []).indexOf(ben) !== -1;
+      var oyuncu = (s.oyuncular || []).filter(function (o) { return o.seat === ben; })[0] || {};
+      h += '<div class="mp-pz-baslik">🏷️ Sabit fiyatlı satış</div>' +
+        '<div class="mp-pz-fiyat">' + para(pz.fiyat) + '</div>' +
+        '<div class="mp-pz-ac"><b>' + esc(satici) + '</b> bu tapuyu ' + para(pz.fiyat) + ' karşılığında satıyor. İlk satın alan tapuyu alır.</div>';
+      if (alici) {
+        var yeter = oyuncu.para >= pz.fiyat;
+        h += '<button type="button" class="btn mp-pz-btn" data-pz="al"' + (yeter ? '' : ' disabled') + '>Satın al (' + para(pz.fiyat) + ')</button>' +
+             (yeter ? '' : '<div class="mp-pz-not">Nakdiniz yetmiyor (' + para(oyuncu.para) + ').</div>') +
+             '<div class="mp-pz-ipucu">Almak istemezseniz bekleyin; süre dolunca teklif kapanır.</div>';
+      } else if (!seyirci && pz.satici === ben) {
+        h += '<button type="button" class="btn secondary mp-pz-btn" data-pz="vazgec">Satıştan vazgeç</button>' +
+             '<div class="mp-pz-ipucu">Rakipler karar veriyor…</div>';
+      } else h += '<div class="mp-pz-ipucu">Satış sürüyor…</div>';
+    } else {
+      var benSira = !seyirci && pz.bekleyen === ben;
+      var min = pz.minTeklif;
+      h += '<div class="mp-pz-baslik">🔨 Açık artırma' + (pz.asama === 'karar' ? ' — son karar' : '') + '</div>' +
+        '<div class="mp-pz-fiyat">' + (pz.enYuksek ? para(pz.enYuksek.tutar) : 'Başlangıç ' + para(pz.baslangic)) + '</div>' +
+        '<div class="mp-pz-ac">' + (pz.enYuksek ? 'En yüksek teklif: <b>' + esc(adOfTam(pz.enYuksek.seat)) + '</b>' : 'Henüz teklif yok.') + '</div>';
+      /* Katılımcılar: kalan teklif hakkı / çekildi */
+      h += '<div class="mp-pz-katilim">' + (pz.sira || []).map(function (x) {
+        var durum = pz.cekildi && pz.cekildi[x] ? 'çekildi' : (pz.hak ? pz.hak[x] : 0) + ' hak';
+        return '<span class="mp-pz-kat' + (pz.bekleyen === x ? ' sirada' : '') + (pz.cekildi && pz.cekildi[x] ? ' cekildi' : '') + '">' +
+          esc(adOfTam(x)) + ' <i>' + durum + '</i></span>';
+      }).join('') + '</div>';
+      if ((pz.gecmis || []).length) {
+        h += '<div class="mp-pz-gecmis">' + pz.gecmis.slice(-4).map(function (g) {
+          return '<span>' + esc(adOfTam(g.seat)) + ' ' + para(g.tutar) + '</span>';
+        }).join('') + '</div>';
+      }
+      if (pz.asama === 'karar') {
+        if (!seyirci && pz.satici === ben) {
+          h += '<div class="mp-pz-ac">En yüksek teklif <b>' + para(pz.enYuksek.tutar) + '</b> (' + esc(adOfTam(pz.enYuksek.seat)) + '). Kabul ederseniz tapu onundur.</div>' +
+               '<div class="mp-pz-cift"><button type="button" class="btn mp-pz-btn" data-pz="kabul">Kabul et</button>' +
+               '<button type="button" class="btn secondary mp-pz-btn" data-pz="red">Reddet</button></div>';
+        } else h += '<div class="mp-pz-ipucu">' + esc(satici) + ' son teklifi değerlendiriyor…</div>';
+      } else if (benSira) {
+        var kalanHak = pz.hak ? pz.hak[ben] : 0;
+        h += '<div class="mp-pz-ac"><b>Sıra sizde.</b> Kalan teklif hakkınız: ' + kalanHak + '/3. En az ' + para(min) + '.</div>' +
+          '<div class="mp-pz-giris"><button type="button" class="mp-pz-adim" data-pz="eksi" data-v="10" aria-label="10 azalt">−</button>' +
+          '<input type="number" inputmode="numeric" class="mp-pz-input" id="mpTeklifTutar" min="' + min + '" step="10" value="' + min + '" data-min="' + min + '">' +
+          '<button type="button" class="mp-pz-adim" data-pz="arti" data-v="10" aria-label="10 artır">+</button></div>' +
+          '<div class="mp-pz-hizli"><button type="button" data-pz="hizli" data-v="50">+50</button><button type="button" data-pz="hizli" data-v="100">+100</button><button type="button" data-pz="hizli" data-v="250">+250</button></div>' +
+          '<div class="mp-pz-cift"><button type="button" class="btn mp-pz-btn" data-pz="teklif">Teklif ver</button>' +
+          '<button type="button" class="btn secondary mp-pz-btn" data-pz="cekil">Çekil</button></div>';
+      } else if (!seyirci && pz.satici === ben) {
+        h += '<div class="mp-pz-ipucu">Sıradaki teklif veren: ' + esc(adOfTam(pz.bekleyen)) + '</div>';
+      } else {
+        h += '<div class="mp-pz-ipucu">Teklif sırası: ' + esc(adOfTam(pz.bekleyen)) + '</div>';
+      }
+    }
+    void k;
+    return h + '</div>';
+  }
+  function pazarCiz(m, s) {
+    if (!s.pazar || s.status !== 'playing') { pazarKapat(); return; }
+    var pz = s.pazar;
+    var imza = [pz.mod, pz.kare, pz.asama, pz.bekleyen, pz.satici, pz.fiyat, pz.enYuksek ? pz.enYuksek.tutar : '',
+      JSON.stringify(pz.hak), JSON.stringify(pz.cekildi), (pz.alicilar || []).join(','), s.seat,
+      (s.oyuncular || []).map(function (o) { return o.para; }).join(',')].join('#');
+    var yeniAdim = imza.split('#').slice(0, 7).join('#') !== (pazarImza || '').split('#').slice(0, 7).join('#');
+    var pop = popOlustur('mpPazarPop', 'mp-pz-kaplama mp-pz-pazar');
+    pazarModel = m;
+    if (yeniAdim || !pazarBitisYerel) pazarBitisYerel = Date.now() + (pz.kalanMs !== undefined ? pz.kalanMs : (pz.sureMs || 30000));
+    if (imza === pazarImza && pop.firstChild) { sureSatiri(); return; }
+    var oncekiDeger = null, inp0 = pop.querySelector('input');
+    if (inp0 && !yeniAdim) oncekiDeger = inp0.value;
+    pazarImza = imza;
+    pop.innerHTML = '<div class="mp-pz-kutu" role="document">' + pazarHtml(s, m) + '</div>';
+    var inp = pop.querySelector('#mpTeklifTutar');
+    if (inp && oncekiDeger !== null && Number(oncekiDeger) >= Number(inp.getAttribute('data-min'))) inp.value = oncekiDeger;
+    pop.onclick = function (e) {
+      var b = e.target.closest ? e.target.closest('[data-pz]') : null;
+      if (!b || b.disabled) return;
+      var ne = b.getAttribute('data-pz'), alan = pop.querySelector('#mpTeklifTutar');
+      var min = alan ? Number(alan.getAttribute('data-min')) : 0;
+      if (ne === 'eksi' && alan) alan.value = Math.max(min, (Number(alan.value) || min) - Number(b.getAttribute('data-v')));
+      else if (ne === 'arti' && alan) alan.value = (Number(alan.value) || min) + Number(b.getAttribute('data-v'));
+      else if (ne === 'hizli' && alan) alan.value = min + Number(b.getAttribute('data-v'));
+      else if (ne === 'al') pazarModel.emit('metropolMarketBuy', {});
+      else if (ne === 'vazgec') pazarModel.emit('metropolMarketCancel', {});
+      else if (ne === 'cekil') pazarModel.emit('metropolBidPass', {});
+      else if (ne === 'kabul') pazarModel.emit('metropolMarketDecide', { kabul: true });
+      else if (ne === 'red') pazarModel.emit('metropolMarketDecide', { kabul: false });
+      else if (ne === 'teklif' && alan) {
+        var t = Math.floor(Number(alan.value));
+        if (!(t >= min)) { uyar('En az ' + para(min) + ' teklif verin.', 'warning'); return; }
+        pazarModel.emit('metropolBid', { tutar: t });
+      }
+    };
+    if (!pazarSayac) pazarSayac = setInterval(sureSatiri, 250);
+    sureSatiri();
+  }
+  function pazarGuncelle(m, s) {
+    islemCiz(m, s);
+    pazarCiz(m, s);
   }
 
   if (!window.GVArena && !window.__gvArenaQueue) window.__gvArenaQueue = { push: function () {} };
@@ -405,11 +637,14 @@
       },
       metropolAction: function (p) {
         if (!p) return;
-        if (p.eylem === 'al' || p.eylem === 'binaKur') ses('kazandi');
+        if (p.eylem === 'al' || p.eylem === 'binaKur' || p.eylem === 'pazarAl' || p.eylem === 'pazarKarar') ses('kazandi');
         else ses('tasKoy');
       },
       metropolTimeout: function (p) {
         if (!p) return;
+        if (p.tur === 'pazar_sabit') { uyar('⏱ Satış süresi doldu — alıcı çıkmadı.', 'info'); return; }
+        if (p.tur === 'pazar_teklif') { uyar('⏱ ' + (p.ad || 'Oyuncu') + ' teklif vermedi — açık artırmadan çekildi.', 'info'); return; }
+        if (p.tur === 'pazar_karar') { uyar('⏱ ' + (p.ad || 'Oyuncu') + ' karar vermedi — teklif reddedildi.', 'info'); return; }
         var ne = p.tur === 'zar' ? 'zarı sunucu attı'
                : p.tur === 'alir' ? 'kareyi sunucu aldı'
                : p.tur === 'reddeder' || p.tur === 'teklif' ? 'teklif reddedildi'
@@ -427,7 +662,11 @@
         '#' + (s.oyuncular || []).map(function (o) { return o.para + '/' + o.konum + '/' + (o.cezaevi ? 1 : 0) + '/' + (o.iflas ? 1 : 0); }).join('|') +
         '#' + s.satilik + '#' + JSON.stringify(s.teklif || null) +
         '#' + (s.kurulabilir || []).join(',') + '#' + (s.gunluk || []).join(';') +
-        '#' + JSON.stringify(s.sonKart || null) + '#' + acikGrup;
+        '#' + JSON.stringify(s.sonKart || null) + '#' + acikGrup +
+        '#' + (s.satilabilir || []).join(',') + '/' + s.artirmaKalan +
+        '#' + (s.pazar ? [s.pazar.mod, s.pazar.kare, s.pazar.asama, s.pazar.bekleyen, s.pazar.fiyat,
+          s.pazar.enYuksek ? s.pazar.enYuksek.tutar : '', JSON.stringify(s.pazar.hak), JSON.stringify(s.pazar.cekildi),
+          (s.pazar.alicilar || []).join(',')].join('/') : '');
     },
 
     render: function (m) {
@@ -470,6 +709,7 @@
       /* Durum satırı + saat */
       h += '<div class="mp-durum">' +
         (s.status !== 'playing' ? 'Maç bitti'
+          : s.pazar ? (s.pazar.mod === 'sabit' ? '🏷️ ' : '🔨 ') + esc(adOf(s.pazar.satici)) + ' ' + esc(s.kareler[s.pazar.kare].ad) + ' satıyor (saat durdu)'
           : teklifBende ? '🏷️ ' + esc(teklifKare ? teklifKare.ad : '') + ' size teklif edildi'
           : benimSira ? (s.faz === 'zar' ? '🎲 Sıra sizde — zar atın'
                        : s.faz === 'karar' ? '🏷️ ' + esc(satilikKare ? satilikKare.ad : '') + ' — alır mısınız?'
@@ -499,7 +739,7 @@
       /* Düğmeler */
       var benKoltuk = s.seat, benOyuncu = (s.oyuncular || []).find(function (o) { return o.seat === benKoltuk; }) || {};
       h += '<div class="mp-dugmeler">';
-      if (s.status === 'playing') {
+      if (s.status === 'playing' && !s.pazar) {
         if (benimSira && benOyuncu.cezaevi) {
           h += '<button class="btn mp-at" type="button">🎲 ÇİFT DENE</button>';
           h += '<button class="btn secondary mp-kefalet" type="button">💸 Kefalet ' + para(s.kefalet) + '</button>';
@@ -548,6 +788,16 @@
       bagla('.mp-kur', 'metropolBuild', function (b) { return { kare: Number(b.dataset.kare) }; });
       bagla('.mp-sat', 'metropolSell', function (b) { return { kare: Number(b.dataset.kare) }; });
       bagla('.mp-ipotek', 'metropolMortgage', function (b) { return { kare: Number(b.dataset.kare) }; });
+      /* Mülk satırına dokunma → işlem penceresi (sat / açık artırma / ipotek). */
+      root.querySelectorAll('.mp-mulk-sat[data-islem]').forEach(function (r) {
+        function ac(e) {
+          if (e.target.closest && e.target.closest('button')) return;
+          islemAc(m, s, Number(r.getAttribute('data-islem')));
+        }
+        r.addEventListener('click', ac);
+        r.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ac(e); } });
+      });
+      pazarGuncelle(m, s);
 
       /* Kareye tıklama/dokunma → bilgi kartı. Aynı kareye tekrar basınca kapanır. */
       var tahtaEl = root.querySelector('.mp-tahta');
@@ -1003,7 +1253,7 @@
   }
   window.addEventListener('gv:roomLeft', function () {
     acikGrup = null; sonKart = null; aktifOlcu = null;
-    kartKapat();
+    kartKapat(); islemKapat(); pazarKapat();
     sonZarAnahtar = null; sonZarZaman = 0;
     gorulenGunluk = null; tikerKayit = [];
     piyonGoster = {}; piyonHedef = {}; piyonHazir = false; piyonBaslama = 0; dikeyKaydirildi = false;

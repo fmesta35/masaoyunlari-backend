@@ -151,6 +151,15 @@
     bina_yok:        '🏚️ Bu karede satılacak bina yok.',
     once_binalari_sat: '🏗️ İpotek için önce o rengin üzerindeki tüm binaları satmalısınız.',
     kart_yok:        '🎫 Elinizde "cezaevinden çıkış" kartı yok.',
+    pazar_acik:      '⏳ Bir satış / açık artırma sürüyor — bitmesini bekleyin.',
+    pazar_yok:       '⌛ Bu satış artık açık değil.',
+    alici_degil:     '🚫 Bu satışta alıcı olamazsınız.',
+    satici_degil:    '🔑 Bu işlemi yalnız tapu sahibi yapabilir.',
+    fiyat_gecersiz:  '💱 Fiyat 10₺ ile tapu değerinin 4 katı arasında olmalı.',
+    artirma_limiti:  '🔨 Bu turda en fazla 3 tapuyu açık artırmaya çıkarabilirsiniz.',
+    rakip_yok:       '👥 Satış için ayakta rakip oyuncu yok.',
+    teklif_dusuk:    '📉 Teklifiniz asgari tutarın altında.',
+    mod_gecersiz:    '❓ Geçersiz satış türü.',
 
     // ---- Amiral Battı (Battleship) ----
     bad_seat: '🔌 Masayla bağlantı kurulamadı. Sayfayı yenileyip tekrar deneyin.',

@@ -90,10 +90,10 @@
     }
     if (s) s.classList.toggle('gv-nomain', state.mainClock === false);
 
-    var remain = Math.max(0, state.remain - (Date.now() - state.at));
+    var remain = state.frozen ? state.remain : Math.max(0, state.remain - (Date.now() - state.at));
     var secs = Math.ceil(remain / 1000);
     var danger = remain <= Math.min(20000, (state.limit || 60000) / 2);
-    sesUyar(state.benim, secs, remain > 0);
+    sesUyar(state.benim, secs, remain > 0 && !state.frozen);
 
     list.forEach(function (c, i) {
       var el = slot(c);
@@ -135,7 +135,8 @@
         limit: Number(o.limitMs) || 60000,
         at: Date.now(),
         mainClock: o.mainClock !== false,
-        benim: !!o.benim
+        benim: !!o.benim,
+        frozen: o.frozen === true   // Metropol pazarı: saat donuk, geri sayım ilerlemez
       };
       // activeIndex verilmediyse kartların kendi .active sınıfını izle.
       if (state.idx < 0) {

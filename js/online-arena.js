@@ -178,7 +178,8 @@
         mainClock: false,         // bu oyunlarda ana saat yok: sayaç BÜYÜK gösterilir
         // Hamle süresi uyarı tonu yalnız KENDİ sıramda çalar; izleyicinin
         // hamle süresi yoktur (bkz. js/move-clock.js).
-        benim: !active.isSpectator && me !== null && turn === me
+        benim: !active.isSpectator && me !== null && turn === me,
+        frozen: gs.turnFrozen === true
       });
     } else {
       GVMoveClock.clear();
@@ -429,7 +430,7 @@
       active = null;
       return;
     }
-    if (active.state && Number(active.state.turnRemainingMs) > 0) {
+    if (active.state && Number(active.state.turnRemainingMs) > 0 && !active.state.turnFrozen) {
       active.state.turnRemainingMs = Math.max(0, Number(active.state.turnRemainingMs) - 500);
     }
     updateClock();   // tahta içindeki küçük saat (kart masası)
