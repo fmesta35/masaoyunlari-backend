@@ -65,6 +65,18 @@
   function kenarOf(i) {
     return i <= 10 ? 'alt' : i <= 20 ? 'sol' : i <= 30 ? 'ust' : 'sag';
   }
+  /* UYARLANIR ÇERÇEVE: üst/alt kenarda C kare, yan kenarlarda R kare
+     (C + R = 18, köşeler dahil 40 kare). Masaüstü/yatayda C = R = 9 (klasik
+     tahta). Dar (telefon dikey) ekranda üst/alt kareler 30 px'e düşüp kare
+     adı YATAY sığmıyordu; orada C küçülür, yan sütunlar uzar ve her ad
+     soldan sağa okunur. Sıra yine saat yönünün tersidir; 0 sağ alt köşe. */
+  function yerHesapla(i, C, R) {
+    var k1 = C + 1, k2 = C + R + 2, k3 = 2 * C + R + 3;
+    if (i <= k1) return { r: R + 2, c: C + 2 - i, kenar: 'alt', kose: i === 0 || i === k1 };
+    if (i <= k2) return { r: R + 2 - (i - k1), c: 1, kenar: 'sol', kose: i === k2 };
+    if (i <= k3) return { r: 1, c: 1 + (i - k2), kenar: 'ust', kose: i === k3 };
+    return { r: 1 + (i - k3), c: C + 2, kenar: 'sag', kose: false };
+  }
 
   function kareIc(s, k, d) {
     var h = '';
@@ -114,7 +126,7 @@
       var rc = kareYeri(i);
       var n = sayac[i]++;
       var bekleyenP = (s.faz === 'teklif' && s.teklif) ? s.teklif.seat : s.turn;
-      h += '<div class="mp-piyon' + (bekleyenP === o.seat ? ' sirada' : '') + '" style="grid-row:' +
+      h += '<div class="mp-piyon' + (bekleyenP === o.seat ? ' sirada' : '') + '" data-kare="' + i + '" style="grid-row:' +
            (rc[0] + 1) + ';grid-column:' + (rc[1] + 1) + ';--mp-dx:' + (n % 2) + ';--mp-dy:' +
            Math.floor(n / 2) + ';background:' + PIYON_RENK[s.seats.indexOf(o.seat) % 4] + '">' +
            PIYON_SIM[s.seats.indexOf(o.seat) % 4] + '</div>';
@@ -550,71 +562,144 @@
         var yuva = root.querySelector(genis ? '.mp-orta-yuva' : '.mp-alt-yuva');
         if (panel && yuva && panel.parentNode !== yuva) yuva.appendChild(panel);
       }
-      /* HER KAREYE AYRI YAZI BOYU: kare adındaki EN UZUN KELİME tek satıra
-         sığacak, satırlar da (fiyatla birlikte) karenin yüksekliğine
-         sığacak en büyük punto seçilir. Böylece "BAKIRKÖY" → "BAKIRKO Y"
-         gibi kelime ortasından kırılma olmaz, kısa adlar da büyük yazılır.
+      /* YAZI ÖLÇÜMÜ: kelime genişliği GERÇEK yazı tipiyle canvas'ta ölçülür
+         (100 px'te bir kez, sonra orantılanır). Canvas yoksa (jsdom) tahmin.
          ⚠ CSS min()/clamp() kullanılmaz (jsdom'u bozuyor, bkz. index.html). */
-      function yaziSigdir(tahta, D, Dx, Wt, Hs, yanYatay, ustDik) {
-        var KAR = 0.72;       // ölçüm yoksa: kalın büyük harf ortalama genişliği (em)
-        /* Kelime genişliği GERÇEK yazı tipiyle canvas'ta ölçülür (100 px'te
-           bir kez, sonra orantılanır). Canvas yoksa (jsdom) tahmine düşer. */
-        var ctx = null, aile = null, olcu = {}, gruplar = {};
-        try { ctx = (yaziSigdir.c = yaziSigdir.c || document.createElement('canvas')).getContext('2d'); } catch (_) { ctx = null; }
-        function gen(k, f) {
-          if (!ctx) return k.length * f * KAR;
-          if (olcu[k] === undefined) { ctx.font = '800 100px ' + aile; olcu[k] = ctx.measureText(k).width / 100; }
-          return olcu[k] * f;
+      var olcer = { ctx: null, aile: null, bellek: {} };
+      try { olcer.ctx = document.createElement('canvas').getContext('2d'); } catch (_) { olcer.ctx = null; }
+      function gen(k, f) {
+        if (!olcer.ctx) return k.length * f * 0.72;
+        if (olcer.bellek[k] === undefined) {
+          olcer.ctx.font = '800 100px ' + olcer.aile;
+          olcer.bellek[k] = olcer.ctx.measureText(k).width / 100;
         }
-        tahta.querySelectorAll('.mp-kare').forEach(function (kare) {
-          var adEl = kare.querySelector('.mp-ad');
-          if (!adEl) return;
-          var fiyatEl = kare.querySelector('.mp-fiyat');
-          var fiyatVar = !!(fiyatEl && fiyatEl.textContent);
-          var kose = kare.classList.contains('kose');
-          var yan = kare.classList.contains('kenar-sol') || kare.classList.contains('kenar-sag');
-          var w, h;
-          if (kose) { w = Dx - 6; h = D - 6; }
-          else if (!yan && ustDik) { w = D * 0.76 - 5; h = Wt - 4; }   // döndürülmüş üst/alt
-          else if (!yan) { w = Wt - 5; h = D * 0.76 - 3; }
-          else if (yanYatay) { w = Dx * 0.80 - 6; h = Hs - 4; }
-          else { w = Hs - 5; h = D * 0.76 - 4; }    // döndürülmüş yazı
-          if (aile === null) { try { aile = getComputedStyle(adEl).fontFamily || 'sans-serif'; } catch (_) { aile = 'sans-serif'; } }
-          var kelimeler = String(adEl.textContent || '').split(/\s+/).filter(Boolean);
-          w -= 2;   // yuvarlama/kenarlık payı
-          var fMax = Math.min(18, D * 0.24, kose ? D * 0.22 : 99);
-          var f = fMax, sigdi = false;
-          for (; f >= 6; f -= 0.25) {
-            var tasti = kelimeler.some(function (k) { return gen(k, f) > w; });
-            if (tasti) continue;
-            /* Kelimeleri satırlara diz. */
-            var satir = 1, uz = 0;
-            kelimeler.forEach(function (k) {
-              var l = gen(k, f);
-              if (uz === 0) uz = l;
-              else if (uz + f * 0.28 + l <= w) uz += f * 0.28 + l;
-              else { satir++; uz = l; }
-            });
-            var yuk = satir * f * 1.1 + (fiyatVar ? f * 0.82 * 1.25 : 0);
-            if (yuk <= h) { sigdi = true; break; }
+        return olcer.bellek[k] * f;
+      }
+      /* Kelimeler w genişliğinde satırlara dizilip (fiyatla birlikte) h
+         yüksekliğine sığacak EN BÜYÜK punto. Kelime asla ortadan bölünmez. */
+      function puntoBul(kelimeler, fiyatVar, w, h, fMax) {
+        for (var f = fMax; f >= 6; f -= 0.25) {
+          if (kelimeler.some(function (k) { return gen(k, f) > w; })) continue;
+          var satir = 1, uz = 0;
+          for (var j = 0; j < kelimeler.length; j++) {
+            var l = gen(kelimeler[j], f);
+            if (uz === 0) uz = l;
+            else if (uz + f * 0.28 + l <= w) uz += f * 0.28 + l;
+            else { satir++; uz = l; }
           }
-          if (!sigdi) f = 6;
-          var grup = kose ? 'kose' : yan ? 'yan' : 'ust';
-          (gruplar[grup] = gruplar[grup] || []).push({ ad: adEl, fiyat: fiyatEl, f: f, kir: !sigdi });
+          if (satir * f * 1.1 + (fiyatVar ? f * 0.82 * 1.25 : 0) <= h) return { f: f, ok: true };
+        }
+        return { f: 6, ok: false };
+      }
+      /* Bir karenin yazı kutusu (dolgu ve renk bandı düşülmüş). */
+      function kutu(y, d, bantVar) {
+        if (y.kose) {
+          var yatayBant = bantVar && (y.kenar === 'alt' || y.kenar === 'ust');
+          return { w: d.Dx * (bantVar && !yatayBant ? 0.80 : 1) - 6, h: (yatayBant ? d.D * 0.76 : d.D) - 5, g: 'kose' };
+        }
+        if (y.kenar === 'ust' || y.kenar === 'alt') return { w: d.Wt - 5, h: d.D * 0.76 - 3, g: 'ust' };
+        return { w: d.Dx * 0.80 - 6, h: d.Hs - 4, g: 'yan' };
+      }
+      /* Aday çerçevenin ölçüleri. */
+      function duzenAday(C, G, Y, ortada, kompakt, yanOran) {
+        var R = 18 - C, BW = G, BH;
+        if (C === 9) {
+          BH = ortada ? Y : Math.min(Y * 0.8, G * 1.6);
+          var oranUst = kompakt ? 2.4 : 1.95, oranAlt = kompakt ? 0.6 : (ortada ? 0.82 : 0.62);
+          if (BW / BH > oranUst) BW = BH * oranUst;
+          if (BW / BH < oranAlt) BH = BW / oranAlt;
+        } else {
+          BH = ortada ? Y : Math.min(Y * 0.96, G * 2.1);
+        }
+        var D = Math.round(Math.min(BW, BH) * (kompakt ? 0.135 : 0.108));
+        D = Math.max(22, Math.min(D, 96));
+        var genisTahta = BW / BH >= 1.15;
+        var Dx = genisTahta ? Math.round(Math.max(D, Math.min(BW * (yanOran || (kompakt ? 0.095 : 0.088)), 150)))
+                            : Math.round(Math.max(D, BW * (C === 9 ? 0.2 : yanOran)));
+        if (!genisTahta) D = Math.round(Math.max(D, Math.min(BW * 0.15, 72)));
+        return { C: C, R: R, BW: BW, BH: BH, D: D, Dx: Dx,
+                 Wt: (BW - 2 * Dx) / C, Hs: (BH - 2 * D) / R };
+      }
+      /* Her aday için tüm karelerin puntosu hesaplanır; EN KÜÇÜK puntosu en
+         büyük olan çerçeve seçilir (klasik 9×9 okunur kalıyorsa o tercih). */
+      function duzenSec(kareler, G, Y, ortada, kompakt) {
+        var adaylar = [[9, 0]];
+        if (G < Y * 0.9) [8, 7, 6, 5, 4, 3, 2].forEach(function (C) {
+          [0.22, 0.26, 0.3].forEach(function (o) { adaylar.push([C, o]); });
         });
-        /* AYNI KENARDAKİ kareler göze eşit görünsün: hiçbir kare kendi
-           kenarının ortanca puntosundan büyük yazılmaz (kısa adlar — "ŞİŞLİ",
-           "FON" — tek başına kocaman olmasın). Uzun adlar zaten küçüktür. */
-        Object.keys(gruplar).forEach(function (g) {
-          var liste = gruplar[g];
-          var sirali = liste.map(function (x) { return x.f; }).sort(function (a, b) { return a - b; });
-          var tavan = sirali[Math.floor(sirali.length / 2)] * 1.06;
-          liste.forEach(function (x) {
-            var f = Math.min(x.f, tavan);
-            x.ad.style.fontSize = f + 'px';
-            x.ad.classList.toggle('kir', x.kir);
-            if (x.fiyat) x.fiyat.style.fontSize = Math.max(6, Math.min(f * 0.82, 14)) + 'px';
+        /* Basık yatay ekran (telefon yatay tam ekran): yan kareler alçak
+           kalıyorsa yan sütunlar genişler; gerekirse üst/alta 1-3 kare
+           daha alınıp yan sütunlar kısalır. */
+        if (G > Y * 1.3 && Y < 520) [9, 10, 11, 12].forEach(function (C) {
+          [0.11, 0.13, 0.15].forEach(function (o) { adaylar.push([C, o]); });
+        });
+        var enIyi = null;
+        adaylar.forEach(function (a) {
+          var d = duzenAday(a[0], G, Y, ortada, kompakt, a[1]);
+          if (d.Wt < 18 || d.Hs < 18) return;
+          var enKucuk = 99, sonuc = [];
+          kareler.forEach(function (k) {
+            var y = yerHesapla(k.i, d.C, d.R);
+            var b = kutu(y, d, k.bant);
+            var fMax = Math.min(18, d.D * 0.24, b.g === 'yan' ? d.Hs * 0.5 : 99);
+            var p = puntoBul(k.kelimeler, k.fiyatVar, b.w, b.h, fMax);
+            if (!p.ok) p.f = 5;
+            enKucuk = Math.min(enKucuk, p.f);
+            sonuc.push({ k: k, y: y, f: p.f, ok: p.ok, g: b.g });
           });
+          d.puan = enKucuk; d.sonuc = sonuc;
+          if (!enIyi) { enIyi = d; return; }
+          if (enIyi.C === 9 && enIyi.puan >= 9) return;           // klasik tahta yeterince okunur
+          if (d.puan > enIyi.puan + 0.2) enIyi = d;
+        });
+        return enIyi;
+      }
+      function duzenUygula(tahta, d) {
+        var C = d.C, R = d.R;
+        tahta.style.gridTemplateColumns = d.Dx + 'px repeat(' + C + ',' + d.Wt + 'px) ' + d.Dx + 'px';
+        tahta.style.gridTemplateRows = d.D + 'px repeat(' + R + ',' + d.Hs + 'px) ' + d.D + 'px';
+        tahta.style.setProperty('--mp-d', d.D + 'px');
+        tahta.style.setProperty('--mp-yan', d.Dx + 'px');
+        tahta.style.setProperty('--mp-wt', d.Wt + 'px');
+        tahta.style.setProperty('--mp-hs', d.Hs + 'px');
+        tahta.classList.add('yan-yatay');
+        tahta.classList.remove('ust-dik');
+        tahta.classList.toggle('uyarli', C !== 9);
+        var enDar = Math.min(d.D, d.Wt * 1.3, d.Hs * 1.3, d.Dx);
+        tahta.style.setProperty('--mp-pyn', Math.round(Math.max(12, enDar * 0.36)) + 'px');
+        tahta.style.setProperty('--mp-bf', Math.round(Math.max(8, Math.min(d.D * 0.19, d.Wt * 0.22, d.Hs * 0.3))) + 'px');
+        tahta.style.width = Math.round(2 * d.Dx + C * d.Wt) + 'px';
+        tahta.style.height = Math.round(2 * d.D + R * d.Hs) + 'px';
+        var orta = tahta.querySelector('.mp-orta');
+        if (orta) { orta.style.gridRow = '2 / ' + (R + 2); orta.style.gridColumn = '2 / ' + (C + 2); }
+        tahta.querySelectorAll('.mp-piyon[data-kare]').forEach(function (p) {
+          var y = yerHesapla(Number(p.getAttribute('data-kare')), C, R);
+          p.style.gridRow = y.r; p.style.gridColumn = y.c;
+        });
+        /* Aynı kenardaki kareler eşit görünsün: kenarın ortanca puntosu tavan. */
+        var gruplar = {};
+        d.sonuc.forEach(function (x) { (gruplar[x.g] = gruplar[x.g] || []).push(x.f); });
+        var tavan = {};
+        Object.keys(gruplar).forEach(function (g) {
+          var a = gruplar[g].sort(function (p, q) { return p - q; });
+          tavan[g] = a[Math.floor(a.length / 2)] * 1.06;
+        });
+        d.sonuc.forEach(function (x) {
+          var el = x.k.el, y = x.y;
+          el.style.gridRow = y.r; el.style.gridColumn = y.c;
+          ['alt', 'sol', 'ust', 'sag'].forEach(function (kn) { el.classList.toggle('kenar-' + kn, kn === y.kenar); });
+          el.classList.toggle('kose', y.kose);
+          /* Köşeye düşen renkli mülkte bant yazının üstüne binmesin. */
+          el.style.padding = '';
+          if (y.kose && x.k.bant) {
+            if (y.kenar === 'alt') el.style.paddingTop = (d.D * 0.24) + 'px';
+            else if (y.kenar === 'ust') el.style.paddingBottom = (d.D * 0.24) + 'px';
+            else if (y.kenar === 'sol') el.style.paddingRight = '20%';
+          }
+          var f = Math.min(x.f, tavan[x.g]);
+          x.k.ad.style.fontSize = f + 'px';
+          x.k.ad.classList.toggle('kir', !x.ok);
+          if (x.k.fiyat) x.k.fiyat.style.fontSize = Math.max(6, Math.min(f * 0.82, 14)) + 'px';
         });
       }
       function olcuYaz() {
@@ -651,65 +736,21 @@
         sarmal.classList.toggle('dar', !ortada);
         panelYerlestir(ortada);
 
-        /* Dar ekranda tahta yüksekliğin yalnız bir kısmını alır (altında
-           panel var); geniş ekranda tüm alanı kaplar. */
-        /* Dar ekranda (telefon dikey) tahta altındaki panele yer bırakır ama
-           eskisinden UZUNDUR: yan karelerin yüksekliği artar, dik yazılan
-           kare adları sığar ("HARBİY E" gibi kırılmalar biter). */
-        var BW = G, BH = ortada ? Y : Math.min(Y * 0.8, G * 1.6);
-        /* En-boy oranını makul tut: çok yayvan tahta okunmaz olur. Telefon
-           tam ekranında (kompakt) yatayda daha yayvan, dikeyde daha uzun
-           tahtaya izin verilir: amaç ekranın EN GENİŞ kullanımı. */
-        var oranUst = kompakt ? 2.4 : 1.95, oranAlt = kompakt ? 0.6 : (ortada ? 0.82 : 0.62);
-        if (BW / BH > oranUst) BW = BH * oranUst;
-        if (BW / BH < oranAlt) BH = BW / oranAlt;
-
-        /* Çerçeve derinliği: gerçek tahtadaki gibi kenarın ~%10'u. */
-        /* ÇERÇEVE ASİMETRİKTİR: üst/alt kenarın derinliği D, yan sütunların
-           genişliği Dx. Yatay (geniş) tahtada yan karelerin yüksekliği azdır;
-           eskiden bu karelerde yazı 90° döndürülüp 58 px'e sıkışıyordu
-           ("HARBİY E"). Artık yan sütunlar daha geniştir ve yazı YATAY
-           yazılır — okunur. Dikey/kare tahtada eski döndürülmüş düzen kalır. */
-        var D = Math.round(Math.min(BW, BH) * (kompakt ? 0.135 : 0.108));
-        D = Math.max(22, Math.min(D, 96));
-        /* Yan sütunlarda yazı HER ZAMAN yataydır (masaüstündeki görünüm).
-           Dikey/dar tahtada (telefon) yan sütunlar tahta genişliğinin ~%19'u
-           olur; bu durumda üst/alt kareler daralır ve oradaki yazı DÖNDÜRÜLÜR
-           (ustDik), çerçeve derinliği de buna göre artar. */
-        var yanYatay = true;
-        var genisTahta = BW / BH >= 1.15;
-        var Dx = genisTahta ? Math.round(Math.max(D, Math.min(BW * (kompakt ? 0.095 : 0.088), 150)))
-                            : Math.round(Math.max(D, BW * 0.18));
-        var Wt = Math.max(16, (BW - 2 * Dx) / 9);
-        var ustDik = Wt < 44;
-        if (ustDik) {
-          D = Math.round(Math.max(D, Math.min(BH * 0.15, 96)));
-        }
-        var Hs = Math.max(16, (BH - 2 * D) / 9);
-
         var tahta = root.querySelector('.mp-tahta');
         if (tahta) {
-          tahta.style.setProperty('--mp-d', D + 'px');
-          tahta.style.setProperty('--mp-yan', Dx + 'px');
-          tahta.classList.toggle('yan-yatay', yanYatay);
-          tahta.classList.toggle('ust-dik', ustDik);
-          /* Piyon ve bina boyu en dar hücreye göre: dar üst/alt karelerde taşmasın. */
-          var enDar = Math.min(D, Wt * 1.3, Hs * 1.3, Dx);
-          tahta.style.setProperty('--mp-pyn', Math.round(Math.max(12, enDar * 0.36)) + 'px');
-          tahta.style.setProperty('--mp-bf', Math.round(Math.max(8, Math.min(D * 0.19, Wt * 0.22, Hs * 0.3))) + 'px');
-          tahta.style.setProperty('--mp-wt', Wt + 'px');
-          tahta.style.setProperty('--mp-hs', Hs + 'px');
-          /* Yazı boyları BURADA hesaplanır (CSS min() değil): kare adı hem
-             çerçeve derinliğine hem de o kenardaki hücre uzunluğuna sığmalı.
-             Üst/altta uzunluk GENİŞLİK, yanlarda YÜKSEKLİKtir. */
-          var kucuk = function (a, b) { return Math.round(Math.min(a, b) * 10) / 10; };
-          tahta.style.setProperty('--mp-ad-ust', kucuk(D * 0.20, Wt * 0.19) + 'px');
-          tahta.style.setProperty('--mp-fi-ust', kucuk(D * 0.18, Wt * 0.17) + 'px');
-          tahta.style.setProperty('--mp-ad-yan', kucuk(D * 0.20, Hs * 0.21) + 'px');
-          tahta.style.setProperty('--mp-fi-yan', kucuk(D * 0.18, Hs * 0.19) + 'px');
-          tahta.style.width = Math.round(2 * Dx + 9 * Wt) + 'px';
-          tahta.style.height = Math.round(2 * D + 9 * Hs) + 'px';
-          yaziSigdir(tahta, D, Dx, Wt, Hs, yanYatay, ustDik);
+          /* Karelerin adları/fiyatları bir kez toplanır, sonra adaylar denenir. */
+          var kareler = [];
+          tahta.querySelectorAll('.mp-kare').forEach(function (el) {
+            var ad = el.querySelector('.mp-ad'), fiyat = el.querySelector('.mp-fiyat');
+            if (!ad) return;
+            if (olcer.aile === null) { try { olcer.aile = getComputedStyle(ad).fontFamily || 'sans-serif'; } catch (_) { olcer.aile = 'sans-serif'; } }
+            kareler.push({ el: el, i: Number(el.getAttribute('data-kare')), ad: ad, fiyat: fiyat,
+              fiyatVar: !!(fiyat && fiyat.textContent), bant: !!el.querySelector('.mp-bant'),
+              kelimeler: String(ad.textContent || '').split(/\s+/).filter(Boolean) });
+          });
+          var duz = duzenSec(kareler, G, Y, ortada, kompakt);
+          if (duz) duzenUygula(tahta, duz);
+          root.__mpDuzen = duz;
         }
         /* Açık bilgi kartı varsa yeni ölçüye göre yeniden konumlansın. */
         if (acikKart !== null) {

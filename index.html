@@ -5294,7 +5294,23 @@ function toggleFullscreen(){
     if(exit) exit.call(document);
   } else {
     const req = el.requestFullscreen || el.webkitRequestFullscreen || el.mozRequestFullScreen || el.msRequestFullscreen;
-    if(req) req.call(el).catch(() => toast('Tam ekrana geçilemedi', 'error'));
+    if(req) {
+      const r = req.call(el);
+      /* METROPOL / TELEFON: tam ekrana geçince ekran YATAYA kilitlenir —
+         tahta masaüstündeki gibi geniş görünsün (kullanıcı isteği). Kilit
+         yalnız tam ekranda izinlidir; desteklemeyen tarayıcıda (iOS) sessizce
+         geçilir. Tam ekrandan çıkınca tarayıcı kilidi kendisi kaldırır. */
+      const yatayaKilitle = () => {
+        try {
+          const dokunmatik = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+          if (!dokunmatik || !document.querySelector('#boardArea .mp-wrap')) return;
+          const o = screen.orientation;
+          if (o && o.lock) { const k = o.lock('landscape'); if (k && k.catch) k.catch(() => {}); }
+        } catch (_) {}
+      };
+      if (r && r.then) r.then(yatayaKilitle).catch(() => toast('Tam ekrana geçilemedi', 'error'));
+      else yatayaKilitle();
+    }
   }
 }
 /* Tam ekranda modallar (Kurallar DAHİL) ARKA PLANDA kalıyordu (kullanıcı
@@ -7054,7 +7070,7 @@ GV.init();
 <script src="js/fark-sahneler.js?v=20261011b" defer></script>
 <script src="js/fark-online.js?v=20261011b" defer></script>
 <script src="js/kizmabirader-online.js?v=20261011b" defer></script>
-<script src="js/metropol-online.js?v=20261012c" defer></script>
+<script src="js/metropol-online.js?v=20261012d" defer></script>
 <script src="js/chat.js?v=20260821c" defer></script>
 <script src="js/leave-guard.js?v=20260927c" defer></script>
 <!-- Tarayıcı GERİ/İLERİ tuşu: sayfa geçişleri geçmişe adım bırakır,
