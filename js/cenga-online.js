@@ -22,7 +22,29 @@
   if (window.__gvCengaLoaded) return;
   window.__gvCengaLoaded = true;
 
-  var SRC = 'assets/oyunlar/cenga3d.html?online=1&v=20261013c';
+  var SRC = 'assets/oyunlar/cenga3d.html?online=1&v=20261013f';
+
+  /* OYUN DOSYASI KAYNAĞI: önce site ile aynı yerden (Yöncü) denenir; dosya
+     orada yoksa (yüklenmemiş, ya da host 404/ana sayfa döndürüyor) Render'daki
+     kopyaya düşülür. Böylece eksik yükleme iç içe site/404 göstermez. */
+  var kaynakSonuc = null, kaynakBekleyen = [];
+  function kaynakBul(cb) {
+    if (kaynakSonuc) { cb(kaynakSonuc); return; }
+    kaynakBekleyen.push(cb);
+    if (kaynakBekleyen.length > 1) return;
+    var bitir = function (u) { kaynakSonuc = u; var q = kaynakBekleyen; kaynakBekleyen = []; q.forEach(function (f) { f(u); }); };
+    var yedek = function () {
+      var b = (window.GV_BACKEND_URL || '').replace(/\/$/, '');
+      bitir(b ? b + '/' + SRC : SRC);
+    };
+    try {
+      fetch(SRC).then(function (r) {
+        return r.ok ? r.text() : Promise.reject(new Error('http ' + r.status));
+      }).then(function (t) {
+        if (t.length > 50000 && t.indexOf('id="pg-room"') === -1) bitir(SRC); else yedek();
+      }).catch(yedek);
+    } catch (_) { yedek(); }
+  }
 
   var frame = null;     // geçerli iframe
   var hazir = false;    // iframe 'ready' dedi ve init gönderildi
@@ -108,14 +130,17 @@
     damga: function (m) { var s = m.state || {}; return 'cenga3d#' + (s.seed || 0); },
 
     render: function () {
-      return '<div class="cg3-wrap"><iframe class="cg3-frame" id="cg3Frame" src="' + SRC +
-        '" title="Cenga" allow="fullscreen; autoplay" scrolling="no"></iframe></div>';
+      return '<div class="cg3-wrap"><iframe class="cg3-frame" id="cg3Frame" title="Cenga" allow="fullscreen; autoplay" scrolling="no"></iframe></div>';
     },
 
     bind: function (root, m) {
       sok();
       mCur = m;
       frame = root.querySelector('#cg3Frame');
+      if (frame && !frame.getAttribute('src')) {
+        var hedef = frame;
+        kaynakBul(function (u) { if (hedef.isConnected && !hedef.getAttribute('src')) hedef.setAttribute('src', u); });
+      }
       dinleyici = iframdenGelen;
       window.addEventListener('message', dinleyici);
     }

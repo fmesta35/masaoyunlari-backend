@@ -21,7 +21,29 @@
   if (window.__gvHavahokeyiLoaded) return;
   window.__gvHavahokeyiLoaded = true;
 
-  var SRC = 'assets/oyunlar/havahokeyi.html?online=1&v=20261013d';
+  var SRC = 'assets/oyunlar/havahokeyi.html?online=1&v=20261013f';
+
+  /* OYUN DOSYASI KAYNAĞI: önce site ile aynı yerden (Yöncü) denenir; dosya
+     orada yoksa (yüklenmemiş, ya da host 404/ana sayfa döndürüyor) Render'daki
+     kopyaya düşülür. Böylece eksik yükleme iç içe site/404 göstermez. */
+  var kaynakSonuc = null, kaynakBekleyen = [];
+  function kaynakBul(cb) {
+    if (kaynakSonuc) { cb(kaynakSonuc); return; }
+    kaynakBekleyen.push(cb);
+    if (kaynakBekleyen.length > 1) return;
+    var bitir = function (u) { kaynakSonuc = u; var q = kaynakBekleyen; kaynakBekleyen = []; q.forEach(function (f) { f(u); }); };
+    var yedek = function () {
+      var b = (window.GV_BACKEND_URL || '').replace(/\/$/, '');
+      bitir(b ? b + '/' + SRC : SRC);
+    };
+    try {
+      fetch(SRC).then(function (r) {
+        return r.ok ? r.text() : Promise.reject(new Error('http ' + r.status));
+      }).then(function (t) {
+        if (t.length > 50000 && t.indexOf('id="pg-room"') === -1) bitir(SRC); else yedek();
+      }).catch(yedek);
+    } catch (_) { yedek(); }
+  }
 
   var frame = null, hazir = false, mCur = null, dinleyici = null;
   var sonKare = null;
@@ -87,14 +109,17 @@
     damga: function () { return 'havahokeyi3d'; },
 
     render: function () {
-      return '<div class="hk3-wrap"><iframe class="hk3-frame" id="hk3Frame" src="' + SRC +
-        '" title="Hava Hokeyi" allow="fullscreen; autoplay" scrolling="no"></iframe></div>';
+      return '<div class="hk3-wrap"><iframe class="hk3-frame" id="hk3Frame" title="Hava Hokeyi" allow="fullscreen; autoplay" scrolling="no"></iframe></div>';
     },
 
     bind: function (root, m) {
       sok();
       mCur = m;
       frame = root.querySelector('#hk3Frame');
+      if (frame && !frame.getAttribute('src')) {
+        var hedef = frame;
+        kaynakBul(function (u) { if (hedef.isConnected && !hedef.getAttribute('src')) hedef.setAttribute('src', u); });
+      }
       dinleyici = iframdenGelen;
       window.addEventListener('message', dinleyici);
     }
