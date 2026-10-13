@@ -164,7 +164,7 @@ function motorTesti() {
 
   // 6) GOL, SERVİS ve MAÇ BİTİŞİ
   {
-    const a = oyunaGec(E.macBaslat({ seats: [0, 1], golHedefi: 3 }));
+    const a = oyunaGec(E.macBaslat({ seats: [0, 1], golHedefi: 3, maxSet: 1 }));
     assert.strictEqual(E.macBaslat({ seats: [0, 1], golHedefi: 4 }).golHedefi, 5,
       'geçersiz hedef gol varsayılana düşmeli');
     const golAt = () => {
@@ -186,6 +186,34 @@ function motorTesti() {
     assert.strictEqual(a.winner, 0, 'koltuk 0 kazanmalı');
   }
   console.log('  ✓ 6) gol sayılıyor, servis gol yiyende, hedef golde maç bitiyor');
+
+  // 6b) SET MANTIĞI ve RENK
+  {
+    const a = oyunaGec(E.macBaslat({ seats: [0, 1], golHedefi: 3 }));
+    assert.strictEqual(a.maxSet, 3, 'varsayılan 3 set olmalı');
+    const golAt = () => {
+      a.disk.x = 900; a.disk.y = 300; a.disk.vx = 900; a.disk.vy = 0;
+      E.hedefYaz(a, 1, 620, 190);
+      a.tokmak[1] = { x: 620, y: 190, vx: 0, vy: 0 };
+      for (let i = 0; i < 200 && a.faz === 'oyun'; i++) E.adim(a, ADIM);
+    };
+    golAt(); oyunaGec(a); golAt(); oyunaGec(a); golAt();
+    assert.deepStrictEqual(a.setler, [1, 0], 'üç gol bir set getirmeli');
+    assert.deepStrictEqual(a.skor, [0, 0], 'set sonrası goller sıfırlanmalı');
+    assert.strictEqual(a.status, 'playing', 'tek set maçı bitirmemeli');
+    assert.strictEqual(a.setSonu, true, 'set sonu işaretlenmeli');
+    oyunaGec(a); golAt(); oyunaGec(a); golAt(); oyunaGec(a); golAt();
+    assert.deepStrictEqual(a.setler, [2, 0], 'ikinci set de alınmalı');
+    assert.strictEqual(a.status, 'finished', 'çoğunluk setle maç bitmeli');
+    assert.strictEqual(a.winner, 0, 'koltuk 0 kazanmalı');
+    assert.deepStrictEqual(E.gorunum(a, 0).setler, [2, 0], 'görünüm set bilgisini taşımalı');
+    const r = E.macBaslat({ seats: [0, 1], golHedefi: 3 });
+    assert.ok(E.renkYaz(r, 1, '#a3e635').ok, 'listedeki renk kabul edilmeli');
+    assert.strictEqual(r.renk[1], '#a3e635', 'renk yazılmalı');
+    assert.ok(!E.renkYaz(r, 1, 'red').ok, 'listede olmayan renk reddedilmeli');
+    assert.strictEqual(r.renk[1], '#a3e635', 'geçersiz renk değeri bozmamalı');
+  }
+  console.log('  ✓ 6b) set mantığı ve renk seçimi');
 
   // 7) KALE AĞZI DIŞI ve DİREK
   {
@@ -293,6 +321,7 @@ async function onlineTesti() {
     const bittiA = kaydet(A, 'gameEnded');
     const bittiB = kaydet(B, 'gameEnded');
     h.st.skor[0] = h.st.golHedefi - 1;
+    h.st.setler[0] = 1;   // bir set önde: bu gol maçı bitirir
     h.st.faz = 'oyun'; h.st.fazSn = 0;
     h.st.disk.x = 930; h.st.disk.y = 300; h.st.disk.vx = 1200; h.st.disk.vy = 0;
     h.st.tokmak[1] = { x: 620, y: 190, vx: 0, vy: 0 };
@@ -343,7 +372,7 @@ function arayuzTesti() {
   const sayfa = oku('index.html');
   assert.ok(/havahokeyi:\{name:'Hava Hokeyi'/.test(sayfa), 'oyun listesinde hava hokeyi olmalı');
   assert.ok(/js\/havahokeyi-online\.js/.test(sayfa), 'istemci adaptörü bağlı olmalı');
-  assert.ok(/\.hk-tuval\{/.test(sayfa), 'hava hokeyi stilleri olmalı');
+  assert.ok(/\.hk3-frame\{/.test(sayfa), 'hava hokeyi iframe stilleri olmalı');
   assert.ok(/havahokeyi:`<div class="rules-content">/.test(sayfa), 'kurallar metni olmalı');
   assert.ok(/ONLINE_GAMES = \[[^\]]*'havahokeyi'/.test(sayfa), 'online oyun listesinde olmalı');
   assert.ok(/havahokeyi:\[\]/.test(sayfa), 'ROOMS kaydı olmalı');
@@ -351,10 +380,9 @@ function arayuzTesti() {
   const istemci = oku('js/havahokeyi-online.js');
   assert.ok(/kinds: \['havahokeyi'\]/.test(istemci), 'adaptör türü karşılamalı');
   assert.ok(/hokeyFrame/.test(istemci), 'gerçek zamanlı kareleri dinlemeli');
-  assert.ok(/araDeger/.test(istemci), 'paketler arası yumuşatma olmalı');
-  assert.ok(/devicePixelRatio/.test(istemci), 'tuval ekran yoğunluğuna göre ölçeklenmeli');
-  assert.ok(/orientationchange/.test(istemci), 'yön değişiminde ölçü tazelenmeli');
-  assert.ok(/tuval\.__ters/.test(istemci), 'her oyuncu kendi yarısını altta görmeli');
+  assert.ok(/hokeyMove/.test(istemci) && /hokeyRenk/.test(istemci), 'tokmak ve renk olayları iletilmeli');
+  assert.ok(/assets\/oyunlar\/havahokeyi\.html/.test(istemci), 'referans oyun iframe ile yüklenmeli');
+  assert.ok(fs.existsSync(path.join(__dirname, '..', 'assets/oyunlar/havahokeyi.html')), 'oyun paketi dosyası olmalı');
   assert.ok(!/disk\.x \+= .*vx \* dt/.test(istemci), 'istemci fiziği kendi işletmemeli');
 
   const sunucu = oku('server.js');

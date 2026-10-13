@@ -58,7 +58,10 @@ function macBaslat(opts) {
       { x: ALAN.sol + 150, y: MERKEZ_Y },
       { x: ALAN.sag - 150, y: MERKEZ_Y }
     ],
-    skor: [0, 0],
+    skor: [0, 0],                  // bu setteki goller
+    setler: [0, 0],                // kazanılan setler
+    maxSet: [1, 3, 5].includes(Number(o.maxSet)) ? Number(o.maxSet) : 3,
+    renk: ['#22d3ee', '#fb4d6d'],  // tokmak renkleri (oyuncu kendi rengini seçer)
     golHedefi,
     faz: 'gerisayim',              // gerisayim | oyun | gol | bitti
     fazSn: GERI_SAYIM_SN,
@@ -95,9 +98,19 @@ function golAt(st, atan) {
   /* Gol yiyen servis atar — klasik hava hokeyi kuralı. */
   st.servisYonu = atan === 0 ? -1 : 1;
   olay(st, 'gol');
+  st.setSonu = false;
   if (st.skor[atan] >= st.golHedefi) {
-    st.faz = 'bitti'; st.fazSn = 0;
-    macBitir(st, 'finished');
+    /* Referans oyundaki gibi: tur golüne ulaşan seti alır, goller sıfırlanır;
+       gereken set sayısına (en çok setin yarısı + 1) ulaşan maçı alır. */
+    st.setler[atan] += 1;
+    st.setSonu = true;
+    if (st.setler[atan] >= Math.ceil(st.maxSet / 2)) {
+      st.faz = 'bitti'; st.fazSn = 0;
+      macBitir(st, 'finished');
+    } else {
+      st.skor = [0, 0];
+      st.faz = 'gol'; st.fazSn = 2.8;
+    }
   } else {
     st.faz = 'gol'; st.fazSn = 1.4;
   }
@@ -240,10 +253,12 @@ function hedefYaz(st, seat, x, y) {
 function macBitir(st, reason) {
   st.status = 'finished';
   st.faz = 'bitti';
+  /* Önce set, eşitse bu setteki gol sayısı belirler. */
+  const [sa, sb] = st.setler;
   const [a, b] = st.skor;
-  const winner = a === b ? null : (a > b ? 0 : 1);
+  const winner = sa !== sb ? (sa > sb ? 0 : 1) : (a === b ? null : (a > b ? 0 : 1));
   st.winner = winner;
-  st.result = { reason: reason || 'finished', winner, skor: st.skor.slice(),
+  st.result = { reason: reason || 'finished', winner, skor: st.skor.slice(), setler: st.setler.slice(),
                 sure: Math.round(st.gecenSn) };
   return st.result;
 }
@@ -256,6 +271,16 @@ function pesEt(st, seat) {
   st.result = { reason: 'resign', winner: st.winner, skor: st.skor.slice(),
                 sure: Math.round(st.gecenSn) };
   return st.result;
+}
+
+/* Tokmak rengi: yalnız izinli paletten (istemci keyfi metin yollayamaz). */
+const RENKLER = ['#38bdf8', '#22d3ee', '#34d399', '#a3e635', '#facc15', '#fb923c', '#fb4d6d',
+  '#f472b6', '#d946ef', '#8b5cf6', '#6366f1', '#f8fafc', '#94a3b8', '#111827'];
+function renkYaz(st, seat, renk) {
+  const i = tarafOf(seat);
+  if (!RENKLER.includes(renk)) return { ok: false, reason: 'gecersiz_hamle' };
+  st.renk[i] = renk;
+  return { ok: true };
 }
 
 /* --------------------------------------------------------------- GÖRÜNÜM */
@@ -275,6 +300,10 @@ function gorunum(st, seat, ekstra) {
             vx: Math.round(st.disk.vx), vy: Math.round(st.disk.vy) },
     tokmak: st.tokmak.map(t => ({ x: yuvarla(t.x), y: yuvarla(t.y) })),
     skor: st.skor.slice(),
+    setler: st.setler.slice(),
+    maxSet: st.maxSet,
+    renk: st.renk.slice(),
+    setSonu: !!st.setSonu,
     golHedefi: st.golHedefi,
     gecenSn: Math.round(st.gecenSn),
     sonGolAtan: st.sonGolAtan,
@@ -287,5 +316,5 @@ function gorunum(st, seat, ekstra) {
 module.exports = {
   MASA_EN, MASA_BOY, ALAN, KALE_UST, KALE_ALT, DISK_R, TOKMAK_R, DIREK_R,
   ADIM_SN, TOKMAK_HIZI, DISK_TAVANI, GERI_SAYIM_SN,
-  tarafOf, tokmakKirp, macBaslat, adim, hedefYaz, macBitir, pesEt, gorunum
+  tarafOf, tokmakKirp, macBaslat, adim, hedefYaz, renkYaz, RENKLER, macBitir, pesEt, gorunum
 };

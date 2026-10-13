@@ -1893,7 +1893,8 @@ function havahokeyiKare(room) {
     disk: { x: Math.round(st.disk.x * 10) / 10, y: Math.round(st.disk.y * 10) / 10,
             vx: Math.round(st.disk.vx), vy: Math.round(st.disk.vy) },
     tokmak: st.tokmak.map(t => ({ x: Math.round(t.x), y: Math.round(t.y) })),
-    skor: st.skor, olayNo: st.olayNo, sonOlay: st.sonOlay
+    skor: st.skor, setler: st.setler, renk: st.renk, setSonu: !!st.setSonu,
+    sonGolAtan: st.sonGolAtan, status: st.status, olayNo: st.olayNo, sonOlay: st.sonOlay
   });
 }
 function havahokeyiDurdur(room) {
@@ -5439,6 +5440,13 @@ io.on('connection', socket => {
     const r = havahokeyiEngine.hedefYaz(room.havahokeyi.st, p.seat,
       data && data.x, data && data.y);
     if (!r.ok) socket.emit('hokeyRejected', { roomId: room.id, reason: r.reason });
+  });
+
+  socket.on('hokeyRenk', data => {
+    const room = rooms.get(socket.roomId || String(data && data.roomId || ''));
+    const p = room && room.havahokeyi && room.players.find(x => x.id === socket.id);
+    if (!p || room.status !== 'playing') return;
+    havahokeyiEngine.renkYaz(room.havahokeyi.st, p.seat, data && data.renk);
   });
 
   socket.on('langirtRods', data => {
