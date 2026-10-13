@@ -1,33 +1,30 @@
 'use strict';
 /* ============================================================================
- * CENGA — MOTOR VE ONLINE AKIŞ
+ * CENGA — SUNUCU DURUMU, KARE RÖLESİ VE ÇEVRİMİÇİ AKIŞ
  * ============================================================================
- * Kullanıcı isteği: "Diğer Oyunlar klasöründeki oyunları bizim sitemize uygun
- * bir şekilde oynanabilir hale getir... Her biri farklı oyun motoru olacak."
+ * Kullanıcı isteği: "Cenga ... sana ilettiğim dosyalardaki gibi değil, örnek
+ * videodakilere de bak. Aynı o kod ve videodakiler gibi olsunlar."
  *
- * Prototip three.js + cannon-es ile 3B fizik kuruyor ve çekme göstergesini
- * 60 Hz'de istemcide işletiyordu. Kurallar (kule, denge analizi, puan) zaten
- * saf ve belirlenimciydi; onlar olduğu gibi sunucuya taşındı. Gerçek zamanlı
- * çekme göstergesi ağ üzerinden sunucu yetkili olamayacağı için GİZLİ HEDEF
- * yöntemine çevrildi: sunucu hedefi saklar, istemci yalnız bandı bilir.
+ * Oyun artık referans kodun KENDİSİ: three.js 3B kule, cannon-es çöküş
+ * fiziği, yeşil bölgeyi takip eden çekme göstergesi (assets/oyunlar/
+ * cenga3d.html). Fizik sırası olanın tarayıcısında çalışır; sunucu kare
+ * rölesi, sıra/skor kaydı ve bitişi yönetir.
  *
  * NE DOĞRULANIR
- *   MOTOR
- *     1) Kule kuruluşu: 18 kat × 3 taş, katlar dönüşümlü eksende.
- *     2) Kilit kuralı: en üstteki tamamlanmış kattan ve üstünden taş
- *        çekilemez.
- *     3) Seçim GİZLİ HEDEF üretir ve hedef görünüme SIZMAZ.
- *     4) Band içi çekiş taşı çıkarır ve en üste koyar; band dışı kule devirir.
- *     5) Denge bozulursa taş çıksa bile kule devrilir.
- *     6) Puanlama: isabet, sıkılık, risk ve seri çarpanı.
- *     7) Süre aşımı: taş seçmediyse sunucu en güvenli taşı seçer.
- *     8) Kuleyi deviren KAYBEDER.
+ *   MOTOR (cenga-engine.js)
+ *     1) Maç başlangıcı: tohum, sıra, boş kayıt.
+ *     2) Sıra devri: geçerli kule + puan kabul edilir, sıra rakibe geçer.
+ *     3) Geçersiz devirler reddedilir (yanlış koltuk, bozuk kule, kendine devir).
+ *     4) Bitiş: kaybeden kendi koltuğu olmak zorunda (taş bitmesi hariç).
+ *     5) Süre aşımı: ardışık üçüncüde hükmen mağlubiyet; devirde sayaç sıfırlanır.
+ *     6) Pes ve görünüm (kule kaydı/skor, izleyici koltuğu null).
  *   ONLINE
- *     9) Hazır masalar lobide (10 masa, 2 kişilik).
- *    10) Oyun başlıyor; HEDEF İSTEMCİYE GİTMİYOR, sıra kuralı sunucuda.
- *    11) Çekiş iki istemciye de yansıyor; kule devrilince maç bitiyor.
+ *     7) Hazır masalar lobide (10 masa, 2 kişilik).
+ *     8) Oyun başlıyor; yalnız SIRASI OLAN kare yollayabilir ve kareler rakibe ulaşır.
+ *     9) Sıra devri sunucuya yazılır, rakibe iletilir, geç gelen kuleyi görür.
+ *    10) Kule devrilince maç biter; yanlış kişiyi kaybettirme denemesi reddedilir.
  *   ARAYÜZ
- *    12) İstemci adaptörü, stiller, kurallar, panel ve kapak bağlı.
+ *    11) İstemci adaptörü, iframe oyunu, stiller, kurallar ve kapak bağlı.
  * ========================================================================= */
 const fs = require('fs');
 const os = require('os');
@@ -78,130 +75,91 @@ function tohumlu(seed) {
   return () => ((x = (x * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff);
 }
 
+
+function kule(tersle) {
+  const a = [];
+  for (let l = 0; l < 18; l++) for (let s = 0; s < 3; s++) a.push([l, s]);
+  if (tersle) { a[0] = [18, 1]; a[1] = [18, 0]; a[2] = [18, 2]; }   // üç taşı yeni kata taşı
+  return a;
+}
+function oyuncular(p0, p1) {
+  return [{ name: 'A', score: p0, streak: 1, pulls: 1 }, { name: 'B', score: p1, streak: 0, pulls: 0 }];
+}
+
 /* ------------------------------------------------------------------ MOTOR */
 function motorTesti() {
-  // 1) KULE KURULUŞU
-  let st = E.macBaslat({ seats: [0, 1], rng: tohumlu(2024) });
-  assert.strictEqual(st.izgara.length, 18, 'kule 18 kat olmalı');
-  st.izgara.forEach((r, i) => {
-    assert.strictEqual(r.length, 3, (i + 1) + '. katta 3 taş olmalı');
-    assert.strictEqual(E.katSayisi(r), 3, 'başlangıçta her kat dolu olmalı');
-  });
-  const idler = st.izgara.flat();
-  assert.strictEqual(new Set(idler).size, 54, '54 taşın kimliği benzersiz olmalı');
-  assert.strictEqual(E.katEkseni(0), 'x', 'ilk kat x ekseninde');
-  assert.strictEqual(E.katEkseni(1), 'z', 'katlar dönüşümlü eksende olmalı');
-  assert.strictEqual(E.dengeYuzdesi(E.coz(st.izgara)), 1, 'dolu kule tam dengeli olmalı');
-  console.log('  ✓ 1) kule 18 kat × 3 taş, katlar dönüşümlü eksende');
+  // 1) BAŞLANGIÇ
+  const c = E.macBaslat({ seats: [1, 0] });
+  assert.deepStrictEqual(c.seats, [0, 1], 'koltuklar sıralı olmalı');
+  assert.strictEqual(c.turn, 0, 'ilk sıra en küçük koltukta');
+  assert.strictEqual(c.status, 'playing');
+  assert.ok(Number.isInteger(c.seed) && c.seed > 0, 'iki istemci aynı kuleyi kursun diye tohum olmalı');
+  assert.strictEqual(c.settled, null, 'başlangıçta kayıtlı kule yok (istemci tohumdan kurar)');
+  console.log('  ✓ 1) maç tohumla başlıyor, sıra ilk koltukta');
 
-  // 2) KİLİT KURALI
-  assert.strictEqual(E.enUstTamKat(st.izgara), 17, 'en üstteki tam kat 17 olmalı');
-  assert.strictEqual(E.tasSec(st, 0, 17, 0).reason, 'kat_kilitli',
-    'en üstteki tamamlanmış kattan taş çekilememeli');
-  assert.strictEqual(E.tasSec(st, 1, 5, 0).reason, 'not_your_turn', 'sırası olmayan seçemez');
-  assert.strictEqual(E.tasSec(st, 0, 99, 0).reason, 'gecersiz_tas', 'olmayan kat reddedilmeli');
-  console.log('  ✓ 2) en üstteki tamamlanmış kat ve üstü kilitli');
+  // 2) SIRA DEVRİ
+  const r = E.turDevret(c, 0, { current: 1, turn: 1, settled: kule(true), players: oyuncular(284, 0), stability: 0.8 });
+  assert.ok(r.ok, 'geçerli devir kabul edilmeli: ' + JSON.stringify(r));
+  assert.strictEqual(c.turn, 1, 'sıra rakibe geçmeli');
+  assert.strictEqual(c.skor[0], 284, 'puan sunucuda tutulmalı');
+  assert.strictEqual(c.settled.length, 54, 'yerleşmiş kule kaydedilmeli');
+  assert.strictEqual(c.tur, 1);
+  console.log('  ✓ 2) sıra devri: kule + puan kaydı, sıra rakibe geçti');
 
-  // 3) GİZLİ HEDEF
-  const sec = E.tasSec(st, 0, 5, 1);
-  assert.ok(sec.ok, 'alt kattan taş seçilebilmeli');
-  assert.strictEqual(sec.hedef, undefined, 'SEÇİM YANITINDA HEDEF OLMAMALI');
-  assert.ok(sec.bant > 0 && sec.bant <= 0.30, 'tolerans bandı makul olmalı');
-  assert.ok(st.secim.hedef > 0 && st.secim.hedef < 1, 'motorda gizli hedef tutulmalı');
-  const g = E.gorunum(st, 0);
-  assert.strictEqual(g.secim.hedef, null, 'OYUNCU GÖRÜNÜMÜNDE HEDEF OLMAMALI');
-  assert.strictEqual(g.secim.bant, st.secim.bant, 'band istemciye bildirilmeli');
-  assert.strictEqual(E.gorunum(st, null).secim.hedef, null, 'izleyici de hedefi görmemeli');
-  assert.strictEqual(st.faz, 'cekis', 'seçimden sonra çekiş fazına geçilmeli');
-  console.log('  ✓ 3) seçim gizli hedef üretiyor, hedef görünüme sızmıyor');
+  // 3) GEÇERSİZ DEVİRLER
+  assert.strictEqual(E.turDevret(c, 0, { current: 0, turn: 2, settled: kule(), players: oyuncular(0, 0) }).reason,
+    'not_your_turn', 'sırası olmayan devredemez');
+  assert.strictEqual(E.turDevret(c, 1, { current: 1, turn: 2, settled: kule(), players: oyuncular(0, 0) }).reason,
+    'gecersiz_tur', 'sırayı kendine devredemez');
+  const bozuk = kule(); bozuk[5] = bozuk[4].slice();
+  assert.strictEqual(E.turDevret(c, 1, { current: 0, turn: 2, settled: bozuk, players: oyuncular(0, 0) }).reason,
+    'gecersiz_tas', 'iki taş aynı yerde olamaz');
+  assert.strictEqual(E.turDevret(c, 1, { current: 0, turn: 2, settled: kule().slice(1), players: oyuncular(0, 0) }).reason,
+    'gecersiz_tas', 'taş sayısı 54 olmalı');
+  assert.strictEqual(E.turDevret(c, 1, { current: 5, turn: 2, settled: kule(), players: oyuncular(0, 0) }).reason,
+    'gecersiz_tur', 'olmayan oyuncu sırası reddedilmeli');
+  const tasan = kule(); tasan[0] = [999, 1];
+  assert.strictEqual(E.turDevret(c, 1, { current: 0, turn: 2, settled: tasan, players: oyuncular(0, 0) }).reason,
+    'gecersiz_tas', 'kule yüksekliği sınırlı olmalı');
+  const asiri = E.turDevret(c, 1, { current: 0, turn: 2, settled: kule(), players: oyuncular(1e12, -5) });
+  assert.ok(asiri.ok && c.skor[0] === 1e6 && c.skor[1] === 0, 'puanlar sınırlanmalı');
+  console.log('  ✓ 3) geçersiz devirler reddediliyor, puanlar sınırlanıyor');
 
-  // 4) BAND İÇİ ÇEKİŞ
-  const idOnce = st.izgara[5][1];
-  const r = E.tasCek(st, 0, st.secim.hedef);
-  assert.ok(r.basarili && !r.devrildi, 'tam isabette taş temiz çıkmalı');
-  assert.strictEqual(r.isabet, 1, 'tam ortada isabet 1 olmalı');
-  assert.strictEqual(st.izgara[5][1], -1, 'taş kuleden çıkmalı');
-  assert.strictEqual(st.izgara[r.yerlestirildi.kat][r.yerlestirildi.slot], idOnce,
-    'çekilen taş en üste konmalı');
-  assert.strictEqual(r.yerlestirildi.kat, 18, 'üst kat doluyken yeni kat açılmalı');
-  assert.strictEqual(r.yerlestirildi.slot, 1, 'yeni kat ORTA slottan başlamalı');
-  assert.strictEqual(st.turn, 1, 'çekişten sonra sıra rakibe geçmeli');
-  assert.strictEqual(st.faz, 'secim', 'yeni sıra seçim fazında başlamalı');
-  console.log('  ✓ 4) band içi çekiş taşı çıkarıp en üste koyuyor, sıra geçiyor');
+  // 4) BİTİŞ
+  const b = E.macBaslat({ seats: [0, 1] });
+  assert.strictEqual(E.bitir(b, 1, { loser: 1, reason: 'balance' }).reason, 'not_your_turn');
+  assert.strictEqual(E.bitir(b, 0, { loser: 1, reason: 'balance' }).reason, 'gecersiz_tur',
+    'rakibi kaybettirme reddedilmeli');
+  const bit = E.bitir(b, 0, { loser: 0, reason: 'structure', players: oyuncular(120, 80) });
+  assert.ok(bit.ok && b.status === 'finished' && b.winner === 1 && b.loser === 0, 'kuleyi deviren kaybeder');
+  assert.strictEqual(b.result.neden, 'yapi');
+  assert.strictEqual(E.bitir(b, 0, { loser: 0, reason: 'balance' }).reason, 'game_over', 'ikinci bitiş yok');
+  const n = E.macBaslat({ seats: [0, 1] });
+  const nr = E.bitir(n, 0, { loser: 1, reason: 'nomoves' });
+  assert.ok(nr.ok && n.winner === 0 && n.result.neden === 'tas_bitti', 'taş kalmazsa sıradaki oyuncu kaybeder');
+  console.log('  ✓ 4) bitiş: deviren kaybeder, taş bitmesi sıradaki oyuncuya yazılır');
 
-  // 5) BAND DIŞI → KULE DEVRİLİR
-  {
-    const b = E.macBaslat({ seats: [0, 1], rng: tohumlu(77) });
-    E.tasSec(b, 0, 4, 0);
-    const disari = Math.min(1, b.secim.hedef + b.secim.bant + 0.02);
-    const rr = E.tasCek(b, 0, disari);
-    assert.strictEqual(rr.devrildi, true, 'band dışında kule devrilmeli');
-    assert.strictEqual(b.status, 'finished', 'maç bitmeli');
-    assert.strictEqual(b.result.neden, 'denge', 'sebep "taş zorlandı" olmalı');
-    assert.strictEqual(b.winner, 1, 'kuleyi DEVİREN kaybetmeli');
-    assert.strictEqual(b.result.kaybeden, 0, 'deviren oyuncu kaybeden olmalı');
-    assert.strictEqual(E.tasSec(b, 1, 3, 0).reason, 'game_over', 'bitmiş maçta hamle olmaz');
-  }
-  console.log('  ✓ 5) band dışı çekişte kule devriliyor, deviren kaybediyor');
+  // 5) SÜRE AŞIMI
+  const t = E.macBaslat({ seats: [0, 1] });
+  assert.strictEqual(E.sureDoldu(t).hukmen, false);
+  assert.strictEqual(E.sureDoldu(t).hukmen, false);
+  E.turDevret(t, 0, { current: 1, turn: 1, settled: kule(), players: oyuncular(10, 0) });
+  assert.strictEqual(t.zamanAsimi, 0, 'devirde aşım sayacı sıfırlanmalı');
+  E.sureDoldu(t); E.sureDoldu(t);
+  const son = E.sureDoldu(t);
+  assert.ok(son.hukmen && t.status === 'finished' && t.loser === 1 && t.winner === 0, 'üçüncü aşımda hükmen mağlubiyet');
+  console.log('  ✓ 5) süre aşımı: üçüncü ardışıkta hükmen mağlubiyet, devirde sıfırlanıyor');
 
-  // 6) DENGE BOZULURSA TAŞ ÇIKSA BİLE DEVRİLİR
-  {
-    const b = E.macBaslat({ seats: [0, 1], rng: tohumlu(5) });
-    /* 3. katı tek taşa indirince üstündeki yığın taşınamaz hâle gelir. */
-    b.izgara[3][0] = -1; b.izgara[3][2] = -1;
-    const a = E.coz(b.izgara, b.izgara[3][1]);
-    assert.strictEqual(a.dengeli, false, 'son taşı da çekmek dengeyi bozmalı');
-    E.tasSec(b, 0, 3, 1);
-    const rr = E.tasCek(b, 0, b.secim.hedef);
-    assert.strictEqual(rr.basarili, true, 'taş temiz çıkmış olmalı');
-    assert.strictEqual(rr.devrildi, true, 'ama kule yeni yüküyle devrilmeli');
-    assert.strictEqual(b.result.neden, 'yapi', 'sebep yapısal olmalı');
-  }
-  console.log('  ✓ 6) denge bozulursa taş temiz çıksa bile kule devriliyor');
-
-  // 7) PUANLAMA ve SERİ
-  {
-    const b = E.macBaslat({ seats: [0, 1], rng: tohumlu(31) });
-    E.tasSec(b, 0, 2, 1);
-    const r1 = E.tasCek(b, 0, b.secim.hedef);
-    assert.ok(r1.puan > 100, 'temiz çekiş 100 puandan fazla getirmeli');
-    assert.strictEqual(r1.kademe, 2, 'tam isabet en yüksek kademe olmalı');
-    assert.strictEqual(b.seri[0], 1, 'seri başlamalı');
-    assert.strictEqual(b.skor[0], r1.puan, 'puan oyuncuya yazılmalı');
-    /* İkinci tam isabet seriyi büyütür ve çarpan devreye girer. */
-    E.tasSec(b, 1, 3, 0); E.tasCek(b, 1, b.secim.hedef);
-    E.tasSec(b, 0, 4, 2);
-    const r2 = E.tasCek(b, 0, b.secim.hedef);
-    assert.strictEqual(b.seri[0], 2, 'üst üste iyi çekiş seriyi büyütmeli');
-    assert.ok(r2.carpan > 1, 'seri çarpanı devreye girmeli');
-    /* Band kenarına yakın çekiş düşük kademe ve seriyi sıfırlar. */
-    E.tasSec(b, 1, 5, 1); E.tasCek(b, 1, b.secim.hedef);
-    E.tasSec(b, 0, 6, 0);
-    const kenar = b.secim.hedef + b.secim.bant * 0.95;
-    const r3 = E.tasCek(b, 0, Math.min(1, kenar));
-    if (r3.basarili && !r3.devrildi) {
-      assert.strictEqual(r3.kademe, 0, 'band kenarında kademe düşmeli');
-      assert.strictEqual(b.seri[0], 0, 'kötü çekiş seriyi sıfırlamalı');
-    }
-  }
-  console.log('  ✓ 7) puanlama isabet/sıkılık/riske göre, seri çarpanı çalışıyor');
-
-  // 8) SÜRE AŞIMI
-  {
-    const b = E.macBaslat({ seats: [0, 1], rng: tohumlu(99) });
-    const r1 = E.sureDoldu(b);
-    assert.strictEqual(r1.tur, 'secim', 'seçim fazında süre aşımı taş seçtirmeli');
-    assert.ok(r1.secim.ok, 'sunucu geçerli bir taş seçmeli');
-    assert.strictEqual(b.faz, 'cekis', 'çekiş fazına geçilmeli');
-    assert.strictEqual(b.status, 'playing', 'süre aşımı kimseyi masadan atmamalı');
-    const guvenli = E.enGuvenliTas(b);
-    assert.ok(guvenli && guvenli.kat < E.enUstTamKat(b.izgara),
-      'seçilen taş kilitli katın altından olmalı');
-    const r2 = E.sureDoldu(b);
-    assert.strictEqual(r2.tur, 'cekis', 'çekiş fazında süre aşımı el kaydırmalı');
-    assert.ok(r2.sonuc && r2.sonuc.ok, 'çekiş işlenmeli');
-  }
-  console.log('  ✓ 8) süre aşımında sunucu en güvenli taşı seçiyor, kimse atılmıyor');
+  // 6) PES ve GÖRÜNÜM
+  const p = E.macBaslat({ seats: [0, 1] });
+  E.turDevret(p, 0, { current: 1, turn: 1, settled: kule(), players: oyuncular(50, 20) });
+  const gA = E.gorunum(p, 0, { turnRemainingMs: 1000 });
+  assert.strictEqual(gA.kind, 'cenga'); assert.strictEqual(gA.seat, 0);
+  assert.strictEqual(gA.settled.length, 54); assert.strictEqual(gA.turnRemainingMs, 1000);
+  assert.strictEqual(E.gorunum(p, null).seat, null, 'izleyici koltuğu null');
+  E.pesEt(p, 1);
+  assert.ok(p.status === 'finished' && p.winner === 0 && p.result.reason === 'resign', 'pes eden kaybeder');
+  console.log('  ✓ 6) görünüm kule/skor taşıyor, pes eden kaybediyor');
 }
 
 /* ----------------------------------------------------------------- ONLINE */
@@ -211,93 +169,84 @@ async function onlineTesti() {
   const rooms = serverModule.rooms;
   const acik = [];
 
-  // 9) HAZIR MASALAR
+  // 7) HAZIR MASALAR
   const masalar = await httpRooms(BASE, 'cenga');
   assert.strictEqual(masalar.length, 10, 'cenga 10 hazır masa açmalı');
   assert.ok(masalar.every(m => m.maxPlayers === 2), 'masalar iki kişilik olmalı');
-  assert.ok(masalar.every(m => String(m.id) >= '2201' && String(m.id) <= '2210'),
-    'masa kimlikleri 2201-2210 aralığında olmalı');
-  console.log('  ✓ 9) hazır masalar lobide: 10 masa, 2 kişilik');
+  assert.ok(masalar.every(m => String(m.id) >= '2201' && String(m.id) <= '2210'), 'masa kimlikleri 2201-2210');
+  console.log('  ✓ 7) hazır masalar lobide: 10 masa, 2 kişilik');
 
   const oda = masalar[0];
+  const rid = String(oda.id);
   const A = await connect(BASE, 'cg-A');
   const B = await connect(BASE, 'cg-B');
   acik.push(A, B);
   for (const s of [A, B]) {
-    s.emit('joinRoom', { roomId: String(oda.id), gameId: 'cenga', userName: s.userName,
+    s.emit('joinRoom', { roomId: rid, gameId: 'cenga', userName: s.userName,
       userKey: 'test:' + s.userName, maxPlayers: 2, durationMinutes: oda.durationMinutes });
     await once(s, 'joinedRoom');
   }
   const basladi = [once(A, 'gameStarted', 12000), once(B, 'gameStarted', 12000)];
   [A, B].forEach(s => s.emit('setReady', { ready: true }));
-  const [pA] = await Promise.all(basladi);
+  const [pA, pB] = await Promise.all(basladi);
+  const c = rooms.get(rid).cenga;
 
-  const durumA = kaydet(A, 'gameStateUpdated');
-  const durumB = kaydet(B, 'gameStateUpdated');
-  const odaNes = rooms.get(String(oda.id));
-  const c = odaNes.cenga;
+  // 8) YALNIZ SIRASI OLAN KARE YOLLAR
+  assert.strictEqual(pA.gameState.kind, 'cenga');
+  assert.strictEqual(pA.gameState.seed, pB.gameState.seed, 'iki oyuncu aynı tohumla aynı kuleyi kurmalı');
+  assert.deepStrictEqual(pA.gameState.seats, [0, 1]);
+  const sSok = pA.seat === c.turn ? A : B;
+  const dSok = sSok === A ? B : A;
+  const kareGelen = kaydet(dSok, 'cengaNet');
+  const sahteGelen = kaydet(sSok, 'cengaNet');
+  dSok.emit('cengaNet', { t: 'f', ph: 'select', roomId: rid });          // sırası olmayan
+  sSok.emit('cengaNet', { t: 'f', ph: 'pull', b: [[3, 0, 1, 0, 0, 0, 0, 1]], roomId: rid });
+  const kare = await kareGelen.bekle(6000);
+  assert.strictEqual(kare.ph, 'pull', 'sıradakinin karesi rakibe ulaşmalı');
+  await new Promise(r => setTimeout(r, 300));
+  assert.strictEqual(sahteGelen.gelen.length, 0, 'sırası olmayanın karesi aktarılmamalı');
+  console.log('  ✓ 8) yalnız sırası olan kare yolluyor, kareler rakibe ulaşıyor');
 
-  // 10) GİZLİLİK ve SIRA
-  assert.strictEqual(pA.gameState.kind, 'cenga', 'masa paketi cenga olmalı');
-  assert.strictEqual(pA.gameState.izgara.length, 18, 'kule 18 kat gitmeli');
-  assert.strictEqual(pA.gameState.faz, 'secim', 'oyun seçim fazında başlamalı');
-  assert.strictEqual(pA.gameState.secim, null, 'başlangıçta seçim olmamalı');
+  // 9) SIRA DEVRİ
+  const durumD = kaydet(dSok, 'gameStateUpdated');
+  const devir = { t: 'turn', current: dSok === A ? 0 : 1, turn: 1, settled: kule(true), players: oyuncular(300, 0), stability: 0.9, roomId: rid };
+  devir.current = c.seats.indexOf(dSok === A ? pA.seat : pB.seat);
+  const devirGelen = kaydet(dSok, 'cengaNet');
+  const bozukRed = once(sSok, 'cengaRejected', 6000);
+  sSok.emit('cengaNet', Object.assign({}, devir, { settled: kule().slice(2) }));
+  assert.strictEqual((await bozukRed).reason, 'gecersiz_tas', 'bozuk kule reddedilmeli');
+  sSok.emit('cengaNet', devir);
+  const dv = await devirGelen.bekle(6000);
+  assert.strictEqual(dv.t, 'turn', 'devir paketi rakibe iletilmeli');
+  assert.strictEqual(c.turn, dSok === A ? pA.seat : pB.seat, 'sıra sunucuda rakibe geçmeli');
+  let gs = await durumD.bekle(6000);
+  while (gs.gameState.tur !== 1) gs = await durumD.bekle(6000);
+  assert.strictEqual(gs.gameState.settled.length, 54, 'durum paketi yerleşmiş kuleyi taşımalı');
+  assert.strictEqual(gs.gameState.skor[sSok === A ? pA.seat : pB.seat], 300, 'puan durum paketinde');
+  // eski sıra sahibi artık kare yollayamaz
+  const eskiGelen = kaydet(dSok, 'cengaNet');
+  sSok.emit('cengaNet', { t: 'f', ph: 'select', roomId: rid });
+  await new Promise(r => setTimeout(r, 300));
+  assert.strictEqual(eskiGelen.gelen.length, 0, 'sırasını devreden artık kare yollayamaz');
+  console.log('  ✓ 9) sıra devri sunucuya yazıldı, rakibe iletildi, eski sahip susturuldu');
 
-  const sira = c.turn;
-  const sSok = pA.seat === sira ? A : B;
-  const dSok = pA.seat === sira ? B : A;
-  const sDurum = pA.seat === sira ? durumA : durumB;
-
-  const red = once(dSok, 'cengaRejected', 8000);
-  dSok.emit('cengaSelect', { roomId: String(oda.id), kat: 4, slot: 1 });
-  assert.strictEqual((await red).reason, 'not_your_turn', 'sırası olmayanın seçimi reddedilmeli');
-
-  const red2 = once(sSok, 'cengaRejected', 8000);
-  sSok.emit('cengaSelect', { roomId: String(oda.id), kat: 17, slot: 0 });
-  assert.strictEqual((await red2).reason, 'kat_kilitli', 'kilitli kat sunucuda reddedilmeli');
-
-  const secOlay = once(B, 'cengaSelected', 12000);
-  sSok.emit('cengaSelect', { roomId: String(oda.id), kat: 6, slot: 1 });
-  const so = await secOlay;
-  assert.ok(so.bant > 0, 'tolerans bandı duyurulmalı');
-  assert.strictEqual(so.hedef, undefined, 'SEÇİM DUYURUSUNDA HEDEF OLMAMALI');
-  let gs = await sDurum.bekle();
-  while (!gs.gameState.secim) gs = await sDurum.bekle();
-  assert.strictEqual(gs.gameState.secim.hedef, null, 'DURUM PAKETİNDE HEDEF OLMAMALI');
-  assert.ok(!JSON.stringify(gs.gameState).includes('"tohum"'), 'tohumlar pakete sızmamalı');
-  assert.ok(!JSON.stringify(gs.gameState).includes('rngDurum'), 'rastgele durumu sızmamalı');
-  console.log('  ✓ 10) oyun başladı, GİZLİ HEDEF istemciye gitmiyor, sıra kuralı sunucuda');
-
-  // 11) ÇEKİŞ ve BİTİŞ
-  const cekA = once(A, 'cengaPulled', 12000);
-  const cekB = once(B, 'cengaPulled', 12000);
-  sSok.emit('cengaPull', { roomId: String(oda.id), el: c.secim.hedef });
-  const [cA, cB] = await Promise.all([cekA, cekB]);
-  assert.strictEqual(cA.basarili, true, 'tam isabette çekiş başarılı olmalı');
-  assert.strictEqual(cA.devrildi, false, 'kule ayakta kalmalı');
-  assert.ok(cB.puan > 0, 'puan iki istemciye de bildirilmeli');
-  assert.ok(cA.hedef >= 0 && cA.hedef <= 1, 'çekiş bitince hedef geri bildirim olarak açılmalı');
-  assert.notStrictEqual(c.turn, sira, 'sıra rakibe geçmeli');
-
-  /* Kuleyi band dışı bir çekişle devirip maçı bitir. */
-  {
-    const bittiA = kaydet(A, 'gameEnded');
-    const bittiB = kaydet(B, 'gameEnded');
-    const sira2 = c.turn;
-    const s2 = pA.seat === sira2 ? A : B;
-    s2.emit('cengaSelect', { roomId: String(oda.id), kat: 3, slot: 0 });
-    await once(A, 'cengaSelected', 12000);
-    s2.emit('cengaPull', { roomId: String(oda.id),
-      el: Math.min(1, c.secim.hedef + c.secim.bant + 0.05) });
-    const [sA, sB] = await Promise.all([bittiA.bekle(15000), bittiB.bekle(15000)]);
-    assert.strictEqual(sA.gameState.status, 'finished', 'kule devrilince maç bitmeli');
-    assert.strictEqual(sA.winnerSeat, sB.winnerSeat, 'iki pakette aynı kazanan olmalı');
-    assert.notStrictEqual(sA.winnerSeat, sira2, 'kuleyi deviren kazanamaz');
-    assert.notStrictEqual(sA.youWon, sB.youWon, 'biri kazandı diğeri kaybetti');
-    assert.ok(sA.gameState.secim === null || sA.gameState.secim.hedef !== null,
-      'maç bitince hedef açılabilir');
-  }
-  console.log('  ✓ 11) çekiş iki istemciye yansıyor, kule devrilince maç bitiyor');
+  // 10) BİTİŞ
+  const bittiA = kaydet(A, 'gameEnded');
+  const bittiB = kaydet(B, 'gameEnded');
+  const yeniSira = dSok;   // sıra artık bu soketin
+  const yeniSeat = yeniSira === A ? pA.seat : pB.seat;
+  const hileli = once(yeniSira, 'cengaRejected', 6000);
+  yeniSira.emit('cengaNet', { t: 'over', roomId: rid, info: { loser: 1 - c.seats.indexOf(yeniSeat), reason: 'balance' } });
+  assert.strictEqual((await hileli).reason, 'gecersiz_tur', 'rakibi kaybettirme reddedilmeli');
+  yeniSira.emit('cengaNet', { t: 'over', roomId: rid,
+    info: { loser: c.seats.indexOf(yeniSeat), reason: 'balance', players: oyuncular(300, 120), turn: 1 } });
+  const [sA, sB] = await Promise.all([bittiA.bekle(15000), bittiB.bekle(15000)]);
+  assert.strictEqual(sA.gameState.status, 'finished', 'kule devrilince maç bitmeli');
+  assert.strictEqual(sA.reason, 'kule_devrildi', 'bitiş nedeni kule devrilmesi olmalı');
+  assert.strictEqual(sA.winnerSeat, sB.winnerSeat, 'iki pakette aynı kazanan');
+  assert.notStrictEqual(sA.winnerSeat, yeniSeat, 'kuleyi deviren kazanamaz');
+  assert.notStrictEqual(sA.youWon, sB.youWon, 'biri kazandı diğeri kaybetti');
+  console.log('  ✓ 10) kule devrilince maç bitiyor, rakibi kaybettirme denemesi reddediliyor');
 
   acik.forEach(s => { try { s.close(); } catch (_) {} });
   server.close();
@@ -308,24 +257,28 @@ function arayuzTesti() {
   const sayfa = oku('index.html');
   assert.ok(/cenga:\{name:'Cenga'/.test(sayfa), 'oyun listesinde cenga olmalı');
   assert.ok(/js\/cenga-online\.js/.test(sayfa), 'istemci adaptörü sayfaya bağlanmalı');
-  assert.ok(/\.cg-kule\{/.test(sayfa), 'cenga stilleri olmalı');
+  assert.ok(/\.cg3-wrap\{/.test(sayfa) && /\.cg3-frame\{/.test(sayfa), 'iframe stilleri olmalı');
+  assert.ok(/#pg-room\.gv-fs \.cg3-wrap/.test(sayfa), 'tam ekranda alan doldurulmalı');
   assert.ok(/cenga:`<div class="rules-content">/.test(sayfa), 'kurallar metni olmalı');
   assert.ok(/ONLINE_GAMES = \[[^\]]*'cenga'/.test(sayfa), 'online oyun listesinde olmalı');
   assert.ok(/cenga:\[\]/.test(sayfa), 'ROOMS kaydı olmalı');
 
   const istemci = oku('js/cenga-online.js');
   assert.ok(/kinds: \['cenga'\]/.test(istemci), 'adaptör cenga türünü karşılamalı');
-  assert.ok(/--cg-kat/.test(istemci), 'kat yüksekliği ölçülen alana göre verilmeli');
-  assert.ok(/--cg-tas/.test(istemci), 'taş eni ölçülen alana göre verilmeli');
-  assert.ok(/orientationchange/.test(istemci), 'yön değişiminde ölçü tazelenmeli');
-  assert.ok(/classList\.toggle\('dar'/.test(istemci), 'dar ekranda düzen alt alta geçmeli');
-  /* İstemci hedefi HİÇ kullanmamalı: gizli hedefi okuyan bir satır olmamalı. */
-  assert.ok(!/secim\.hedef/.test(istemci), 'istemci gizli hedefe dokunmamalı');
+  assert.ok(/assets\/oyunlar\/cenga3d\.html\?online=1/.test(istemci), 'referans oyun iframe ile açılmalı');
+  assert.ok(/emit\('cengaNet'/.test(istemci), 'kareler sunucuya soketle iletilmeli');
+  assert.ok(/e\.source !== frame\.contentWindow/.test(istemci), 'yalnız kendi iframe\'inden paket kabul edilmeli');
+  assert.ok(/damga: function/.test(istemci), 'iframe maç boyunca yeniden yüklenmemeli (damga)');
+  assert.ok(/gv:roomLeft/.test(istemci), 'odadan çıkınca temizlenmeli');
+
+  const oyun = oku('assets/oyunlar/cenga3d.html');
+  assert.ok(oyun.length > 500000, 'derlenmiş oyun (three.js + cannon-es) dosyada olmalı');
+  assert.ok(/CENGA/.test(oyun) && /cenga3d/.test(oyun), 'oyun dosyası referans Cenga olmalı');
+  assert.ok(/URLSearchParams/.test(oyun) && /gv-ses/.test(oyun), 'çevrimiçi mod ve site ses anahtarı bağlı olmalı');
 
   const sunucu = oku('server.js');
   assert.ok(/cenga: 2201/.test(sunucu), 'hazır masa taban kimliği tanımlı olmalı');
-  assert.ok(/socket\.on\('cengaSelect'/.test(sunucu), 'seçim olayı sunucuda olmalı');
-  assert.ok(/socket\.on\('cengaPull'/.test(sunucu), 'çekiş olayı sunucuda olmalı');
+  assert.ok(/socket\.on\('cengaNet'/.test(sunucu), 'kare rölesi sunucuda olmalı');
   const tumOyunlar = (sunucu.match(/ALL_GAMES = \[[\s\S]*?\];/) || [''])[0];
   assert.ok(tumOyunlar.includes("'cenga'"), 'oyun listesine eklenmeli');
 
@@ -335,7 +288,7 @@ function arayuzTesti() {
 
   assert.ok(fs.existsSync(path.join(KOK, 'assets', 'covers', 'cenga.jpg')), 'kapak görseli olmalı');
   assert.ok(fs.existsSync(path.join(KOK, 'tools', 'kapak-cenga.py')), 'kapak üretim betiği olmalı');
-  console.log('  ✓ 12) istemci, stiller, kurallar, kurucu paneli ve kapak bağlı');
+  console.log('  ✓ 11) istemci, iframe oyunu, stiller, kurallar, kurucu paneli ve kapak bağlı');
 }
 
 (async () => {
@@ -343,7 +296,7 @@ function arayuzTesti() {
     motorTesti();
     await onlineTesti();
     arayuzTesti();
-    console.log('OK cenga: kule kuralları, gizli hedef, denge, online akış, arayüz');
+    console.log('OK cenga: sunucu kaydı, kare rölesi, sıra devri, bitiş, arayüz');
     process.exit(0);
   } catch (e) {
     console.error('CENGA HATASI:', e);

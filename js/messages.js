@@ -127,6 +127,7 @@
     gecersiz_tas:   '🧱 Böyle bir taş yok — kuleden bir taş seçin.',
     gecersiz_cekis: '✊ Çekiş okunamadı — iğneyi durdurup tekrar deneyin.',
     cokus:          '💥 Kule devrildi — kuleyi deviren eli kaybeder.',
+    gecersiz_tur:   '🔄 Sıra bilgisi geçersiz — masayı yenileyip tekrar deneyin.',
 
     // ---- Langırt ----
     /* Gerçek zamanlı oyun; tek reddedilebilir işlem boşa sallanan şuttur. */
@@ -191,6 +192,7 @@
     var pesEden = o.resignedName ? ('"' + String(o.resignedName).slice(0, 24) + '"') : 'Rakibiniz';
 
     if (o.isSpectator) {
+      if (r === 'kule_devrildi') return { ikon: '💥', baslik: 'Kule devrildi', metin: 'Bir oyuncu kuleyi devirdi; maç sona erdi.' };
       if (r === 'resign') return { ikon: '🏳️', baslik: 'Pes edildi', metin: 'Oyunculardan biri pes etti; maç sona erdi.' };
       if (r === 'player_left') return { ikon: '🚪', baslik: 'Oyuncu ayrıldı', metin: 'Masadaki oyunculardan biri oyunu terk etti; maç sona erdi.' };
       if (r === 'move_timeout') return { ikon: '⏱️', baslik: 'Süre doldu', metin: 'Sırası gelen oyuncu süresinde hamle yapmadı.' };
@@ -243,6 +245,11 @@
       return o.youWon
         ? { ikon: '🏆', baslik: 'En zengin sizsiniz!', metin: 'Tur limiti doldu; en yüksek varlıkla masayı siz kazandınız.' }
         : { ikon: '🏦', baslik: 'Tur limiti doldu', metin: 'Masa tur limitinde bitti; en yüksek varlık rakibinizdeydi.' };
+    }
+    if (r === 'kule_devrildi') {
+      return o.youWon
+        ? { ikon: '🏆', baslik: 'Kazandınız', metin: 'Rakibiniz kuleyi devirdi — maçı siz kazandınız!' }
+        : { ikon: '💥', baslik: 'Kule devrildi', metin: 'Kuleyi siz devirdiniz; bu maçı rakibiniz kazandı. Rövanş isteyebilirsiniz.' };
     }
     if (r === 'fleet_sunk') {
       return o.youWon

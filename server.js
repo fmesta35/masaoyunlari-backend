@@ -2115,9 +2115,9 @@ function langirtBitir(room, reason) {
 /* ========================================================================
  * CENGA — oda akışı
  * ========================================================================
- * Sıra iki adımdır: önce TAŞ SEÇ, sonra ÇEK. Çekişin gizli hedefi motorda
- * durur ve istemciye asla gönderilmez (cenga-engine.js → gorunum); istemci
- * yalnız tolerans bandını bilir, iğnenin durduğu konumu yollar.
+ * Oyun referans koddaki gibi 3B ve istemcide çalışır (assets/oyunlar/
+ * cenga3d.html). Sunucu: sıra/skor/yerleşmiş kule kaydı, kare rölesi,
+ * süre ve bitiş (cenga-engine.js ve 'cengaNet' olayı).
  * ===================================================================== */
 function cengaState(room, seat) {
   const c = room.cenga;
@@ -2151,7 +2151,7 @@ function cengaBitisYayinla(room, reason) {
   const c = room.cenga;
   if (!c) return;
   room.status = 'finished';
-  const ham = reason || (c.result && c.result.reason) || 'finished';
+  const ham = reason || (c.result && c.result.reason) || (c.result && c.result.neden === 'sure' ? 'move_timeout' : (c.result && ['denge', 'yapi', 'tas_bitti'].includes(c.result.neden) ? 'kule_devrildi' : 'finished'));
   const neden = (c.winner === null || c.winner === undefined) ? 'draw' : ham;
   room.result = { reason: neden, winnerSeat: c.winner == null ? null : c.winner, cengaNeden: ham };
   room.players.forEach(p => emitToPlayer(p, 'gameEnded', {
@@ -5464,45 +5464,40 @@ io.on('connection', socket => {
     });
   });
 
-  socket.on('cengaSelect', data => {
-    const room = cgOda(data);
+  /* CENGA — kare rölesi / sıra devri / bitiş. Oyun (fizik, ses, efekt)
+     SIRASI OLAN oyuncunun tarayıcısında çalışır; sunucu yalnız o koltuğun
+     paketlerini kabul eder, rakibe ve izleyicilere aktarır. */
+  let cgSonKare = 0;
+  socket.on('cengaNet', m => {
+    const room = cgOda(m);
     const p = room && room.players.find(x => x.id === socket.id);
-    if (!p || room.status !== 'playing') return cgRed(room, 'not_in_room');
-    const r = cengaEngine.tasSec(room.cenga, p.seat,
-      data && data.kat, data && data.slot);
-    if (!r.ok) return cgRed(room, r.reason);
-    /* Duyuruda HEDEF YOK — yalnız bant ve etiketler. */
-    io.to(room.id).emit('cengaSelected', {
-      roomId: room.id, seat: p.seat, kat: r.kat, slot: r.slot, bant: r.bant,
-      sikilikEtiketi: r.sikilikEtiketi, riskSeviyesi: r.riskSeviyesi, riskEtiketi: r.riskEtiketi
-    });
-    touchMoveTimer(room);
-    emitCengaState(room);
-  });
-  socket.on('cengaRelease', data => {
-    const room = cgOda(data);
-    const p = room && room.players.find(x => x.id === socket.id);
-    if (!p || room.status !== 'playing') return cgRed(room, 'not_in_room');
-    const r = cengaEngine.secimiBirak(room.cenga, p.seat);
-    if (!r.ok) return cgRed(room, r.reason);
-    touchMoveTimer(room);
-    emitCengaState(room);
-  });
-  socket.on('cengaPull', data => {
-    const room = cgOda(data);
-    const p = room && room.players.find(x => x.id === socket.id);
-    if (!p || room.status !== 'playing') return cgRed(room, 'not_in_room');
-    const r = cengaEngine.tasCek(room.cenga, p.seat, data && data.el);
-    if (!r.ok) return cgRed(room, r.reason);
-    /* Çekiş bitti; o taşın hedefi artık sır değil — geri bildirim olsun.
-       Her yeni seçim yeni bir gizli hedef üretir. */
-    io.to(room.id).emit('cengaPulled', {
-      roomId: room.id, seat: p.seat, basarili: !!r.basarili, devrildi: !!r.devrildi,
-      isabet: r.isabet, sapma: r.sapma, hedef: r.hedef, puan: r.puan,
-      kademe: r.kademe, yerlestirildi: r.yerlestirildi
-    });
-    cengaSonrasi(room);
-    emitRoom(room);
+    if (!p || room.status !== 'playing') return;
+    if (!m || typeof m.t !== 'string') return;
+    const c = room.cenga;
+    if (p.seat !== c.turn) return;                 // yalnız sırası olan koltuk
+    if (m.t === 'f') {
+      const t = Date.now();
+      if (t - cgSonKare < 15) return;              // saniyede ~60 kareyi aşan akış kesilir
+      cgSonKare = t;
+      c.sonKare = t;
+      socket.to(room.id).emit('cengaNet', m);
+      return;
+    }
+    if (m.t === 'turn') {
+      const r = cengaEngine.turDevret(c, p.seat, m);
+      if (!r.ok) return cgRed(room, r.reason);
+      socket.to(room.id).emit('cengaNet', m);
+      cengaSonrasi(room);
+      emitRoom(room);
+      return;
+    }
+    if (m.t === 'over') {
+      const r = cengaEngine.bitir(c, p.seat, m.info);
+      if (!r.ok) return cgRed(room, r.reason);
+      socket.to(room.id).emit('cengaNet', m);
+      cengaSonrasi(room);
+      emitRoom(room);
+    }
   });
 
   socket.on('passaparolaReveal', data => {
@@ -6005,15 +6000,15 @@ function enforceOnlineMoveTimeout(room) {
     return true;
   }
 
-  /* CENGA: süresi dolan oyuncu masadan ATILMAZ. Taş seçmediyse sunucu en
-     güvenli taşı onun adına seçer; çekişte beklediyse el kayar ve çoğu
-     zaman kule devrilir — acele etmemenin bedeli budur. */
+  /* CENGA: süresi dolan oyuncu masadan ATILMAZ. Taş seçmediyse oyun onun
+     adına en güvenli taşı seçer, çekişte beklediyse el kayar ve çoğu zaman
+     kule devrilir (bunu sırası olanın tarayıcısı uygular). Tarayıcı hiç
+     yanıt vermiyorsa ardışık üçüncü aşımda hükmen mağlubiyet. */
   if (room.cenga) {
     const c = room.cenga;
     const ad = (room.players.find(x => x.seat === seat) || {}).name || 'Oyuncu';
     const r = cengaEngine.sureDoldu(c);
-    io.to(room.id).emit('cengaTimeout', { roomId: room.id, seat, ad,
-      tur: r && r.tur, el: r && r.el });
+    io.to(room.id).emit('cengaTimeout', { roomId: room.id, seat, ad, tur: r && r.tur, hukmen: !!(r && r.hukmen) });
     cengaSonrasi(room);
     emitRoom(room);
     return true;

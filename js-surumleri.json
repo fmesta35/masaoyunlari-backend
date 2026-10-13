@@ -32,8 +32,8 @@
     "sha": "4556aadb6eb9"
   },
   "js/cenga-online.js": {
-    "v": "20261011b",
-    "sha": "7ed3ece59e98"
+    "v": "20261013c",
+    "sha": "d3fe649bbf40"
   },
   "js/chat.js": {
     "v": "20260821c",
@@ -120,8 +120,8 @@
     "sha": "418cf5e5a090"
   },
   "js/messages.js": {
-    "v": "20261013a",
-    "sha": "d281754ee5b1"
+    "v": "20261013c",
+    "sha": "a31935c19b77"
   },
   "js/metropol-online.js": {
     "v": "20261013b",
