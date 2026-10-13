@@ -2024,7 +2024,8 @@ function langirtKare(room) {
            vx: Math.round(st.top.vx), vy: Math.round(st.top.vy) },
     cubuk: { kirmizi: st.cubuk.kirmizi.map(v => Math.round(v)),
              mavi: st.cubuk.mavi.map(v => Math.round(v)) },
-    skor: st.skor, olayNo: st.olayNo, sonOlay: st.sonOlay
+    skor: st.skor, olayNo: st.olayNo, sonOlay: st.sonOlay,
+    gecenSn: Math.round(st.gecenSn * 10) / 10, sonGolAtan: st.sonGolAtan
   });
 }
 function langirtDurdur(room) {

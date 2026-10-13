@@ -365,7 +365,7 @@ function arayuzTesti() {
   const sayfa = oku('index.html');
   assert.ok(/langirt:\{name:'Langırt'/.test(sayfa), 'oyun listesinde langırt olmalı');
   assert.ok(/js\/langirt-online\.js/.test(sayfa), 'istemci adaptörü sayfaya bağlanmalı');
-  assert.ok(/\.lg-tuval\{/.test(sayfa), 'langırt stilleri olmalı');
+  assert.ok(/\.lg3-frame\{/.test(sayfa), 'langırt iframe stilleri olmalı');
   assert.ok(/langirt:`<div class="rules-content">/.test(sayfa), 'kurallar metni olmalı');
   assert.ok(/ONLINE_GAMES = \[[^\]]*'langirt'/.test(sayfa), 'online oyun listesinde olmalı');
   assert.ok(/langirt:\[\]/.test(sayfa), 'ROOMS kaydı olmalı');
@@ -374,10 +374,9 @@ function arayuzTesti() {
   const istemci = oku('js/langirt-online.js');
   assert.ok(/kinds: \['langirt'\]/.test(istemci), 'adaptör langırt türünü karşılamalı');
   assert.ok(/langirtFrame/.test(istemci), 'gerçek zamanlı kareleri dinlemeli');
-  assert.ok(/araDeger/.test(istemci), 'paketler arası yumuşatma olmalı');
-  assert.ok(/devicePixelRatio/.test(istemci), 'tuval ekran yoğunluğuna göre ölçeklenmeli');
-  assert.ok(/orientationchange/.test(istemci), 'yön değişiminde ölçü tazelenmeli');
-  assert.ok(/tuval\.__dar/.test(istemci), 'dar ekranda saha çevrilmeli');
+  assert.ok(/langirtRods/.test(istemci) && /langirtShot/.test(istemci), 'çubuk ve şut olayları iletilmeli');
+  assert.ok(/assets\/oyunlar\/langirt\.html/.test(istemci), 'referans oyun iframe ile yüklenmeli');
+  assert.ok(fs.existsSync(path.join(__dirname, '..', 'assets/oyunlar/langirt.html')), 'oyun paketi dosyası olmalı');
   /* Fizik İSTEMCİDE OLMAMALI: topun hızını istemci entegre etmemeli. */
   assert.ok(!/top\.x \+= .*vx \* dt/.test(istemci), 'istemci fiziği kendi işletmemeli');
 
