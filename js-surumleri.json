@@ -4,12 +4,12 @@
     "sha": "72c89cfda6c4"
   },
   "js/admin-panel.js": {
-    "v": "20261011a",
-    "sha": "e16febd0063b"
+    "v": "20261017a",
+    "sha": "066da05d8db7"
   },
   "js/app.js": {
-    "v": "20260820a",
-    "sha": "f634343774ed"
+    "v": "20261017a",
+    "sha": "61aea5a79844"
   },
   "js/auth.js": {
     "v": "20260912a",
@@ -44,8 +44,8 @@
     "sha": "c941e653eb49"
   },
   "js/config.js": {
-    "v": "20260822a",
-    "sha": "3ebb15cea11c"
+    "v": "20261017a",
+    "sha": "e3b7be631c3c"
   },
   "js/connect4-online.js": {
     "v": "20260904b",
@@ -72,8 +72,8 @@
     "sha": "63e5f931efd9"
   },
   "js/games.js": {
-    "v": "20260823b",
-    "sha": "f5422f097024"
+    "v": "20261017a",
+    "sha": "e14ee522775e"
   },
   "js/gezinti.js": {
     "v": "20261011c",
@@ -132,16 +132,16 @@
     "sha": "499f0345e8a4"
   },
   "js/no-bots.js": {
-    "v": "20260823b",
-    "sha": "3e4a9123b6ba"
+    "v": "20261017a",
+    "sha": "d69bd88a9fee"
   },
   "js/okey-online.js": {
-    "v": "20261005a",
-    "sha": "00757f3cd9e5"
+    "v": "20261017a",
+    "sha": "e3f7b226b9bc"
   },
   "js/okey101-ac.js": {
-    "v": "20261005a",
-    "sha": "02f0595c29fc"
+    "v": "20261017a",
+    "sha": "0e7cc634503f"
   },
   "js/online-arena.js": {
     "v": "20261012a",
@@ -168,8 +168,8 @@
     "sha": "02cc675da6a7"
   },
   "js/room-waiting-fix.js": {
-    "v": "20261011a",
-    "sha": "ddf92790460e"
+    "v": "20261017a",
+    "sha": "550031998d4d"
   },
   "js/scores.js": {
     "v": "20260912a",
@@ -180,12 +180,16 @@
     "sha": "07f1ffa38b66"
   },
   "js/socket.io.min.js": {
-    "v": "20260819c",
-    "sha": "83df4abc7eec"
+    "v": "20261017a",
+    "sha": "857f6a627e51"
   },
   "js/tavla-online.js": {
     "v": "20260908d",
     "sha": "6e805a54d7f8"
+  },
+  "js/tek-kisilik-online.js": {
+    "v": "20261017a",
+    "sha": "c3219277f4e3"
   },
   "js/tombala-online.js": {
     "v": "20261011a",
@@ -200,8 +204,8 @@
     "sha": "8447076794f1"
   },
   "js/utils.js": {
-    "v": "20260819c",
-    "sha": "41657366bce9"
+    "v": "20261017a",
+    "sha": "70df95b9c7ed"
   },
   "js/webview.js": {
     "v": "20260908b",

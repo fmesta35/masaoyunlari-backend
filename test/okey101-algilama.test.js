@@ -215,6 +215,24 @@ function main() {
     console.log('  ✓ 7) oyun istemcisi dizilimi gönderiyor, stiller yerinde');
   }
 
+  // ---------- 8) BOŞLUKSUZ DİZİLİM + HATALI GRUP UYARISI ----------
+  {
+    const OK2 = { c: 't-blue', n: 1 };
+    const k = [T(8, 't-yellow'), T(8, 't-blue'), T(8, 't-red'), T(6, 't-yellow')]; // 8-8-8 küt + yalnız 6
+    const bozuk = [T(10, 't-yellow'), T(6, 't-black'), T(11, 't-blue')];
+    const s = A.algila([[].concat(k, [null], bozuk)], OK2, false);
+    assert.strictEqual(s.perler.length, 1, 'boşluksuz 8-8-8-6 içinden 8-8-8 küt çıkmalı');
+    assert.strictEqual(s.perler[0].length, 3);
+    assert.strictEqual(s.atlanan.length, 1, 'geçersiz grup uyarı için bildirilmeli');
+    const w = pencere().window; const B = w.GVOkey101Ac;
+    B.ac({ eller: [].concat(k, bozuk), raflar: [[].concat(k, [null], bozuk)], realOkey: OK2,
+           acmaPuani: 20, ciftAdedi: 5, puanla: p => (B.perDogrula(p, OK2).puan || 0), gonder: () => {} });
+    const kutu = w.document.getElementById('ok101AcKutu');
+    assert.ok(kutu.querySelector('.ok101a-per.hatali'), 'hatalı grup kırmızı gösterilmeli');
+    assert.ok(kutu.querySelector('.ok101a-ac').disabled, 'hatalı per varken Aç kapalı olmalı');
+    console.log('  ✓ 8) boşluksuz dizilim bölünüyor, hatalı grup uyarıyla gösteriliyor');
+  }
+
   console.log('OK 101 okey: ıstakadan otomatik per algılama ve taş geri alma');
 }
 

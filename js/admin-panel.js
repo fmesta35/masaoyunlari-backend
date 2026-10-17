@@ -31,8 +31,12 @@
      Kelimelik satırında yalnız "Görünür" vardı). Artık şema SUNUCUDAN
      (/api/admin/tables → sema) okunur; aşağıdakiler yalnız sunucuya
      ulaşılamadığında kullanılan yedektir. */
-  let STANDARD = ['chess', 'tavla', 'okey', 'okey101', 'pisti', 'batak', 'dama', 'turkdamasi', 'reversi', 'gomoku', 'connect4', 'bilardo', 'battleship', 'kelimelik', 'adamasmaca', 'passaparola', 'cenga', 'langirt', 'havahokeyi', 'fark'];
+  let STANDARD = ['chess', 'tavla', 'okey', 'okey101', 'pisti', 'batak', 'dama', 'turkdamasi', 'reversi', 'gomoku', 'connect4', 'bilardo', 'battleship', 'kelimelik', 'adamasmaca', 'passaparola', 'cenga', 'langirt', 'havahokeyi', 'fark', 'apexgarage', 'golgelabirenti', 'ayla'];
   let FIXED = [];
+  /* TEK KİŞİLİK oyunlar (sunucu sema.tekKisilik ile bildirir): masa satırında
+     yalnız AD vardır — tip/süre/hamle yok; masa 1 koltukludur. */
+  let TEK_KISILIK = ['apexgarage', 'golgelabirenti', 'ayla'];
+  function tekMi(gid) { return TEK_KISILIK.includes(gid); }
   /* Masası eklenip çıkarılabilen oyunlar. Eskiden bunun yerine doğrudan
      STANDARD'a bakılıyordu; okey ve 101 okey orada olmadığı için satırlarında
      yalnız "Görünür" düğmesi çıkıyordu (kullanıcı raporu: "okey ve 101
@@ -93,6 +97,7 @@
     if (Array.isArray(sema.kartMasalari) && sema.kartMasalari.length) KART_MASALARI = sema.kartMasalari.slice();
     if (sema.kartSinir && typeof sema.kartSinir === 'object') Object.assign(KART_SINIR, sema.kartSinir);
     if (Array.isArray(sema.hamleYok)) HAMLE_YOK = sema.hamleYok.slice();
+    if (Array.isArray(sema.tekKisilik)) TEK_KISILIK = sema.tekKisilik.slice();
     if (sema.hamleSinir && typeof sema.hamleSinir === 'object') Object.assign(HAMLE_SINIR, sema.hamleSinir);
     if (sema.hamleVarsayilan && typeof sema.hamleVarsayilan === 'object') HAMLE_VARSAYILAN = Object.assign({}, sema.hamleVarsayilan);
     if (sema.tabanlar && typeof sema.tabanlar === 'object') Object.assign(BASE, sema.tabanlar);
@@ -223,12 +228,16 @@
   }
 
   // Varsayılan ayarlar (sunucudakiyle aynı kalıp):
-  const BASE = { chess: 101, tavla: 201, dama: 401, turkdamasi: 501, reversi: 601, gomoku: 701, connect4: 801, bilardo: 921, okey: 301, okey101: 1201, pisti: 341, batak: 361, battleship: 1001, kelimelik: 1101, tombala: 1301, adamasmaca: 2001, passaparola: 2101, cenga: 2201, langirt: 2301, havahokeyi: 2401, fark: 2501, kizmabirader: 2601, metropol: 2701 };
+  const BASE = { chess: 101, tavla: 201, dama: 401, turkdamasi: 501, reversi: 601, gomoku: 701, connect4: 801, bilardo: 921, okey: 301, okey101: 1201, pisti: 341, batak: 361, battleship: 1001, kelimelik: 1101, tombala: 1301, adamasmaca: 2001, passaparola: 2101, cenga: 2201, langirt: 2301, havahokeyi: 2401, fark: 2501, kizmabirader: 2601, metropol: 2701, apexgarage: 2801, golgelabirenti: 2851, ayla: 2901 };
   /* Taban numarası bilinmeyen (sunucu şeması gelmemiş) bir oyun için bile
      masa adı üretilebilsin; yoksa "Masa #NaN" yazıyordu. */
   function tabanOf(gid) { return Number(BASE[gid]) > 0 ? Number(BASE[gid]) : 1; }
   function defaultTables(gid) {
     const out = [];
+    if (tekMi(gid)) {
+      for (let k = 0; k < 6; k++) out.push({ name: `Tek Kişilik Masa #${tabanOf(gid) + k}`, type: 'normal', durationMinutes: 10, duration: 10 });
+      return out;
+    }
     for (const t of TYPE_DEFS) {
       const n = (t.type === 'fast' ? 4 : t.type === 'normal' ? 3 : 3);
       for (let k = 0; k < n; k++) out.push({ name: `${t.label} Masa #${tabanOf(gid) + out.length}`, type: t.type, durationMinutes: t.duration });
@@ -1278,6 +1287,18 @@
 
     wrap.innerHTML = (cfg.tables || []).map((t, i) => {
       const hamleDeger = Number(t.moveSeconds) > 0 ? Number(t.moveSeconds) : '';
+      if (tekMi(gid)) {
+        /* Tek kişilik masa: yalnız ad + sil. 1 koltuk, hazır deyince başlar,
+           izleyiciye açık — başka ayar yok. */
+        return `
+      <div style="border:1px solid var(--border);border-radius:10px;padding:9px 10px;background:var(--bg)">
+        <div style="display:flex;gap:8px;align-items:flex-end">
+          <div style="flex:1;min-width:0">${etiketli('MASA ADI (1 KİŞİLİK)',
+            `<input data-edit="name" data-gid="${gid}" data-i="${i}" value="${esc(t.name)}" style="${kutu}">`)}</div>
+          <button type="button" data-act="delRow" data-gid="${gid}" data-i="${i}" style="flex:0 0 auto;border:none;background:rgba(255,118,117,.12);color:#ff7675;border-radius:8px;padding:9px 11px;cursor:pointer" title="Bu masayı sil">🗑️</button>
+        </div>
+      </div>`;
+      }
       return `
       <div style="border:1px solid var(--border);border-radius:10px;padding:9px 10px;background:var(--bg)">
         <!-- Masa adı KENDİ SATIRINDA: altı alan + sil düğmesi tek sıraya

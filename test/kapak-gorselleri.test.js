@@ -46,7 +46,7 @@ function jpegOlcu(buf) {
 }
 
 const html = fs.readFileSync(path.join(KOK, 'index.html'), 'utf8');
-const kapaklar = [...html.matchAll(/cover:'(assets\/covers\/[^']+)'/g)].map(m => m[1]);
+const kapaklar = [...html.matchAll(/cover:'(assets\/covers\/[^'?]+)(?:\?[^']*)?'/g)].map(m => m[1]);
 assert.ok(kapaklar.length >= 13,
   'index.html\'de oyun kapakları bulunmalı — bulunan: ' + kapaklar.length);
 

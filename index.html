@@ -2425,6 +2425,39 @@ body.gv-app input,body.gv-app textarea,body.gv-app .chat-msgs,body.gv-app .moves
   .hk3-wrap{height:clamp(300px,calc(100vh - 300px),520px)}
 }
 
+/* ================= TEK KİŞİLİK OYUNLAR ============================ */
+/* Oyun referans koddaki gibi bir iframe içinde çalışır
+   (assets/oyunlar/tek-*.html). Yükseklik alana göre verilir; tam ekranda
+   tahta alanını doldurur. */
+#pg-room.tk-solo #topTimers,#pg-room.tk-solo .score-panel,#pg-room.tk-solo .card:has(#moveHist){display:none!important}
+.tk-wrap{position:relative;width:100%;height:clamp(460px,calc(100vh - 200px),880px);
+  border-radius:14px;overflow:hidden;background:#04060c;border:1px solid var(--border)}
+.tk-frame{position:absolute;left:0;top:0;width:100%;height:100%;border:0;display:block;background:#04060c}
+#pg-room.gv-fs .tk-wrap{height:100%;border-radius:0;border:0}
+@media(max-height:520px){.tk-wrap{height:calc(100vh - 110px);min-height:280px}}
+@media(max-width:560px) and (orientation:portrait){
+  .tk-wrap{height:clamp(420px,calc(100vh - 230px),760px)}
+}
+/* İzleyici görünümü: oyuncunun ekranından gelen canlı kare + özet */
+.tk-izle{display:flex;flex-direction:column;gap:10px;width:100%}
+.tk-i-ust{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:8px 12px;border-radius:12px;
+  background:var(--card);border:1px solid var(--border)}
+.tk-i-rozet{font-size:.72em;font-weight:800;letter-spacing:.06em;padding:3px 9px;border-radius:999px;
+  background:rgba(255,80,80,.15);color:#ff8a8a;border:1px solid rgba(255,80,80,.35)}
+.tk-i-durum{margin-left:auto;font-size:.82em;color:var(--accent)}
+.tk-i-ekran{position:relative;width:100%;aspect-ratio:16/9;max-height:calc(100vh - 300px);min-height:200px;
+  border-radius:14px;overflow:hidden;background:#04060c;border:1px solid var(--border);
+  display:flex;align-items:center;justify-content:center}
+.tk-i-img{width:100%;height:100%;object-fit:contain;display:block}
+.tk-i-bos{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--text2);font-size:.95em;text-align:center;padding:16px}
+.tk-i-alt{display:flex;gap:10px;flex-wrap:wrap}
+.tk-i-kutu{flex:1;min-width:110px;padding:8px 12px;border-radius:12px;background:var(--card);border:1px solid var(--border);display:flex;flex-direction:column;gap:2px}
+.tk-i-kutu span{font-size:.66em;letter-spacing:.08em;color:var(--text3)}
+.tk-i-kutu b{font-size:1.2em;color:var(--text);overflow-wrap:anywhere}
+.tk-i-kutu i{font-style:normal;font-size:.78em;color:var(--text2)}
+.tk-i-genis{flex:2;min-width:180px}
+@media(max-width:560px){.tk-i-ekran{max-height:none}}
+
 /* ===================== FARK BULMACA =============================== */
 /* İki SVG kopya; geniş alanda yan yana, dar alanda alt alta. Kutuların
    ölçüsü JS'te ÖLÇÜLEN alana göre verilir (js/fark-online.js olcuYaz),
@@ -3136,6 +3169,12 @@ body.gv-app input,body.gv-app textarea,body.gv-app .chat-msgs,body.gv-app .moves
 
       <h2 style="margin-bottom:12px">🔥 Popüler Oyunlar</h2>
       <div class="games-grid" id="homeGames"></div>
+
+      <!-- TEK KİŞİLİK OYUNLAR: Popüler Oyunlar'ın altında ayrı bölüm. Masalar
+           1 koltukludur; "Hazırım" deyince oyun başlar, izleyici kabul eder. -->
+      <h2 style="margin:26px 0 4px" id="homeSoloBaslik">🎮 Tek Kişilik Oyunlar</h2>
+      <p style="color:var(--text2);margin-bottom:12px;font-size:.88em" id="homeSoloAlt">Rakip beklemeden hemen oyna — masaya otur, “Hazırım” de, başla. İstersen başkaları da seni izleyebilir.</p>
+      <div class="games-grid" id="homeSolo"></div>
     </div>
 
     <!-- İSTATİSTİKLER -->
@@ -3592,10 +3631,14 @@ const TWO_PLAYER_GAMES = ['chess', 'tavla', 'dama', 'turkdamasi', 'reversi', 'go
 // SUNUCUDA GERÇEK MASALARI OLAN OYUNLAR: lobi listesi Render'dan gelir.
 // Damalar/reversi/gomoku/connect4/bilardo da 10'ar hazır masa açıldı —
 // bekleme odaları (otur/kalk/hazırım) tümünde aynı şekilde çalışır.
-const ONLINE_GAMES = ['chess', 'tavla', 'okey', 'okey101', 'dama', 'turkdamasi', 'reversi', 'gomoku', 'connect4', 'bilardo', 'battleship', 'kelimelik', 'tombala', 'adamasmaca', 'passaparola', 'cenga', 'langirt', 'havahokeyi', 'fark', 'kizmabirader', 'metropol'];
+const ONLINE_GAMES = ['chess', 'tavla', 'okey', 'okey101', 'dama', 'turkdamasi', 'reversi', 'gomoku', 'connect4', 'bilardo', 'battleship', 'kelimelik', 'tombala', 'adamasmaca', 'passaparola', 'cenga', 'langirt', 'havahokeyi', 'fark', 'kizmabirader', 'metropol', 'apexgarage', 'golgelabirenti', 'ayla'];
 // Okey VE 101 Okey ONLINE (gerçek oyuncular, sunucu yetkili). Bot yedeği
 // yalnızca henüz online motoru olmayan (pişti, batak) oyunlarda devrede.
 const BOT_FALLBACK_GAMES = ['pisti', 'batak'];
+/* TEK KİŞİLİK oyunlar (Apex Garage, Gölge Labirenti, AYLA): masa 1 koltukludur,
+   'Hazırım' deyince oyun başlar. Ayrıntı: js/tek-kisilik-online.js */
+const TEK_KISILIK = ['apexgarage', 'golgelabirenti', 'ayla'];
+window.TEK_KISILIK_OYUNLAR = TEK_KISILIK;
 
 /* Her oyunun kendi "kapak" teması: gerçekçi fotoğraf yerine (bu ortamda
    görsel üretim aracı yok) oyunun malzemesini (ahşap tavla, keçe bilardo
@@ -3621,15 +3664,19 @@ const GAMES={
   tombala:{name:'Tombala',icon:'🎱',cat:'card',bg:'linear-gradient(150deg,#3a1030,#7a1f55 55%,#d1468c)',cover:'assets/covers/tombala.jpg'},
   adamasmaca:{name:'Adam Asmaca',icon:'🪢',cat:'board',bg:'linear-gradient(150deg,#1a1430,#3f2a6b 55%,#f0a23c)',cover:'assets/covers/adamasmaca.jpg'},
   passaparola:{name:'Passaparola',icon:'🔠',cat:'board',bg:'linear-gradient(150deg,#06243a,#0d4f6e 55%,#eab308)',cover:'assets/covers/passaparola.jpg'},
-  cenga:{name:'Cenga',icon:'🧱',cat:'board',bg:'linear-gradient(150deg,#2a1b0c,#6b4420 55%,#c99155)',cover:'assets/covers/cenga.jpg'},
+  cenga:{name:'Cenga',icon:'🧱',cat:'board',bg:'linear-gradient(150deg,#2a1b0c,#6b4420 55%,#c99155)',cover:'assets/covers/cenga.jpg?v=20261018'},
   langirt:{name:'Langırt',icon:'⚽',cat:'strategy',bg:'linear-gradient(150deg,#06301c,#10532f 55%,#2bbd6b)',cover:'assets/covers/langirt.jpg'},
   havahokeyi:{name:'Hava Hokeyi',icon:'🏒',cat:'strategy',bg:'linear-gradient(150deg,#041c2e,#0e3550 55%,#36b6f0)',cover:'assets/covers/havahokeyi.jpg'},
   fark:{name:'Fark Bulmaca',icon:'🔍',cat:'board',bg:'linear-gradient(150deg,#123049,#1d6f8f 55%,#67d3c6)',cover:'assets/covers/fark.jpg'},
   kizmabirader:{name:'Kızma Birader',icon:'🎲',cat:'board',bg:'linear-gradient(150deg,#2a1230,#6b2454 55%,#e0567f)',cover:'assets/covers/kizmabirader.jpg'},
-  metropol:{name:'Metropol',icon:'🏦',cat:'board',bg:'linear-gradient(150deg,#10210f,#1f5c2c 52%,#8bd16a)',cover:'assets/covers/metropol.jpg'}
+  metropol:{name:'Metropol',icon:'🏦',cat:'board',bg:'linear-gradient(150deg,#10210f,#1f5c2c 52%,#8bd16a)',cover:'assets/covers/metropol.jpg?v=20261018'},
+  /* TEK KİŞİLİK OYUNLAR — ana sayfada "Popüler Oyunlar"ın altında ayrı bölüm */
+  apexgarage:{name:'Apex Garage',icon:'🏎️',cat:'solo',bg:'linear-gradient(150deg,#04060c,#0b3a54 55%,#22d3ee)',cover:'assets/covers/apexgarage.jpg?v=20261018'},
+  golgelabirenti:{name:'Gölge Labirenti',icon:'🌀',cat:'solo',bg:'linear-gradient(150deg,#07060f,#2a1b5c 55%,#9a6bff)',cover:'assets/covers/golgelabirenti.jpg?v=20261018'},
+  ayla:{name:'AYLA: Mührün Bekçisi',icon:'🔮',cat:'solo',bg:'linear-gradient(150deg,#07090f,#3a2a14 55%,#e2b15a)',cover:'assets/covers/ayla.jpg?v=20261018'}
 };
 
-const ROOMS = { chess:[], tavla:[], dama:[], turkdamasi:[], okey:[], okey101:[], pisti:[], batak:[], reversi:[], gomoku:[], connect4:[], bilardo:[], battleship:[], kelimelik:[], tombala:[], adamasmaca:[], passaparola:[], cenga:[], langirt:[], havahokeyi:[], fark:[], kizmabirader:[], metropol:[] };
+const ROOMS = { chess:[], tavla:[], dama:[], turkdamasi:[], okey:[], okey101:[], pisti:[], batak:[], reversi:[], gomoku:[], connect4:[], bilardo:[], battleship:[], kelimelik:[], tombala:[], adamasmaca:[], passaparola:[], cenga:[], langirt:[], havahokeyi:[], fark:[], kizmabirader:[], metropol:[], apexgarage:[], golgelabirenti:[], ayla:[] };
 
 const RULES={
   kelimelik:`<div class="rules-content"><h3>🎯 Kelimelik — Amaç</h3><p>Istakandaki yedi harfle 15×15 tahtaya kelime dizerek rakibinden çok puan toplamak. Masa <b>iki kişiliktir</b>.</p><h3>📖 Sözlük</h3><p>TDK Güncel Türkçe Sözlük esas alınır ve denetim <b>kapatılamaz</b>. Sözlükte <b>madde başı</b> ne ise o geçerlidir; ek almış biçimler (kediler, evde, geldim) geçerli DEĞİLDİR. Fiiller mastar hâliyle bulunur: <b>gel</b> ✗ · <b>gelmek</b> ✓. Özel adlar, element simgeleri ve kısaltmalar yoktur; ülke adları kabul edilir. Sözlükte olduğunu düşündüğün bir kelime reddedilirse <b>📣 Kelime Bildir</b> ile iletebilirsin; doğrulanırsa sözlüğe eklenir.</p><h3>📋 Nasıl Oynanır</h3><p>İlk hamle ★ başlangıç karesinden geçmeli ve en az iki harfli olmalıdır. Sonraki her hamle tahtadaki bir kelimeye değmeli; harfler tek hat üzerinde ve aralarında boşluk kalmadan dizilmelidir. Kesişmeden doğan yan kelimeler de denetlenir ve ayrıca puanlanır.</p><h3>🎯 Puanlama</h3><ul><li>H²/H³ harfin, K²/K³ kelimenin puanını çarpar; bonus yalnız üzerine İLK konulduğu hamlede sayılır.</li><li>Yedi harfin tamamı kullanılırsa <b>+35 Bingo</b>.</li><li>Joker (★) her harfin yerine geçer, 0 puandır.</li></ul><h3>⚙️ Bu Platformda</h3><ul><li>Hamle süresi masa tipindedir: ⚡ Hızlı 30 sn · ♟️ Normal 45 sn · 🧠 Düşünen 60 sn. Süresi dolan oyuncu <b>pas geçmiş sayılır</b> (hükmen mağlup olmaz).</li><li>Hamle bulunamazsa oyuncu masadan atılmaz, sırası <b>otomatik pas</b> geçilir.</li><li>Bir oyuncu <b>üst üste 3 kez</b> pas geçerse (elle, otomatik ya da süre aşımıyla) <b>diskalifiye</b> olur: puanı silinir, rakip hükmen kazanır.</li><li>İki oyuncu da üst üste ikişer kez pas geçerse maç biter.</li><li>Torba boşalıp bir oyuncu taşlarını bitirince maç biter; rakibin elinde kalan taşların puanı ondan düşülüp bitirene eklenir.</li><li>Ayrılma ve pes etme hükmen mağlubiyettir: puanın silinir ve terk cezası uygulanır.</li><li>Rövanş için masadaki <b>her iki oyuncunun da</b> kabul etmesi gerekir.</li></ul></div>`,
@@ -3653,6 +3700,9 @@ const RULES={
   fark:`<div class="rules-content"><h3>🔍 Fark Bulmaca — Amaç</h3><p>Ekranda aynı sahnenin iki kopyası vardır: <b>A</b> özgün, <b>B</b> ise <b>7 nesnesi değiştirilmiş</b> hâli. Farkları rakibinizden önce bulun.</p><h3>📋 Nasıl Oynanır</h3><ul><li>Farkı gördüğünüz yere dokunun; doğruysa <b>iki kopyada da</b> yeşil halkayla işaretlenir.</li><li><b>Boşa dokunmak kısa süre kilitler</b> (1,5 sn) — ekrana rastgele tıklayarak farkları süpürmek işe yaramaz. Zaten bulduğunuz bir yere yeniden dokunmak ceza değildir.</li><li>İki oyuncu da <b>aynı sahneyi ve aynı 7 farkı</b> görür; kimse daha kolay bir resim almaz.</li><li>Rakibinizin kaç fark bulduğunu görürsünüz, <b>hangilerini</b> bulduğunu göremezsiniz.</li></ul><h3>⏱️ El ve Süre</h3><p>Her el kısa bir geri sayımla başlar. El süresi masa tipine göre değişir: ⚡ 10 dk → 60 sn · ♟️ 15 dk → 90 sn · 🧠 20 dk → 120 sn. 7 farkı önce bulan eli alır; süre dolarsa <b>çok fark bulan</b> kazanır, eşitse el berabere biter.</p><p>El bitince kaçırdığınız farklar kırmızı kesikli halkayla gösterilir.</p><h3>🏁 Bitiş</h3><p>Maç <b>3 elin 2'sini</b> alanındır. Sahneler dönüşümlüdür: Gün Batımı Plajı, Kamp Gecesi, Derin Uzay ve Neşeli Çiftlik.</p><h3>⚙️ Bu Platformda</h3><ul><li>Sahne, tohum ve hangi 7 farkın seçildiği sunucuda belirlenir; istemci kendi sahnesini seçemez.</li><li><b>Her tıklama sunucuda ölçülür</b>: nokta gerçekten o farkın alanında mı, o fark bu elde seçilmiş mi, daha önce bulunmuş mu.</li><li>Farkların hangileri olduğu istemciye gitmek zorundadır — B kopyasını çizen odur, yani bilgi zaten resmin içindedir. Bu yüzden korumayı tıklama doğrulaması ve yanlış tıklama kilidi sağlar.</li><li>Masadan ayrılan ya da pes eden hükmen kaybeder.</li></ul></div>`,
   kizmabirader:`<div class="rules-content"><h3>🎲 Kızma Birader — Amaç</h3><p>Dört piyonunuzu üsten çıkarıp turu tamamlatın ve <b>merkeze</b> sokun. Dördünü de ilk sokan kazanır.</p><h3>🎲 Zar</h3><ul><li>Üsten piyon çıkarmak için <b>6</b> atmak gerekir.</li><li><b>6 atan tekrar atar.</b> Ama <b>üst üste üç kez 6</b> atarsanız sıra yanar — yoksa bir oyuncu sonsuza kadar oynayabilirdi.</li><li>Rakip piyonu <b>yiyen</b> ve bir piyonunu <b>merkeze sokan</b> da tekrar atar.</li></ul><h3>⚔️ Yeme ve Blok</h3><ul><li>Bir karede tek başına duran rakip piyonun üzerine gelirseniz onu <b>üssüne yollarsınız</b>.</li><li><b>Güvenli kareler</b> (başlangıçlar ve yıldızlı kareler) içinde piyon yenmez.</li><li>Aynı renkten <b>iki piyon</b> bir kareyi <b>kapatır</b>: rakip oradan geçemez, üzerine de konamaz.</li></ul><h3>🏠 Merkez</h3><p>Tur bitince beş kareli ev yoluna girilir. Merkeze <b>tam sayıyla</b> girilir; fazla atarsanız o piyon oynayamaz.</p><h3>🏁 Bitiş</h3><p>Dört piyonunu merkeze sokan sırayı tamamlar ve artık oynamaz; kalanlar devam eder, son kalan sonuncu olur. Masa 2, 3 veya 4 kişilik olabilir.</p><h3>⚙️ Bu Platformda</h3><ul><li><b>Zar sunucuda atılır</b> ve geçerli hamleler sunucuda hesaplanır; istemci yalnız "zar at" ve "şu piyonu oyna" der.</li><li>Geçerli hamleler <b>yalnız sırası olana</b> gönderilir; rakip neyi oynayabileceğinizi paketten okuyamaz.</li><li>Süresi dolan oyuncu masadan <b>atılmaz</b>: zar atmadıysa sunucu atar, hamle seçmediyse ilk geçerli hamle oynanır.</li><li>Masa sayısı, kişi sayısı ve hamle süresi kurucu panelinden yönetilir.</li></ul></div>`,
   metropol:`<div class="rules-content"><h3>🏦 Metropol — Amaç</h3><p>Mülk alın, bina kurun, kira toplayın. <b>Son ayakta kalan</b> ya da tur limiti dolduğunda <b>en yüksek varlığa</b> sahip olan kazanır.</p><h3>🎲 Zar ve Tur</h3><ul><li>Kalkış'tan her geçişte <b>200₺ maaş</b> alırsınız.</li><li><b>Çift atan tekrar atar.</b> Ama <b>üst üste üç çift</b> doğruca cezaevine yollar — yoksa bir oyuncu sonsuza kadar oynayabilirdi.</li><li>Cezaevinden çıkış üç yolla olur: <b>çift atmak</b>, <b>50₺ kefalet</b> ya da <b>çıkış kartı</b>. Üçüncü denemede çift gelmezse kefalet zorunludur.</li></ul><h3>🏷️ Mülk Alma</h3><ul><li>Sahipsiz bir kareye düşen oyuncu onu <b>liste fiyatından</b> alabilir.</li><li><b>Almazsa</b> kimseye teklif edilmez, işlem yapılmaz ve <b>el sıradaki oyuncuya geçer</b>. Kare sahipsiz kalır; başka biri o kareye gelirse kendi alır.</li><li>Kendi sırasında tapunuzu <b>sabit fiyattan</b> ya da <b>açık artırmayla</b> satabilir, <b>ipotek</b> edebilirsiniz (tapuya dokunun).</li></ul><h3>💰 Kira</h3><ul><li>Bir rengin <b>tamamı</b> tek sahipteyse ve hiç bina yoksa taban kira <b>iki katı</b> işler.</li><li><b>Gar</b> kirası sahip olunan gar sayısına göre 25 / 50 / 100 / 200₺.</li><li><b>İdare</b> (elektrik-su) kirası zar toplamının 4 ya da 10 katı.</li><li><b>İpotekli</b> mülkte kira alınmaz.</li></ul><h3>🏠 Bina</h3><ul><li><b>Ev</b> için o rengin <b>tüm arsaları</b> size ait olmalı ve grubun hiçbir arsası <b>ipotekli</b> olmamalı.</li><li>Parası yetiyorsanız ev almak için o tapuya tekrar gelmeyi beklemezsiniz: <b>kendi sıranızda</b> (zardan önce ya da sonra) listeden istediğiniz zaman ev kurarsınız.</li><li><b>Dengeli inşaat:</b> aynı renkteki arsalar arasında en çok bir ev fark olabilir.</li><li><b>Otel</b> için aynı renk gruptaki <b>bütün arsalarda 4'er ev</b> bulunmalı; o zaman evler bankaya geri verilir ve yerine otel kurulur.</li><li>Bina satışı <b>yarı fiyatına</b>, ve en çok binası olan kareden başlar.</li></ul><h3>📄 İpotek ve İflas</h3><ul><li>İpotekte mülk değerinin <b>yarısı</b> alınır; geri alırken <b>%110</b> ödenir. Grubunda bina varken ipotek edilemez.</li><li>Parası yetmeyen oyuncunun binaları ve mülkleri <b>sunucu tarafından otomatik nakde çevrilir</b>; yine yetmezse <b>iflas</b> eder ve varlıkları alacaklıya geçer.</li></ul><h3>🏁 Bitiş</h3><p>Tek oyuncu kalınca maç biter. <b>Tur limiti</b> dolduğunda en yüksek varlık kazanır; varlıklar eşitse masa berabere biter. Masa 2, 3 veya 4 kişilik olabilir.</p><h3>⚙️ Bu Platformda</h3><ul><li><b>Zar, kart destesi, kira hesabı ve iflas tasfiyesi tamamen sunucudadır.</b> İstemci yalnız niyet bildirir ("zar at", "al", "ev kur", "turu bitir").</li><li><b>Deste sırası istemciye gönderilmez</b> — yoksa bir sonraki kart önceden bilinirdi. Para, mülk ve binalar ise masada açıktır; Metropol'de gizli bilgi yoktur.</li><li><b>Alınmayan kare açık artırmaya çıkmaz:</b> dört kişilik masada bu tek kare için dakikalar demekti. Açık artırma yalnız oyuncunun kendi tapusunu satması için vardır.</li><li>Süresi dolan oyuncu masadan <b>atılmaz</b>: zar atmadıysa sunucu atar, karar vermediyse parası bolsa alır yoksa almaz ve el geçer, turu bitirmediyse sunucu bitirir.</li><li>Masa sayısı, kişi sayısı, <b>tur limiti</b> ve hamle süresi kurucu panelinden yönetilir.</li></ul></div>`,
+  apexgarage:`<div class="rules-content"><h3>🏎️ Apex Garage — Tek Kişilik</h3><p>Dünyanın marka ve model araçlarını <b>3B</b> incele, boya-jant-lastik-egzoz-far gibi parçalarla modifiye et, sonra neon otoyolda <b>sür</b>. Masa tek kişiliktir: <b>Hazırım</b> deyince oyun başlar.</p><h3>🎮 Kontroller</h3><ul><li>← → direksiyon · <b>SPACE</b> nitro · <b>P</b> duraklat · <b>R</b> yeniden başla.</li><li>Telefonda ekrandaki butonlar çıkar.</li><li>Garajdaki ayarların ve rekorların bu tarayıcıda saklanır.</li></ul><h3>👁️ İzleme</h3><p>Masayı izleyenler senin ekranını canlı görür; masa başında istediğin kadar oynayabilirsin, <b>Ayrıl</b> dediğinde masa boşalır.</p></div>`,
+  golgelabirenti:`<div class="rules-content"><h3>🌀 Gölge Labirenti — Tek Kişilik</h3><p>Karanlık koridorlarda kendi gözlerinle yürü: <b>10 kat</b>, her kat bir öncekinden büyük ve tehlikeli. Kaybolmamak için renkli yol okları bırak; bilmecelerde doğru cevap kestirme yol açar. Masa tek kişiliktir: <b>Hazırım</b> deyince oyun başlar.</p><h3>🎮 Kontroller</h3><ul><li><b>W A S D</b> yürü · fare ile bak · sol tık saldır · <b>SPACE</b> atıl.</li><li><b>Q / 1-4</b> renk · <b>E</b> işaret bırak · <b>X</b> geri al · <b>R</b> çevir · <b>P / ESC</b> duraklat.</li><li>Telefonda sol yarı joystick, sağ yarı bakış; düğmeler ekranda.</li></ul><h3>👁️ İzleme</h3><p>Masayı izleyenler ekranını canlı görür.</p></div>`,
+  ayla:`<div class="rules-content"><h3>🔮 AYLA: Mührün Bekçisi — Tek Kişilik</h3><p>Doğaüstü afetlerden kaç, mor ruhları ve enkazı mühürle, altın çubuk dolunca dikilitaşa koş. Her bölüm zorlaşır. Masa tek kişiliktir: <b>Hazırım</b> deyince oyun başlar.</p><h3>🎮 Kontroller</h3><ul><li><b>WASD</b> / joystick hareket · <b>Space</b> kısa kaçış (hasarsız).</li><li><b>F</b> mühür · <b>Shift</b> koşu (enerji harcar) · <b>E</b> saklan (3 sn).</li></ul><h3>👁️ İzleme</h3><p>Masayı izleyenler ekranını canlı görür.</p></div>`,
   battleship:`<div class="rules-content"><h3>🎯 Amiral Battı — Amaç</h3><p>10x10 haritada filonu gizle, rakibinkini önce sen bul ve batır.</p><h3>📋 Nasıl Oynanır</h3><ul><li>Filo: Uçak Gemisi (5 hücre), Zırhlı (4), Kruvazör (3), Denizaltı (3), Muhrip (2) — toplam 17 hücre.</li><li>Her iki oyuncu da gemilerini kendi haritasına gizlice yerleştirir; yerleştirme bitince sırayla karşı haritaya ateş edilir.</li></ul><h3>⚙️ Bu Platformda</h3><p>İsabet etsen bile ekstra atış hakkın yoktur — her atıştan sonra (vuruş ya da vuramama fark etmeksizin) sıra rakibe geçer.</p><h3>🏁 Kazanma</h3><p>Rakibin filosundaki TÜM hücreleri (17 hücrenin tamamını) batıran kazanır.</p></div>`
 };
 
@@ -4363,14 +4413,16 @@ function cH(id,g){
   // görsellerde temiz, ikonsuz bir kapak fotoğrafı isteniyordu.
   const thumbInner = g.cover ? '' : `<span class="gt-badge">${g.icon}</span>`;
   const thumbStyle = g.cover ? `background-image:url('${g.cover}')` : `background:${g.bg}`;
-  return `<div class="game-card" data-g="${id}" title="${oynandi} kez oynandı" onclick="GV.openLobby('${id}')"><div class="game-thumb" style="${thumbStyle}">${thumbInner}</div><div class="game-info"><h3>${g.name}</h3><button type="button" class="gv-qm-btn" onclick="event.stopPropagation();GV.quickMatchFor('${id}',this)">⚡ Hızlı Eşleş</button></div></div>`;
+  return `<div class="game-card" data-g="${id}" title="${oynandi} kez oynandı" onclick="GV.openLobby('${id}')"><div class="game-thumb" style="${thumbStyle}">${thumbInner}</div><div class="game-info"><h3>${g.name}</h3><button type="button" class="gv-qm-btn" onclick="event.stopPropagation();GV.quickMatchFor('${id}',this)">${g.cat==='solo'?'▶ Hemen Oyna':'⚡ Hızlı Eşleş'}</button></div></div>`;
 }
 // Ana sayfa "Popüler Oyunlar": varsayılanda ('auto') GERÇEK oynanma sayısına
 // göre çoktan aza sıralanır; kurucu panelinden 'manual' moda geçilmişse
 // kurucunun elle belirlediği sıra (+ gösterilecek oyun sayısı) kullanılır.
 function renderHome(){
   const pc = gvPopularConfig();
-  let liste = Object.entries(GAMES).filter(([id])=>gvGameVisible(id));
+  /* Tek kişilik oyunlar kendi bölümünde ("Tek Kişilik Oyunlar") listelenir;
+     "Popüler Oyunlar" yalnız çok oyunculu masa oyunlarını gösterir. */
+  let liste = Object.entries(GAMES).filter(([id,g])=>gvGameVisible(id) && g.cat!=='solo');
   if (pc.mode === 'manual' && Array.isArray(pc.order) && pc.order.length) {
     const rank = new Map(pc.order.map((id,i)=>[id,i]));
     liste.sort((a,b)=>{
@@ -4384,6 +4436,10 @@ function renderHome(){
   }
   if (pc.count > 0) liste = liste.slice(0, pc.count);
   document.getElementById('homeGames').innerHTML = liste.map(([id,g])=>cH(id,g)).join('');
+  const tek = Object.entries(GAMES).filter(([id,g])=>g.cat==='solo' && gvGameVisible(id));
+  const th = document.getElementById('homeSolo');
+  if (th) th.innerHTML = tek.map(([id,g])=>cH(id,g)).join('');
+  ['homeSoloBaslik','homeSoloAlt','homeSolo'].forEach(x=>{ const e=document.getElementById(x); if(e) e.style.display = tek.length ? '' : 'none'; });
 }
 /* "Tüm Oyunlar" sayfası (kullanıcı isteği): oyunlar GERÇEK oynanma
    sayısına göre ÇOKTAN AZA, yukarıdan aşağıya sıralanır. Eskiden GAMES
@@ -4478,7 +4534,9 @@ function openCreateRoomModal(){
   const durationGroup = document.getElementById('crDurationGroup');
   
   if(pcSelect) {
-    if(isTwoPlayer) {
+    if(TEK_KISILIK.includes(gid)) {
+      pcSelect.innerHTML = `<option value="1" selected>1 Kişilik (Tek kişilik masa)</option>`;
+    } else if(isTwoPlayer) {
       pcSelect.innerHTML = `<option value="2" selected>2 Kişilik (Standart)</option>`;
     } else {
       pcSelect.innerHTML = `
@@ -4512,6 +4570,10 @@ function openCreateRoomModal(){
   } else if(gid === 'chess' || gid === 'tavla') {
     if(roundsGroup) roundsGroup.style.display = 'none';
     if(durationGroup) durationGroup.style.display = 'block';
+  } else if (TEK_KISILIK.includes(gid)) {
+    // Tek kişilik oyunlarda el/süre seçimi yoktur.
+    if(roundsGroup) roundsGroup.style.display = 'none';
+    if(durationGroup) durationGroup.style.display = 'none';
   } else if (gid === 'okey101') {
     // 101 Okey: el sayısı ANLAM TAŞIMAZ — maç, bir oyuncu 101 puana ulaşana
     // kadar sürer. Süre de sabittir (koltuk başına 20 dk ana süre).
@@ -4536,7 +4598,7 @@ function createRoom(){
   const isTwoPlayer = TWO_PLAYER_GAMES.includes(gid);
 
   const rName = nameInp?.value.trim() || `${GAMES[gid].name} Masası`;
-  const pCount = isTwoPlayer ? 2 : parseInt(countInp?.value || '4');
+  const pCount = TEK_KISILIK.includes(gid) ? 1 : (isTwoPlayer ? 2 : parseInt(countInp?.value || '4'));
   const isPrivate = typeInp?.value === 'private';
 
   const rRounds = (gid === 'chess' || gid === 'tavla' || gid === 'okey101' || gid === 'kelimelik')
@@ -4609,7 +4671,7 @@ async function quickMatchFor(gid, btn){
     // tıpkı lobideki mevcut bir masaya "Katıl" demek gibi (misafirler de
     // genel masalara serbestçe katılabiliyor).
     const isTwoPlayer = TWO_PLAYER_GAMES.includes(gid);
-    const pCount = isTwoPlayer ? 2 : 4;
+    const pCount = TEK_KISILIK.includes(gid) ? 1 : (isTwoPlayer ? 2 : 4);
     const rRounds = (gid === 'chess' || gid === 'tavla' || gid === 'okey101') ? 1 : 3;
     const OKEY_ROUND_DUR = { 3: 10, 5: 15, 7: 20 };
     const gameDuration = (gid === 'chess' || gid === 'tavla') ? 10 : (gid === 'okey101') ? 20 : (OKEY_ROUND_DUR[rRounds] || 10);
@@ -4650,7 +4712,7 @@ function joinRoom(rid, opts){
   let room = (ROOMS[gid] || []).find(r => r.id === rid);
   if(!room) {
     const isTwo = TWO_PLAYER_GAMES.includes(gid);
-    room = { id: rid, name: `${g.name} Masası`, players: 1, maxPlayers: isTwo ? 2 : 4, rounds: 3, duration: 10, isPrivate: false, status: 'waiting' };
+    room = { id: rid, name: `${g.name} Masası`, players: 1, maxPlayers: TEK_KISILIK.includes(gid) ? 1 : (isTwo ? 2 : 4), rounds: 3, duration: 10, isPrivate: false, status: 'waiting' };
   }
 
   st.roomConfig = { 
@@ -4844,7 +4906,7 @@ function startCountdownAndBeginGame(room) {
   }, 1000);
 }
 
-function getGamePlayerCount(gid){return TWO_PLAYER_GAMES.includes(gid) ? 2 : 4;}
+function getGamePlayerCount(gid){return TEK_KISILIK.includes(gid) ? 1 : (TWO_PLAYER_GAMES.includes(gid) ? 2 : 4);}
 function hasActiveMatch(){/* İZLEYİCİ hiçbir maçın tarafı değildir: terk uyarısı ve ceza akışı onun için hiç çalışmamalı (kullanıcı raporu: izleyici çıkarıldığında puan kaybı uyarısı görüyordu). */if(izleyiciMi())return false;/* ONLINE tahta oyunları (dama, reversi, gomoku, connect4, bilardo, kart) ortak yaşam döngüsünde çizilir ve st.boards'a hiç yazmaz; bu yüzden maç sürerken bile 'aktif maç yok' sanılıyor, oyuncu terk uyarısını görmeden masadan çıkabiliyordu. */try{const _a=window.GVArena&&GVArena.state();if(_a&&_a.status==='playing')return true;}catch(_){}if(st.onlineClock)return false;const a=['chess','tavla','dama','turkdamasi','pisti','batak','reversi','gomoku','connect4','okey','okey101','bilardo','battleship'];if(!a.includes(st.curGame))return false;const g=st.boards[st.curGame];return g&&!g.gameEnded;}
 function hasActiveGame(){return hasActiveMatch();}
 
@@ -7067,13 +7129,13 @@ GV.init();
 </script>
 
 <!-- External JavaScript Files -->
-<script src="js/config.js?v=20260822a"></script>
-<script src="js/socket.io.min.js?v=20260819c"></script>
-<script src="js/app.js?v=20260820a" defer></script>
-<script src="js/games.js?v=20260823b" defer></script>
-<script src="js/utils.js?v=20260819c" defer></script>
+<script src="js/config.js?v=20261017a"></script>
+<script src="js/socket.io.min.js?v=20261017a"></script>
+<script src="js/app.js?v=20261017a" defer></script>
+<script src="js/games.js?v=20261017a" defer></script>
+<script src="js/utils.js?v=20261017a" defer></script>
 <script src="js/lobby-sync.js?v=20261011a" defer></script>
-<script src="js/room-waiting-fix.js?v=20261011a" defer></script>
+<script src="js/room-waiting-fix.js?v=20261017a" defer></script>
 <!-- Hamle (sıra) saati: sırası gelen oyuncunun kendi kartında sayar -->
 <!-- Mobil uygulama katmanı: PWA kurulumu, Android geri tuşu, WebView uyarlamaları -->
 <!-- Kullanıcıya gösterilen mesajların tek kaynağı (kod değil cümle) -->
@@ -7088,10 +7150,10 @@ GV.init();
 <script src="js/move-clock.js?v=20261012a" defer></script>
 <script src="js/chess-online.js?v=20260908d" defer></script>
 <script src="js/tavla-online.js?v=20260908d" defer></script>
-<script src="js/okey-online.js?v=20261005a" defer></script>
+<script src="js/okey-online.js?v=20261017a" defer></script>
 <!-- 101 Okey el açma penceresi: okey-online.js zaten büyük, açma akışı
      (çok adımlı per kurma) ayrı dosyada duruyor. -->
-<script src="js/okey101-ac.js?v=20261005a" defer></script>
+<script src="js/okey101-ac.js?v=20261017a" defer></script>
 <!-- Masa oylaması: 3-4 kişilik masada biri çıkınca el sonunda
      "eksik kişiyle devam edelim mi" penceresi. -->
 <script src="js/masa-oylama.js?v=20261005a" defer></script>
@@ -7123,6 +7185,7 @@ GV.init();
 <script src="js/fark-online.js?v=20261011b" defer></script>
 <script src="js/kizmabirader-online.js?v=20261011b" defer></script>
 <script src="js/metropol-online.js?v=20261013b" defer></script>
+<script src="js/tek-kisilik-online.js?v=20261017a" defer></script>
 <script src="js/chat.js?v=20260821c" defer></script>
 <script src="js/leave-guard.js?v=20260927c" defer></script>
 <!-- Tarayıcı GERİ/İLERİ tuşu: sayfa geçişleri geçmişe adım bırakır,
@@ -7130,7 +7193,7 @@ GV.init();
 <script src="js/gezinti.js?v=20261011c" defer></script>
 <script src="js/auth.js?v=20260912a" defer></script>
 <script src="js/social.js?v=20260823e" defer></script>
-<script src="js/admin-panel.js?v=20261011a" defer></script>
+<script src="js/admin-panel.js?v=20261017a" defer></script>
 
 <!-- Yapısal veri (SEO).
      Eskiden burada da eski alan adı (gameverse.com) yazıyordu ve olmayan
@@ -7147,7 +7210,7 @@ GV.init();
   "image": "https://www.masaoyunlari.com.tr/assets/og-kapak.jpg"
 }
 </script>
-<script src="js/no-bots.js?v=20260823b" defer></script>
+<script src="js/no-bots.js?v=20261017a" defer></script>
 <script src="js/board-fit.js?v=20260927a" defer></script>
 <!-- Pes et + rövanş/yeniden oyna: dört bitiş ekranının ortak mantığı -->
 <script src="js/rematch.js?v=20260927d" defer></script>

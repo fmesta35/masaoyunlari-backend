@@ -897,6 +897,15 @@
        hesaplanır; burada okey, perdeki en büyük doğal taş kadar sayılır —
        yalnız gösterim, karar sunucunun. */
     if (!tiles.length) return 0;
+    /* Önce motorla birebir aynı doğrulayıcı (okeyin temsil ettiği sayıyı
+       doğru hesaplar); geçersizse ya da pencere yoksa kaba tahmin. */
+    try {
+      const A = window.GVOkey101Ac;
+      if (A && A.perDogrula) {
+        const r = A.perDogrula(tiles, gameState && gameState.realOkey);
+        if (r && r.ok) return r.puan || 0;
+      }
+    } catch (_) {}
     const ok = gameState && gameState.realOkey;
     const dogal = tiles.filter(t => !(ok && !t.isFJ && t.c === ok.c && t.n === ok.n));
     const okeyAdedi = tiles.length - dogal.length;

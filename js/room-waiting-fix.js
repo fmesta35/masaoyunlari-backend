@@ -159,6 +159,8 @@
   // masaların ve üyelerin kurduğu masaların kapasitesi sunucudan gelir),
   // satranç/tavla 2.
   function maxSeats() {
+    /* TEK KİŞİLİK oyunlar (Apex Garage, Gölge Labirenti, AYLA): 1 koltuk. */
+    if ((window.TEK_KISILIK_OYUNLAR || []).indexOf(activeGame()) !== -1) return 1;
     const n = Number(room?.maxPlayers) || Number(state()?.roomConfig?.playerCount) || 0;
     if (n >= 2) return n;
     const g = activeGame();
@@ -356,6 +358,7 @@
     const _ag = activeGame();
     const isOkeyGame = _ag === 'okey' || _ag === 'okey101';
     const SAYI = { 2: 'iki', 3: 'üç', 4: 'dört' };
+    const solo = seats === 1;   // TEK KİŞİLİK oyun: hazırım der demez başlar
     const full = ps.length === seats;
     const allReady = full && ps.every(p => p.isReady);
     // watching'i sadece gerçekten izleyici olduğunda set et; aksi halde
@@ -375,6 +378,7 @@
     // hepsinde geçerlidir.
     const myIdx = (() => { const k = ps.findIndex(isMe); return k >= 0 ? k : 0; })();
     const SEAT_POS = {
+      1: ['seat-bottom'],
       2: ['seat-bottom', 'seat-top'],
       3: ['seat-bottom', 'seat-left', 'seat-right'],
       4: ['seat-bottom', 'seat-left', 'seat-top', 'seat-right']
@@ -426,7 +430,7 @@
     const status = watching
       ? (full ? '👁️ İzleyici olarak bekliyorsunuz. Oyun başlayınca masayı göreceksiniz.' : '👁️ İzleyici olarak bekliyorsunuz.')
       : allReady ? (engineReady ? '🚀 Oyun başlatılıyor...' : '⏳ Tüm oyuncular hazır — online oyun bu masada aktif edildiğinde başlayacak.') : full
-        ? (ready ? '⏳ Diğer oyuncuların da "HAZIRIM" demesi bekleniyor...' : '👉 Oyuna başlamak için "HAZIRIM" butonuna basınız.')
+        ? (ready ? (solo ? '🚀 Oyun başlatılıyor...' : '⏳ Diğer oyuncuların da "HAZIRIM" demesi bekleniyor...') : '👉 Oyuna başlamak için "HAZIRIM" butonuna basınız.')
         : (isOkeyGame
           ? ('⌛ ' + ps.length + '/' + seats + ' oyuncu masada — ' + (seats - ps.length) + ' oyuncu daha bekleniyor...')
           : '⌛ İkinci oyuncu masaya bekleniyor...');
@@ -435,7 +439,9 @@
     const title = watching ? 'İzleyici' : 'Bekleme Odası';
     const intro = watching
       ? '<div class="spec-banner">👁️ İzleyici modu — hamle yapamazsınız</div>'
-      : (isOkeyGame
+      : (solo
+        ? '<div class="sub">Bu masa <b>tek kişiliktir</b>: <b>HAZIRIM</b> dediğin anda oyun başlar. İstersen başkaları seni izleyebilir.</div>'
+        : isOkeyGame
         ? '<div class="sub">Oyun, <b>' + (SAYI[seats] || seats) + ' oyuncu</b> da <b>HAZIRIM</b> butonuna bastığında başlayacaktır.</div>'
         : '<div class="sub">Oyun, her iki oyuncu da <b>HAZIRIM</b> butonuna bastığında başlayacaktır.</div>');
     const readyBtn = watching ? ''

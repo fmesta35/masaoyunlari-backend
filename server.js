@@ -39,6 +39,11 @@ const havahokeyiEngine = require('./havahokeyi-engine.js');
    (js/fark-sahneler.js, istemciyle AYNI dosya). Sahne, tohum ve tıklama
    doğrulaması sunucuda. */
 const farkEngine = require('./fark-engine.js');
+/* TEK KİŞİLİK OYUNLAR (Apex Garage, Gölge Labirenti, AYLA) — oturum motoru
+   (solo-engine.js). Oyun tarayıcıda çalışır; sunucu masa/oturum, özet ve
+   izleyici görüntü akışını yönetir. */
+const soloEngine = require('./solo-engine.js');
+const SOLO_GAMES = soloEngine.OYUN_IDLERI;
 /* KIZMA BİRADER (Ludo) — saf motor (kizmabirader-engine.js). ZAR SUNUCUDA
    atılır; istemci yalnız "at" ve "şu piyonu oyna" der. */
 const kizmaEngine = require('./kizmabirader-engine.js');
@@ -156,6 +161,8 @@ const MAX_PLAYERS_BY_GAME = { okey: 4, okey101: 4, pisti: 4, batak: 4, tombala: 
    "devam edelim mi" oylamasında buna bakılır: batak 3 kişinin altına
    inemez (ihale/koz mantığı iki kişilik değildir), diğerleri 2'ye iner. */
 const MIN_PLAYERS_BY_GAME = { okey: 2, okey101: 2, pisti: 2, batak: 3, tombala: 2, kizmabirader: 2, metropol: 2 };
+/* Tek kişilik oyunlarda masa 1 koltukludur ve tek kişiyle oynanır. */
+SOLO_GAMES.forEach(g => { MAX_PLAYERS_BY_GAME[g] = 1; MIN_PLAYERS_BY_GAME[g] = 1; });
 function minOyuncu(gameId) { return MIN_PLAYERS_BY_GAME[gameId] || 2; }
 const ONLINE_CARD_GAMES = new Set(['pisti', 'batak']);
 const ONLINE_BOARD_GAMES = new Set(['dama','turkdamasi','reversi']);
@@ -378,7 +385,7 @@ const ADMIN_EMAIL = String(process.env.GV_ADMIN_EMAIL || '').trim().toLowerCase(
 const ALL_GAMES = ['chess', 'tavla', 'okey', 'okey101', 'pisti', 'batak',
   'dama', 'turkdamasi', 'reversi', 'gomoku', 'connect4', 'bilardo', 'battleship', 'kelimelik',
   'tombala', 'adamasmaca', 'passaparola', 'cenga', 'langirt', 'havahokeyi', 'fark', 'kizmabirader',
-  'metropol'];
+  'metropol', 'apexgarage', 'golgelabirenti', 'ayla'];
 
 /* ===================== HAMLE SÜRESİ (masa başına) =====================
    Kullanıcı isteği: "kurucu panelinde masa düzenlemeler bölümünde oyun
@@ -470,7 +477,9 @@ const PRESET_GAME_BASES = {
   /* "Diğer Oyunlar"dan taşınan oyunlar 2000'li bloğa alındı: 1400-1700
      aralığını test süiti ÖZEL ODA kimliği olarak kullanıyor (örn. 1501,
      1601) ve hazır masa oraya düşerse özel oda hiç yaratılamıyordu. */
-  adamasmaca: 2001, passaparola: 2101, cenga: 2201, langirt: 2301, havahokeyi: 2401, fark: 2501
+  adamasmaca: 2001, passaparola: 2101, cenga: 2201, langirt: 2301, havahokeyi: 2401, fark: 2501,
+  /* TEK KİŞİLİK oyunlar: 2800'lü blok (her oyuna 50 kimlik). */
+  apexgarage: 2801, golgelabirenti: 2851, ayla: 2901
 };
 const STANDARD_PRESET_GAMES = Object.keys(PRESET_GAME_BASES);
 /* Okey ve 101 Okey'in hazır masaları "taban ID + indeks" şemasını DEĞİL,
@@ -527,6 +536,11 @@ function clampDuration(v, dflt) {
 function defaultTablesFor(gameId) {
   const base = PRESET_GAME_BASES[gameId];
   const out = [];
+  /* Tek kişilik oyunlarda hız/süre tipi yoktur: 6 sade masa. */
+  if (SOLO_GAMES.includes(gameId)) {
+    for (let i = 0; i < 6; i++) out.push({ name: `Tek Kişilik Masa #${base + i}`, type: 'normal', durationMinutes: 10, moveSeconds: 0 });
+    return out;
+  }
   for (const t of PRESET_TYPES) {
     out.push({ name: `${t.label} Masa #${base + out.length}`, type: t.type,
                durationMinutes: t.durationMinutes,
@@ -598,7 +612,7 @@ function normPresetConfig(raw) {
       const base = PRESET_GAME_BASES[g];
       const dflt = defaultTablesFor(g);
       const t = src.tables.slice(0, 30).map((x, i) => {
-        const d = dflt[i] || { name: `Masa #${base + i}`, type: 'normal', durationMinutes: 15 };
+        const d = dflt[i] || { name: SOLO_GAMES.includes(g) ? `Tek Kişilik Masa #${base + i}` : `Masa #${base + i}`, type: 'normal', durationMinutes: 15 };
         x = x && typeof x === 'object' ? x : {};
         return {
           name: String(x.name || d.name).slice(0, 60),
@@ -688,7 +702,7 @@ function presetTablesFromConfig(cfg) {
       out.push({
         id: String(base + i),
         gameId: g,
-        maxPlayers: g === 'batak' ? 4 : (g === 'pisti' ? 2 : 2),
+        maxPlayers: SOLO_GAMES.includes(g) ? 1 : (g === 'batak' ? 4 : (g === 'pisti' ? 2 : 2)),
         rounds: (g === 'pisti' ? [1,3,5][i % 3] : undefined),
         durationMinutes: clampDuration(t.durationMinutes, 10),
         moveSeconds: hamleSaniyeTemizle(t.moveSeconds),
@@ -948,7 +962,7 @@ function createRoom(id, gameId, maxPlayers, durationMinutes, meta) {
     gameId: gameId || 'chess',
     name,
     isPrivate: !!meta.isPrivate,
-    maxPlayers: Math.max(2, Math.min(Number(maxPlayers) || 2, maxPlayersFor(gameId))),
+    maxPlayers: Math.max(SOLO_GAMES.includes(gameId) ? 1 : 2, Math.min(Number(maxPlayers) || (SOLO_GAMES.includes(gameId) ? 1 : 2), maxPlayersFor(gameId))),
     durationMinutes: duration,
     // Okey: oda bazlı maç el sayısı (yoksa OKEY_MAX_ROUNDS varsayımı).
     // Masayı kuranın seçimi (3/5/7 el); 1-99 arası kabul edilir.
@@ -1014,6 +1028,7 @@ function resetRoomToWaiting(room) {
   room.fark = null;
   room.kizma = null;
   room.metropol = null;
+  room.solo = null;
   room.connect4 = null;
   room.bilardo = null;
   /* AMİRAL BATTI: bu satır eksikti. Rövanş kabul edilince oda "waiting"e
@@ -1852,6 +1867,46 @@ function farkClockTick(room) {
 }
 
 /* ========================================================================
+ * TEK KİŞİLİK OYUNLAR — oda akışı
+ * ========================================================================
+ * Oyun (grafik/fizik/ses) oyuncunun tarayıcısında, iframe içinde çalışır
+ * (assets/oyunlar/tek-*.html). Masa 1 koltukludur: oyuncu "Hazırım" deyince
+ * oyun başlar ve oyuncu masadan ayrılana dek sürer. İzleyiciler özet
+ * ('soloOzet') ve görüntü karesi ('soloKare') alır. Ayrıntı: solo-engine.js
+ * ===================================================================== */
+function soloState(room, seat) {
+  const s = room.solo;
+  if (!s) return null;
+  return soloEngine.gorunum(s, (seat === 0) ? 0 : null, {
+    izleyici: (room.spectators || []).length
+  });
+}
+function emitSoloState(room, event = 'gameStateUpdated') {
+  room.players.forEach(p => emitToPlayer(p, event, {
+    roomId: room.id, seat: p.seat, isSpectator: false, gameState: soloState(room, p.seat)
+  }));
+  (room.spectators || []).forEach(p => emitToPlayer(p, event, {
+    roomId: room.id, seat: null, isSpectator: true, gameState: soloState(room, null)
+  }));
+}
+function startSolo(room) {
+  if (room.status === 'playing' || room.players.length !== 1 || !room.players.every(p => p.isReady)) return;
+  room.status = 'playing'; room.result = null;
+  room.solo = soloEngine.macBaslat({ oyun: room.gameId, seat: room.players[0].seat, simdi: now() });
+  try { playCounts.bump(room.gameId); } catch (_) {}
+  emitRoom(room);
+  room.players.forEach(p => emitToPlayer(p, 'gameStarted', {
+    roomId: room.id, seat: p.seat, isSpectator: false,
+    players: publicRoom(room).players, gameState: soloState(room, p.seat)
+  }));
+  (room.spectators || []).forEach(p => emitToPlayer(p, 'gameStarted', {
+    roomId: room.id, seat: null, isSpectator: true,
+    players: publicRoom(room).players, gameState: soloState(room, null)
+  }));
+  emitSoloState(room);
+}
+
+/* ========================================================================
  * HAVA HOKEYİ — oda akışı (GERÇEK ZAMANLI)
  * ========================================================================
  * Langırt ile aynı kalıp, iki farkla:
@@ -2521,6 +2576,7 @@ function buildBoardState(room, opts) {
   if (room.adamasmaca) return adamasmacaState(room, opts && opts.seat);
   if (room.passaparola) return passaparolaState(room, opts && opts.seat);
   if (room.cenga) return cengaState(room, opts && opts.seat);
+  if (room.solo) return soloState(room, opts && opts.seat);
   if (room.langirt) return langirtState(room, opts && opts.seat);
   if (room.havahokeyi) return havahokeyiState(room, opts && opts.seat);
   if (room.fark) return farkState(room, opts && opts.seat);
@@ -2535,6 +2591,9 @@ function buildBoardState(room, opts) {
 function emitRoom(room) {
   io.to(room.id).emit('roomUpdated', publicRoom(room));
   emitLobby(room.gameId);
+  /* Tek kişilik oyun: izleyici sayısı değişince oyuncunun tarayıcısı haberdar
+     olsun (görüntü akışı yalnız izleyici varken açılır). */
+  if (room.solo && room.status === 'playing' && typeof emitSoloState === 'function') emitSoloState(room);
 }
 
 function emitToPlayer(player, event, payload) {
@@ -2598,6 +2657,7 @@ function emitPlayingSnapshot(room, socketId, player) {
   if (room && room.status === 'playing' && room.fark) { const p=bakis; io.to(socketId).emit('gameStarted',{roomId:room.id,seat:p,isSpectator:!player,players:publicRoom(room).players,gameState:farkState(room,p)}); io.to(socketId).emit('gameStateUpdated',{roomId:room.id,seat:p,isSpectator:!player,gameState:farkState(room,p)}); return; }
   if (room && room.status === 'playing' && room.havahokeyi) { const p=bakis; io.to(socketId).emit('gameStarted',{roomId:room.id,seat:p,isSpectator:!player,players:publicRoom(room).players,gameState:havahokeyiState(room,p)}); io.to(socketId).emit('gameStateUpdated',{roomId:room.id,seat:p,isSpectator:!player,gameState:havahokeyiState(room,p)}); return; }
   if (room && room.status === 'playing' && room.langirt) { const p=bakis; io.to(socketId).emit('gameStarted',{roomId:room.id,seat:p,isSpectator:!player,players:publicRoom(room).players,gameState:langirtState(room,p)}); io.to(socketId).emit('gameStateUpdated',{roomId:room.id,seat:p,isSpectator:!player,gameState:langirtState(room,p)}); return; }
+  if (room && room.status === 'playing' && room.solo) { const p=bakis; io.to(socketId).emit('gameStarted',{roomId:room.id,seat:p,isSpectator:!player,players:publicRoom(room).players,gameState:soloState(room,p)}); io.to(socketId).emit('gameStateUpdated',{roomId:room.id,seat:p,isSpectator:!player,gameState:soloState(room,p)}); return; }
   if (room && room.status === 'playing' && room.cenga) { const p=bakis; io.to(socketId).emit('gameStarted',{roomId:room.id,seat:p,isSpectator:!player,players:publicRoom(room).players,gameState:cengaState(room,p)}); io.to(socketId).emit('gameStateUpdated',{roomId:room.id,seat:p,isSpectator:!player,gameState:cengaState(room,p)}); return; }
   if (room && room.status === 'playing' && room.passaparola) { const p=bakis; io.to(socketId).emit('gameStarted',{roomId:room.id,seat:p,isSpectator:!player,players:publicRoom(room).players,gameState:passaparolaState(room,p)}); io.to(socketId).emit('gameStateUpdated',{roomId:room.id,seat:p,isSpectator:!player,gameState:passaparolaState(room,p)}); return; }
   if (room && room.status === 'playing' && room.adamasmaca) { const p=bakis; io.to(socketId).emit('gameStarted',{roomId:room.id,seat:p,isSpectator:!player,players:publicRoom(room).players,gameState:adamasmacaState(room,p)}); io.to(socketId).emit('gameStateUpdated',{roomId:room.id,seat:p,isSpectator:!player,gameState:adamasmacaState(room,p)}); return; }
@@ -2728,6 +2788,7 @@ function startRoomGame(room) {
   if (room.gameId === 'adamasmaca') return startAdamasmaca(room);
   if (room.gameId === 'passaparola') return startPassaparola(room);
   if (room.gameId === 'cenga') return startCenga(room);
+  if (SOLO_GAMES.includes(room.gameId)) return startSolo(room);
   if (room.gameId === 'langirt') return startLangirt(room);
   if (room.gameId === 'havahokeyi') return startHavahokeyi(room);
   if (room.gameId === 'fark') return startFark(room);
@@ -3999,7 +4060,8 @@ function removePlayerFromRoom(room, player, message) {
     // CEZA: masayı terk −20 puan. Maç bitişini beklemeyiz; terk eden
     // oyuncu geri dönerse +10 iadesi AYRI bir olay olarak yazılır
     // (bkz. puanDonusYaz). Misafirlerde uid yoktur → puan işlenmez.
-    puanYaz([scoring.terkOlayi({
+    /* Tek kişilik oyunda terk cezası YOK: rakip yok, kimse mağdur olmaz. */
+    if (!room.solo) puanYaz([scoring.terkOlayi({
       uid: player.userId, ad: player.name, gameId: room.gameId, roomId: room.id
     })]);
 
@@ -5477,6 +5539,31 @@ io.on('connection', socket => {
      SIRASI OLAN oyuncunun tarayıcısında çalışır; sunucu yalnız o koltuğun
      paketlerini kabul eder, rakibe ve izleyicilere aktarır. */
   let cgSonKare = 0;
+  /* TEK KİŞİLİK OYUNLAR — oyuncunun özeti ve ekran görüntüsü.
+     Yalnız masadaki OYUNCU yollayabilir; izleyiciye iletilir, saklanmaz. */
+  function soloOda(m) {
+    const room = rooms.get(socket.roomId || (m && String(m.roomId)));
+    return (room && room.solo && room.status === 'playing') ? room : null;
+  }
+  socket.on('soloOzet', m => {
+    const room = soloOda(m);
+    const p = room && room.players.find(x => x.id === socket.id);
+    if (!p) return;
+    if (!soloEngine.ozetKaydet(room.solo, m && m.ozet, now())) return;
+    const paket = { roomId: room.id, ozet: room.solo.ozet, enYuksekSkor: room.solo.enYuksekSkor };
+    (room.spectators || []).forEach(sp => emitToPlayer(sp, 'soloOzet', paket));
+  });
+  socket.on('soloKare', m => {
+    const room = soloOda(m);
+    const p = room && room.players.find(x => x.id === socket.id);
+    if (!p || !(room.spectators || []).length) return;
+    if (!soloEngine.kareKabul(room.solo, m && m.img, now())) return;
+    (room.spectators || []).forEach(sp => {
+      const sck = io.sockets.sockets.get(sp.id);
+      if (sck) sck.volatile.emit('soloKare', { roomId: room.id, img: m.img });
+    });
+  });
+
   socket.on('cengaNet', m => {
     const room = cgOda(m);
     const p = room && room.players.find(x => x.id === socket.id);
@@ -6347,10 +6434,12 @@ app.get('/api/admin/tables', async (req, res) => {
          kendiliğinden doğru davranır. hamleYok artık BOŞ: alan her oyunda
          düzenlenebilir (eski panel sürümleri bu listeye baktığı için alan
          korunuyor). */
-      hamleYok: [],
+      hamleYok: SOLO_GAMES.slice(),
       hamleSinir: { min: HAMLE_SN_MIN, max: HAMLE_SN_MAX },
       hamleVarsayilan: Object.fromEntries(ALL_GAMES.map(g => [g, varsayilanHamleSn(g, 15)])),
-      tumOyunlar: ALL_GAMES
+      tumOyunlar: ALL_GAMES,
+      /* Tek kişilik oyunlar: masa satırında yalnız ad (tip/süre yok). */
+      tekKisilik: SOLO_GAMES
     }
   });
 });

@@ -106,21 +106,57 @@
      aralarına boşluk bırakarak dizer — dizilim zaten niyetin kendisidir.
      Soldan sağa taranır, BOŞ GÖZ grubu bitirir; her grup per (ya da çift)
      kuralıyla sınanır. Geçerli olanlar hazır gelir, geçersizler atlanır. */
+  /* Bir KOŞUYU (yan yana taşlar) en iyi biçimde perlere böler: önce bütünü
+     dener; olmuyorsa dinamik programlamayla en çok taşı kapsayan geçerli
+     per bölümlemesini bulur (örn. 8-8-8-6 → 8-8-8 per, 6 elde kalır).
+     Kullanıcı perleri arasında boşluk bırakmayı unutsa da dizilim okunur. */
+  function kosuBol(kosu, realOkey, cift) {
+    var n = kosu.length, enAz = cift ? 2 : 3, enCok = cift ? 2 : 13;
+    var dogrula = cift ? ciftDogrula : perDogrula;
+    if (n >= enAz && n <= enCok && dogrula(kosu, realOkey).ok) return { gruplar: [kosu.slice()], artan: [] };
+    // best[i] = ilk i taş için {kapsam, grup sayısı, onceki, atla}
+    var best = [{ k: 0, g: 0 }];
+    for (var i = 1; i <= n; i++) {
+      var cand = { k: best[i - 1].k, g: best[i - 1].g, prev: i - 1, atla: true };
+      for (var len = enAz; len <= enCok && len <= i; len++) {
+        var seg = kosu.slice(i - len, i);
+        if (!dogrula(seg, realOkey).ok) continue;
+        var b0 = best[i - len];
+        var k = b0.k + len, g = b0.g + 1;
+        if (k > cand.k || (k === cand.k && g < cand.g)) cand = { k: k, g: g, prev: i - len, atla: false };
+      }
+      best[i] = cand;
+    }
+    var gruplar = [], artan = [], i2 = n;
+    while (i2 > 0) {
+      var c = best[i2];
+      if (c.atla) { artan.unshift(kosu[i2 - 1]); i2 -= 1; }
+      else { gruplar.unshift(kosu.slice(c.prev, i2)); i2 = c.prev; }
+    }
+    return { gruplar: gruplar, artan: artan };
+  }
+
   function raflardanAlgila(raflar, realOkey, cift) {
     var bulunan = [], atlanan = [];
+    var enAz = cift ? 2 : 3;
     (raflar || []).forEach(function (raf) {
       if (!raf) return;
-      var grup = [];
+      var kosu = [];
       function bitir() {
-        if (!grup.length) return;
-        var g = grup.slice(); grup = [];
-        var s = cift ? ciftDogrula(g, realOkey) : perDogrula(g, realOkey);
-        if (s.ok) bulunan.push(g);
-        else if (g.length >= (cift ? 2 : 3)) atlanan.push({ tas: g, sebep: s.sebep });
+        if (!kosu.length) return;
+        var g = kosu.slice(); kosu = [];
+        var r = kosuBol(g, realOkey, cift);
+        r.gruplar.forEach(function (x) { bulunan.push(x); });
+        /* Hiçbir per çıkmayan koşu: oyuncu bunu per diye dizmiş olabilir —
+           hatalı olarak bildir ki düzeltsin (taş ekle/çıkar). */
+        if (!r.gruplar.length && g.length >= enAz) {
+          var s = (cift ? ciftDogrula : perDogrula)(g, realOkey);
+          atlanan.push({ tas: g, sebep: s.sebep || 'geçersiz' });
+        }
       }
       for (var i = 0; i < raf.length; i++) {
         var t = raf[i];
-        if (t) grup.push(t); else bitir();
+        if (t) kosu.push(t); else bitir();
       }
       bitir();
     });
@@ -146,9 +182,15 @@
     if (!k || !durum) return;
     var d = durum;
     var kalan = d.eller.filter(function (t) { return d.kullanilan.indexOf(t.id) === -1; });
-    var toplam = d.perler.reduce(function (a, p) { return a + d.puanla(p); }, 0);
+    var toplam = d.perler.reduce(function (a, p) {
+      var g = d.cift ? ciftDogrula(p, d.realOkey) : perDogrula(p, d.realOkey);
+      return a + (g.ok ? d.puanla(p) : 0);
+    }, 0);
     var sepetPuan = d.sepet.length ? d.puanla(d.sepet) : 0;
-    var yeter = d.cift ? (d.perler.length >= d.ciftAdedi) : (toplam >= d.acmaPuani);
+    var hataliVar = d.perler.some(function (p) {
+      return !(d.cift ? ciftDogrula(p, d.realOkey) : perDogrula(p, d.realOkey)).ok;
+    });
+    var yeter = !hataliVar && (d.cift ? (d.perler.length >= d.ciftAdedi) : (toplam >= d.acmaPuani));
 
     var h = '';
     h += '<div class="ok101a-bas">';
@@ -186,6 +228,7 @@
       p.forEach(function (t) { h += perTasHtml(t, d.realOkey, i); });
       if (!d.cift) h += '<span class="ok101a-per-p">' + d.puanla(p) + '</span>';
       if (!s2.ok) h += '<span class="ok101a-per-hata">' + esc(s2.sebep || 'geçersiz') + '</span>';
+      if (!d.cift && d.sepet.length) h += '<button type="button" class="ok101a-geri" data-act="per-ekle" data-i="' + i + '" title="Seçili taşları bu pere ekle">＋ ekle</button>';
       h += '<button type="button" class="ok101a-geri" data-act="per-sil" data-i="' + i + '" title="Bu peri boz">↩</button>';
       h += '</div>';
     });
@@ -235,11 +278,23 @@
       eklenen++;
     });
     if (!sessiz || eklenen) {
-      d.algiNot = eklenen
+      /* GEÇERSİZ dizilimler de gösterilir (kırmızı, sebebiyle): oyuncu niyet
+       ettiği perde hata yaptıysa görsün, ✕ ile taş çıkarıp ya da "＋ ekle"
+       ile taş ekleyip düzeltsin. Hatalı per varken "Aç" kapalıdır. */
+    var hatali = 0;
+    sonuc.atlanan.forEach(function (a) {
+      var cakisma = a.tas.some(function (t) { return d.kullanilan.indexOf(t.id) !== -1; });
+      if (cakisma) return;
+      d.perler.push(a.tas.slice());
+      a.tas.forEach(function (t) { d.kullanilan.push(t.id); });
+      hatali++;
+    });
+    d.algiNot = eklenen
         ? ('🪄 ' + eklenen + ' grup algılandı (' + kullanilanTas + ' taş). İstemediğini ↩ ile boz, tek taşı ✕ ile elde tut.')
-        : (sonuc.atlanan.length
-            ? 'Istakanda geçerli per bulunamadı — taşları yan yana dizip aralarına boşluk bırak, sonra yeniden dene.'
+        : (hatali
+            ? '⚠️ Istakadaki dizilim geçerli per değil — kırmızı grubu ✕ / ＋ ekle ile düzelt ya da ↩ ile boz.'
             : 'Algılanacak yeni grup yok.');
+    if (eklenen && hatali) d.algiNot += ' ⚠️ ' + hatali + ' grup geçersiz (kırmızı) — düzelt ya da boz.';
     }
     ciz();
     return eklenen;
@@ -284,6 +339,18 @@
         });
         d.algiNot = 'Taş çıkınca per geçersiz kaldı, grup bozuldu — taşlar elinde.';
       }
+      return ciz();
+    }
+    /* SEÇİLİ TAŞLARI MEVCUT PERE EKLE (geçerli kalıyorsa ya da hatalı perin
+       düzeltilmesi için denenir; sonuç geçersiz de olsa gösterilir ki
+       oyuncu uyarıyı görsün). */
+    if (act === 'per-ekle') {
+      var pe = Number(t.getAttribute('data-i'));
+      if (!d.perler[pe] || !d.sepet.length) return;
+      d.perler[pe] = d.perler[pe].concat(d.sepet);
+      d.sepet = [];
+      var ge = d.cift ? ciftDogrula(d.perler[pe], d.realOkey) : perDogrula(d.perler[pe], d.realOkey);
+      d.algiNot = ge.ok ? 'Taş pere eklendi.' : ('⚠️ Per geçersiz: ' + (ge.sebep || ''));
       return ciz();
     }
     if (act === 'per-bitir') {
