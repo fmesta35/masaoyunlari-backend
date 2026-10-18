@@ -2045,7 +2045,7 @@ function havahokeyiBitir(room, reason) {
  * 🧠20 dk → 7 gol.
  * ===================================================================== */
 const LANGIRT_ADIM_MS = 20;      // 50 Hz fizik
-const LANGIRT_YAYIN_MS = 50;     // 20 Hz durum paketi
+const LANGIRT_YAYIN_MS = 20;     // 50 Hz durum paketi (her fizik adımı)
 const langirtOdalari = new Set();
 let langirtTimer = null;
 
@@ -2090,7 +2090,7 @@ function langirtDurdur(room) {
 function langirtBasla(room) {
   langirtOdalari.add(String(room.id));
   if (langirtTimer) return;
-  langirtTimer = setInterval(langirtDonguAdimi, LANGIRT_ADIM_MS);
+  langirtTimer = setInterval(langirtDonguAdimi, 10);   // 10 ms'lik kontrol: adım/yayın kaçmaz
   if (typeof langirtTimer.unref === 'function') langirtTimer.unref();
 }
 /* Tek bir genel zamanlayıcı bütün langırt masalarını işletir: masa başına

@@ -644,3 +644,31 @@ html, body, #root { height: 100%; min-width: 0; overflow: hidden; }
   .online-shell { align-items: flex-start; padding: 4px; }
   .online-shell .arena-column { width: 100%; }
 }
+
+/* ---- Langırt: dokunmatik paneller (sol: çubuk seçimi, sağ: yön + vuruş) ---- */
+.lg-pad { display: none; }
+@media (pointer: coarse) {
+  .online-shell { flex-wrap: wrap; align-content: flex-start; }
+  .lg-pad { display: flex; gap: 8px; flex: 1 1 50%; padding: 6px 4px; }
+  .lg-pad-left { justify-content: flex-start; flex-direction: row; }
+  .lg-pad-right { justify-content: flex-end; flex-direction: row; }
+  .lg-btn { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; min-width: 52px; min-height: 52px; padding: 4px 6px; border: 1px solid rgba(219,233,218,.22); border-radius: 12px; color: #e2efdf; background: rgba(226,239,223,.08); font-size: 9px; font-weight: 850; letter-spacing: .05em; touch-action: none; user-select: none; -webkit-user-select: none; }
+  .lg-btn b { font-size: 13px; color: #bdf36b; }
+  .lg-btn-on { border-color: #bdf36b; background: rgba(189,243,107,.22); box-shadow: 0 0 0 2px rgba(189,243,107,.25); }
+  .lg-arrow { font-size: 22px; min-width: 62px; }
+  .lg-kick { flex-direction: row; gap: 5px; min-width: 70px; font-size: 12px; border-color: rgba(189,243,107,.5); background: rgba(189,243,107,.16); color: #d7eabf; }
+  .charge-tip { display: none !important; }
+}
+/* Yatay telefon: tabla ortada tam yükseklik, paneller iki yanda sabit */
+@media (pointer: coarse) and (orientation: landscape) and (max-height: 560px) {
+  .online-shell { flex-wrap: nowrap; padding: 2px 112px; align-items: center; }
+  .online-shell .arena-column { width: min(100%, calc((100vh - 62px) * 1.6667)) !important; max-width: none; }
+  .online-shell .scoreboard { transform: scale(.82); transform-origin: top center; margin-bottom: -10px; }
+  .online-shell .arena-header, .online-shell .arena-footer { display: none; }
+  .lg-pad { position: fixed; top: 50%; transform: translateY(-50%); flex: none; padding: 0; z-index: 20; }
+  .lg-pad-left { left: 6px; flex-direction: column; width: 100px; }
+  .lg-pad-right { right: 6px; flex-direction: column; width: 100px; align-items: flex-end; }
+  .lg-btn { width: 100%; min-height: 40px; min-width: 0; flex-direction: row; justify-content: flex-start; gap: 6px; padding: 4px 10px; border-radius: 10px; }
+  .lg-arrow { justify-content: center; min-height: 54px; font-size: 24px; }
+  .lg-kick { justify-content: center; min-height: 54px; }
+}

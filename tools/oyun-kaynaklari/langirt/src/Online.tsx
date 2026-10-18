@@ -14,7 +14,7 @@ import {
 import { createImpactParticles, drawFoosballCanvas, type CanvasEffects, type Particle, type TableTheme } from "@/components/foosball-canvas";
 
 type SrvFrame = {
-  faz: string; fazSn: number;
+  t?: number; faz: string; fazSn: number;
   top: { x: number; y: number; vx: number; vy: number };
   cubuk: { kirmizi: number[]; mavi: number[] };
   skor: { kirmizi: number; mavi: number };
@@ -56,6 +56,7 @@ function Icon({ name, size = 17 }: { name: "bolt" | "arrow" | "settings" | "volu
 
 type G = {
   prev: SrvFrame | null; cur: SrvFrame | null; curAt: number; interval: number;
+  buf: (SrvFrame & { t: number })[]; off: number; hasOff: boolean; jit: number; delay: number;
   side: Side | null; names: [string, string]; target: number;
   myRods: number[]; myTargets: number[]; lastSentAt: number; lastSent: string;
   lastEvent: number | null; shake: number; flash: number; particles: Particle[];
@@ -66,7 +67,7 @@ type G = {
 export default function Online() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const g = useRef<G>({
-    prev: null, cur: null, curAt: 0, interval: 50, side: null, names: ["Kırmızı", "Mavi"], target: 5,
+    prev: null, cur: null, curAt: 0, interval: 50, buf: [], off: 0, hasOff: false, jit: 0, delay: 70, side: null, names: ["Kırmızı", "Mavi"], target: 5,
     myRods: [300, 300, 300, 300], myTargets: [300, 300, 300, 300], lastSentAt: 0, lastSent: "",
     lastEvent: null, shake: 0, flash: 0, particles: [], clock: 0, selected: 3, charge: null, pointerDown: false, aimY: FIELD.centerY,
     keys: new Set(), lastUi: 0, lastScore: "0-0", lastPhase: "countdown",
@@ -185,6 +186,16 @@ export default function Online() {
     const s = g.current; const now = performance.now();
     if (s.curAt) { const d = now - s.curAt; if (d > 8 && d < 500) s.interval = s.interval * 0.8 + d * 0.2; }
     s.prev = s.cur || f; s.cur = f; s.curAt = now;
+    /* Zaman damgalı tampon: saat farkı = en küçük (varış − sunucu t); jitter'a göre oynatma gecikmesi. */
+    if (typeof f.t === "number") {
+      const d = now - f.t;
+      if (!s.hasOff || d < s.off) { s.off = d; s.hasOff = true; } else s.off += (d - s.off) * 0.003;
+      s.jit = s.jit * 0.9 + Math.abs(d - s.off) * 0.1;
+      const last = s.buf[s.buf.length - 1];
+      if (last && f.t > last.t) { const gap = f.t - last.t; if (gap < 200) s.interval = s.interval * 0.9 + gap * 0.1; }
+      if (!last || f.t > last.t) { s.buf.push(f as SrvFrame & { t: number }); if (s.buf.length > 40) s.buf.shift(); }
+      s.delay = clamp(1.5 * s.interval + 2 * s.jit, 34, 130);
+    }
     if (s.lastEvent === null) { s.lastEvent = f.olayNo; return; }
     if (f.olayNo === s.lastEvent) return;
     s.lastEvent = f.olayNo;
@@ -213,7 +224,7 @@ export default function Online() {
       const s = g.current;
       if (d.t === "init") {
         s.side = d.seat === 0 ? "red" : d.seat === 1 ? "blue" : null;
-        s.names = d.names; s.target = d.state?.hedefGol || 5; s.cur = null; s.prev = null; s.lastEvent = null;
+        s.names = d.names; s.target = d.state?.hedefGol || 5; s.cur = null; s.prev = null; s.buf = []; s.hasOff = false; s.lastEvent = null;
         s.selected = 3; setSelectedRod(3);
         setSide(s.side); setNames(d.names); setTarget(s.target);
         setReady(true);
@@ -301,6 +312,10 @@ export default function Online() {
       }
       if (key === bindingsRef.current.pause && !modalRef.current) { event.preventDefault(); setPaused(!pausedRef.current); return; }
       if (modalRef.current || pausedRef.current || !s.side) return;
+      const ROD_KEYS: Record<string, number> = { "1": 1, "2": 2, "3": 3, "4": 0, z: 1, x: 2, c: 3, v: 0 };
+      if (key in ROD_KEYS && !event.ctrlKey && !event.metaKey && !event.altKey) {
+        event.preventDefault(); selectRod(ROD_KEYS[key]); return;
+      }
       if (key === bindingsRef.current.previous || key === bindingsRef.current.next) {
         event.preventDefault();
         selectRod((s.selected + (key === bindingsRef.current.next ? 1 : -1) + 4) % 4); return;
@@ -345,7 +360,7 @@ export default function Online() {
     const send = (force = false) => {
       const s = g.current; if (!s.side) return;
       const t = performance.now(); const body = s.myTargets.map((v) => Math.round(v)).join(",");
-      if (!force && (t - s.lastSentAt < 50 || (body === s.lastSent && t - s.lastSentAt < 400))) return;
+      if (!force && (t - s.lastSentAt < 16 || (body === s.lastSent && t - s.lastSentAt < 400))) return;
       s.lastSentAt = t; s.lastSent = body;
       post({ t: "rods", hedefY: s.myTargets.map((v) => Math.round(v)), hassas: s.keys.has("shift") });
     };
@@ -360,11 +375,32 @@ export default function Online() {
         drawFoosballCanvas(ctx, createGame(s.target), { particles: [], selectedSide: s.side ?? "red", selectedRod: 3, charge: 0, eventFlash: 0, shake: 0, theme: themeRef.current, clock: s.clock });
         return;
       }
-      /* ara değer */
-      const k = s.prev && s.prev !== f ? clamp((now - s.curAt) / Math.max(16, s.interval), 0, 1) : 1;
-      const a = s.prev || f; const lerp = (x: number, y: number) => x + (y - x) * k;
-      const ball = { x: lerp(a.top.x, f.top.x), y: lerp(a.top.y, f.top.y), vx: f.top.vx, vy: f.top.vy };
-      const rods = { red: f.cubuk.kirmizi.map((v, i) => lerp(a.cubuk.kirmizi[i] ?? v, v)), blue: f.cubuk.mavi.map((v, i) => lerp(a.cubuk.mavi[i] ?? v, v)) };
+      /* ara değer: sunucu zaman damgalı tampondan, jitter'a göre geriden oynat */
+      let ball = { x: f.top.x, y: f.top.y, vx: f.top.vx, vy: f.top.vy };
+      let rods = { red: f.cubuk.kirmizi.slice(), blue: f.cubuk.mavi.slice() };
+      const bf = s.buf;
+      if (s.hasOff && bf.length > 1) {
+        const rt = now - s.off - s.delay;
+        let i = -1; for (let j = bf.length - 1; j >= 0; j -= 1) { if (bf[j].t <= rt) { i = j; break; } }
+        if (i < 0) { const a0 = bf[0]; ball = { ...a0.top }; rods = { red: a0.cubuk.kirmizi.slice(), blue: a0.cubuk.mavi.slice() }; }
+        else if (i === bf.length - 1) {
+          const a1 = bf[i]; const ex = Math.min(0.09, (rt - a1.t) / 1000);
+          ball = { x: a1.top.x + a1.top.vx * ex, y: a1.top.y + a1.top.vy * ex, vx: a1.top.vx, vy: a1.top.vy };
+          rods = { red: a1.cubuk.kirmizi.slice(), blue: a1.cubuk.mavi.slice() };
+        } else {
+          const a1 = bf[i], b1 = bf[i + 1];
+          let k = clamp((rt - a1.t) / Math.max(1, b1.t - a1.t), 0, 1);
+          if (a1.faz !== b1.faz || Math.hypot(b1.top.x - a1.top.x, b1.top.y - a1.top.y) > 120) k = 0;
+          const lp = (x: number, y: number) => x + (y - x) * k;
+          ball = { x: lp(a1.top.x, b1.top.x), y: lp(a1.top.y, b1.top.y), vx: b1.top.vx, vy: b1.top.vy };
+          rods = { red: b1.cubuk.kirmizi.map((v, n) => lp(a1.cubuk.kirmizi[n] ?? v, v)), blue: b1.cubuk.mavi.map((v, n) => lp(a1.cubuk.mavi[n] ?? v, v)) };
+        }
+      } else {
+        const k = s.prev && s.prev !== f ? clamp((now - s.curAt) / Math.max(16, s.interval), 0, 1) : 1;
+        const a = s.prev || f; const lerp = (x: number, y: number) => x + (y - x) * k;
+        ball = { x: lerp(a.top.x, f.top.x), y: lerp(a.top.y, f.top.y), vx: f.top.vx, vy: f.top.vy };
+        rods = { red: f.cubuk.kirmizi.map((v, i) => lerp(a.cubuk.kirmizi[i] ?? v, v)), blue: f.cubuk.mavi.map((v, i) => lerp(a.cubuk.mavi[i] ?? v, v)) };
+      }
 
       /* kendi çubuklarım: klavye + yerel tahmin */
       if (s.side) {
@@ -380,8 +416,10 @@ export default function Online() {
             const diff = s.myTargets[i] - s.myRods[i];
             const move = clamp(diff, -speed * dt, speed * dt);
             s.myRods[i] = clampTarget(s.side, i, s.myRods[i] + move);
+            /* Sunucu kopyası ağ gecikmesi kadar geridedir; hareket ederken ona çekme
+               (eski 80 birimlik yakalama geri sıçratıyordu). Yalnız durgunken yumuşakça uzlaş. */
             const sv = own[i]; const gap = sv - s.myRods[i];
-            if (Math.abs(gap) > 80) s.myRods[i] = sv;
+            if (Math.abs(gap) > 260) s.myRods[i] = sv;
             else if (Math.abs(diff) < 1 && Math.abs(gap) > 0.5) s.myRods[i] += gap * Math.min(1, dt * 5);
           }
           const sp = Math.abs((s.myTargets[s.selected] - s.myRods[s.selected]) / Math.max(dt, 0.001));
@@ -420,7 +458,6 @@ export default function Online() {
     return () => { cancelAnimationFrame(raf); ro.disconnect(); };
   }, [ready, snapOf]);
 
-  const bump = (amount: number) => { const s = g.current; if (s.side) moveTo(s.selected, s.myTargets[s.selected] + amount); };
   const nameOf = (sd: Side) => (sd === "red" ? names[0] : names[1]);
   const active = ready;
   const connLabel = connected ? "CONNECTED" : "RECONNECTING";
@@ -458,7 +495,7 @@ export default function Online() {
           {!paused && phase === "goal" && <div className="goal-callout"><span>GOAL!</span><strong>{lastScorer ? nameOf(lastScorer) : ""} SCORES</strong></div>}
           {!paused && phase === "playing" && <div className="table-live-label"><span /> LIVE · FIRST TO {target}</div>}
           {!connected && phase === "playing" && <div className="opponent-warning"><span /> RECONNECTING</div>}
-          {side && <div className="charge-tip"><span className="charge-dot" />MOVE ROD · HOLD &amp; RELEASE TO SHOOT</div>}
+          {side && <div className="charge-tip"><span className="charge-dot" />1·2·3 / Z·X·C ÇUBUK · ↑↓ HAREKET · SPACE VUR</div>}
           {paused && (
             <div className="match-overlay pause-overlay">
               <div className="pause-emblem"><Icon name="pause" size={22} /></div>
@@ -468,22 +505,6 @@ export default function Online() {
             </div>
           )}
         </div>
-
-        {side && (
-          <div className="touch-control-bar" aria-label="Touch controls">
-            <div className="touch-rod-select"><span>ROD {selectedRod + 1}</span>
-              <button onClick={() => selectRod((selectedRod + 3) % 4)} aria-label="Select previous rod">‹</button>
-              <button onClick={() => selectRod((selectedRod + 1) % 4)} aria-label="Select next rod">›</button></div>
-            <div className="touch-arrows">
-              <button onClick={() => bump(-28)} aria-label="Move selected rod up">↑</button>
-              <button onClick={() => bump(28)} aria-label="Move selected rod down">↓</button></div>
-            <button className="touch-kick"
-              onPointerDown={(e) => { e.preventDefault(); e.currentTarget.setPointerCapture(e.pointerId); g.current.charge = performance.now(); g.current.pointerDown = true; }}
-              onPointerUp={(e) => { e.preventDefault(); fireSelected(performance.now() - (g.current.charge ?? performance.now())); }}
-              onPointerCancel={() => fireSelected(performance.now() - (g.current.charge ?? performance.now()))}>
-              <Icon name="bolt" size={16} /> HOLD TO KICK</button>
-          </div>
-        )}
 
         <div className="arena-footer">
           <div className="target-select"><span>FIRST TO</span>{[3, 5, 7, 10].map((n) => <button key={n} className={target === n ? "target-active" : ""} disabled>{n}</button>)}</div>
@@ -495,6 +516,30 @@ export default function Online() {
           </div>
         </div>
       </section>
+
+      {side && (
+        <>
+          <div className="lg-pad lg-pad-left" aria-label="Çubuk seçimi">
+            {([[3, "FORVET", "3"], [2, "ORTA", "2"], [1, "DEFANS", "1"], [0, "KALECİ", "4"]] as [number, string, string][]).map(([rod, label, hint]) => (
+              <button key={rod} className={selectedRod === rod ? "lg-btn lg-btn-on" : "lg-btn"}
+                onPointerDown={(e) => { e.preventDefault(); selectRod(rod); soundFn.current("ui"); }}><b>{hint}</b>{label}</button>
+            ))}
+          </div>
+          <div className="lg-pad lg-pad-right" aria-label="Yön ve vuruş">
+            <button className="lg-btn lg-arrow" aria-label="Yukarı"
+              onPointerDown={(e) => { e.preventDefault(); e.currentTarget.setPointerCapture(e.pointerId); g.current.keys.add("arrowup"); }}
+              onPointerUp={() => g.current.keys.delete("arrowup")} onPointerCancel={() => g.current.keys.delete("arrowup")}>▲</button>
+            <button className="lg-btn lg-arrow" aria-label="Aşağı"
+              onPointerDown={(e) => { e.preventDefault(); e.currentTarget.setPointerCapture(e.pointerId); g.current.keys.add("arrowdown"); }}
+              onPointerUp={() => g.current.keys.delete("arrowdown")} onPointerCancel={() => g.current.keys.delete("arrowdown")}>▼</button>
+            <button className="lg-btn lg-kick"
+              onPointerDown={(e) => { e.preventDefault(); e.currentTarget.setPointerCapture(e.pointerId); g.current.charge = performance.now(); g.current.pointerDown = true; }}
+              onPointerUp={(e) => { e.preventDefault(); fireSelected(performance.now() - (g.current.charge ?? performance.now())); }}
+              onPointerCancel={() => fireSelected(performance.now() - (g.current.charge ?? performance.now()))}>
+              <Icon name="bolt" size={16} />VUR</button>
+          </div>
+        </>
+      )}
 
       {toast && <div className="toast-message" role="status"><span>✓</span>{toast}</div>}
 
