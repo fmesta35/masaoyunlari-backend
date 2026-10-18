@@ -147,7 +147,8 @@ function tokmaklaCarpis(st, i) {
   const bn = bx * nx + by * ny;
   const siddet = Math.max(90, Math.abs(bn));
   if (bn < 0) {
-    const itme = -(1.08 + 1) * bn;
+    /* esneklik 0.92 (<1): durağan tokmağa çarpan disk enerji kazanmaz; eskiden 1.08 idi, her sekmede %8 hızlanıyordu. */
+    const itme = -(0.92 + 1) * bn;
     d.vx += itme * nx; d.vy += itme * ny;
   } else {
     const tn = t.vx * nx + t.vy * ny;
@@ -161,6 +162,7 @@ function tokmaklaCarpis(st, i) {
   const hiz = Math.hypot(d.vx, d.vy);
   if (hiz > DISK_TAVANI) { d.vx = (d.vx / hiz) * DISK_TAVANI; d.vy = (d.vy / hiz) * DISK_TAVANI; }
   if (st.bekle) st.bekle[i] = 0.06;
+  st.temasKim = i; st.temasSn = st.gecenSn;
   return Math.min(1, siddet / 850);
 }
 
@@ -173,6 +175,9 @@ function gecmisVurus(st, seat, talep, diskGecmis, gecenSn) {
   const i = tarafOf(seat);
   if (!st || st.faz !== 'oyun' || !diskGecmis) return false;
   if (st.bekle && st.bekle[i] > 0) return false;
+  /* vt'den sonra rakip diske dokunduysa o vuruşu silme. */
+  const vtSn = st.gecenSn - (Number(gecenSn) || 0);
+  if (st.temasKim !== undefined && st.temasKim !== i && st.temasSn > vtSn) return false;
   const m = { x: Number(talep.x), y: Number(talep.y), vx: Number(talep.vx) || 0, vy: Number(talep.vy) || 0 };
   if (!Number.isFinite(m.x) || !Number.isFinite(m.y)) return false;
   tokmakKirp(m, i);
@@ -185,12 +190,13 @@ function gecmisVurus(st, seat, talep, diskGecmis, gecenSn) {
   const gecici = { disk: { x: diskGecmis.x, y: diskGecmis.y, vx: diskGecmis.vx, vy: diskGecmis.vy }, tokmak: [m, m] };
   tokmaklaCarpis(gecici, i);
   st.disk.x = gecici.disk.x; st.disk.y = gecici.disk.y; st.disk.vx = gecici.disk.vx; st.disk.vy = gecici.disk.vy;
-  st.bekle[i] = 0.1;
+  st.bekle[i] = 0.2;
+  st.temasKim = i; st.temasSn = st.gecenSn;
   olay(st, 'vurus');
   let kalan = kirp(Number(gecenSn) || 0, 0, 0.3);
   while (kalan > 1e-4 && st.faz === 'oyun') {
     const dt = Math.min(ADIM_SN, kalan);
-    diskIlerle(st, dt);
+    diskIlerle(st, dt, true);
     kalan -= dt;
   }
   return true;
@@ -214,7 +220,7 @@ function direkleCarpis(st, x, y) {
 
 /* --------------------------------------------------------------- FİZİK ADIMI */
 /* Diskin fiziği (duvar, direk, tokmak, gol) — adim() ve gecikme telafisi kullanır. */
-function diskIlerle(st, dt) {
+function diskIlerle(st, dt, tokmaksiz) {
   const d = st.disk;
   const direnc = Math.pow(0.9992, dt * 60);
   d.vx *= direnc; d.vy *= direnc;
@@ -232,8 +238,9 @@ function diskIlerle(st, dt) {
       direkleCarpis(st, ALAN.sag, KALE_UST) | direkleCarpis(st, ALAN.sag, KALE_ALT)) {
     olay(st, 'duvar');
   }
-  const v0 = tokmaklaCarpis(st, 0);
-  const v1 = tokmaklaCarpis(st, 1);
+  /* tokmaksiz: gecikme telafisinde ileri sarma — bugünkü tokmak konumları o ana ait değil. */
+  const v0 = tokmaksiz ? 0 : tokmaklaCarpis(st, 0);
+  const v1 = tokmaksiz ? 0 : tokmaklaCarpis(st, 1);
   if (v0 || v1) olay(st, 'vurus');
 
   /* Disk ortada takılıp kalırsa oyun durmasın: kısa bir süre sonra itilir. */

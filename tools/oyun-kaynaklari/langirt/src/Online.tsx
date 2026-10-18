@@ -25,7 +25,7 @@ type ControlBindings = Record<ControlAction, string>;
 
 const SETTINGS_STORAGE = "kickoff-club-settings-v1";
 const LS_SES = "gv-ses";
-const DEFAULT_BINDINGS: ControlBindings = { up: "w", down: "s", previous: "q", next: "e", shoot: "space", pause: "escape" };
+const DEFAULT_BINDINGS: ControlBindings = { up: "arrowup", down: "arrowdown", previous: "[", next: "]", shoot: "space", pause: "escape" };
 const THEME_NAMES: Record<TableTheme, string> = { clubhouse: "Clubhouse", arctic: "Arctic", afterhours: "Afterhours" };
 const THEME_ORDER: TableTheme[] = ["clubhouse", "arctic", "afterhours"];
 const PHASE: Record<string, GamePhase> = { gerisayim: "countdown", oyun: "playing", gol: "goal", bitti: "over" };
@@ -114,7 +114,7 @@ export default function Online() {
       if (typeof s.muted === "boolean") setMuted(s.muted);
       if (typeof s.effects === "number") setEffectsVolume(s.effects);
       if (typeof s.interface === "number") setInterfaceVolume(s.interface);
-      if (s.bindings) setBindings({ ...DEFAULT_BINDINGS, ...s.bindings });
+      if (s.bindings) { const RK = ["q", "w", "e", "r", "z", "x", "c", "v", "1", "2", "3", "4"]; const b: Record<string, string> = { ...s.bindings }; for (const k of Object.keys(b)) if (RK.includes(b[k])) delete b[k]; setBindings({ ...DEFAULT_BINDINGS, ...b }); }
       if (THEME_ORDER.includes(s.theme)) setTableTheme(s.theme);
       if (typeof s.assisted === "boolean") setAssisted(s.assisted);
     } catch { /* */ }
@@ -317,7 +317,7 @@ export default function Online() {
       }
       if (key === bindingsRef.current.pause && !modalRef.current) { event.preventDefault(); setPaused(!pausedRef.current); return; }
       if (modalRef.current || pausedRef.current || !s.side) return;
-      const ROD_KEYS: Record<string, number> = { "1": 1, "2": 2, "3": 3, "4": 0, z: 1, x: 2, c: 3, v: 0 };
+      const ROD_KEYS: Record<string, number> = { q: 0, w: 1, e: 2, r: 3, "1": 0, "2": 1, "3": 2, "4": 3, z: 1, x: 2, c: 3, v: 0 };
       if (key in ROD_KEYS && !event.ctrlKey && !event.metaKey && !event.altKey) {
         event.preventDefault(); selectRod(ROD_KEYS[key]); return;
       }
@@ -500,7 +500,7 @@ export default function Online() {
           {!paused && phase === "goal" && <div className="goal-callout"><span>GOAL!</span><strong>{lastScorer ? nameOf(lastScorer) : ""} SCORES</strong></div>}
           {!paused && phase === "playing" && <div className="table-live-label"><span /> LIVE · FIRST TO {target}</div>}
           {!connected && phase === "playing" && <div className="opponent-warning"><span /> RECONNECTING</div>}
-          {side && <div className="charge-tip"><span className="charge-dot" />1 DEFANS · 2 ORTA · 3 FORVET (veya Z·X·C) · ↑↓ HAREKET · SPACE VUR</div>}
+          {side && <div className="charge-tip"><span className="charge-dot" />Q/1 KALECİ · W/2 DEFANS · E/3 ORTA · R/4 FORVET · ↑↓ HAREKET · SPACE VUR</div>}
           {paused && (
             <div className="match-overlay pause-overlay">
               <div className="pause-emblem"><Icon name="pause" size={22} /></div>
@@ -525,7 +525,7 @@ export default function Online() {
       {side && (
         <>
           <div className="lg-pad lg-pad-left" aria-label="Çubuk seçimi">
-            {([[3, "FORVET", "3"], [2, "ORTA", "2"], [1, "DEFANS", "1"], [0, "KALECİ", "4"]] as [number, string, string][]).map(([rod, label, hint]) => (
+            {([[3, "FORVET", "R·4"], [2, "ORTA", "E·3"], [1, "DEFANS", "W·2"], [0, "KALECİ", "Q·1"]] as [number, string, string][]).map(([rod, label, hint]) => (
               <button key={rod} className={selectedRod === rod ? "lg-btn lg-btn-on" : "lg-btn"}
                 onPointerDown={(e) => { e.preventDefault(); selectRod(rod); soundFn.current("ui"); }}><b>{hint}</b>{label}</button>
             ))}

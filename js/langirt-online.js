@@ -22,7 +22,7 @@
   if (window.__gvLangirtLoaded) return;
   window.__gvLangirtLoaded = true;
 
-  var SRC = 'assets/oyunlar/langirt.html?online=1&v=20261018b';
+  var SRC = 'assets/oyunlar/langirt.html?online=1&v=20261018c';
 
   /* OYUN DOSYASI KAYNAĞI: önce site ile aynı yerden (Yöncü) denenir; dosya
      orada yoksa (yüklenmemiş, ya da host 404/ana sayfa döndürüyor) Render'daki
@@ -87,7 +87,7 @@
   /* Tuşlar: odak üst sayfadaysa (iframe'e hiç tıklanmadıysa) iframe tuşları
      almaz. Burada yakalayıp iframe'e iletiriz; yazı alanlarında (sohbet) dokunmayız.
      iframe odaktayken olaylar zaten onun içindedir → çift işlem olmaz. */
-  var TUSLAR = { '1': 1, '2': 1, '3': 1, '4': 1, z: 1, x: 1, c: 1, v: 1, w: 1, s: 1, q: 1, e: 1, ' ': 1,
+  var TUSLAR = { '1': 1, '2': 1, '3': 1, '4': 1, z: 1, x: 1, c: 1, v: 1, w: 1, q: 1, e: 1, r: 1, ' ': 1,
                  arrowup: 1, arrowdown: 1, shift: 1, escape: 1 };
   function tusIlet(ev) {
     if (!frame || !hazir || !mCur || mCur.isSpectator) return;

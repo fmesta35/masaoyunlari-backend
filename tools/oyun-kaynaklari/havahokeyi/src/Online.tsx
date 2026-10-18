@@ -69,8 +69,33 @@ type G = {
   me: { x: number; y: number } | null; meAt: number;
   target: { x: number; y: number } | null; keyPos: { x: number; y: number } | null;
   keys: Set<string>; pointer: number | null; lastSend: number; lastSent: string;
+  pred: { x: number; y: number; vx: number; vy: number; t0: number; h: number | null } | null; predBlock: number; delay: number;
   vt: number; mvx: number; mvy: number; prevMe: { x: number; y: number; t: number } | null; lastClaim: number;
 };
+
+/* Yerel vuruş tahmini: sunucudaki disk–tokmak çarpışmasının (havahokeyi-engine.js) birebir kopyası. */
+const DISK_TAVANI = 1450;
+function hitDisk(d: { x: number; y: number; vx: number; vy: number }, m: { x: number; y: number }, mvx: number, mvy: number) {
+  const R = MALLET_RADIUS + PUCK_RADIUS;
+  const dx = d.x - m.x, dy = d.y - m.y; const k2 = dx * dx + dy * dy;
+  if (k2 >= R * R) return null;
+  const u = Math.sqrt(k2) || 0.001; const nx = dx / u, ny = dy / u;
+  let vx = d.vx, vy = d.vy;
+  const bn = (vx - mvx) * nx + (vy - mvy) * ny;
+  if (bn >= 0) return null;                       // uzaklaşıyor: tahmin yok, sunucu karar versin
+  const itme = -1.92 * bn; vx += itme * nx; vy += itme * ny;
+  const tgv = mvx * -ny + mvy * nx; vx += -ny * tgv * 0.075; vy += nx * tgv * 0.075;
+  const h = Math.hypot(vx, vy); if (h > DISK_TAVANI) { vx = vx / h * DISK_TAVANI; vy = vy / h * DISK_TAVANI; }
+  return { x: m.x + nx * (R + 0.6), y: m.y + ny * (R + 0.6), vx, vy };
+}
+function advanceDisk(d: { x: number; y: number; vx: number; vy: number }, dt: number) {
+  const dr = Math.pow(0.9992, dt * 60); d.vx *= dr; d.vy *= dr; d.x += d.vx * dt; d.y += d.vy * dt;
+  if (d.y - PUCK_RADIUS < FIELD_TOP) { d.y = FIELD_TOP + PUCK_RADIUS; d.vy = Math.abs(d.vy) * 0.97; }
+  else if (d.y + PUCK_RADIUS > FIELD_BOTTOM) { d.y = FIELD_BOTTOM - PUCK_RADIUS; d.vy = -Math.abs(d.vy) * 0.97; }
+  const mouth = d.y > 205 && d.y < 395;
+  if (!mouth && d.x - PUCK_RADIUS < FIELD_LEFT) { d.x = FIELD_LEFT + PUCK_RADIUS; d.vx = Math.abs(d.vx) * 0.97; }
+  else if (!mouth && d.x + PUCK_RADIUS > FIELD_RIGHT) { d.x = FIELD_RIGHT - PUCK_RADIUS; d.vx = -Math.abs(d.vx) * 0.97; }
+}
 
 export default function Online() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -80,6 +105,7 @@ export default function Online() {
     renk: ["#22d3ee", "#fb4d6d"], maxSet: 3, golHedefi: 5, olayNo: null, lastFaz: "", lastTick: -1,
     particles: [], trail: [], shake: 0, flash: 0, flashSide: 0, banner: "FACE OFF", bannerTime: 0.65,
     me: null, meAt: 0, target: null, keyPos: null, keys: new Set(), pointer: null, lastSend: 0, lastSent: "",
+    pred: null, predBlock: 0, delay: 60,
     vt: 0, mvx: 0, mvy: 0, prevMe: null, lastClaim: 0,
   });
   const [ready, setReady] = useState(false);
@@ -254,7 +280,7 @@ export default function Online() {
       if (f && s.buf.length >= 2 && typeof f.t === "number") {
         const delay = clamp(s.interval * 1.5 + s.jit * 2 + 14, 40, 150);
         const rt = time - s.off - delay;           // gösterilecek sunucu zamanı
-        s.vt = rt;
+        s.vt = rt; s.delay = delay;
         const bf = s.buf; let i = -1;
         for (let n = bf.length - 1; n >= 0; n -= 1) { if ((bf[n].t as number) <= rt) { i = n; break; } }
         if (i < 0) { disk = bf[0].disk; mal = bf[0].tokmak.map((t) => ({ x: t.x, y: t.y })); }
@@ -331,6 +357,30 @@ export default function Online() {
           s.lastClaim = time;
           const tg = s.target || s.me;
           post({ t: "move", x: Math.round(tg.x), y: Math.round(tg.y), ...claim() });
+        }
+      }
+
+      /* YEREL VURUŞ TAHMİNİ: ekranda tokmağım diske değdiği an disk hemen tepki verir
+         (sunucu onayı ağ gecikmesi kadar sonra gelir; o zamana kadar tahmini gösteririz). */
+      if (s.seat !== null && s.me && disk && f && f.status === "playing" && f.faz === "oyun" && s.vt) {
+        if (!s.pred && time > s.predBlock) {
+          const c = hitDisk(disk, s.me, s.mvx, s.mvy);
+          if (c) {
+            let el = Math.min(0.25, (s.delay + 25) / 1000);
+            while (el > 1e-4) { const st2 = Math.min(1 / 120, el); advanceDisk(c, st2); el -= st2; }
+            s.pred = { ...c, t0: time, h: null }; s.predBlock = time + 380;
+          }
+        }
+      } else if (s.pred && (!f || f.faz !== "oyun")) s.pred = null;
+      if (s.pred && disk) {
+        const pr = s.pred; advanceDisk(pr, dt);
+        const age = time - pr.t0; const gap = Math.hypot(disk.x - pr.x, disk.y - pr.y);
+        if (pr.h === null && ((age > 150 && gap < 45) || age > 650)) pr.h = time;
+        if (pr.h === null) disk = { x: pr.x, y: pr.y, vx: pr.vx, vy: pr.vy };
+        else {
+          const k = Math.min(1, (time - pr.h) / 160);
+          disk = { x: pr.x + (disk.x - pr.x) * k, y: pr.y + (disk.y - pr.y) * k, vx: disk.vx, vy: disk.vy };
+          if (k >= 1) s.pred = null;
         }
       }
 
