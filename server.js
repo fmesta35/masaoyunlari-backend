@@ -1919,7 +1919,7 @@ function startSolo(room) {
  * Hedef gol masa tipinden gelir: ⚡10 dk → 3 · ♟️15 dk → 5 · 🧠20 dk → 7.
  * ===================================================================== */
 const HOKEY_ADIM_MS = 1000 / 120;   // 120 Hz fizik
-const HOKEY_YAYIN_MS = 50;          // 20 Hz durum paketi
+const HOKEY_YAYIN_MS = 15;          // ~60 Hz durum paketi (akıcı senkron)
 const hokeyOdalari = new Set();
 let hokeyTimer = null;
 
@@ -1959,7 +1959,7 @@ function havahokeyiDurdur(room) {
 function havahokeyiBasla(room) {
   hokeyOdalari.add(String(room.id));
   if (hokeyTimer) return;
-  hokeyTimer = setInterval(havahokeyiDonguAdimi, 16);   // zamanlayıcı 60 Hz,
+  hokeyTimer = setInterval(havahokeyiDonguAdimi, 8);    // zamanlayıcı ~120 Hz uyanır,
   if (typeof hokeyTimer.unref === 'function') hokeyTimer.unref();
 }
 /* Tek genel zamanlayıcı bütün hokey masalarını işletir. Zamanlayıcı 60 Hz

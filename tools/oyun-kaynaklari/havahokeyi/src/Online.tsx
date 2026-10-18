@@ -12,6 +12,7 @@ import {
 
 type P2 = [number, number];
 type Frame = {
+  t?: number;
   faz: string; fazSn: number;
   disk: { x: number; y: number; vx: number; vy: number };
   tokmak: { x: number; y: number }[];
@@ -57,6 +58,8 @@ function playSound(kind: "hit" | "wall" | "goal" | "tick" | "start", power = 1) 
 
 type G = {
   prev: Frame | null; cur: Frame | null; curAt: number; interval: number;
+  /* ağ gecikmesine dayanıklı oynatma: sunucu saatiyle damgalı kare tamponu */
+  buf: Frame[]; offs: { a: number; v: number }[]; off: number; jit: number; hist: { t: number; x: number; y: number }[];
   seat: number | null; names: [string, string]; renk: [string, string];
   maxSet: number; golHedefi: number;
   olayNo: number | null; lastFaz: string; lastTick: number;
@@ -71,7 +74,7 @@ type G = {
 export default function Online() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const g = useRef<G>({
-    prev: null, cur: null, curAt: 0, interval: 50, seat: null, names: ["Oyuncu 1", "Oyuncu 2"],
+    prev: null, cur: null, curAt: 0, interval: 20, buf: [], offs: [], off: 0, jit: 0, hist: [], seat: null, names: ["Oyuncu 1", "Oyuncu 2"],
     renk: ["#22d3ee", "#fb4d6d"], maxSet: 3, golHedefi: 5, olayNo: null, lastFaz: "", lastTick: -1,
     particles: [], trail: [], shake: 0, flash: 0, flashSide: 0, banner: "FACE OFF", bannerTime: 0.65,
     me: null, meAt: 0, target: null, keyPos: null, keys: new Set(), pointer: null, lastSend: 0, lastSent: "",
@@ -103,8 +106,19 @@ export default function Online() {
   const onFrame = useCallback((f: Frame) => {
     const s = g.current;
     const now = performance.now();
-    if (s.curAt) { const d = now - s.curAt; if (d > 8 && d < 400) s.interval = s.interval * 0.8 + d * 0.2; }
+    if (s.curAt) { const d = now - s.curAt; if (d > 4 && d < 400) s.interval = s.interval * 0.9 + d * 0.1; }
     s.prev = s.cur || f; s.cur = f; s.curAt = now;
+    /* saat farkı: varış − sunucu damgası; en küçük değer ≈ en hızlı yol (taban gecikme) */
+    if (typeof f.t === "number" && isFinite(f.t)) {
+      const sample = now - f.t;
+      s.offs.push({ a: now, v: sample });
+      while (s.offs.length && now - s.offs[0].a > 5000) s.offs.shift();
+      let mn = Infinity; for (const o of s.offs) if (o.v < mn) mn = o.v;
+      s.off = mn;
+      s.jit = s.jit * 0.92 + Math.max(0, sample - mn) * 0.08;
+      s.buf.push(f);
+      if (s.buf.length > 60) s.buf.shift();
+    }
 
     if (f.renk && (f.renk[0] !== s.renk[0] || f.renk[1] !== s.renk[1])) { s.renk = [f.renk[0], f.renk[1]]; setRenk(s.renk); }
     setSkor((o) => (o[0] === f.skor[0] && o[1] === f.skor[1] ? o : [f.skor[0], f.skor[1]]));
@@ -165,7 +179,7 @@ export default function Online() {
         const init = d as Init & { t: string };
         s.seat = init.seat === 0 || init.seat === 1 ? init.seat : null;
         s.names = init.names; s.maxSet = init.state.maxSet || 3; s.golHedefi = init.state.golHedefi || 5;
-        s.cur = null; s.prev = null; s.olayNo = null; s.me = null; s.target = null; s.keyPos = null;
+        s.cur = null; s.prev = null; s.buf = []; s.offs = []; s.hist = []; s.olayNo = null; s.me = null; s.target = null; s.keyPos = null;
         setSeat(s.seat); setNames(init.names); setMaxSet(s.maxSet); setGolHedefi(s.golHedefi);
         if (init.state.renk) { s.renk = [init.state.renk[0], init.state.renk[1]]; setRenk(s.renk); }
         if (init.state.skor) setSkor([init.state.skor[0], init.state.skor[1]]);
@@ -212,7 +226,7 @@ export default function Online() {
 
     const send = (x: number, y: number, force = false) => {
       const s = g.current; const t = performance.now();
-      if (!force && t - s.lastSend < 30) return;
+      if (!force && t - s.lastSend < 16) return;
       const k = Math.round(x) + "," + Math.round(y);
       if (!force && k === s.lastSent && t - s.lastSend < 250) return;
       s.lastSend = t; s.lastSent = k;
@@ -226,9 +240,33 @@ export default function Online() {
       const f = s.cur;
       const rotated = s.seat === 1;
 
-      /* interpolasyon (iki paket arası) */
+      /* interpolasyon: sunucu saatiyle geriden oynat (jitter tamponu) */
       let disk = f ? f.disk : null; let mal: { x: number; y: number }[] = f ? f.tokmak.map((t) => ({ x: t.x, y: t.y })) : [];
-      if (f && s.prev && s.prev !== f) {
+      if (f && s.buf.length >= 2 && typeof f.t === "number") {
+        const delay = clamp(s.interval * 1.5 + s.jit * 2 + 14, 40, 150);
+        const rt = time - s.off - delay;           // gösterilecek sunucu zamanı
+        const bf = s.buf; let i = -1;
+        for (let n = bf.length - 1; n >= 0; n -= 1) { if ((bf[n].t as number) <= rt) { i = n; break; } }
+        if (i < 0) { disk = bf[0].disk; mal = bf[0].tokmak.map((t) => ({ x: t.x, y: t.y })); }
+        else if (i === bf.length - 1) {
+          /* tampon tükendi: diski hızıyla kısa süre ileri taşı */
+          const a = bf[i]; const dts = Math.min(0.08, (rt - (a.t as number)) / 1000);
+          disk = a.faz === "oyun" ? { x: a.disk.x + a.disk.vx * dts, y: a.disk.y + a.disk.vy * dts, vx: a.disk.vx, vy: a.disk.vy } : a.disk;
+          mal = a.tokmak.map((t) => ({ x: t.x, y: t.y }));
+        } else {
+          const a = bf[i], b = bf[i + 1];
+          const span = Math.max(1, (b.t as number) - (a.t as number));
+          const k = clamp((rt - (a.t as number)) / span, 0, 1);
+          const jump = Math.hypot(b.disk.x - a.disk.x, b.disk.y - a.disk.y) > 160 || a.faz !== b.faz;
+          disk = jump ? (k < 0.5 ? a.disk : b.disk)
+            : { x: a.disk.x + (b.disk.x - a.disk.x) * k, y: a.disk.y + (b.disk.y - a.disk.y) * k, vx: b.disk.vx, vy: b.disk.vy };
+          mal = b.tokmak.map((t, n) => {
+            const o = a.tokmak[n];
+            if (!o || Math.hypot(t.x - o.x, t.y - o.y) > 220) return { x: t.x, y: t.y };
+            return { x: o.x + (t.x - o.x) * k, y: o.y + (t.y - o.y) * k };
+          });
+        }
+      } else if (f && s.prev && s.prev !== f) {
         const k = clamp((time - s.curAt) / Math.max(16, s.interval), 0, 1);
         const a = s.prev, b = f;
         disk = { x: a.disk.x + (b.disk.x - a.disk.x) * k, y: a.disk.y + (b.disk.y - a.disk.y) * k, vx: b.disk.vx, vy: b.disk.vy };
@@ -261,9 +299,15 @@ export default function Online() {
           const step = Math.min(dist, 1120 * dt);
           if (dist > 0.001) { s.me.x += (dx / dist) * step; s.me.y += (dy / dist) * step; }
         }
-        const fx = sv.x - s.me.x, fy = sv.y - s.me.y; const fark = Math.hypot(fx, fy);
-        if (fark > 90) { s.me.x = sv.x; s.me.y = sv.y; }
-        else if (fark > 1) { const c = Math.min(1, dt * 6); s.me.x += fx * c; s.me.y += fy * c; }
+        /* Uzlaşma: sunucudaki tokmak ağ gecikmesi kadar GERİDEDİR; şimdiki tahminle
+           kıyaslamak yerine yakın geçmişimdeki izle kıyasla. İz üzerindeyse
+           sapma yok (yalnız gecikme) → dokunma; gerçekten ayrıştıysa nazikçe çek. */
+        s.hist.push({ t: time, x: s.me.x, y: s.me.y });
+        while (s.hist.length && time - s.hist[0].t > 1100) s.hist.shift();
+        let best = Infinity;
+        for (const h of s.hist) { const dd = Math.hypot(h.x - sv.x, h.y - sv.y); if (dd < best) best = dd; }
+        if (!playing || best > 170) { s.me.x = sv.x; s.me.y = sv.y; s.hist = []; }
+        else if (best > 32) { const c = Math.min(1, dt * 5); s.me.x += (sv.x - s.me.x) * c; s.me.y += (sv.y - s.me.y) * c; }
         constrain(s.me, s.seat);
         mal[s.seat] = { x: s.me.x, y: s.me.y };
       }
@@ -352,7 +396,7 @@ export default function Online() {
     q.x = clamp(q.x, mn, mx); q.y = clamp(q.y, FIELD_TOP + MALLET_RADIUS + 7, FIELD_BOTTOM - MALLET_RADIUS - 7);
     s.target = q;
     const t = performance.now();
-    if (t - s.lastSend >= 30) { s.lastSend = t; post({ t: "move", x: Math.round(q.x), y: Math.round(q.y) }); }
+    if (t - s.lastSend >= 16) { s.lastSend = t; post({ t: "move", x: Math.round(q.x), y: Math.round(q.y) }); }
   };
   const onDown = (e: RPE<HTMLCanvasElement>) => {
     const s = g.current; if (s.seat === null) return;

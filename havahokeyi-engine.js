@@ -6,7 +6,7 @@
  * taşındı: masa ölçüleri, tokmak sınırları, çarpışma katsayıları, direk
  * çarpışması ve gol kuralı aynıdır. Değişen tek şey KİMİN İŞLETTİĞİ: fizik
  * artık sunucuda sabit 120 Hz adımlarla işler; istemciler yalnız tokmak
- * hedefini yollar, karşılığında ~20 Hz durum paketi alır.
+ * hedefini yollar, karşılığında ~60 Hz durum paketi alır.
  *
  * NEDEN 120 Hz: disk çok hızlanabiliyor (saniyede 1450 birim). 50 Hz'de bir
  * adımda 29 birim yol alır ve 20 birimlik yarıçapıyla tokmağın İÇİNDEN
