@@ -539,7 +539,9 @@
   function updateClock() {
     const gs = gameState;
     if (!gs) return;
-    const playing = gs.status === 'playing' && !gs.finished;
+    /* Oyun DURAKLATILDIYSA (çıkan oyuncu 45 sn bekleniyor) saatler donuk:
+       paketten bu yana geçen süre düşülmez, sayaç olduğu yerde durur. */
+    const playing = gs.status === 'playing' && !gs.finished && !gs.duraklatildi;
     const sincePack = gs.serverNow ? Math.max(0, Date.now() - Number(gs.serverNow)) : 0;
 
     const el = document.getElementById('okTimerVal');

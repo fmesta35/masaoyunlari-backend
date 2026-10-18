@@ -247,26 +247,74 @@
        gitmiyordu — tahta donuyor, "rakip çıktı" da denmiyordu (kullanıcı
        raporu: "karşının oyundan çıktığına dair bilgi gelmedi"). Artık
        kopma anında bilgi + geri sayım, dönüşte de haber verilir. */
-    var kopukSayac = null;
+    /* OYUN DURAKLATILDI — kullanıcı kuralı: çıkan / bağlantısı kopan oyuncuya
+       45 sn dönüş süresi; bu sürede oyun ve hamle süreleri DURUR. Masada
+       kalanlara tahtanın üstünde canlı geri sayımlı bir şerit gösterilir. */
+    var kopukSayac = null, durakBitis = 0, durakMesaj = '';
+    function serit() {
+      var el = document.getElementById('gvDurakSerit');
+      if (!el) {
+        el = document.createElement('div');
+        el.id = 'gvDurakSerit';
+        el.style.cssText = 'position:fixed;left:50%;top:72px;transform:translateX(-50%);z-index:99990;' +
+          'max-width:min(92vw,560px);padding:10px 16px;border-radius:14px;background:rgba(20,16,40,.94);' +
+          'border:1px solid rgba(255,198,77,.55);box-shadow:0 10px 30px rgba(0,0,0,.45);color:#fff;' +
+          'font:600 14px/1.4 system-ui,sans-serif;text-align:center;pointer-events:none';
+        (window.__gvKaplamaKati ? window.__gvKaplamaKati() : document.body).appendChild(el);
+      }
+      return el;
+    }
+    function seritCiz() {
+      var kalan = Math.max(0, Math.ceil((durakBitis - Date.now()) / 1000));
+      serit().innerHTML = '⏸️ <b>Oyun duraklatıldı</b> · <span style="color:#ffc64d;font-size:1.15em">' + kalan +
+        ' sn</span><div style="font-weight:500;font-size:.88em;opacity:.85;margin-top:2px">' + esc(durakMesaj) + '</div>';
+      if (kalan <= 0) kopukTemizle();
+    }
     function kopukTemizle() {
       if (kopukSayac) { clearInterval(kopukSayac); kopukSayac = null; }
+      var el = document.getElementById('gvDurakSerit');
+      if (el) el.remove();
     }
+    function duraklatGoster(p) {
+      kopukTemizle();
+      durakBitis = Number(p.bitis) > 0 ? Number(p.bitis) : Date.now() + (Number(p.graceMs || p.kalanMs) || 45000);
+      /* Sunucu saatine göre bitiş farklı olabilir: kalan süreyi baz al. */
+      if (p.kalanMs) durakBitis = Date.now() + Number(p.kalanMs);
+      durakMesaj = p.mesaj || ((p.name || 'Rakip') + ' masadan çıktı. Geri dönmesi bekleniyor.');
+      seritCiz();
+      kopukSayac = setInterval(seritCiz, 250);
+    }
+    s.on('oyunDuraklatildi', function (p) { if (p) duraklatGoster(p); });
     s.on('playerConnectionLost', function (p) {
       if (!p) return;
+      if (kopukSayac) return;            // oyunDuraklatildi şeridi zaten açık
+      var cok = Number(p.kisi) > 2;
+      duraklatGoster({ graceMs: p.graceMs, name: p.name,
+        mesaj: (p.name || 'Rakip') + ' masadan çıktı. ' + (cok
+          ? 'Dönmezse yerine tur sonuna kadar bot oynayacak.'
+          : 'Dönmezse maçı sen kazanacaksın.') });
+    });
+    /* Duraklamada hamle denendi: sunucu reddetti, ekran gerçek duruma döndü. */
+    var sonRetUyari = 0;
+    s.on('hamleDuraklamada', function (p) {
+      if (Date.now() - sonRetUyari < 2500) return;
+      sonRetUyari = Date.now();
+      toast('⏸️ ' + ((p && p.mesaj) || 'Oyun duraklatıldı — şu an hamle yapılamaz.'), 'warning');
+    });
+    s.on('oyunDevamEdiyor', function () {
       kopukTemizle();
-      var kalan = Math.max(1, Math.round((Number(p.graceMs) || 60000) / 1000));
-      var ad = esc(p.name || 'Rakip');
-      toast('📴 ' + ad + ' bağlantısı koptu. ' + kalan +
-            ' sn içinde dönmezse maçı sen kazanacaksın.', 'warning');
-      kopukSayac = setInterval(function () {
-        kalan -= 10;
-        if (kalan <= 0) return kopukTemizle();
-        toast('⏳ ' + ad + ' hâlâ dönmedi — ' + kalan + ' sn kaldı.', 'info');
-      }, 10000);
+      toast('▶️ Oyun devam ediyor.', 'success');
     });
     s.on('playerReconnected', function (p) {
-      kopukTemizle();
       if (p) toast('🔌 ' + esc(p.name || 'Rakip') + ' oyuna geri döndü.', 'success');
+    });
+    s.on('kurucuDegisti', function (p) {
+      if (!p) return;
+      toast(p.mesaj || ('👑 Masa kuruculuğu ' + (p.name || 'bir oyuncuya') + ' geçti.'), 'info', 6000);
+    });
+    s.on('botTurSonu', function (p) {
+      kopukTemizle();
+      toast((p && p.mesaj) || 'Tur bitti — maç mevcut puanlarla sonuçlandı.', 'info', 6000);
     });
     s.on('gameEnded', function () { kopukTemizle(); });
     s.on('playerLeft', function () { kopukTemizle(); });

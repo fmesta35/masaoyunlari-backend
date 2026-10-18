@@ -1,4 +1,5 @@
 'use strict';
+process.env.GV_RECONNECT_GRACE_MS = process.env.GV_RECONNECT_GRACE_MS || '300'; // çıkana tanınan dönüş süresi (üretimde 45 sn) — testte kısa
 /* KELİMELİK — ÇEVRİM İÇİ MASA (sunucu yetkili).
    Masa açılışı, ıstakanın gizliliği, hamle doğrulaması, sözlük reddi,
    pas / harf değiştir / karıştır, süre aşımında pas, otomatik pas ve

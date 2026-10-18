@@ -1,6 +1,14 @@
 'use strict';
 /* ============================================================================
- * MASA OYLAMASI — eksik kişiyle devam
+ * ÇIKAN OYUNCU: 45 sn DURAKLAMA → BOT (tur sonuna kadar) → MAÇ SONU
+ * ============================================================================
+ * GÜNCEL KURAL (kullanıcı, 19.10.2026): "Oyundan çıkan oyuncu için tüm oyun
+ * ve hamle süreleri dursun, 45 sn dönüş sayacı başlasın. Dönmezse 2 kişilikte
+ * çıkan mağlup; 3-4 kişilikte o tur bitene kadar bot oynar. Tur bitince bot
+ * çıkar, oyuncular mevcut puanlarla puanlanır ve oyunun bekleme odasına
+ * dönerler." Eski "eksik kişiyle devam" OYLAMASI bu kuralla kalktı.
+ *
+ * ESKİ BAŞLIK: MASA OYLAMASI — eksik kişiyle devam
  * ============================================================================
  * Kullanıcı isteği: "3 ve 4 kişilik oyunlarda çıkan oyuncu yerini o elde
  * geçerli olmak üzere bir bot devam ettirsin. Ardından o el bittikten sonra
@@ -28,6 +36,7 @@ process.env.GV_POST_GAME_HOLD_MS = '400';
 process.env.GV_OKEY_TURN_MS = '600000';
 process.env.GV_AI_DELAY_MS = '10';
 process.env.GV_MASA_OYLAMA_MS = '6000';
+process.env.GV_RECONNECT_GRACE_MS = '1500';   // üretimde 45 sn
 
 const assert = require('assert');
 const ioClient = require('socket.io-client');
@@ -49,8 +58,9 @@ function once(s, ev, ms) {
 }
 const uyu = ms => new Promise(r => setTimeout(r, ms));
 
-async function masaKur(BASE, rooms, gameId, kisi) {
-  const oda = [...rooms.values()].filter(r => r.isPreset && r.gameId === gameId && r.maxPlayers === kisi)
+let uyeNo = 9100;
+async function masaKur(BASE, rooms, gameId, kisi, uye) {
+  const oda = [...rooms.values()].filter(r => r.isPreset && r.gameId === gameId && r.maxPlayers === kisi && !r.players.length && r.status === 'waiting')
     .sort((a, b) => Number(a.id) - Number(b.id))[0];
   assert.ok(oda, gameId + ' ' + kisi + ' kişilik masa olmalı');
   const ss = [];
@@ -58,7 +68,7 @@ async function masaKur(BASE, rooms, gameId, kisi) {
   const basladi = ss.map(s => once(s, 'gameStarted', 15000));
   for (const s of ss) {
     s.emit('joinRoom', { roomId: String(oda.id), gameId, userName: s.userName,
-      userKey: 'test:' + s.userName, maxPlayers: kisi, durationMinutes: oda.durationMinutes });
+      userKey: uye ? ('user:' + (s.uyeNo = ++uyeNo)) : ('test:' + s.userName), maxPlayers: kisi, durationMinutes: oda.durationMinutes });
     await once(s, 'joinedRoom');
   }
   ss.forEach(s => s.emit('setReady', { ready: true }));
@@ -89,134 +99,128 @@ function desteyiKurut(oda) {
   return rs.turn;
 }
 
+
+function sayacKalan(oda) { const ok = oda.okey; return ok.turnDeadlineMs - (Date.now() - ok.turnStartedAt); }
+
 async function main() {
   const server = await serverModule.start(0);
   const BASE = 'http://localhost:' + server.address().port;
   const rooms = serverModule.rooms;
   const acik = [];
 
-  // ---------- 1-3) 101 OKEY: çıkış → bot → oylama → devam ----------
+  // ---------- 1) 2 kişilik 101: çık → duraklama → saat donuk → dön → devam ----------
+  {
+    const { oda, ss, paketler } = await masaKur(BASE, rooms, 'okey101', 2, true);   // ÜYELER
+    acik.push(...ss);
+    const cikan = ss[1], kalan = ss[0];
+    const durak = once(kalan, 'oyunDuraklatildi', 6000);
+    const once1 = sayacKalan(oda);
+    cikan.emit('leaveRoom', { roomId: String(oda.id) });
+    const d = await durak;
+    assert.ok(d.kalanMs > 0 && /duraklatıldı/.test(d.mesaj), 'kalan oyuncuya duraklama + mesaj gitmeli');
+    assert.ok(oda.duraklama, 'oda duraklamada olmalı');
+    const saatOnce = Object.assign({}, oda.okey.clockMs);
+    await uyu(1100);
+    const fark = Math.abs(sayacKalan(oda) - once1);
+    assert.ok(fark < 700, 'duraklamada hamle sayacı akmamalı (fark ' + fark + ' ms)');
+    assert.deepStrictEqual(oda.okey.clockMs, saatOnce, 'duraklamada ana saat de düşmemeli');
+    // HER ŞEY DONUK: masada kalan oyuncu da hamle yapamaz
+    const rs = oda.okey.roundState, turOnce = rs.turn, fazOnce = rs.phase;
+    const ret = once(kalan, 'hamleDuraklamada', 4000);
+    kalan.emit('okeyDraw', { roomId: String(oda.id), source: 'deck' });
+    kalan.emit('okeyDiscard', { roomId: String(oda.id), tileId: (rs.hands[rs.turn] || [])[0] && rs.hands[rs.turn][0].id });
+    await ret;
+    await uyu(200);
+    assert.strictEqual(rs.turn, turOnce, 'duraklamada sıra değişmemeli');
+    assert.strictEqual(rs.phase, fazOnce, 'duraklamada hamle işlenmemeli');
+    console.log('  ✓ 1) çıkışta oyun duraklatıldı; saatler ve hamleler dahil her şey dondu');
+
+    const devam = once(kalan, 'oyunDevamEdiyor', 6000);
+    cikan.emit('joinRoom', { roomId: String(oda.id), gameId: 'okey101', userName: cikan.userName,
+      userKey: 'test:' + cikan.userName, maxPlayers: 2, durationMinutes: oda.durationMinutes });
+    await devam;
+    assert.ok(!oda.duraklama && oda.status === 'playing', 'dönüşte oyun devam etmeli');
+    console.log('  ✓ 2) 45 sn içinde dönen oyuncuyla oyun kaldığı yerden devam etti');
+
+    // Bu kez dönmesin → 2 kişilikte çıkan mağlup
+    const bitis = once(kalan, 'gameEnded', 8000);
+    cikan.emit('leaveRoom', { roomId: String(oda.id) });
+    const g = await bitis;
+    assert.strictEqual(g.youWon, true, 'kalan oyuncu kazanmalı');
+    console.log('  ✓ 3) dönmeyen üye 2 kişilik masada hükmen mağlup sayıldı');
+    await uyu(900);
+  }
+
+  // ---------- 3b) 2 kişilikte MİSAFİR: dönüş hakkı yok, maç hemen biter ----------
+  {
+    const { oda, ss } = await masaKur(BASE, rooms, 'okey101', 2, false);
+    acik.push(...ss);
+    const bitis = once(ss[0], 'gameEnded', 4000);
+    const t0 = Date.now();
+    ss[1].emit('leaveRoom', { roomId: String(oda.id) });
+    const g = await bitis;
+    assert.strictEqual(g.youWon, true);
+    assert.ok(Date.now() - t0 < 1200 && !oda.duraklama, 'misafirde 45 sn beklenmemeli');
+    console.log('  ✓ 3b) 2 kişilikte misafir çıkınca maç beklemeden bitti (dönüş hakkı yalnız üyede)');
+    await uyu(900);
+  }
+
+  // ---------- 4) 4 kişilik 101: dönmeyen → bot → tur sonu → mevcut puanlarla biter, bekleme odası ----------
   {
     const { oda, ss, paketler } = await masaKur(BASE, rooms, 'okey101', 4);
     acik.push(...ss);
-    assert.strictEqual(oda.players.length, 4, 'masa 4 kişilik kurulmalı');
-
-    // Sırası gelmeyen bir oyuncu çıksın (çıkış sırayı bozmasın)
     const siraKoltuk = oda.okey.roundState.turn;
     const cikanIdx = paketler.findIndex(p => p.gameState.mySeat !== siraKoltuk);
-    const cikan = ss[cikanIdx];
-    const botHaberi = once(ss[(cikanIdx + 1) % 4], 'aiTookSeat', 9000);
-    cikan.emit('leaveRoom', { roomId: String(oda.id) });
-    const bh = await botHaberi;
-    assert.ok(bh && bh.seat !== undefined, 'çıkan koltuğu bot devralmalı');
-    assert.strictEqual(oda.players.length, 4, 'koltuk silinmemeli (motor sırası bozulmasın)');
-    assert.strictEqual(oda.players.filter(p => p.aiControlled).length, 1, 'tam bir bot koltuğu olmalı');
-    assert.strictEqual(oda.status, 'playing', 'maç çökmemeli');
-    console.log('  ✓ 1) 4 kişilik 101 masasında çıkan oyuncunun koltuğunu bot devraldı');
-
-    // Eli bitir → oylama açılmalı
-    const kalanlar = ss.filter((s, i) => i !== cikanIdx);
-    const oylamalar = kalanlar.map(s => once(s, 'masaOylamasi', 12000));
-    const { sira, tileId } = eliBitir(oda, true);
-    const siraSoket = kalanlar.find((s, i) => paketler.filter((_, j) => j !== cikanIdx)[i].gameState.mySeat === sira);
-    (siraSoket || kalanlar[0]).emit('okeyDiscard', { roomId: String(oda.id), tileId });
-    const oy = (await Promise.all(oylamalar))[0];
-    assert.strictEqual(oy.yeniKisi, 3, 'yeni kişi sayısı 3 olmalı');
-    assert.strictEqual(oy.gereken, 3, 'kalan 3 insanın hepsi oy vermeli');
-    assert.ok(Array.isArray(oy.ayrilanlar) && oy.ayrilanlar.length === 1, 'ayrılanın adı bildirilmeli');
-    console.log('  ✓ 2) el bitince oylama açıldı: "3 kişiyle devam?" (3 oy gerekiyor)');
-
-    // Hepsi evet → 3 kişiyle yeni el
-    const sonuclar = kalanlar.map(s => once(s, 'masaOylamaSonucu', 12000));
-    const yeniEl = kalanlar.map(s => once(s, 'gameStarted', 12000));
-    kalanlar.forEach(s => s.emit('masaOyla', { roomId: String(oda.id), evet: true }));
-    const sonuc = (await Promise.all(sonuclar))[0];
-    assert.strictEqual(sonuc.devam, true, 'oylama geçmeli');
-    const yeni = (await Promise.all(yeniEl))[0];
-    assert.strictEqual(oda.players.length, 3, 'masa 3 kişiye inmeli');
-    assert.strictEqual(oda.maxPlayers, 3, 'oda kapasitesi 3 olmalı');
-    assert.strictEqual(oda.players.filter(p => p.aiControlled).length, 0, 'bot koltuğu kalkmalı');
-    assert.deepStrictEqual(oda.players.map(p => p.seat).sort(), [0, 1, 2],
-      'koltuklar boşluksuz yeniden numaralanmalı');
-    const eller = oda.okey.roundState.seats.map(s => oda.okey.roundState.hands[s].length).sort();
-    assert.deepStrictEqual(eller, [21, 21, 22], '3 kişilik 101 dağıtımı 22/21/21 olmalı');
-    assert.strictEqual(yeni.gameState.seats.length, 3, 'istemciye 3 koltuk bildirilmeli');
-    console.log('  ✓ 3) oylama geçti: masa 3 kişiye indi, 3 kişilik kurallarla yeni el başladı');
-
-    ss.forEach(s => { try { s.close(); } catch (_) {} });
-    await uyu(120);
-  }
-
-  // ---------- 4) OYLAMA GEÇMEZSE maç biter ----------
-  {
-    const { oda, ss, paketler } = await masaKur(BASE, rooms, 'okey', 4);
-    acik.push(...ss);
-    const siraKoltuk = oda.okey.roundState.turn;
-    const cikanIdx = paketler.findIndex(p => p.gameState.mySeat !== siraKoltuk);
-    const kalanlar = ss.filter((s, i) => i !== cikanIdx);
+    const kalanlar = ss.filter((_, i) => i !== cikanIdx);
+    const durak = once(kalanlar[0], 'oyunDuraklatildi', 6000);
     const botHaberi = once(kalanlar[0], 'aiTookSeat', 9000);
     ss[cikanIdx].emit('leaveRoom', { roomId: String(oda.id) });
+    const d = await durak;
+    assert.ok(/bot/.test(d.mesaj), '3-4 kişilikte mesaj bottan söz etmeli');
     await botHaberi;
+    assert.ok(!oda.duraklama, 'bot oturunca saatler yeniden işlemeli');
+    assert.strictEqual(oda.players.filter(p => p.aiControlled).length, 1);
+    console.log('  ✓ 4) 45 sn dolunca koltuğa geçici bot oturdu, oyun devam etti');
 
-    const oylamalar = kalanlar.map(s => once(s, 'masaOylamasi', 12000));
-    const sira = desteyiKurut(oda);
-    const kalanPaketler = paketler.filter((_, j) => j !== cikanIdx);
-    const siraSoket = kalanlar.find((s, i) => kalanPaketler[i].gameState.mySeat === sira);
-    assert.ok(siraSoket, 'sırası gelen koltuk insan olmalı');
-    siraSoket.emit('okeyDraw', { roomId: String(oda.id), source: 'deck' });
-    await Promise.all(oylamalar);
-
-    const bitti = kalanlar.map(s => once(s, 'gameEnded', 12000));
-    const sonuclar = kalanlar.map(s => once(s, 'masaOylamaSonucu', 12000));
-    kalanlar[0].emit('masaOyla', { roomId: String(oda.id), evet: false });
-    const sonuc = (await Promise.all(sonuclar))[0];
-    assert.strictEqual(sonuc.devam, false, 'tek "hayır" oylamayı düşürmeli');
-    const ge = (await Promise.all(bitti))[0];
-    assert.strictEqual(ge.reason, 'vote_failed', 'maç oylama düştüğü için bitmeli');
-    assert.notStrictEqual(oda.status, 'playing', 'oda oynar durumda kalmamalı');
-    console.log('  ✓ 4) "hayır" oyu masayı dağıttı, herkese maç sonu gitti');
-    ss.forEach(s => { try { s.close(); } catch (_) {} });
-    await uyu(120);
-  }
-
-  // ---------- 5) SÜRE DOLARSA da masa dağılır ----------
-  {
-    const { oda, ss, paketler } = await masaKur(BASE, rooms, 'okey101', 3);
-    acik.push(...ss);
-    const siraKoltuk = oda.okey.roundState.turn;
-    const cikanIdx = paketler.findIndex(p => p.gameState.mySeat !== siraKoltuk);
-    const kalanlar = ss.filter((s, i) => i !== cikanIdx);
-    const botHaberi = once(kalanlar[0], 'aiTookSeat', 9000);
-    ss[cikanIdx].emit('leaveRoom', { roomId: String(oda.id) });
-    await botHaberi;
-
-    const oylamalar = kalanlar.map(s => once(s, 'masaOylamasi', 12000));
+    const turSonu = once(kalanlar[0], 'botTurSonu', 12000);
+    const bitisler = kalanlar.map(s => once(s, 'gameEnded', 12000));
     const { sira, tileId } = eliBitir(oda, true);
-    const kalanPaketler = paketler.filter((_, j) => j !== cikanIdx);
-    const siraSoket = kalanlar.find((s, i) => kalanPaketler[i].gameState.mySeat === sira);
-    (siraSoket || kalanlar[0]).emit('okeyDiscard', { roomId: String(oda.id), tileId });
-    const oy = (await Promise.all(oylamalar))[0];
-    assert.strictEqual(oy.yeniKisi, 2, '3 kişilikte biri çıkınca 2 kalır');
-
-    // Kimse oy vermiyor → süre dolsun (GV_MASA_OYLAMA_MS = 6 sn)
-    const sonuc = await once(kalanlar[0], 'masaOylamaSonucu', 14000);
-    assert.strictEqual(sonuc.devam, false, 'yanıt gelmezse oylama düşmeli');
-    console.log('  ✓ 5) yanıt verilmezse oylama düşüyor, masa dağılıyor');
-    ss.forEach(s => { try { s.close(); } catch (_) {} });
+    const koltukSoket = new Map(paketler.map((p, i) => [p.gameState.mySeat, ss[i]]));
+    (koltukSoket.get(sira) || kalanlar[0]).emit('okeyDiscard', { roomId: String(oda.id), tileId });
+    if (oda.players.find(p => p.seat === sira && p.aiControlled)) { /* bot sırasıysa bot oynar */ }
+    await turSonu;
+    const g = (await Promise.all(bitisler))[0];
+    assert.strictEqual(g.reason, 'bot_tur_sonu', 'maç tur sonunda mevcut puanlarla bitmeli');
+    const bot = oda.players.find(p => p.aiControlled);
+    assert.ok(!bot || g.winnerSeat !== bot.seat, 'bot (ayrılan) kazanan olamaz');
+    const sonEl = oda.okey && oda.okey.roundState && oda.okey.roundState.result;
+    if (sonEl && sonEl.winner !== null && sonEl.winner !== undefined && (!bot || sonEl.winner !== bot.seat)) {
+      assert.strictEqual(g.winnerSeat, sonEl.winner, 'puanlama SON TURU kazanana göre yapılmalı');
+    }
+    await uyu(1200);
+    assert.strictEqual(oda.status, 'waiting', 'masa bekleme odasına dönmeli');
+    assert.strictEqual(oda.players.filter(p => p.aiControlled).length, 0, 'bot masadan kalkmalı');
+    assert.strictEqual(oda.players.length, 3, 'kalan 3 oyuncu bekleme odasında olmalı');
+    console.log('  ✓ 5) tur bitince bot kalktı, son turu kazanan galip, herkes bekleme odasında');
   }
 
-  // ---------- 6) ARAYÜZ bağlı mı ----------
-  const sayfa = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
-  assert.ok(/js\/masa-oylama\.js/.test(sayfa), 'oylama penceresi sayfaya bağlanmalı');
-  assert.ok(/\.mo-ov\{/.test(sayfa), 'pencere stili olmalı');
-  const js = fs.readFileSync(path.join(__dirname, '..', 'js', 'masa-oylama.js'), 'utf8');
-  assert.ok(/masaOylamasi/.test(js) && /masaOyla/.test(js), 'pencere olayları dinlemeli ve oy yollamalı');
-  assert.ok(/masaOylamaSonucu/.test(js), 'sonuç gelince pencere kapanmalı');
-  console.log('  ✓ 6) oylama penceresi sayfaya bağlı');
+  // ---------- 6) ÖZEL MASA: kurucu çıkınca kuruculuk rastgele başka üyeye geçer ----------
+  {
+    const T = serverModule.__test;
+    const oda = { id: 'ozel-test', gameId: 'okey101', isPrivate: true, creatorId: 7, status: 'waiting',
+      players: [{ id: 'a', seat: 0, name: 'Kurucu', userId: 7 }, { id: 'b', seat: 1, name: 'Ayşe', userId: 8 },
+                { id: 'c', seat: 2, name: 'Misafir', userId: null }],
+      spectators: [], maxPlayers: 4, invited: new Map(), kickBan: new Set() };
+    rooms.set(oda.id, oda);
+    T.removePlayerFromRoom(oda, oda.players[0], 'test');
+    assert.strictEqual(oda.creatorId, 8, 'kuruculuk kalan ÜYEYE geçmeli (misafir kurucu olamaz)');
+    rooms.delete(oda.id);
+    console.log('  ✓ 6) özel masada kurucu çıkınca kuruculuk kalan üyeye geçti');
+  }
 
   for (const s of acik) { try { s.close(); } catch (_) {} }
   server.close();
-  console.log('OK masa oylaması: bot devralma, el sonu oylaması, devam/dağılma');
+  console.log('OK çıkan oyuncu: duraklama, 45 sn dönüş, bot tur sonu, kurucu devri');
   process.exit(0);
 }
-main().catch(e => { console.error('❌ MASA OYLAMA HATASI:', e); process.exit(1); });
+main().catch(e => { console.error('❌ ÇIKAN OYUNCU / DURAKLAMA HATASI:', e); process.exit(1); });

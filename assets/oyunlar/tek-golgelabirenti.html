@@ -471,7 +471,7 @@ function baseTex(type){
     px(g,4,4,TS-8,TS-8,'rgba(255,170,60,.1)');
     g.strokeStyle='#c8872c'; g.lineWidth=2; g.strokeRect(5,5,TS-10,TS-10);
     for(let i=0;i<6;i++){ px(g,8+i*9,8,3,3,'#e8b25a'); px(g,8+i*9,TS-11,3,3,'#e8b25a'); }
-    g.fillStyle='#ffd27a'; g.font='bold 34px Cinzel, serif'; g.textAlign='center'; g.textBaseline='middle';
+    g.fillStyle='#ffd27a'; g.font='800 40px Cinzel, Georgia, "Times New Roman", serif'; g.textAlign='center'; g.textBaseline='middle';
     g.shadowColor='#ffae3c'; g.shadowBlur=12; g.fillText('?',TS/2,TS/2+1); g.shadowBlur=0;
     return c;
   }
@@ -503,19 +503,22 @@ function baseTex(type){
   }
   return c;
 }
-function shadePages(src,sideDark){
+function shadePages(src,sideDark,glow){
   const c=document.createElement('canvas'); c.width=TS; c.height=TS*LVL; const g=c.getContext('2d');
   for(let i=0;i<LVL;i++){
     g.save(); g.translate(0,i*TS); g.drawImage(src,0,0);
-    const a=Math.pow(i/(LVL-1),.85)*0.96;
+    const a=Math.pow(i/(LVL-1),.85)*(glow?0.42:0.96);   // soru kapıları uzaktan da parlasın
     g.fillStyle=`rgba(5,4,16,${a})`; g.fillRect(0,0,TS,TS);
     if(sideDark) { g.fillStyle='rgba(3,2,14,.3)'; g.fillRect(0,0,TS,TS); }
     g.restore();
   }
   return c;
 }
-function buildTextures(){ TEX.length=0; for(let t=0;t<7;t++){ const s=baseTex(t); TEX.push([shadePages(s,false),shadePages(s,true)]); } }
+function buildTextures(){ TEX.length=0; for(let t=0;t<7;t++){ const s=baseTex(t), gl=t===4; TEX.push([shadePages(s,false,gl),shadePages(s,true,gl)]); } }
 buildTextures();
+// Cinzel yüklenmeden çizilen '?' bazı tarayıcılarda boş kalıyordu → font gelince kapı dokusunu yeniden üret
+if(document.fonts&&document.fonts.load) document.fonts.load('800 40px Cinzel').then(()=>{
+  const s=baseTex(4); TEX[4]=[shadePages(s,false,true),shadePages(s,true,true)]; }).catch(()=>{});
 
 /* ---------- state ---------- */
 const DIFF={easy:{t:1.4,e:.7,s:.85,label:'ÇIRAK'},normal:{t:1,e:1,s:1,label:'GEZGİN'},hard:{t:.8,e:1.45,s:1.4,label:'KÂHİN'}};
@@ -594,18 +597,10 @@ function genLevel(n){
     const c=take(dead,c=>runes.every(r=>Math.abs(r.x-c.x)+Math.abs(r.y-c.y)>4))||take(free,c=>c.d>maxD*.3);
     if(c) runes.push({x:c.x+.5,y:c.y+.5,got:false,ph:Math.random()*6.28});
   }
-  const gates=[]; const gp=shuffle(free.filter(c=>c.open===2&&c.d>4));
-  /* Kapılar mühürlenebilir (yanlış cevap/vazgeç): tüm kapılar kapalıyken bile çıkış ve rünlere
-     yol KALMALI, yoksa oyun kilitlenir. Her aday bu şartla denenir. */
-  const gSol=Uint8Array.from(grid);
-  const reachOK=()=>{ const d=bfs(gSol,GS,1,1); if(d[exitI]<0) return false;
-    for(const r of runes) if(d[Math.floor(r.y)*GS+Math.floor(r.x)]<0) return false; return true; };
-  for(let i=0;i<gp.length&&gates.length<cfg.gates;i++){
-    const c=gp[i],k=c.x+','+c.y; if(occ.has(k))continue;
-    gSol[c.y*GS+c.x]=1; if(!reachOK()){ gSol[c.y*GS+c.x]=0; continue; }
-    occ.add(k);
-    gates.push({cx:c.x,cy:c.y,open:false,cool:0,state:'locked',r:pick(RIDDLES),ph:Math.random()*6.28});
-  }
+  /* Bilmece kapıları: ANA YOLUN hemen yanındaki bir DUVARA konur ve iki koridoru birbirine bağlar.
+     Eskiden yan/çıkmaz koridorlara düşüyordu → oyuncu kapıyı hiç görmüyordu. Kapalıyken labirent
+     aynen eskisi gibidir (çıkış/rünler asla kilitlenmez); doğru cevapta kapı çıkışa kestirme olur. */
+  const gates=placeGates(grid,GS,dist,exitI,maxD,cfg.gates,occ);
   const spikes=[]; for(let i=0;i<cfg.spikes;i++){ const c=take(free,c=>c.d>3); if(c) spikes.push({cx:c.x,cy:c.y,ph:Math.random()*3,per:rnd(2.2,3.3)}); }
   const slows=[]; for(let i=0;i<cfg.slows;i++){ const c=take(free,c=>c.d>3); if(c) slows.push({cx:c.x,cy:c.y}); }
   const slowSet=new Set(slows.map(s=>s.cx+','+s.cy));
@@ -645,6 +640,37 @@ function genLevel(n){
   resetMarkerInput();
   buildMini(); updateHUD(true);
   Math.random=savedRandom;
+}
+function placeGates(grid,size,dist,exitI,maxD,want,occ){
+  const dE=bfs(grid,size,exitI%size,(exitI/size)|0), onPath=i=>dist[i]>=0&&dist[i]+dE[i]===maxD;
+  const cand=[];
+  for(let y=1;y<size-1;y++) for(let x=1;x<size-1;x++){
+    const i=y*size+x; if(grid[i]!==1) continue;
+    let a=-1,c=-1;
+    if(grid[i-1]===0&&grid[i+1]===0&&grid[i-size]===1&&grid[i+size]===1){ a=i-1; c=i+1; }
+    else if(grid[i-size]===0&&grid[i+size]===0&&grid[i-1]===1&&grid[i+1]===1){ a=i-size; c=i+size; }
+    else continue;
+    if(dE[a]<0||dE[c]<0) continue;
+    let m=onPath(a)?a:onPath(c)?c:-1, o=m===a?c:a, tier=0;
+    if(m<0){ m=dE[a]>dE[c]?a:c; o=m===a?c:a; tier=1;
+      if(Math.min(dist[m]+dE[m],dist[o]+dE[o])-maxD>6) continue; }
+    const gain=dE[m]-dE[o]-2;                     // kapıdan geçince çıkışa kaç adım kısalır
+    if(gain<6||dist[m]<6||dE[m]<4) continue;
+    cand.push({x,y,gain,tier,pos:dist[m]/maxD});
+  }
+  const gates=[];
+  for(let k=0;k<want;k++){
+    const target=(k+1)/(want+1); let best=null,bs=-1e9;
+    for(const c of cand){
+      if(gates.some(g=>Math.abs(g.cx-c.x)+Math.abs(g.cy-c.y)<8)) continue;
+      const sc=-Math.abs(c.pos-target)*120+Math.min(c.gain,60)*.6-c.tier*40;
+      if(sc>bs){ bs=sc; best=c; }
+    }
+    if(!best) break;
+    occ.add('w'+best.x+','+best.y);              // ok tuzağı bu duvara konmasın
+    gates.push({cx:best.x,cy:best.y,open:false,cool:0,state:'locked',r:pick(RIDDLES),ph:Math.random()*6.28,gain:best.gain});
+  }
+  return gates;
 }
 function mkEnemy(kind,x,y){
   const e={x,y,kind,vx:0,vy:0,ph:Math.random()*6.28,hitT:0,stun:0,wanderT:0,wdx:0,wdy:0,atkT:0};
@@ -718,7 +744,7 @@ function lockMouse(){
 }
 function unlockMouse(){ plWanted=false; if(document.pointerLockElement) document.exitPointerLock(); }
 document.addEventListener('pointerlockchange',()=>{
-  if(document.pointerLockElement===canvas) mouseAim.inside=false;
+  if(document.pointerLockElement===canvas){ mouseAim.inside=false; lookSkip=2; }
   else if(plWanted&&S.state==='playing') pause();
 });
 canvas.addEventListener('mousedown',e=>{
@@ -727,8 +753,13 @@ canvas.addEventListener('mousedown',e=>{
   if(e.button===0) atkQ=true; else if(e.button===2) dashQ=true;
 });
 canvas.addEventListener('contextmenu',e=>e.preventDefault());
+let lookSkip=0;
 window.addEventListener('mousemove',e=>{
   if(S.state!=='playing'||!document.pointerLockElement) return;
+  // Fare kilitlenirken / kare takılınca tarayıcı tek olayda dev bir movementX yollayabiliyor →
+  // bakış bir anda dönüyor ve oyuncu 'ışınlanmış' gibi görünüyordu. Bu sıçramalar yok sayılır.
+  if(lookSkip>0){ lookSkip--; return; }
+  if(Math.abs(e.movementX)>160||Math.abs(e.movementY)>160) return;
   P.a=(P.a+e.movementX*0.0022*S.sens)%TAU;
   P.pitch=clamp(P.pitch-e.movementY*0.0022*S.sens,-.85,.42);
 });
@@ -908,7 +939,7 @@ function update(dt){
   }
   // kapılar
   for(const g of L.gates){ g.ph+=dt; if(g.cool>0) g.cool-=dt;
-    if(g.state==='locked'&&!g.asked&&g.cool<=0&&Math.hypot(g.cx+.5-P.x,g.cy+.5-P.y)<1.05){ openRiddle(g); return; } }
+    if(g.state==='locked'&&!g.asked&&g.cool<=0&&Math.hypot(g.cx+.5-P.x,g.cy+.5-P.y)<1.22){ openRiddle(g); return; } }
   // AI akış alanı
   flowT-=dt;
   if(flowT<=0){ flowT=.32; flowField=bfs(L.nav,GS,clamp(Math.floor(P.x),0,GS-1),clamp(Math.floor(P.y),0,GS-1)); }
@@ -1950,7 +1981,7 @@ function pushBack(g){
   /* ESKİ SÜRÜM oyuncuyu duvarların ötesine ışınlıyordu. Artık yerinde kalır, kapıdan yumuşakça uzağa itilir
      (normal çarpışma kurallarıyla; duvarın içinden geçemez). */
   let dx=P.x-(g.cx+.5), dy=P.y-(g.cy+.5); const d=Math.hypot(dx,dy)||1;
-  P.vx=dx/d*3.2; P.vy=dy/d*3.2;
+  P.vx=dx/d*3.2; P.vy=dy/d*3.2; P.dashT=0;
 }
 /* DOĞRU CEVAP: çıkışa giden yola bir kestirme duvarı kaz */
 function carveShortcut(){

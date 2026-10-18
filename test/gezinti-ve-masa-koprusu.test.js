@@ -1,4 +1,5 @@
 'use strict';
+process.env.GV_RECONNECT_GRACE_MS = process.env.GV_RECONNECT_GRACE_MS || '300'; // çıkana tanınan dönüş süresi (üretimde 45 sn) — testte kısa
 /* ============================================================================
  * GEZİNTİ (GERİ TUŞU) ve MASA KÖPRÜSÜ
  * ============================================================================

@@ -4,8 +4,8 @@
     "sha": "72c89cfda6c4"
   },
   "js/admin-panel.js": {
-    "v": "20261017a",
-    "sha": "066da05d8db7"
+    "v": "20261018a",
+    "sha": "083065c4b05e"
   },
   "js/app.js": {
     "v": "20261017a",
@@ -40,8 +40,8 @@
     "sha": "ec4de5b4940c"
   },
   "js/chess-online.js": {
-    "v": "20260908d",
-    "sha": "c941e653eb49"
+    "v": "20261018a",
+    "sha": "59643c7586ac"
   },
   "js/config.js": {
     "v": "20261017a",
@@ -104,8 +104,8 @@
     "sha": "ade9bbfe3f3e"
   },
   "js/leave-guard.js": {
-    "v": "20260927c",
-    "sha": "7ad57f91f2f7"
+    "v": "20261018c",
+    "sha": "dca7292eb366"
   },
   "js/live-stats.js": {
     "v": "20260912a",
@@ -136,8 +136,8 @@
     "sha": "d69bd88a9fee"
   },
   "js/okey-online.js": {
-    "v": "20261017a",
-    "sha": "e3f7b226b9bc"
+    "v": "20261018a",
+    "sha": "3c6e049b7b6a"
   },
   "js/okey101-ac.js": {
     "v": "20261017a",
@@ -152,8 +152,8 @@
     "sha": "c0a77e904601"
   },
   "js/rematch.js": {
-    "v": "20261018a",
-    "sha": "51ae230a2cd5"
+    "v": "20261018c",
+    "sha": "12313dc695c0"
   },
   "js/report.js": {
     "v": "20260920a",
@@ -184,12 +184,12 @@
     "sha": "857f6a627e51"
   },
   "js/tavla-online.js": {
-    "v": "20260908d",
-    "sha": "6e805a54d7f8"
+    "v": "20261018a",
+    "sha": "a77fa253f40b"
   },
   "js/tek-kisilik-online.js": {
-    "v": "20261018c",
-    "sha": "e4161cbb2b79"
+    "v": "20261018d",
+    "sha": "6d25d2f3cbb5"
   },
   "js/tombala-online.js": {
     "v": "20261011a",

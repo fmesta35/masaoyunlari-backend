@@ -971,6 +971,7 @@
           remainingMs: gameState.moveRemainingMs,
           limitMs: gameState.moveLimitMs,
           serverNow: gameState.serverNow,
+          frozen: gameState.duraklatildi === true,   // çıkan oyuncu bekleniyor: saat donuk
           // Uyarı tonu yalnız kendi sıramda (izleyicide hiç) — move-clock.js
           benim: !isSpectator && !!mine && gameState.turn === mine
         });

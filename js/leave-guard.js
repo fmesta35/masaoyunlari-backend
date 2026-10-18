@@ -178,8 +178,10 @@
       '<div class="gvlg-box" role="dialog" aria-modal="true">' +
       '<div class="gvlg-ic">⚠️</div>' +
       '<h2>Oyunu Terk Etmek İstediğinize Emin Misiniz?</h2>' +
-      '<p>Devam eden maçtan ayrılırsanız <b>hükmen mağlup</b> sayılacaksınız' +
-      (puanliMi() ? ' ve <b>ceza puanı</b> alacaksınız.' : '.') + '</p>' +
+      '<p>Ayrılırsanız oyun <b>duraklatılır</b> (saatler ve hamleler donar) ve <b>45 sn</b> içinde geri dönebilirsiniz. ' +
+      'Dönmezseniz 2 kişilik masada <b>hükmen mağlup</b> sayılırsınız (misafirseniz beklenmeden), ' +
+      '3-4 kişilik masada yerinize bot oturur, oyun tur sonuna kadar kaldığı yerden devam eder' +
+      (puanliMi() ? ' ve <b>ceza puanı</b> alırsınız.' : '.') + '</p>' +
       '<div class="gvlg-cd">Bu uyarı <b class="gvlg-cd-n">' + left + '</b> saniye içinde kendiliğinden kapanır (oyunda kalırsınız).</div>' +
       '<div class="gvlg-btns">' +
       '<button type="button" class="gvlg-yes">🚪 Evet, Terk Et</button>' +

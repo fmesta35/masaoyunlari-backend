@@ -180,7 +180,9 @@ const MAX_SPECTATORS = 20;
 // görürken renginin değişmemesi için sonuç bir süre korunur.
 const POST_GAME_HOLD_MS = Number(process.env.GV_POST_GAME_HOLD_MS) || 8000;
 // Oyun sırasında kopan oyuncuya yeniden bağlanması için tanınan süre (ms).
-const RECONNECT_GRACE_MS = Number(process.env.GV_RECONNECT_GRACE_MS) || 60000;
+/* Kullanıcı kuralı: oyundan çıkan / bağlantısı kopan oyuncuya 45 SANİYE dönüş
+   süresi verilir; bu sürede masadaki TÜM saatler (oyun + hamle) durur. */
+const RECONNECT_GRACE_MS = Number(process.env.GV_RECONNECT_GRACE_MS) || 45000;
 
 // ==================== SOHBET (masa içi + genel) ====================
 // Kurallar: mesaj GÖNDERMEK üyelere özeldir (misafirler okuyabilir);
@@ -457,8 +459,16 @@ function varsayilanHamleSn(gameId, durationMinutes) {
    oyunun varsayılanı. TEK YERDEN hesaplanır — createRoom, applyPresetConfig
    ve durum paketleri aynı kuralı uygulasın diye. */
 function odaHamleMs(gameId, moveSeconds, durationMinutes) {
-  const sn = hamleSaniyeTemizle(moveSeconds);
+  const sn = hamleSaniyeTemizle(moveSeconds) || oyunGeneliHamleSn(gameId);
   return sn > 0 ? sn * 1000 : varsayilanHamleMs(gameId, durationMinutes);
+}
+/* OYUN GENELİ hamle süresi (kurucu panelinde oyun başlığındaki kutu). Masa
+   satırına ayrı değer girilmemiş BÜTÜN masalar — üyelerin sonradan kurduğu
+   masalar ve listede olmayan eski masalar dahil — bunu kullanır. */
+function oyunGeneliHamleSn(gameId) {
+  let gc = null;
+  try { gc = presetConfig ? presetConfig[gameId] : null; } catch (_) { gc = null; }   // presetConfig henüz tanımlanmadıysa
+  return gc ? hamleSaniyeTemizle(gc.moveSeconds) : 0;
 }
 
 const PRESET_TYPES = [
@@ -575,6 +585,7 @@ function normPresetConfig(raw) {
     if (!src || typeof src !== 'object') continue;
     if (typeof src.visible === 'boolean') cfg[g].visible = src.visible;
     if (typeof src.online === 'boolean') cfg[g].online = src.online;
+    if (src.moveSeconds !== undefined) cfg[g].moveSeconds = hamleSaniyeTemizle(src.moveSeconds);
     const isManagedCardGame = MANAGED_CARD_GAMES.includes(g);
     if (isManagedCardGame && Array.isArray(src.tables)) {
       const defs = managedCardTables(g);
@@ -830,6 +841,7 @@ function seedPresetTables() {
 // Dolu (oyunculu) masalara dokunulmaz; değişiklik boşalınca oturur.
 function applyPresetConfig(raw) {
   presetConfig = normPresetConfig(raw);
+  ayarSenkron = true;
   // bkz. yukarıdaki "POPÜLER OYUN SIRALAMASI" açıklaması: `_popular` alanı
   // aynı `raw` nesnesinin içinde (normPresetConfig bunu görmezden gelir).
   popularConfig = normPopularConfig(raw && raw._popular);
@@ -856,28 +868,20 @@ function applyPresetConfig(raw) {
         existing.blackTimeMs = t.durationMinutes * 60 * 1000;
         touchedGames.add(t.gameId);
       }
-      /* HAMLE SÜRESİ de canlı güncellenir. Süre değişince oyunun varsayılanı
-         da değişebildiği için (kelimelik 10/15/20 dk → 30/45/60 sn) bu
-         hesap durationMinutes atandıktan SONRA yapılır. */
-      const istenenHamle = odaHamleMs(t.gameId, t.moveSeconds, existing.durationMinutes);
-      if (Number(existing.moveLimitMs || 0) !== Number(istenenHamle || 0)) {
-        existing.moveLimitMs = istenenHamle;
-        touchedGames.add(t.gameId);
-      }
-    } else {
-      /* DOLU masa: isim/tip/oyun süresi oturum bitince değişir; ama HAMLE SÜRESİ
-         kurucu panelinden değişince oynanan masalarda da ANINDA geçerli olur
-         (kurucu isteği): tur sayacı yeni sınırı hemen kullanır. */
-      const istenenHamle = odaHamleMs(t.gameId, t.moveSeconds, existing.durationMinutes);
-      if (Number(existing.moveLimitMs || 0) !== Number(istenenHamle || 0)) {
-        existing.moveLimitMs = istenenHamle;
-        if (existing.okey) existing.okey.turnDeadlineMs = istenenHamle;
-        if (existing.kelimelik) existing.kelimelik.turnLimitMs = istenenHamle;
-        try { emitRoom(existing); } catch (_) {}
-        if (existing.okey) { try { emitOkeyState(existing, 'gameStateUpdated'); } catch (_) {} }
-        touchedGames.add(t.gameId);
-      }
     }
+    /* DOLU masa: isim/tip/oyun süresi oturum bitince değişir; HAMLE SÜRESİ ise
+       aşağıdaki ortak döngüde (boş/dolu fark etmez) ANINDA uygulanır. */
+  }
+  /* HAMLE SÜRESİ — kurucu isteği: "Tüm oyunlarda sonradan eklenen veya önceden
+     eklenen masalarda kurucu panelinde yapılan ayarlar anında güncellensin."
+     Bellekteki HER masa gezilir: panel listesindeki hazır masa kendi satırının
+     değerini, listede olmayan masa (üyenin kurduğu masa, eski kimlikli masa)
+     oyunun genel değerini alır. Oynanan masada tur sayacı yeni sınırı hemen
+     kullanır; durum paketiyle oyunculara da anında bildirilir. */
+  const satirHamle = new Map(desired.map(t => [t.id, t.moveSeconds]));
+  for (const room of rooms.values()) {
+    const sn = satirHamle.has(room.id) ? satirHamle.get(room.id) : 0;
+    if (hamleSuresiniUygula(room, odaHamleMs(room.gameId, sn, room.durationMinutes))) touchedGames.add(room.gameId);
   }
   // Yapılandırmada olmayan BOŞ hazır odaları gerçekten kaldır:
   for (const room of [...rooms.values()]) {
@@ -891,6 +895,27 @@ function applyPresetConfig(raw) {
   // Okey ve 101 Okey de artık diğer oyunlar gibi desiredIds ile yönetilir.
   touchedGames.forEach(g => emitLobby(g));
   return presetConfig;
+}
+
+/* Bir masanın hamle süresini CANLI değiştir. Değişiklik olduysa true döner.
+   Okey/101 Okey kendi tur sayacını (okey.turnDeadlineMs), Kelimelik motoru
+   turnLimitMs'i, diğer bütün oyunlar room.moveLimitMs'i (moveLimitOf) okur. */
+function hamleSuresiniUygula(room, ms) {
+  if (!room || !(Number(ms) > 0)) return false;
+  if (Number(room.moveLimitMs || 0) === Number(ms)) {
+    const ok = room.okey;
+    if (!ok || Number(ok.turnDeadlineMs) === Number(ms)) return false;
+  }
+  const eski = Number(room.moveLimitMs || 0);
+  room.moveLimitMs = Number(ms);
+  if (room.okey) room.okey.turnDeadlineMs = Number(ms);
+  if (room.kelimelik) room.kelimelik.turnLimitMs = Number(ms);
+  if (Number(ms) > eski) room.moveWarned = false;   // süre uzadıysa "süre azalıyor" uyarısı yeniden verilebilsin
+  if (room.players && room.players.length) {
+    try { emitRoom(room); } catch (_) {}
+    if (room.okey) { try { emitOkeyState(room, 'gameStateUpdated'); } catch (_) {} }
+  }
+  return true;
 }
 
 // Boş hazır odayı GERÇEKTEN kaldır (preset beklemeye alınmaz; lobide kalkar).
@@ -928,6 +953,41 @@ function savePresetConfigLocal() {
 // Uzak mod: kurucunun Yöncü MySQL'deki ayarlarını EN GÜÇLÜ HÂLDE dene
 // (X-GV-Key ile). DDoS koruması engelliyorsa sessizce varsayılanlar kalır;
 // kurucu panelden "Kaydet ve Uygula" dediğinde Render CANLI güncellenir.
+/* AYAR SENKRONU — hata kaynağı: Render uyanırken/yeniden başlarken Yöncü'nün
+   DDoS koruması ayar isteğini engellerse sunucu VARSAYILAN masalarla (ör.
+   101 Okey'de 30 sn hamle) açılıyordu; kurucu panelinde 60 sn görünse de
+   masalar 30 sn ile oynanıyordu ve kurucu tekrar "Kaydet" diyene dek öyle
+   kalıyordu. Artık ayar alınamazsa 30 sn'de bir yeniden denenir; gelince
+   applyPresetConfig ile oynanan masalar dahil HEPSİNE anında uygulanır.
+   Kurucunun tarayıcısı da (js/admin-panel.js) senkron yoksa ayarı aktarır. */
+let ayarSenkron = !process.env.GV_AUTH_API;   // yerel modda ayar zaten SQLite'tan gelir
+let ayarDenemeTimer = null;
+function uzakAyarYenidenDene() {
+  if (ayarSenkron || ayarDenemeTimer || !process.env.GV_AUTH_API) return;
+  ayarDenemeTimer = setTimeout(async () => {
+    ayarDenemeTimer = null;
+    if (ayarSenkron) return;
+    const ayar = await uzakAyarGetir();
+    if (ayar && !ayarSenkron) {
+      try { applyPresetConfig(ayar); console.log('🎛️  Masa ayarları Yöncü\'den (yeniden denemeyle) alındı ve tüm masalara uygulandı.'); }
+      catch (e) { console.warn('ayar uygulanamadı:', e.message); }
+    }
+    uzakAyarYenidenDene();
+  }, 30000);
+  if (typeof ayarDenemeTimer.unref === 'function') ayarDenemeTimer.unref();
+}
+async function uzakAyarGetir() {
+  try {
+    const base = (process.env.GV_AUTH_API || '').replace(/\/+$/, '');
+    if (!base) return null;
+    const r = await fetch(base + '/admin.php?action=gamesGet', {
+      headers: { 'X-GV-Key': process.env.GV_SERVER_KEY || '' },
+      signal: AbortSignal.timeout(6000)
+    });
+    const d = await r.json();
+    return (d && d.ok && d.settings && typeof d.settings === 'object') ? d.settings : null;
+  } catch (_) { return null; }
+}
 async function loadPresetConfigRemote() {
   try {
     const base = (process.env.GV_AUTH_API || '').replace(/\/+$/, '');
@@ -940,11 +1000,13 @@ async function loadPresetConfigRemote() {
     if (d && d.ok && d.settings) {
       presetConfig = normPresetConfig(d.settings);
       popularConfig = normPopularConfig(d.settings._popular);
+      ayarSenkron = true;
       console.log('🎛️  Masa ayarları Yöncü\'den yüklendi.');
     }
   } catch (_) {
-    console.log('ℹ️  Masa ayarları Yöncü\'den alınamadı (DDoS/timeout) — varsayılanlar kullanılıyor.');
+    console.log('ℹ️  Masa ayarları Yöncü\'den alınamadı (DDoS/timeout) — varsayılanlar kullanılıyor, 30 sn sonra yeniden denenecek.');
   }
+  uzakAyarYenidenDene();
 }
 
 function now() { return Date.now(); }
@@ -1025,6 +1087,8 @@ function resetRoomToWaiting(room) {
   room.chess = null;
   room.tavla = null;
   room.cardGame = null;
+  room.__botTurDeste = null;
+  room.duraklama = null;
   room.dama = null;
   room.reversi = null;
   room.gomoku = null;
@@ -1190,6 +1254,8 @@ function publicRoom(room) {
     spectatorCount: spectators.length,
     solo: !!room.solo || SOLO_GAMES.includes(room.gameId),
     spectatorsAllowed: !soloIzleyiciKapali(room),
+    /* Oyun duraklatıldı mı (kopan/çıkan oyuncu 45 sn bekleniyor)? */
+    duraklatildi: !!room.duraklama,
     readyCount: room.players.filter(p => p.isReady).length,
     /* Hazır süresi sayacı işliyorsa kalan ms. Olay (hazirSayaci) anında
        bildirir; bu alan sayfa yenileyen / yeniden bağlanan oyuncu için
@@ -1261,6 +1327,7 @@ function turnColorOf(room) {
 
 function updateClock(room) {
   if ((!room.chess && !room.tavla) || room.status !== 'playing' || !room.turnStartedAt) return;
+  if (room.duraklama) { duraklamaKaydir(room); return; }   // duraklamada saat işlemez
   const turnColor = turnColorOf(room);
   if (!turnColor) return;
   const elapsed = Math.max(0, now() - room.turnStartedAt);
@@ -1341,6 +1408,7 @@ function buildChessState(room, opts) {
     blackTimeMs: room.blackTimeMs,
     moveLimitMs: moveLimitOf(room),
     moveRemainingMs: Math.max(0, moveLimitOf(room) - moveElapsed),
+    duraklatildi: !!room.duraklama,   // oyun duraklatıldı: istemci saati dondurur
     serverNow: now(),
     result: room.result,
     check: typeof chess.isCheck === 'function' ? chess.isCheck() : false,
@@ -1380,6 +1448,7 @@ function buildTavlaState(room, opts) {
     blackTimeMs: room.blackTimeMs,
     moveLimitMs: moveLimitOf(room),
     moveRemainingMs: Math.max(0, moveLimitOf(room) - moveElapsed),
+    duraklatildi: !!room.duraklama,   // oyun duraklatıldı: istemci saati dondurur
     serverNow: now(),
     result: room.result,
     notice: room.tavlaNotice || null,
@@ -1440,7 +1509,8 @@ function moveClockOf(room) {
   return {
     turnSeat: seat,
     turnLimitMs: limit,
-    turnFrozen: donuk,
+    turnFrozen: donuk || !!room.duraklama,
+    duraklatildi: !!room.duraklama,
     turnRemainingMs: (playing && seat !== null)
       ? Math.max(0, limit - (donuk ? room.mpDondur : (now() - room.moveStartedAt))) : null,
     serverNow: now()
@@ -1991,6 +2061,7 @@ function havahokeyiDonguAdimi() {
     const room = rooms.get(id);
     if (!room || !room.havahokeyi || room.status !== 'playing') { hokeyOdalari.delete(id); continue; }
     const h = room.havahokeyi;
+    if (room.duraklama) { h.sonAdim = now(); continue; }   // oyun duraklatıldı: disk durur
     const simdi = now();
     const adimBaslangic = h.sonAdim || simdi;
     let kalan = Math.min(250, simdi - adimBaslangic);
@@ -2126,6 +2197,7 @@ function langirtDonguAdimi() {
     const room = rooms.get(id);
     if (!room || !room.langirt || room.status !== 'playing') { langirtOdalari.delete(id); continue; }
     const l = room.langirt;
+    if (room.duraklama) { l.sonAdim = now(); continue; }   // oyun duraklatıldı: top durur
     const simdi = now();
     /* Gerçek geçen süreyi küçük sabit adımlara böl: sunucu bir an takılsa
        bile fizik aynı sonucu versin (değişken dt topu ışınlardı). */
@@ -2446,6 +2518,7 @@ function tombalaBitir(room) {
 /* Bir top çek, kartları kapat, ödülleri duyur, el bitmediyse sırayı kur. */
 function tombalaCek(room) {
   if (!room || !room.tombala || room.status !== 'playing') return;
+  if (room.duraklama) return;   // duraklamada çekiliş yok; devamda zamanlayıcı yeniden kurulur
   const g = room.tombala.st;
   const r = tombalaEngine.cek(g);
   if (!r.ok) {
@@ -2576,6 +2649,7 @@ function cardGameState(room, forSeat) {
   };
 }
 function emitCardState(room, event='gameStateUpdated') {
+  if (botTurKontrolKart(room)) return;   // bot oturmuşken tur bitti → maç mevcut puanlarla biter
   room.players.forEach(p => emitToPlayer(p, event, { roomId: room.id, seat:p.seat, gameState:cardGameState(room,p.seat), isSpectator:false }));
   (room.spectators||[]).forEach(p => { const k = izleKoltuk(room, p); emitToPlayer(p,event,{roomId:room.id,seat:k,gameState:cardGameState(room,k),isSpectator:true}); });
   // Sıra yapay zekâdaysa hamlesini zamanla (pişti/batak masaları).
@@ -2913,6 +2987,7 @@ function buildOkeyState(room, forSeat) {
     strikes: Object.assign({}, ok.strikes),
     clockMs: room.status === 'playing' ? okeyLiveClocks(room) : Object.assign({}, ok.clockMs),
     turnRemainingMs: Math.max(0, ok.turnDeadlineMs - (now() - ok.turnStartedAt)),
+    duraklatildi: !!room.duraklama,
     players: room.players.map(p => ({ seat: p.seat, name: p.name, isReady: !!p.isReady })),
     serverNow: now(),
     finished: st8.finished,
@@ -2989,6 +3064,7 @@ function okeyAdvanceClock(room) {
   const ok = room.okey;
   if (!ok || room.status !== 'playing' || ok.between) return;
   const t = ok.roundState.turn;
+  if (room.duraklama) duraklamaKaydir(room);   // duraklamada geçen süre kimseden düşülmez
   if (ok.clockStartedAt) {
     const elapsed = Math.max(0, now() - ok.clockStartedAt);
     ok.clockMs[t] = Math.max(0, (ok.clockMs[t] || 0) - elapsed);
@@ -3012,13 +3088,66 @@ function okeyLeaderAmong(room, excludedSeat) {
   const scores = room.okey?.roundState?.scores || {};
   const cezaMi = yeni101Mi(room);
   let best = null;
+  /* Bot tur sonu bitişinde koltuğu bot tutan (ayrılmış) oyuncu kazanamaz.
+     Kullanıcı kuralı: puanlama "o son turu kim kazandıysa" ona göre yapılır —
+     son eli bir İNSAN kazandıysa maçın galibi odur. */
+  const insanlarArasi = room.okey && room.okey.__botTurSonu;
+  if (insanlarArasi) {
+    const ks = room.okey.__botTurKazanan;
+    const kp = (ks !== null && ks !== undefined) ? room.players.find(p => p.seat === ks && !p.aiControlled) : null;
+    if (kp) return { seat: kp.seat, score: (scores[kp.seat] || 0), name: kp.name };
+    // Son eli bot kazandı ya da el berabere: insanlar arasında puana göre.
+  }
   room.players.forEach(p => {
     if (excludedSeat !== null && excludedSeat !== undefined && p.seat === excludedSeat) return;
+    if (insanlarArasi && p.aiControlled) return;
     const sc = scores[p.seat] || 0;
     const daha = !best || (cezaMi ? sc < best.score : sc > best.score);
     if (daha) best = { seat: p.seat, score: sc, name: p.name };
   });
   return best;
+}
+
+/* Bot tur sonu: maçı mevcut puanlarla bitir, herkesi bekleme odasına al. */
+function botTurSonuBitir(room) {
+  if (!room || room.status !== 'playing') return;
+  const ayrilanlar = aiKoltuklari(room).map(p => p.aiOriginalName || p.name || 'Oyuncu');
+  io.to(room.id).emit('botTurSonu', {
+    roomId: room.id, ayrilanlar,
+    mesaj: 'Tur bitti — bot masadan kalktı. Puanlama bu son turun sonucuna göre yapıldı; bekleme odasına dönülüyor.'
+  });
+  if (room.okey) {
+    room.okey.__botTurSonu = true;
+    const sonuc = (room.okey.roundState && room.okey.roundState.result) || {};
+    room.okey.__botTurKazanan = (sonuc.winner === null || sonuc.winner === undefined) ? null : sonuc.winner;
+    endOkeyMatch(room, 'bot_tur_sonu', null);
+    return;
+  }
+  if (room.cardGame) {
+    const sc = Array.isArray(room.cardGame.scores) ? room.cardGame.scores : [];
+    const insanlar = insanKoltuklari(room).map(p => p.seat);
+    const kazanan = insanlar.reduce((b, x) => (Number(sc[x] || 0) > Number(sc[b] || 0) ? x : b), insanlar[0]);
+    room.status = 'finished';
+    room.result = { reason: 'bot_tur_sonu', winnerSeat: kazanan, scores: sc.slice() };
+    emitCardState(room);
+    room.players.forEach(q => emitToPlayer(q, 'gameEnded', { roomId: room.id, reason: 'bot_tur_sonu', winnerSeat: kazanan,
+      youWon: q.seat === kazanan, gameState: cardGameState(room, q.seat) }));
+    (room.spectators || []).forEach(q => emitToPlayer(q, 'gameEnded', { roomId: room.id, reason: 'bot_tur_sonu', winnerSeat: kazanan,
+      youWon: false, isSpectator: true, gameState: cardGameState(room, null) }));
+    emitRoom(room);
+    scheduleRoomReset(room);
+  }
+}
+/* PİŞTİ'de "tur" bir dağıtımdır: bot otururken yeni dağıtım yapıldıysa
+   (ya da el bittiyse) tur tamamlanmıştır. emitCardState her hamleden sonra
+   çağrıldığı için denetim tek yerden yapılır. */
+function botTurKontrolKart(room) {
+  if (!room || !room.cardGame || room.status !== 'playing' || room.gameId !== 'pisti') return false;
+  if (!aiKoltuklari(room).length) { room.__botTurDeste = null; return false; }
+  const deste = Array.isArray(room.cardGame.deck) ? room.cardGame.deck.length : 0;
+  if (room.__botTurDeste === null || room.__botTurDeste === undefined) { room.__botTurDeste = deste; return false; }
+  if (deste < room.__botTurDeste) { room.__botTurDeste = null; botTurSonuBitir(room); return true; }
+  return false;
 }
 
 // Maç bitişi (herhangi bir neden): kazananı belirler, herkese kişiye özel
@@ -3107,17 +3236,22 @@ function okeyRoundFinished(room) {
     endOkeyMatch(room, 'completed', null);
     return;
   }
-  /* EL BİTTİ VE MASADA BOT VAR: kullanıcı isteği — "çıkan oyuncunun yerini
-     o EL için bot sürdürsün, el bitince herkese oylama sunulsun". Bot
-     koltuğu burada kalkıyor; devam kararını masadaki insanlar veriyor. */
+  /* EL (TUR) BİTTİ VE MASADA BOT VAR — kullanıcı kuralı: "3-4 kişilik
+     oyunlarda o tur tamamlanana kadar geçici bot atanır. Tur bittiğinde bot
+     devreden çıkar, oyuncular MEVCUT PUANLARI üzerinden puanlandırılır ve
+     o oyunun bekleme odasına geri dönerler." Maç burada biter (kazanan
+     insanlar arasından, puana göre); oda sıfırlanınca bot koltuğu kalkar ve
+     masa bekleme odasına döner (bkz. resetRoomToWaiting). */
   if (aiKoltuklari(room).length && insanKoltuklari(room).length >= 1) {
-    masaOylamasiBaslat(room);
+    botTurSonuBitir(room);
     return;
   }
 
-  ok.between = setTimeout(() => {
+  ok.between = setTimeout(function sonrakiEl() {
     ok.between = null;
     if (room.status !== 'playing') return; // arada maç bitmişse
+    /* Oyun duraklatıldıysa yeni el de açılmaz — her şey donuk; devamda açılır. */
+    if (room.duraklama) { ok.between = setTimeout(sonrakiEl, 500); return; }
     if (room.players.length !== room.maxPlayers) { endOkeyMatch(room, 'player_left', null); return; }
     ok.currentRound += 1;
     // Varyant KORUNUR: okey101 masasında 2. el de 101 varyantıyla kurulur.
@@ -3488,6 +3622,7 @@ function aiBirak(room, player, socket) {
 // Sırası yapay zekâdaki bir koltuktaysa hamlesini zamanla.
 function aiSiraKontrol(room) {
   if (!room || room.status !== 'playing') return;
+  if (room.duraklama) return;
   const botlar = aiKoltuklari(room);
   if (!botlar.length) return;
   for (const bot of botlar) {
@@ -3522,6 +3657,7 @@ function aiSirasiMi(room, seat) {
 // motor çağrılarının aynısını kullanır — kural kaçağı olmaz.
 function aiOyna(room, bot) {
   if (!rooms.get(room.id) || room.status !== 'playing' || !bot.aiControlled) return;
+  if (room.duraklama) return;   // duraklamada bot da oynamaz; devamda aiSiraKontrol yeniden kurar
   if (!aiSirasiMi(room, bot.seat)) return;
 
   /* GERÇEK 101: ai.okeyHamle klasik okeyin "eli bitir" mantığına göre
@@ -4090,6 +4226,178 @@ function destroyRoom(room) {
   emitLobby(room.gameId);
 }
 
+/* ============================================================================
+ * OYUN DURAKLATMA — kopan / çıkan oyuncu için 45 sn
+ * ============================================================================
+ * Kullanıcı isteği: "Oyundan ayrılan oyuncular (bağlantısı kopabilir). Tüm
+ * oyun süresi, hamle süresi dursun. Oyundan çıkan oyuncuya 45 saniye içinde
+ * geri dönmesi için yeni bir sayaç başlat."
+ *
+ * NASIL DONDURULUYOR: her oyunun saati "başlangıç zaman damgası + şimdi"
+ * farkıyla işliyor (turnStartedAt, moveStartedAt, okey.clockStartedAt,
+ * motorların kendi damgaları...). Duraklama sürerken saat döngüsü her
+ * turda (500 ms) geçen süreyi BU DAMGALARIN HEPSİNE ekler: fark sabit kalır,
+ * yani bütün oyunlarda — yeni eklenecekler dahil — saatler tek yerden durur.
+ * Zaman aşımı denetimleri ve fizik döngüleri de duraklamada çalışmaz.
+ * ========================================================================== */
+/* Duraklamada reddedilen OYUN HAMLESİ olayları (oyun önekleriyle; yeni bir
+   oyunun olayları da aynı önekle adlandırıldığı için kendiliğinden kapsanır). */
+const OYUN_HAMLE_OLAYI = /^(okey|okey101|chess|tavla|dama|reversi|gomoku|connect4|bilardo|battleship|pisti|batak|kelimelik|adamasmaca|passaparola|cenga|langirt|hokey|fark|kizma|metropol|tombala)[A-Z0-9]/;
+const DAMGA_MIN = 1.5e12, DAMGA_MAX = 2.6e12;   // "epoch ms" gibi görünen sayılar
+const DURAK_MOTORLAR = ['okey', 'cardGame', 'dama', 'reversi', 'gomoku', 'kelimelik', 'adamasmaca',
+  'passaparola', 'cenga', 'langirt', 'havahokeyi', 'fark', 'kizma', 'metropol', 'connect4', 'bilardo',
+  'battleship', 'tombala', 'tavla'];
+function damgalariKaydir(obj, d, derinlik) {
+  if (!obj || typeof obj !== 'object' || derinlik > 5) return;
+  const proto = Object.getPrototypeOf(obj);
+  if (!Array.isArray(obj) && proto !== Object.prototype && proto !== null) return;   // zamanlayıcı, Map, sınıf örneği...
+  const anahtarlar = Array.isArray(obj) ? obj.keys() : Object.keys(obj);
+  for (const k of anahtarlar) {
+    const v = obj[k];
+    if (typeof v === 'number') { if (v > DAMGA_MIN && v < DAMGA_MAX) obj[k] = v + d; }
+    else if (v && typeof v === 'object') damgalariKaydir(v, d, derinlik + 1);
+  }
+}
+function duraklamaKaydir(room) {
+  const dr = room && room.duraklama;
+  if (!dr) return;
+  const t = now(), d = t - dr.son;
+  dr.son = t;
+  if (!(d > 0)) return;
+  for (const k of Object.keys(room)) {
+    if (/At$/.test(k) && typeof room[k] === 'number' && room[k] > DAMGA_MIN && room[k] < DAMGA_MAX) room[k] += d;
+  }
+  for (const m of DURAK_MOTORLAR) if (room[m]) damgalariKaydir(room[m], d, 0);
+}
+function kopukInsanlar(room) {
+  return (room.players || []).filter(p => p && !p.aiControlled && p.disconnectedAt);
+}
+function durumYenile(room) {
+  if (!room || room.status !== 'playing') return;
+  try {
+    if (room.okey) emitOkeyState(room);
+    else if (room.cardGame) emitCardState(room);
+    else if (room.dama) emitDamaState(room);
+    else if (room.reversi) emitReversiState(room);
+    else if (room.gomoku) emitGomokuState(room);
+    else if (room.kelimelik) emitKelimelikState(room);
+    else if (room.adamasmaca) emitAdamasmacaState(room);
+    else if (room.passaparola) emitPassaparolaState(room);
+    else if (room.cenga) emitCengaState(room);
+    else if (room.langirt) emitLangirtState(room);
+    else if (room.havahokeyi) emitHavahokeyiState(room);
+    else if (room.fark) emitFarkState(room);
+    else if (room.kizma) emitKizmaState(room);
+    else if (room.metropol) emitMetropolState(room);
+    else if (room.connect4) emitConnect4State(room);
+    else if (room.bilardo) emitBilardoState(room);
+    else if (room.battleship) emitBattleshipState(room);
+    else if (room.tombala) emitTombalaState(room);
+    else if (room.chess || room.tavla) emitGameState(room);
+  } catch (e) { console.warn('durum yenilenemedi:', e.message); }
+}
+function duraklatBaslat(room, player) {
+  if (!room || room.status !== 'playing' || room.solo) return;
+  const yeni = !room.duraklama;
+  if (yeni) {
+    room.duraklama = { at: now(), son: now() };
+    if (room.tombala) tombalaZamanlayiciDurdur(room);
+    console.log(`[ODA #${room.id}] oyun DURAKLATILDI — ${player && player.name} için ${Math.round(RECONNECT_GRACE_MS / 1000)} sn`);
+  }
+  const kisi = (room.players || []).length;
+  const mesaj = kisi > 2
+    ? `${(player && player.name) || 'Bir oyuncu'} masadan çıktı. Oyun duraklatıldı — ${Math.round(RECONNECT_GRACE_MS / 1000)} sn içinde dönmezse yerine tur sonuna kadar bot oynayacak.`
+    : `${(player && player.name) || 'Rakip'} masadan çıktı. Oyun duraklatıldı — ${Math.round(RECONNECT_GRACE_MS / 1000)} sn içinde dönmezse maçı sen kazanacaksın.`;
+  io.to(room.id).emit('oyunDuraklatildi', {
+    roomId: room.id, seat: player ? player.seat : null, name: (player && player.name) || 'Oyuncu',
+    kalanMs: RECONNECT_GRACE_MS, bitis: now() + RECONNECT_GRACE_MS, kisi, mesaj
+  });
+  emitRoom(room);
+  durumYenile(room);
+}
+function duraklatBitir(room, sebep) {
+  if (!room || !room.duraklama) return;
+  duraklamaKaydir(room);          // son dilimi de ekle
+  const sure = now() - room.duraklama.at;
+  room.duraklama = null;
+  if (room.status !== 'playing') return;
+  if (room.tombala) tombalaZamanlayiciKur(room);
+  console.log(`[ODA #${room.id}] oyun DEVAM ediyor (${Math.round(sure / 1000)} sn duraklama, ${sebep || '-'})`);
+  io.to(room.id).emit('oyunDevamEdiyor', { roomId: room.id, sebep: sebep || null, duraklamaMs: sure });
+  emitRoom(room);
+  durumYenile(room);
+  try { aiSiraKontrol(room); } catch (_) {}
+}
+/* 2 kişilik masada 45 sn dönüş hakkı YALNIZ ÜYEYE tanınır (kullanıcı kuralı:
+   "sadece üye girişi yapmış ise geçerli"). Misafir çıkarsa maç hemen biter. */
+function donusHakkiVarMi(room, player) {
+  const ikiKisilik = (Number(room.maxPlayers) || 2) <= 2 || (room.players || []).length <= 2;
+  if (!ikiKisilik) return true;
+  return Number(player && player.userId) > 0;
+}
+/* Oyuncunun kopma/çıkış anı: 45 sn sayaç + duraklama. Dönüş hakkı yoksa
+   (2 kişilikte misafir) false döner; çağıran oyuncuyu hemen çıkarır. */
+function kopmaSayaciBaslat(room, player) {
+  if (!room || !player) return false;
+  if (!donusHakkiVarMi(room, player)) return false;
+  player.disconnectedAt = now();
+  duraklatBaslat(room, player);
+  room.players.forEach(p => {
+    if (p === player) return;
+    emitToPlayer(p, 'playerConnectionLost', {
+      roomId: room.id, seat: player.seat, name: player.name || 'Rakip',
+      graceMs: RECONNECT_GRACE_MS, kisi: room.players.length
+    });
+  });
+  (room.spectators || []).forEach(sp => emitToPlayer(sp, 'playerConnectionLost', {
+    roomId: room.id, seat: player.seat, name: player.name || 'Oyuncu',
+    graceMs: RECONNECT_GRACE_MS, isSpectator: true, kisi: room.players.length
+  }));
+  const roomId = room.id;
+  const key = playerKey(roomId, player);
+  cancelDisconnectTimer(roomId, player);
+  const timer = setTimeout(() => {
+    disconnectTimers.delete(key);
+    const currentRoom = rooms.get(roomId);
+    if (!currentRoom) return;
+    const stillGone = currentRoom.players.find(p => p === player && p.disconnectedAt);
+    if (!stillGone) return;
+    /* Süre doldu. Başka kopuk oyuncu yoksa saatler yeniden işlesin; ardından
+       2 kişilikte çıkan HÜKMEN MAĞLUP, 3-4 kişilikte koltuğa bot oturur. */
+    if (!kopukInsanlar(currentRoom).some(p => p !== player)) duraklatBitir(currentRoom, 'sure_doldu');
+    removePlayerFromRoom(currentRoom, player, 'Rakip 45 sn içinde geri dönmedi.');
+  }, RECONNECT_GRACE_MS);
+  disconnectTimers.set(key, timer);
+  return true;
+}
+/* Kopan oyuncu geri döndü: başka kopuk yoksa oyun devam eder. */
+function kopmaGeriDondu(room, player) {
+  if (!room || !player) return;
+  if (room.duraklama && !kopukInsanlar(room).length) duraklatBitir(room, 'geri_dondu');
+}
+
+/* ÖZEL MASA KURUCULUĞU — kullanıcı isteği: "oda kurucu oyundan çıkmışsa oda
+   kuruculuğu otomatik olarak diğer oyunculardan birine RASTGELE geçer; oda
+   ayarları korunur, istenen sayıya ulaşıldığında hazır verip yeniden
+   başlayabilirler." Yalnız ÜYE kurucu olabilir (özel masa üyelik ister). */
+function kurucuDevret(room, giden) {
+  if (!room || !room.isPrivate || !giden) return;
+  if (!(Number(room.creatorId) > 0) || Number(giden.userId) !== Number(room.creatorId)) return;
+  const adaylar = (room.players || []).filter(p => p && p !== giden && !p.aiControlled && Number(p.userId) > 0 &&
+    Number(p.userId) !== Number(giden.userId));
+  if (!adaylar.length) { room.creatorId = null; return; }   // ilk oturan üye kurucu olur (bootstrap)
+  const yeni = adaylar[Math.floor(Math.random() * adaylar.length)];
+  room.creatorId = Number(yeni.userId);
+  // Yeni kurucu davet / atma haklarını hemen kullanabilsin; giden kurucu
+  // geri gelmek isterse artık davet edilmesi gerekir.
+  console.log(`[ODA #${room.id}] kurucu ayrıldı — kuruculuk ${yeni.name} (#${yeni.userId}) oyuncusuna geçti`);
+  io.to(room.id).emit('kurucuDegisti', {
+    roomId: room.id, userId: Number(yeni.userId), name: yeni.name || 'Oyuncu',
+    eskiAd: giden.name || 'Kurucu',
+    mesaj: `👑 ${giden.name || 'Kurucu'} masadan ayrıldı — masa kuruculuğu ${yeni.name || 'bir oyuncuya'} geçti.`
+  });
+}
+
 function removePlayerFromRoom(room, player, message) {
   if (!room || !player) return;
   cancelDisconnectTimer(room.id, player);
@@ -4125,6 +4433,7 @@ function removePlayerFromRoom(room, player, message) {
       // kendi kendine oynaması anlamsızdır — masa kapanır.
       if (kalanInsan >= 1) {
         aiDevral(room, player, 'masayı terk');
+        kurucuDevret(room, player);
         emitRoom(room);
         if (room.okey) emitOkeyState(room); else if (room.cardGame) emitCardState(room);
         aiSiraKontrol(room);
@@ -4141,6 +4450,8 @@ function removePlayerFromRoom(room, player, message) {
     destroyRoom(room);
     return;
   }
+  kurucuDevret(room, player);
+  if (room.duraklama && !kopukInsanlar(room).length) duraklatBitir(room, 'oyuncu_cikti');
 
   const wasPlaying = room.status === 'playing';
   // Okey: oyun sürerken ayrılan HÜKMEN MAĞLUP; lider kalan arasından seçilir.
@@ -4286,6 +4597,24 @@ function removePlayerFromRoom(room, player, message) {
 }
 
 io.on('connection', socket => {
+  /* DURAKLAMADA HER ŞEY DONAR — kullanıcı kuralı: "Oyuncuların oynaması da
+     dursun, 45 saniye. Her şey donsun." Masa duraklatılmışken bütün OYUN
+     HAMLESİ olayları (okey çek/at, satranç hamlesi, zar, kart...) reddedilir;
+     oyuncunun ekranı sunucudaki gerçek duruma geri çekilir. Sohbet, odaya
+     dönüş, izleyici ayarı gibi oyun dışı olaylar serbesttir. */
+  socket.use((paket, next) => {
+    const olay = paket && paket[0];
+    if (typeof olay !== 'string' || !OYUN_HAMLE_OLAYI.test(olay)) return next();
+    const room = socket.roomId ? rooms.get(socket.roomId) : null;
+    if (!room || !room.duraklama || room.status !== 'playing') return next();
+    const player = (room.players || []).find(p => p.id === socket.id) || null;
+    socket.emit('hamleDuraklamada', {
+      roomId: room.id, olay,
+      mesaj: 'Oyun duraklatıldı — çıkan oyuncunun dönmesi bekleniyor. Bu sürede hamle yapılamaz.'
+    });
+    try { emitPlayingSnapshot(room, socket.id, player); } catch (_) {}
+    // next() çağrılmaz: olay işleyiciye hiç ulaşmaz.
+  });
   console.log(`[BAĞLANDI] ${socket.id}`);
   if (authApi) authApi.attachSocket(socket);
 
@@ -4795,6 +5124,7 @@ io.on('connection', socket => {
       socket.role = 'player';
       // Kopan oyuncu geri döndü: bekleyen rakibe haber ver (geri sayım bitti).
       if (kopuktu && room.status === 'playing') {
+        kopmaGeriDondu(room, player);
         room.players.forEach(p => {
           if (p === player) return;
           emitToPlayer(p, 'playerReconnected', {
@@ -5899,6 +6229,13 @@ io.on('connection', socket => {
     socket.leave(roomId);
     socket.roomId = null;
     socket.role = null;
+    /* Oyun SÜRERKEN çıkan oyuncu da (bağlantısı kopmuş gibi) 45 sn içinde
+       geri dönebilir; bu sürede oyun duraklar. Dönmezse 2 kişilikte hükmen
+       mağlup, 3-4 kişilikte koltuğuna tur sonuna kadar bot oturur. */
+    if (player && room.status === 'playing' && !room.solo && !player.aiControlled && !player.disconnectedAt) {
+      if (kopmaSayaciBaslat(room, player)) return;
+    }
+    if (player && player.disconnectedAt) return;     // sayacı zaten işliyor
     if (player) removePlayerFromRoom(room, player, 'Rakip oyundan ayrıldı.');
     else if (spectator) removeSpectator(room, spectator);
   });
@@ -6024,33 +6361,11 @@ io.on('connection', socket => {
 
     // Oyun devam ediyorsa oyuncuya yeniden bağlanma süresi tanı (sayfa
     // yenileme, mobil ağ kopması, Render uyku/uyanma vb. durumlar için).
-    if (room.status === 'playing') {
-      player.disconnectedAt = now();
-      /* KALAN OYUNCUYA HABER VER. Eskiden bu 30 saniye boyunca karşı tarafa
-         HİÇBİR bilgi gitmiyordu: tahta donuyor, "rakip çıktı" da denmiyor,
-         oyuncu ne olduğunu anlamadan bekliyordu (kullanıcı raporu). Artık
-         kopma anında bilgi ve geri sayım, dönüşte de "geri döndü" gider. */
-      room.players.forEach(p => {
-        if (p === player) return;
-        emitToPlayer(p, 'playerConnectionLost', {
-          roomId: room.id, seat: player.seat, name: player.name || 'Rakip',
-          graceMs: RECONNECT_GRACE_MS
-        });
-      });
-      (room.spectators || []).forEach(sp => emitToPlayer(sp, 'playerConnectionLost', {
-        roomId: room.id, seat: player.seat, name: player.name || 'Oyuncu',
-        graceMs: RECONNECT_GRACE_MS, isSpectator: true
-      }));
-      const key = playerKey(roomId, player);
-      cancelDisconnectTimer(roomId, player);
-      const timer = setTimeout(() => {
-        disconnectTimers.delete(key);
-        const currentRoom = rooms.get(roomId);
-        if (!currentRoom) return;
-        const stillGone = currentRoom.players.find(p => p === player && p.disconnectedAt);
-        if (stillGone) removePlayerFromRoom(currentRoom, player, 'Rakip bağlantısı koptu ve geri dönmedi.');
-      }, RECONNECT_GRACE_MS);
-      disconnectTimers.set(key, timer);
+    if (room.status === 'playing' && !room.solo) {
+      /* KALAN OYUNCUYA HABER VER + OYUNU DURAKLAT: 45 sn dönüş süresi, bu
+         sürede bütün saatler durur (bkz. kopmaSayaciBaslat). */
+      if (kopmaSayaciBaslat(room, player)) return;
+      removePlayerFromRoom(room, player, 'Rakip bağlantısı koptu (misafir — dönüş hakkı yok).');
       return;
     }
 
@@ -6252,7 +6567,10 @@ function enforceOnlineMoveTimeout(room) {
 }
 
 for (const room of rooms.values()) {
-    if (room.status !== 'playing') continue;
+    if (room.status !== 'playing') { if (room.duraklama) room.duraklama = null; continue; }
+    /* DURAKLAMA: saatler donuk — zaman damgaları ileri kaydırılır, hiçbir
+       zaman aşımı denetimi çalışmaz (bkz. duraklamaKaydir). */
+    if (room.duraklama) { duraklamaKaydir(room); continue; }
     // Okey kendi saat döngüsünü işletir (SIRA sayacı + koltuk ana saatleri).
     if (room.okey) { okeyClockTick(room); continue; }
     // Passaparola da kendi saat döngüsünü işletir (oyuncu başına ayrı saat).
@@ -6367,7 +6685,7 @@ app.get('/api/rooms', (req, res) => {
 // elle belirlediği sıraya mı (manual) göre çizeceğini + kaç oyun
 // gösterileceğini (count, 0 = tümü) taşır — bkz. yukarıdaki popularConfig.
 app.get('/api/games-meta', (_req, res) => {
-  res.json({ ok: true, games: ALL_GAMES.map(id => ({ id, visible: gameVisible(id) })), popular: popularConfig });
+  res.json({ ok: true, games: ALL_GAMES.map(id => ({ id, visible: gameVisible(id) })), popular: popularConfig, ayarSenkron });
 });
 
 // GERÇEK oynanma sayaçları: ana sayfa "Popüler Oyunlar" sıralaması ve oyun
@@ -7246,7 +7564,7 @@ module.exports = { app, server, io, rooms, start, listPublicRooms, publicRoom, s
   // chatGlobal: şikayet dökümünün "son 1 dakika" süzgecini sınamak için —
   // test bir mesajın zaman damgasını geriye alıp süzgecin onu ELEDİĞİNİ
   // doğrular (gerçekte 1 dakika beklemek gerekirdi).
-  __test: { puanYaz, puanDonusYaz, scoring, presenceSayim, chatGlobal: () => chatGlobal } };
+  __test: { puanYaz, puanDonusYaz, scoring, presenceSayim, chatGlobal: () => chatGlobal, kurucuDevret, removePlayerFromRoom } };
 // Eski test uyumluluğu: PRESET_TABLES artık yapılandırmadan üretilir.
 Object.defineProperty(module.exports, 'PRESET_TABLES', { get: () => presetTablesFromConfig(presetConfig) });
 Object.defineProperty(module.exports, 'popularConfig', { get: () => popularConfig });

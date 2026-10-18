@@ -24,6 +24,8 @@ process.env.GV_DATA_DIR = TMP;
 process.env.GV_POST_GAME_HOLD_MS = '400';
 // Yapay zekâ gecikmesi üretimde 1.4 sn; testte beklemeyelim.
 process.env.GV_AI_DELAY_MS = '60';
+// Çıkan oyuncuya tanınan dönüş süresi (üretimde 45 sn, oyun duraklar) — testte kısa.
+process.env.GV_RECONNECT_GRACE_MS = process.env.GV_RECONNECT_GRACE_MS || '300';
 
 const assert = require('assert');
 const { io: ioClient } = require('socket.io-client');

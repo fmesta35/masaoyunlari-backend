@@ -77,9 +77,11 @@ async function denetle(oyun, oda, tahtaSec, kopar) {
     B.win.__gvRoomSocket.on('playerConnectionLost', p => uyarilar.push(p));
     A.win.__gvRoomSocket.disconnect();
     try { A.win.__gvLobbySocket && A.win.__gvLobbySocket.disconnect(); } catch (_) {}
-    await bekle(() => uyarilar.length, 8000,
-      oyun + ': rakibin bağlantısı kopunca kalan oyuncuya ANINDA bilgi gitmeli');
-    assert.ok(Number(uyarilar[0].graceMs) > 0, 'geri sayım süresi bildirilmeli');
+    /* GÜNCEL KURAL: 2 kişilik masada 45 sn dönüş hakkı yalnız ÜYEYE tanınır.
+       Buradaki oyuncular misafir — kopan misafir beklenmeden hükmen mağlup
+       olur, kalan oyuncu doğrudan bitiş ekranını görür (aşağıda denetlenir).
+       Üyede duraklama + geri sayım: bkz. test/masa-oylama.test.js. */
+    assert.strictEqual(uyarilar.length, 0, 'misafir için dönüş geri sayımı başlamamalı');
   } else {
     // A masadan AYRILIR (üst çubuktaki "Ayrıl" ile aynı yol).
     A.win.__gvRoomSocket.emit('leaveRoom', { roomId: oda });

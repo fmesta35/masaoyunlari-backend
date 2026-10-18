@@ -295,6 +295,8 @@
       if (!src || typeof src !== 'object') { out[gid] = base; continue; }
       const merged = Object.assign({}, base);
       if (typeof src.visible === 'boolean') merged.visible = src.visible;
+      /* Oyun geneli hamle süresi (üyelerin kurduğu + boş bırakılan masalar). */
+      if (Number(src.moveSeconds) > 0) merged.moveSeconds = Number(src.moveSeconds);
       /* ⚠ HATA: burada eskiden yalnız STANDARD listesine bakılıyordu; okey ve
          101 okey o listede olmadığı için SUNUCUDAN GELEN 18 ve 6 masa
          atılıyor, panel "0 masa" gösteriyordu. Artık masası düzenlenebilen
@@ -1271,8 +1273,11 @@
     /* Okey / 101 Okey / Pişti / Batak masalarını ayıran şey adı değil KİŞİ
        SAYISI ve EL SAYISIDIR; o yüzden bu oyunlarda iki sütun daha çizilir. */
     const sut = kartMi(gid) ? KART_SUTUN[gid] : null;
-    const hamle = hamleVarMi(gid);
-    const vars = hamleVarsayilani(gid);
+    const hamle = hamleVarMi(gid) && !tekMi(gid);
+    /* OYUN GENELİ hamle süresi girilmişse, satırdaki boş kutular onu kullanır
+       (placeholder'da da o görünür). */
+    const oyunHamle = Number(cfg.moveSeconds) > 0 ? Number(cfg.moveSeconds) : 0;
+    const vars = oyunHamle || hamleVarsayilani(gid);
 
     /* DÜZEN: alanlar eskiden tek sıraya dizilip dar panelde alt alta
        kayıyor ve hangi kutunun ne olduğu anlaşılmıyordu (kullanıcı
@@ -1285,7 +1290,19 @@
        </label>`;
     const kutu = 'padding:7px 8px;border-radius:8px;border:1px solid var(--border);background:var(--bg3);color:var(--text);font-size:.82em;width:100%';
 
-    wrap.innerHTML = (cfg.tables || []).map((t, i) => {
+    /* OYUN GENELİ HAMLE SÜRESİ — kurucu isteği: "Kurucu hangi oyunun hangi
+       masasının hamle süresini ne yapmak isterse o geçerli olur." Satıra
+       değer girilen masa kendi değerini kullanır; boş satırlar ve ÜYELERİN
+       KURDUĞU masalar (listede olmayan her masa) bu değeri kullanır.
+       "Kaydet ve Uygula" sonrası oynanan masalar dahil anında geçerli olur. */
+    const genelKutu = hamle ? `
+      <div style="border:1px dashed rgba(108,92,231,.55);border-radius:10px;padding:9px 10px;background:rgba(108,92,231,.07);display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">
+        <div style="flex:1 1 150px;min-width:0">${etiketli('OYUN GENELİ HAMLE (SN) — üyelerin kurduğu ve boş bırakılan masalar',
+          `<input data-oyun-hamle="${gid}" type="number" min="${HAMLE_SINIR.min}" max="${HAMLE_SINIR.max}" value="${oyunHamle || ''}" placeholder="${hamleVarsayilani(gid)}" style="${kutu}" title="Boş = yerleşik varsayılan (${hamleVarsayilani(gid)} sn)">`)}</div>
+        <button type="button" data-hamle-hepsi="${gid}" style="flex:0 0 auto;border:1px solid var(--border);background:var(--bg3);color:var(--text);border-radius:8px;padding:8px 10px;cursor:pointer;font-size:.78em" title="Bu oyundaki bütün masa satırlarının hamle süresini genel değere eşitle">⇩ Tüm masalara yaz</button>
+      </div>` : '';
+
+    wrap.innerHTML = genelKutu + (cfg.tables || []).map((t, i) => {
       const hamleDeger = Number(t.moveSeconds) > 0 ? Number(t.moveSeconds) : '';
       if (tekMi(gid)) {
         /* Tek kişilik masa: yalnız ad + sil. 1 koltuk, hazır deyince başlar,
@@ -1329,6 +1346,22 @@
         </div>
       </div>`;
     }).join('');
+
+    const genelInp = wrap.querySelector('[data-oyun-hamle]');
+    if (genelInp) genelInp.addEventListener('change', () => {
+      const ham = String(genelInp.value).trim();
+      if (!ham) cfg.moveSeconds = 0;
+      else cfg.moveSeconds = Math.min(HAMLE_SINIR.max, Math.max(HAMLE_SINIR.min, Math.floor(Number(ham) || 0)));
+      settingsCache[gid] = cfg;
+      paintTableRows(gid);
+    });
+    const hepsiBtn = wrap.querySelector('[data-hamle-hepsi]');
+    if (hepsiBtn) hepsiBtn.addEventListener('click', () => {
+      const v = Number(cfg.moveSeconds) > 0 ? Number(cfg.moveSeconds) : 0;
+      (cfg.tables || []).forEach(t => { t.moveSeconds = v; });
+      paintTableRows(gid);
+      toast(v ? `Tüm masalar ${v} sn — "Kaydet ve Uygula" ile anında geçerli olur.` : 'Tüm masalar oyunun genel süresine bağlandı.', 'success');
+    });
 
     wrap.querySelectorAll('[data-edit]').forEach(inp => {
       inp.addEventListener('change', () => {
@@ -1655,6 +1688,27 @@
     }
   }
   setInterval(tick, 600);
+
+  /* AYAR AKTARIMI — Render uyanırken Yöncü'ye ulaşamazsa masalar varsayılan
+     (ör. 30 sn hamle) ile açılıyordu. Kurucu sitedeyken tarayıcı bunu fark
+     eder ve Yöncü'deki kayıtlı ayarı Render'a aktarır; oynanan masalar dahil
+     hepsi anında kurucunun değerlerine geçer. (Sunucu da kendisi 30 sn'de bir
+     yeniden dener — bu ikinci, daha hızlı yol.) */
+  let sonAktarim = 0;
+  async function ayarAktarKontrol() {
+    if (!isAdmin() || !isYoncuPage()) return;
+    if (Date.now() - sonAktarim < 60000) return;
+    sonAktarim = Date.now();
+    try {
+      const meta = await fetch(BACKEND + '/api/games-meta').then(r => r.json());
+      if (!meta || meta.ayarSenkron !== false) return;
+      const r = await api('/api/admin.php?action=gamesGet', null, 'GET');
+      if (!r.ok || !r.settings || typeof r.settings !== 'object') return;
+      await api(BACKEND + '/api/admin/tables-apply', { games: r.settings }, 'POST');
+    } catch (_) {}
+  }
+  setInterval(ayarAktarKontrol, 15000);
+  setTimeout(ayarAktarKontrol, 3000);
   // İstatistik verisi 30 sn'de bir tazelenir (yalnız kurucu oturumunda):
   setInterval(() => { if (statsTarget()) refreshHeroStats(); }, 30000);
   function boot() { tick(); if (statsTarget()) refreshHeroStats(); }
