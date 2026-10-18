@@ -69,15 +69,18 @@ type G = {
   me: { x: number; y: number } | null; meAt: number;
   target: { x: number; y: number } | null; keyPos: { x: number; y: number } | null;
   keys: Set<string>; pointer: number | null; lastSend: number; lastSent: string;
+  vt: number; mvx: number; mvy: number; prevMe: { x: number; y: number; t: number } | null; lastClaim: number;
 };
 
 export default function Online() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const claimRef = useRef<(() => Record<string, number | undefined>) | null>(null);
   const g = useRef<G>({
     prev: null, cur: null, curAt: 0, interval: 20, buf: [], offs: [], off: 0, jit: 0, hist: [], seat: null, names: ["Oyuncu 1", "Oyuncu 2"],
     renk: ["#22d3ee", "#fb4d6d"], maxSet: 3, golHedefi: 5, olayNo: null, lastFaz: "", lastTick: -1,
     particles: [], trail: [], shake: 0, flash: 0, flashSide: 0, banner: "FACE OFF", bannerTime: 0.65,
     me: null, meAt: 0, target: null, keyPos: null, keys: new Set(), pointer: null, lastSend: 0, lastSent: "",
+    vt: 0, mvx: 0, mvy: 0, prevMe: null, lastClaim: 0,
   });
   const [ready, setReady] = useState(false);
   const [seat, setSeat] = useState<number | null>(null);
@@ -224,13 +227,19 @@ export default function Online() {
       m.x = clamp(m.x, minX, maxX); m.y = clamp(m.y, FIELD_TOP + MALLET_RADIUS + pad, FIELD_BOTTOM - MALLET_RADIUS - pad);
     };
 
+    /* Gecikme telafisi: "ekranda gördüğüm an" + tokmağımın konumu/hızı */
+    const claim = () => {
+      const s = g.current;
+      return s.me && s.vt ? { vt: Math.round(s.vt * 10) / 10, px: Math.round(s.me.x * 10) / 10, py: Math.round(s.me.y * 10) / 10, mvx: Math.round(s.mvx), mvy: Math.round(s.mvy) } : {};
+    };
+    claimRef.current = claim;
     const send = (x: number, y: number, force = false) => {
       const s = g.current; const t = performance.now();
       if (!force && t - s.lastSend < 16) return;
       const k = Math.round(x) + "," + Math.round(y);
       if (!force && k === s.lastSent && t - s.lastSend < 250) return;
       s.lastSend = t; s.lastSent = k;
-      post({ t: "move", x: Math.round(x), y: Math.round(y) });
+      post({ t: "move", x: Math.round(x), y: Math.round(y), ...claim() });
     };
 
     const frame = (time: number) => {
@@ -245,6 +254,7 @@ export default function Online() {
       if (f && s.buf.length >= 2 && typeof f.t === "number") {
         const delay = clamp(s.interval * 1.5 + s.jit * 2 + 14, 40, 150);
         const rt = time - s.off - delay;           // gösterilecek sunucu zamanı
+        s.vt = rt;
         const bf = s.buf; let i = -1;
         for (let n = bf.length - 1; n >= 0; n -= 1) { if ((bf[n].t as number) <= rt) { i = n; break; } }
         if (i < 0) { disk = bf[0].disk; mal = bf[0].tokmak.map((t) => ({ x: t.x, y: t.y })); }
@@ -310,6 +320,18 @@ export default function Online() {
         else if (best > 32) { const c = Math.min(1, dt * 5); s.me.x += (sv.x - s.me.x) * c; s.me.y += (sv.y - s.me.y) * c; }
         constrain(s.me, s.seat);
         mal[s.seat] = { x: s.me.x, y: s.me.y };
+        /* tokmak hızı (yumuşatılmış) + disk yakındaysa vuruş talebini sık yolla */
+        if (s.prevMe && time > s.prevMe.t) {
+          const ddt = (time - s.prevMe.t) / 1000;
+          s.mvx = s.mvx * 0.5 + ((s.me.x - s.prevMe.x) / ddt) * 0.5; s.mvy = s.mvy * 0.5 + ((s.me.y - s.prevMe.y) / ddt) * 0.5;
+        }
+        s.prevMe = { x: s.me.x, y: s.me.y, t: time };
+        if (playing && disk && s.vt && time - s.lastClaim >= 16 &&
+            Math.hypot(disk.x - s.me.x, disk.y - s.me.y) < MALLET_RADIUS + PUCK_RADIUS + 90) {
+          s.lastClaim = time;
+          const tg = s.target || s.me;
+          post({ t: "move", x: Math.round(tg.x), y: Math.round(tg.y), ...claim() });
+        }
       }
 
       /* parçacık ve sayaçlar (referanstaki gibi) */
@@ -396,7 +418,7 @@ export default function Online() {
     q.x = clamp(q.x, mn, mx); q.y = clamp(q.y, FIELD_TOP + MALLET_RADIUS + 7, FIELD_BOTTOM - MALLET_RADIUS - 7);
     s.target = q;
     const t = performance.now();
-    if (t - s.lastSend >= 16) { s.lastSend = t; post({ t: "move", x: Math.round(q.x), y: Math.round(q.y) }); }
+    if (t - s.lastSend >= 16) { s.lastSend = t; post({ t: "move", x: Math.round(q.x), y: Math.round(q.y), ...(claimRef.current ? claimRef.current() : {}) }); }
   };
   const onDown = (e: RPE<HTMLCanvasElement>) => {
     const s = g.current; if (s.seat === null) return;

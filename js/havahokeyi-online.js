@@ -21,7 +21,7 @@
   if (window.__gvHavahokeyiLoaded) return;
   window.__gvHavahokeyiLoaded = true;
 
-  var SRC = 'assets/oyunlar/havahokeyi.html?online=1&v=20261018a';
+  var SRC = 'assets/oyunlar/havahokeyi.html?online=1&v=20261018b';
 
   /* OYUN DOSYASI KAYNAĞI: önce site ile aynı yerden (Yöncü) denenir; dosya
      orada yoksa (yüklenmemiş, ya da host 404/ana sayfa döndürüyor) Render'daki
@@ -80,7 +80,15 @@
     if (!mCur || typeof mCur.emit !== 'function') return;
     if (d.t === 'move') {
       var x = Number(d.x), y = Number(d.y);
-      if (isFinite(x) && isFinite(y)) mCur.emit('hokeyMove', { x: Math.round(x), y: Math.round(y) });
+      if (isFinite(x) && isFinite(y)) {
+        var pk = { x: Math.round(x), y: Math.round(y) };
+        /* gecikme telafisi alanları (ekranda görülen an + tokmak konumu/hızı) */
+        if (isFinite(Number(d.vt)) && isFinite(Number(d.px)) && isFinite(Number(d.py))) {
+          pk.vt = Number(d.vt); pk.px = Math.round(Number(d.px) * 10) / 10; pk.py = Math.round(Number(d.py) * 10) / 10;
+          pk.mvx = Math.round(Number(d.mvx) || 0); pk.mvy = Math.round(Number(d.mvy) || 0);
+        }
+        mCur.emit('hokeyMove', pk);
+      }
     } else if (d.t === 'renk' && typeof d.c === 'string') {
       mCur.emit('hokeyRenk', { renk: d.c });
     }

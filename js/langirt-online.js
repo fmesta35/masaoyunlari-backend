@@ -22,7 +22,7 @@
   if (window.__gvLangirtLoaded) return;
   window.__gvLangirtLoaded = true;
 
-  var SRC = 'assets/oyunlar/langirt.html?online=1&v=20261018a';
+  var SRC = 'assets/oyunlar/langirt.html?online=1&v=20261018b';
 
   /* OYUN DOSYASI KAYNAĞI: önce site ile aynı yerden (Yöncü) denenir; dosya
      orada yoksa (yüklenmemiş, ya da host 404/ana sayfa döndürüyor) Render'daki
@@ -84,6 +84,29 @@
       mCur.emit('langirtShot', { cubuk: Number(d.cubuk) || 0, guc: Number(d.guc) || 0, nisanY: Number(d.nisanY) || 0 });
     }
   }
+  /* Tuşlar: odak üst sayfadaysa (iframe'e hiç tıklanmadıysa) iframe tuşları
+     almaz. Burada yakalayıp iframe'e iletiriz; yazı alanlarında (sohbet) dokunmayız.
+     iframe odaktayken olaylar zaten onun içindedir → çift işlem olmaz. */
+  var TUSLAR = { '1': 1, '2': 1, '3': 1, '4': 1, z: 1, x: 1, c: 1, v: 1, w: 1, s: 1, q: 1, e: 1, ' ': 1,
+                 arrowup: 1, arrowdown: 1, shift: 1, escape: 1 };
+  function tusIlet(ev) {
+    if (!frame || !hazir || !mCur || mCur.isSpectator) return;
+    var t = ev.target, tag = t && t.tagName ? t.tagName.toLowerCase() : '';
+    if (tag === 'input' || tag === 'textarea' || tag === 'select' || (t && t.isContentEditable)) return;
+    if (ev.ctrlKey || ev.metaKey || ev.altKey) return;
+    var k = String(ev.key || '').toLowerCase();
+    if (!TUSLAR[k]) return;
+    var r = frame.getBoundingClientRect();
+    if (r.width < 50 || r.bottom < 0 || r.top > window.innerHeight) return;
+    if (k !== 'shift') ev.preventDefault();
+    gonder({ dst: 'langirt', t: 'key', type: ev.type, key: ev.key, shiftKey: ev.shiftKey });
+  }
+  var tusBagli = false;
+  function tusBagla() {
+    if (tusBagli) return; tusBagli = true;
+    window.addEventListener('keydown', tusIlet, true);
+    window.addEventListener('keyup', tusIlet, true);
+  }
   function sok() {
     if (dinleyici) window.removeEventListener('message', dinleyici);
     dinleyici = null; frame = null; hazir = false; mCur = null; sonKare = null;
@@ -121,6 +144,7 @@
       }
       dinleyici = iframdenGelen;
       window.addEventListener('message', dinleyici);
+      tusBagla();
     }
   });
 

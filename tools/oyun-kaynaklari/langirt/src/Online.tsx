@@ -228,8 +228,13 @@ export default function Online() {
         s.selected = 3; setSelectedRod(3);
         setSide(s.side); setNames(d.names); setTarget(s.target);
         setReady(true);
+        try { window.focus(); } catch { /* */ }
         if (d.frame) onFrame(d.frame);
       } else if (d.t === "frame" && d.f) onFrame(d.f as SrvFrame);
+      else if (d.t === "key") {
+        /* iframe odakta değilken üst sayfadan iletilen tuşlar */
+        try { window.dispatchEvent(new KeyboardEvent(d.type === "keyup" ? "keyup" : "keydown", { key: String(d.key), shiftKey: !!d.shiftKey, bubbles: true, cancelable: true })); } catch { /* */ }
+      }
     };
     window.addEventListener("message", on);
     post({ t: "ready" });
@@ -495,7 +500,7 @@ export default function Online() {
           {!paused && phase === "goal" && <div className="goal-callout"><span>GOAL!</span><strong>{lastScorer ? nameOf(lastScorer) : ""} SCORES</strong></div>}
           {!paused && phase === "playing" && <div className="table-live-label"><span /> LIVE · FIRST TO {target}</div>}
           {!connected && phase === "playing" && <div className="opponent-warning"><span /> RECONNECTING</div>}
-          {side && <div className="charge-tip"><span className="charge-dot" />1·2·3 / Z·X·C ÇUBUK · ↑↓ HAREKET · SPACE VUR</div>}
+          {side && <div className="charge-tip"><span className="charge-dot" />1 DEFANS · 2 ORTA · 3 FORVET (veya Z·X·C) · ↑↓ HAREKET · SPACE VUR</div>}
           {paused && (
             <div className="match-overlay pause-overlay">
               <div className="pause-emblem"><Icon name="pause" size={22} /></div>
@@ -509,7 +514,7 @@ export default function Online() {
         <div className="arena-footer">
           <div className="target-select"><span>FIRST TO</span>{[3, 5, 7, 10].map((n) => <button key={n} className={target === n ? "target-active" : ""} disabled>{n}</button>)}</div>
           <span className="footer-separator" />
-          <div className="selected-rod-label"><span className={`rod-color ${side ?? "red"}`} />{side ? `${side.toUpperCase()} ROD ${selectedRod + 1}` : "SPECTATING"}</div>
+          <div className="selected-rod-label"><span className={`rod-color ${side ?? "red"}`} />{side ? `${side === "red" ? "KIRMIZI" : "MAVİ"} · ${["KALECİ", "DEFANS", "ORTA SAHA", "FORVET"][selectedRod]}` : "İZLEYİCİ"}</div>
           <div className="arena-footer-actions">
             {side && <button className="footer-icon-button" onClick={() => { setPaused(!paused); soundFn.current("ui"); }} aria-label="Pause match"><Icon name="pause" size={15} /></button>}
             <button className="footer-icon-button" onClick={() => { setModal(true); soundFn.current("ui"); }} aria-label="Open controls and sound settings"><Icon name="settings" size={15} /></button>
