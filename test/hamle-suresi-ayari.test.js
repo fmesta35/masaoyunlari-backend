@@ -96,7 +96,9 @@ async function main() {
   const sema = (await api(BASE, '/api/admin/tables', null, 'GET', T)).sema;
   /* hamleYok BOŞ olmalı: alan artık her oyunda düzenlenebiliyor. Alanın
      kendisi duruyor, çünkü eski panel sürümleri hâlâ ona bakıyor. */
-  assert.ok(Array.isArray(sema.hamleYok) && sema.hamleYok.length === 0,
+  /* tek kişilik oyunların hamle saati yok — yalnız onlar dışarıda kalır */
+  const SOLO_YOK = ['apexgarage', 'golgelabirenti', 'ayla'];
+  assert.ok(Array.isArray(sema.hamleYok) && sema.hamleYok.every(g => SOLO_YOK.includes(g)),
     'hiçbir oyun hamle süresi ayarının dışında bırakılmamalı — ' + JSON.stringify(sema.hamleYok));
   assert.strictEqual(Number(sema.hamleVarsayilan.chess), 60, 'satranç varsayılanı 60 sn bildirilmeli');
   assert.strictEqual(Number(sema.hamleVarsayilan.tavla), 60, 'tavla varsayılanı 60 sn bildirilmeli');

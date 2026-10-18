@@ -368,20 +368,25 @@ const mini=$('#mini'), mctx=mini.getContext('2d');
 /* ---------- sizing / render buffer ---------- */
 let W=0,H=0,DPR=1,RW=0,RH=0,zbuf=null,wallScale=1,planeLen=.8;
 let resScale=1; // kalite
+let autoRes=true; // cihaz yavaşsa çözünürlük kendiliğinden düşer, rahatsa yükselir
 function resize(){
   W=Math.floor(window.innerWidth); H=Math.floor(window.innerHeight);
   DPR=Math.min(window.devicePixelRatio||1, 1.6);
   canvas.width=Math.floor(W*DPR); canvas.height=Math.floor(H*DPR);
   canvas.style.width=W+'px'; canvas.style.height=H+'px';
   ctx.setTransform(DPR,0,0,DPR,0,0);
-  const target=(isTouch?380:600)*resScale;
+  /* Çözünürlük: eskiden 600/380 piksel genişlikte çizilip büyütülüyordu (bulanık, 'yakınlaştırılmış'
+     görünüm). Artık ekran genişliğine yakın çözünürlükte çizilir; yavaş cihazda otomatik düşer. */
+  const target=(isTouch?Math.min(W,900):Math.min(W,1280))*resScale;
   const s=Math.min(1, target/W);
   RW=Math.max(200,Math.round(W*s)); RH=Math.max(140,Math.round(H*s));
   buf.width=RW; buf.height=RH;
   zbuf=new Float32Array(RW);
   const ar=RW/RH;
-  planeLen=Math.tan(1.30/2);                           // ~74° yatay görüş açısı
-  wallScale=Math.max(RW/(2*planeLen), RH*(ar<1?0.55:0.95));
+  /* GENİŞ GÖRÜŞ: yatay ~100° (dikey ekranda ~84°). Eski ~74° dar ve yakın görünüyordu.
+     Duvar ölçeği perspektifle tutarlı: yatay görüşten türetilir. */
+  planeLen=Math.tan((ar<1?1.46:1.75)/2);
+  wallScale=ar<1 ? Math.max(RW/(2*planeLen), RH*0.55) : Math.max(RW/(2*planeLen), RH*0.8);
   b.imageSmoothingEnabled=false;
 }
 window.addEventListener('resize',()=>{ resize(); });
@@ -1364,7 +1369,7 @@ function render(){
   ctx.translate(W/2+displayPose.ox,H/2+displayPose.oy);
   ctx.rotate(displayPose.rotation);
   const sc=displayPose.scale;
-  ctx.imageSmoothingEnabled=true;
+  ctx.imageSmoothingEnabled=true; try{ ctx.imageSmoothingQuality='high'; }catch(e){}
   ctx.drawImage(buf,-W/2*sc,-H/2*sc,W*sc,H*sc);
   ctx.restore();
 
@@ -2090,13 +2095,20 @@ document.querySelectorAll('#diffRow button').forEach(bt=>{
 });
 function toggleSound(){ SFX.on=!SFX.on; $('#sndBtn').textContent=SFX.on?'🔊 SES: AÇIK':'🔇 SES: KAPALI'; }
 $('#sndBtn').onclick=()=>{ SFX.init(); toggleSound(); };
-$('#qltBtn').onclick=()=>{ resScale=resScale>.8?.68:1; $('#qltBtn').textContent=resScale>.8?'✨ ÇÖZÜNÜRLÜK: YÜKSEK':'⚡ ÇÖZÜNÜRLÜK: HIZLI'; resize(); };
+$('#qltBtn').onclick=()=>{ autoRes=false; resScale=resScale>.8?.68:1; $('#qltBtn').textContent=resScale>.8?'✨ ÇÖZÜNÜRLÜK: YÜKSEK':'⚡ ÇÖZÜNÜRLÜK: HIZLI'; resize(); };
 document.addEventListener('visibilitychange',()=>{ if(document.hidden&&S.state==='playing') pause(); });
 
 /* ================= LOOP ================= */
-let last=performance.now(), acc=0;
+let last=performance.now(), acc=0, emaMs=16, resTimer=0;
 function frame(now){
   let dt=(now-last)/1000; last=now;
+  /* otomatik çözünürlük: ~1,5 sn ortalama kare süresi yüksekse küçült, düşükse büyüt */
+  if(autoRes&&S.state==='playing'&&!document.hidden){
+    emaMs=emaMs*.95+Math.min(100,dt*1000)*.05; resTimer+=dt;
+    if(resTimer>1.5){ resTimer=0;
+      if(emaMs>26&&resScale>.55){ resScale=Math.max(.55,resScale*.85); resize(); }
+      else if(emaMs<16.5&&resScale<1){ resScale=Math.min(1,resScale*1.08); resize(); } }
+  }
   if(dt>.05) dt=.05;
   if(S.hitstop>0){ S.hitstop-=dt; dt*=.12; }
   if(S.state==='playing') update(dt);

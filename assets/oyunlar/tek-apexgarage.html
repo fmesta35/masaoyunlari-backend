@@ -218,7 +218,9 @@
       <button id="closeRaceSetup" class="btn sm">Kapat</button>
     </div>
      <p class="text-sm text-slate-300 mt-2">Tek oyunculu yarış: virajlı pistte trafiği aş, nitro ve drift puanları topla. Trafik yoğunluğu zorluğa göre değişir.</p>
-    <div id="mapChoices" class="grid grid-cols-2 gap-2 mt-4"></div>
+    <div id="campBox" class="mt-3"></div>
+    <div class="lbl mt-4">Serbest Yarış</div>
+    <div id="mapChoices" class="grid grid-cols-2 gap-2 mt-2"></div>
     <div class="grid sm:grid-cols-1 gap-3 mt-4 items-start">
       <div class="rounded-xl border border-white/10 bg-black/25 p-3 space-y-3">
         <div><div class="lbl mb-1">Tur Sayısı</div><div id="lapChoices" class="seg"></div></div>
@@ -313,6 +315,7 @@
     <div id="hudMap" class="lbl text-cyan-300">NEON METROPOL</div>
     <div class="flex gap-3 justify-center mt-0.5"><span id="hudPos" class="font-t text-sm text-amber-300">TEK OYUNCU</span><span id="hudLap" class="font-t text-sm text-white">TUR 1 / 1</span></div>
     <div id="hudDrift" class="font-t text-[.58rem] tracking-wider text-fuchsia-300 h-3"></div>
+    <div id="hudTime" class="font-t font-black text-xl text-center text-emerald-300" style="display:none"></div>
   </div>
   <div id="raceBanner" class="race-banner hidden"></div>
   <div id="respawnNote" class="respawn-note hidden"></div>
@@ -322,7 +325,7 @@
       <div id="hudHearts" class="panel rounded-xl px-3 py-2 font-t text-sm tracking-widest text-rose-400"></div>
       <button id="pauseBtn" class="btn sm">II</button>
     </div>
-    <div class="mobile-hint desk">SIKIŞTIYSAN <b>F</b> TUŞUNU 3 SANİYE BASILI TUT · ARAÇ YENİDEN DOĞAR</div>
+    <div class="mobile-hint desk" id="driveInfo" style="max-width:94vw;text-align:center;line-height:1.5">SÜRÜŞ: <b>← →</b> / <b>A D</b> direksiyon · hızlanma otomatik · <b>↓</b> / <b>S</b> fren-yavaşlama · <b>SPACE</b> / <b>SHIFT</b> nitro (hızlanma) · fren + dönüş = drift · <b>P</b> duraklat · <b>R</b> yeniden · sıkıştıysan <b>F</b> 3 sn</div>
   </div>
   <div id="touchUI" class="absolute bottom-4 left-0 right-0 px-4 flex justify-between items-end mob">
     <div class="flex gap-2 items-end">
@@ -334,7 +337,7 @@
       <button class="touchbtn" id="btnNitro" style="border-color:rgba(251,191,36,.6);box-shadow:0 0 24px rgba(251,191,36,.25)">NITRO</button>
     </div>
   </div>
-  <div class="absolute left-0 right-0 text-center mob mobile-hint mobile-drive-hint">BUTONLAR VEYA EKRANI KAYDIR: DİREKSİYON</div>
+  <div class="absolute left-0 right-0 text-center mob mobile-hint mobile-drive-hint">‹ › DİREKSİYON (ya da ekranı kaydır) · HIZLANMA OTOMATİK · FREN: YAVAŞLA / DRIFT · NITRO: EKSTRA HIZ</div>
 </div>
 
 <!-- ================= PAUSE ================= -->
@@ -362,6 +365,7 @@
         <div><div class="lbl">Mesafe</div><div id="finalDist" class="font-t font-black text-3xl text-fuchsia-300">0</div></div>
       </div>
       <div id="newRecord" class="mt-2 font-t text-sm text-amber-300 hidden">★ YENİ REKOR ★</div>
+      <div id="overMsg" class="mt-3 text-sm leading-snug text-amber-200" style="display:none"></div>
     </div>
     <div class="mt-4 flex gap-2 items-center">
       <input id="nameInp" maxlength="10" placeholder="PİLOT ADI" class="flex-1 px-3 py-2 rounded-lg bg-black/45 border border-white/12 outline-none focus:border-cyan-400/70 font-t text-sm">
@@ -369,6 +373,7 @@
     </div>
     <div id="overList" class="mt-3 max-h-[168px] scroll pr-1 space-y-1"></div>
     <div class="mt-4 flex gap-2">
+      <button id="btnNext" class="btn pri flex-1 py-3" style="display:none">Sonraki Level ▶</button>
       <button id="btnAgain" class="btn pri flex-1 py-3">Tekrar (R)</button>
       <button id="btnGarage2" class="btn flex-1 py-3">Garaj</button>
     </div>
@@ -1290,7 +1295,7 @@ function loadEconomy(){try{return JSON.parse(localStorage.getItem(ECON_KEY))||{c
 const economy=loadEconomy();
 CATALOG.filter(c=>c.starter).forEach(c=>{if(!economy.owned.includes(c.id))economy.owned.push(c.id);});
 function saveEconomy(){localStorage.setItem(ECON_KEY,JSON.stringify(economy));updateCash();}
-function isOwned(c){return c.starter||economy.owned.includes(c.id)}
+function isOwned(c){return c.starter||economy.allUnlocked||economy.owned.includes(c.id)}
 function updateCash(){const el=$('#garageCash');if(el)el.textContent=economy.cash.toLocaleString('tr-TR')+' CR';}
 function buyCar(c){
   if(isOwned(c))return true;
@@ -1483,12 +1488,50 @@ function renderRaceRules(){
   choiceButtons('#trafficChoices',[['easy','Kolay'],['normal','Normal'],['hard','Zor']],state.traffic,v=>{state.traffic=v;renderRaceRules();});
   choiceButtons('#weatherChoices',Object.entries(WEATHER).map(([v,w])=>[v,w.name]),state.weather,v=>{state.weather=v;renderRaceRules();});
 }
+/* ---- KARİYER: 15 level, süre limitli ---- */
+const CAMP_KEY='apex_campaign_v1';
+const LEVELS=[
+  {n:1,name:'Isınma Turu',map:'city',weather:'summerDay',laps:1,time:45,gap:2.4,dens:.42,mix:'easy'},
+  {n:2,name:'Sahil Yolu',map:'coast',weather:'summerDay',laps:1,time:41,gap:2.1,dens:.50,mix:'easy'},
+  {n:3,name:'Gece Şehri',map:'city',weather:'summerNight',laps:1,time:38,gap:1.8,dens:.60,mix:'normal'},
+  {n:4,name:'Kanyon Sprint',map:'canyon',weather:'summerDay',laps:2,time:72,gap:1.6,dens:.65,mix:'normal'},
+  {n:5,name:'Kış Sahili',map:'coast',weather:'winterDay',laps:2,time:68,gap:1.45,dens:.70,mix:'normal'},
+  {n:6,name:'Karanlık Kanyon',map:'canyon',weather:'summerNight',laps:2,time:64,gap:1.3,dens:.75,mix:'normal'},
+  {n:7,name:'Yağmurlu Metropol',map:'city',weather:'rain',laps:2,time:62,gap:1.2,dens:.80,mix:'hard'},
+  {n:8,name:'Buzul Girişi',map:'frost',weather:'winterDay',laps:2,time:60,gap:1.1,dens:.85,mix:'normal'},
+  {n:9,name:'Fırtınalı Sahil',map:'coast',weather:'rain',laps:3,time:96,gap:1.0,dens:.85,mix:'hard'},
+  {n:10,name:'Gece Kanyonu',map:'canyon',weather:'winterNight',laps:3,time:92,gap:.9,dens:.90,mix:'hard'},
+  {n:11,name:'Buzul Gecesi',map:'frost',weather:'winterNight',laps:3,time:88,gap:.8,dens:.95,mix:'hard'},
+  {n:12,name:'Kar Fırtınası',map:'city',weather:'snow',laps:3,time:84,gap:.7,dens:1,mix:'heavy'},
+  {n:13,name:'Kanyon Fırtınası',map:'canyon',weather:'rain',laps:3,time:80,gap:.6,dens:1,mix:'heavy'},
+  {n:14,name:'Buzul Zirvesi',map:'frost',weather:'snow',laps:4,time:116,gap:.5,dens:1,mix:'heavy'},
+  {n:15,name:'ŞAMPİYONLUK FİNALİ',map:'canyon',weather:'snow',laps:4,time:110,gap:.43,dens:1,mix:'heavy'}
+];
+function loadCamp(){try{const c=JSON.parse(localStorage.getItem(CAMP_KEY));if(c&&c.max)return c;}catch(e){}return{max:1,done:false};}
+const camp=loadCamp();
+function saveCamp(){try{localStorage.setItem(CAMP_KEY,JSON.stringify(camp));}catch(e){}}
+function fmtTime(t){t=Math.max(0,t);const m=Math.floor(t/60),s=Math.floor(t%60);return m+':'+String(s).padStart(2,'0');}
+function renderCampaign(){
+  const box=$('#campBox');if(!box)return;
+  const next=Math.min(LEVELS.length,camp.max);
+  let h='<div class="rounded-xl border border-amber-400/30 bg-black/30 p-3"><div class="flex items-center justify-between gap-2"><div><div class="lbl" style="color:var(--am)">Şampiyonluk Kariyeri</div><div class="text-xs text-slate-300 mt-0.5">'+LEVELS.length+' level · her yarışta süre var · trafik, hava ve araç tipleri zorlaşır'+(camp.done?' · <b class="text-amber-300">TAMAMLANDI — tüm araçlar açık</b>':'')+'</div></div>'
+   +'<button id="btnCampGo" class="btn pri sm shine px-4 py-3">'+(camp.max>1||camp.done?'LEVEL '+next+' ▶':'BAŞLA ▶')+'</button></div><div class="grid grid-cols-5 sm:grid-cols-8 gap-1.5 mt-3">';
+  LEVELS.forEach(L=>{const open=camp.done||L.n<=camp.max;
+    h+='<button class="btn sm camp-lv" data-lv="'+L.n+'" '+(open?'':'disabled style="opacity:.35"')+' title="'+L.name+' · '+MAPS[L.map].name+' · '+WEATHER[L.weather].name+' · '+L.laps+' tur · '+L.time+' sn">'+(open?L.n:'🔒')+'</button>';});
+  h+='</div><div id="campInfo" class="text-[.68rem] text-slate-400 mt-2"></div></div>';
+  box.innerHTML=h;
+  const info=L=>$('#campInfo').textContent='Level '+L.n+' · '+L.name+' · '+MAPS[L.map].name+' · '+WEATHER[L.weather].name+' · '+L.laps+' tur · süre '+fmtTime(L.time);
+  info(LEVELS[next-1]);
+  box.querySelectorAll('.camp-lv').forEach(b=>{const L=LEVELS[+b.dataset.lv-1];b.onmouseenter=()=>info(L);b.onclick=()=>{if(b.disabled)return;startCampaign(L.n);};});
+  $('#btnCampGo').onclick=()=>startCampaign(next);
+}
+function startCampaign(n){setRaceSetup(false);startRun({level:n,startAt:Date.now()+2800});}
 function setRaceSetup(on){
   const p=$('#raceSetup');p.classList.toggle('hidden',!on);p.classList.toggle('flex',on);
-  if(on){renderMapChoices();renderRaceRules();}
+  if(on){if(state._free){Object.assign(state,state._free);state._free=null;}renderCampaign();renderMapChoices();renderRaceRules();}
 }
 $('#closeRaceSetup').onclick=()=>setRaceSetup(false);
-$('#btnStartRace').onclick=()=>{setRaceSetup(false);startRun({race:true,startAt:Date.now()+2800});};
+$('#btnStartRace').onclick=()=>{setRaceSetup(false);state.campLevel=0;startRun({race:true,level:0,startAt:Date.now()+2800});};
 /* ============================================================
    6) DRIVE WORLD
    ============================================================ */
@@ -1657,7 +1700,38 @@ function createCurvedRoad(){
     dScene.add(g);curveRoad.push({g,i});
   }
 }
+/* ---- başlangıç / tur / bitiş çizgileri ---- */
+let raceLines=[];
+function lineTex(text,checker){
+  const c=document.createElement('canvas');
+  if(checker){c.width=480;c.height=64;const x=c.getContext('2d');for(let r=0;r<2;r++)for(let i=0;i<30;i++){x.fillStyle=(i+r)%2?'#05060c':'#ffffff';x.fillRect(i*16,r*32,16,32);}}
+  else{c.width=512;c.height=96;const x=c.getContext('2d');x.fillStyle='#0b1020';x.fillRect(0,0,512,96);
+    for(let i=0;i<32;i++){x.fillStyle=i%2?'#05060c':'#fff';x.fillRect(i*16,0,16,10);x.fillRect(i*16,86,16,10);}
+    x.fillStyle='#fff';x.font='900 56px Orbitron, Arial, sans-serif';x.textAlign='center';x.textBaseline='middle';x.fillText(text,256,50);}
+  const t=new THREE.CanvasTexture(c);t.anisotropy=4;return t;
+}
+function makeRaceLine(text,finish){
+  const g=new THREE.Group();
+  const flat=new THREE.Mesh(new THREE.PlaneGeometry(ROADW+.4,2.2),new THREE.MeshBasicMaterial({map:lineTex('',true),polygonOffset:true,polygonOffsetFactor:-4,polygonOffsetUnits:-4}));
+  flat.rotation.x=-Math.PI/2;flat.position.y=.07;g.add(flat);
+  const pm=new THREE.MeshBasicMaterial({color:finish?'#fbbf24':'#22d3ee',fog:false});
+  [-1,1].forEach(sd=>{const p=new THREE.Mesh(new THREE.BoxGeometry(.4,7,.4),pm);p.position.set(sd*(ROADW/2+.5),3.5,0);g.add(p);});
+  const ban=new THREE.Mesh(new THREE.PlaneGeometry(ROADW+1.4,1.9),new THREE.MeshBasicMaterial({map:lineTex(text,false),side:THREE.DoubleSide,fog:false}));
+  ban.position.y=6.9;g.add(ban);
+  g.visible=false;dScene.add(g);return g;
+}
+function buildRaceLines(){
+  raceLines.forEach(l=>{dScene.remove(l.g);disposeGroup(l.g);});raceLines=[];
+  raceLines.push({g:makeRaceLine('START',false),D:7});
+  for(let k=1;k<G.laps;k++)raceLines.push({g:makeRaceLine('TUR '+(k+1),false),D:k*G.raceLength});
+  raceLines.push({g:makeRaceLine('FİNİŞ',true),D:G.raceLength*G.laps});
+}
+function updateRaceLines(){
+  raceLines.forEach(l=>{const z=G.dist-l.D;if(z<-260||z>30){l.g.visible=false;return;}
+    l.g.visible=true;l.g.position.set(trackCenter(l.D)-trackCenter(G.dist),0,z);l.g.rotation.y=-Math.atan(trackSlope(l.D));});
+}
 function updateCurvedRoad(){
+  updateRaceLines();
   if(!curveRoad.length)return;const now=G.dist;
   curveRoad.forEach((s,i)=>{const z=-i*11.7+6,progress=now-z,slope=trackSlope(progress);
     s.g.position.set(trackCenter(progress)-trackCenter(now),0,z);s.g.rotation.y=-Math.atan(slope);});
@@ -1823,6 +1897,8 @@ function resetPickups(){ coins=coins.filter(()=>false); cans=[]; fixes=[]; }
 function startRun(opts={}){
   // build player car
   if(dCar){ dScene.remove(dCar); disposeGroup(dCar); }
+  const lvN=opts.level!==undefined?opts.level:(state.campLevel||0), lv=lvN?LEVELS[lvN-1]:null; state.campLevel=lvN||0;
+  if(lv){ if(!state._free)state._free={mapId:state.mapId,laps:state.laps,traffic:state.traffic,weather:state.weather}; Object.assign(state,{mapId:lv.map,laps:lv.laps,traffic:lv.mix,weather:lv.weather}); }
   applyMap(state.mapId);
   dCar=buildCar(state.base,state.mods,{detail:PERF.driveDetail,beams:true,shadow:false});
   dScene.add(dCar);applyWeather(state.weather);
@@ -1830,6 +1906,7 @@ function startRun(opts={}){
   Object.assign(G,{active:true,over:false,paused:false,t:0,speed:0,dist:0,score:0,combo:0,mult:1,nitro:48,hearts:3,inv:1.2,level:1,shake:0,px:0,pvx:0,steer:0,
     race:true,laps:state.laps,lap:1,raceLength:1200,started:false,startAt:opts.startAt||Date.now()+2600,drift:0,drifting:false,
     damage:0,damagePoints:0,air:0,rollover:0,respawning:false,respawnUntil:0,manualRescue:0,slide:0,slideVel:0,grip:vehicleGrip(),credits:0});
+  Object.assign(G,{camp:lv,timeLeft:lv?lv.time:0});buildRaceLines();
   setRespawnNote('',false);
   spawnTimer=.4; coinTimer=0; resetPickups();
   setRaceBanner('3');updateCurvedRoad();
@@ -1838,18 +1915,19 @@ function startRun(opts={}){
   camera.fov=58;camera.updateProjectionMatrix();
   setMode('drive'); setPauseUI(false); setOverUI(false);
   audioStart();
-  toast(MAPS[state.mapId].name+' · tek oyunculu yarış');
+  toast(lv?('LEVEL '+lv.n+' · '+lv.name+' · süre '+fmtTime(lv.time)):(MAPS[state.mapId].name+' · tek oyunculu yarış'));
 }
 function spawnTraffic(){
   const free=trafficPool.filter(t=>!t.active); if(!free.length)return;
   const roll=Math.random();
   let desired;
   if(state.traffic==='easy') desired=roll<.70?'sedan':roll<.90?'suv':roll<.98?'truck':'semi';
+  else if(state.traffic==='heavy') desired=roll<.30?'sedan':roll<.44?'suv':roll<.72?'truck':'semi';
   else if(state.traffic==='hard') desired=roll<.43?'sedan':roll<.59?'suv':roll<.80?'truck':'semi';
   else desired=roll<.60?'sedan':roll<.76?'suv':roll<.92?'truck':'semi';
   const candidates=free.filter(t=>t.type===desired);
   const t=candidates.length?candidates[Math.floor(Math.random()*candidates.length)]:free[Math.floor(Math.random()*free.length)];
-  const density={easy:.45,normal:.78,hard:1}[state.traffic]??.78;
+  const density=G.camp?G.camp.dens:({easy:.45,normal:.78,hard:1,heavy:1}[state.traffic]??.78);
   if(Math.random()>density)return;
   t.active=true; t.near=false; t.g.visible=true;
   t.x=(Math.random()*2-1)*XMAX*.92; t.z=-165-Math.random()*40;
@@ -1903,7 +1981,8 @@ function crash(z){
   popText(G.hearts>0?'ÇARPIŞMA!':'KASA BİTTİ!','#fb3b53');
   if(G.hearts<=0) gameOver();
 }
-function gameOver(){
+function setOverExtra(msg,next){const m=$('#overMsg');m.style.display=msg?'':'none';m.textContent=msg||'';$('#btnNext').style.display=next?'':'none';}
+function gameOver(reason){
   G.over=true; G.active=false; shake(1.6);
   const sc=Math.floor(G.score), isRec=sc>G.best;
   if(isRec){ G.best=sc; localStorage.setItem('apex_best',sc); }
@@ -1912,19 +1991,32 @@ function gameOver(){
   $('#finalBest').textContent=G.best.toLocaleString('tr-TR');
   $('#finalDist').textContent=(Math.floor(G.dist/10)/100).toFixed(1)+' km';
   $('#newRecord').classList.toggle('hidden',!isRec);
-  $('#overKicker').textContent='Yarış Dışı';$('#overKicker').style.color='var(--rd)';$('#overTitle').textContent='GAME OVER';
+  $('#overKicker').textContent=reason==='time'?'Level '+state.campLevel+' · bitiş çizgisine yetişemedin':'Yarış Dışı';$('#overKicker').style.color='var(--rd)';$('#overTitle').textContent=reason==='time'?'SÜRE DOLDU':'GAME OVER';
+  setOverExtra(reason==='time'?'Süre bitti! Daha az çarp, nitroyu akıllı kullan ve tekrar dene.':'',false);
   $('#nameInp').value=pilotName(); setOverUI(true); renderScoreTable('#overList'); audioOver();
 }
 function finishRace(){
   if(G.over)return;G.over=true;G.active=false;setRaceBanner('',false);audioOver();
+  if(G.camp)G.score+=Math.round(G.timeLeft*40);
   const sc=Math.floor(G.score),isRec=sc>G.best;G.score=sc;
   if(isRec){G.best=sc;localStorage.setItem('apex_best',sc);}
-  const prize=Math.round((G.credits||0)+450+G.laps*180);
+  let campMsg='',campNext=false;
+  const prize=Math.round((G.credits||0)+450+G.laps*180+(G.camp?G.camp.n*120+Math.round(G.timeLeft)*10:0));
   economy.cash+=prize;saveEconomy();toast('+'+prize.toLocaleString('tr-TR')+' CR kazandın');
   addScore({name:pilotName(),score:sc,car:MAPS[state.mapId].name+' · '+state.base.brand+' '+state.base.model,dist:Math.floor(G.dist),date:Date.now()});
   $('#finalScore').textContent=sc.toLocaleString('tr-TR');$('#finalBest').textContent=G.best.toLocaleString('tr-TR');
   $('#finalDist').textContent=(G.dist/1000).toFixed(2)+' km';$('#newRecord').classList.toggle('hidden',!isRec);
   $('#overKicker').textContent=MAPS[state.mapId].name+' · FİNİŞ';$('#overKicker').style.color=MAPS[state.mapId].edge;$('#overTitle').textContent='YARIŞ TAMAMLANDI';
+  if(G.camp){const n=G.camp.n,left=Math.round(G.timeLeft);
+    if(n>=LEVELS.length){camp.done=true;camp.max=LEVELS.length;saveCamp();
+      economy.allUnlocked=true;CATALOG.forEach(c=>{if(!economy.owned.includes(c.id))economy.owned.push(c.id);});saveEconomy();try{renderList();}catch(e){}
+      $('#overTitle').textContent='ŞAMPİYON SENSİN!';
+      campMsg='Tebrikler! '+LEVELS.length+' leveli de tamamlayarak usta bir yarışçı olduğunu kanıtladın — şampiyon sensin! Ödül: tüm araçların kilidi açıldı, garajda hepsini kullanabilirsin.';
+    }else{camp.max=Math.max(camp.max,n+1);saveCamp();campNext=true;
+      $('#overTitle').textContent='LEVEL '+n+' TAMAMLANDI';
+      campMsg='Kalan süre '+fmtTime(left)+' · sırada Level '+(n+1)+': '+LEVELS[n].name+' ('+WEATHER[LEVELS[n].weather].name+', '+LEVELS[n].laps+' tur).';}
+  }
+  setOverExtra(campMsg,campNext);
   $('#nameInp').value=pilotName();setOverUI(true);renderScoreTable('#overList');
 }
 function updateDrive(dt){
@@ -1934,6 +2026,7 @@ function updateDrive(dt){
     setRaceBanner(String(Math.max(1,Math.ceil(until/1000))));updateCurvedRoad();updateWeather(dt);hud();return;
   }
   if(!G.started){G.started=true;setRaceBanner('GO!');setTimeout(()=>setRaceBanner('',false),650);audioBlip(980,.13,'sawtooth');}
+  if(G.camp){G.timeLeft-=dt;if(G.timeLeft<=0){G.timeLeft=0;gameOver('time');return;}}
   if(updateRecovery(dt)){updateCurvedRoad();updateWeather(dt);updateParticles(dt);hud();return;}
   const map=MAPS[state.mapId];
   const weather=WEATHER[state.weather];
@@ -1967,7 +2060,7 @@ function updateDrive(dt){
   if(G.drifting){G.drift+=dt*G.speed*.7;G.score+=dt*G.speed*1.6;if(Math.random()<.8)emit(smokeP,G.px-Math.sign(G.steer)*.85,.27,1.25,(Math.random()-.5)*2,.5,2+Math.random()*3,.55,'#9ca3af');}
   else if(G.drift>0){if(G.drift>24){const bonus=Math.round(G.drift*12);G.score+=bonus;popText('DRIFT +'+bonus,'#e879f9');}G.drift=0;}
   rTex.offset.y-=G.speed*dt/17.7;dWorld.forEach(w=>{w.o.position.z+=G.speed*dt;if(w.recycle(w.o.position.z))w.reset(w.o);});updateCurvedRoad();updateWeather(dt);
-  const trafficGap={easy:2.35,normal:1.05,hard:.43}[state.traffic]||1.05;
+  const trafficGap=G.camp?G.camp.gap:({easy:2.35,normal:1.05,hard:.43,heavy:.43}[state.traffic]||1.05);
   spawnTimer-=dt;if(spawnTimer<=0){spawnTraffic();spawnTimer=trafficGap*(.75+Math.random()*.55);}
   coinTimer-=dt;if(coinTimer<=0){spawnCoins();coinTimer=1.28;}
   trafficPool.forEach(t=>{if(!t.active)return;t.z+=(G.speed-t.sp)*dt;
@@ -1989,7 +2082,7 @@ function updateDrive(dt){
   if(boosting)for(let i=0;i<3;i++)emit(sparkP,G.px+(Math.random()-.5)*.7,.36,ex.len*.5,(Math.random()-.5)*2,.5,6+Math.random()*6,.3,'#ff9f1c');
   dCar.userData.tail.emissiveIntensity=braking?4.2:2.2;
   G.lap=Math.min(G.laps,Math.floor(G.dist/G.raceLength)+1);
-  if(G.dist>=G.raceLength*G.laps){finishRace();return;}
+  if(G.dist>=G.raceLength*G.laps+5){finishRace();return;}
   shakeUpdate(dt);
   const ty=10.5+(boosting?-.45:0)-G.speed*.003;
   camera.position.x+=((G.px*.58)+(Math.random()-.5)*G.shake*.5-camera.position.x)*Math.min(1,dt*6);
@@ -2007,9 +2100,10 @@ function hud(){
   $('#hudMult').textContent='x'+G.mult+(G.level>1?' · LV'+G.level:'');
   $('#hudCombo').textContent=G.combo>2?G.combo+' COMBO':'';
   $('#hudCar').textContent=(state.base.brand+' '+state.base.model).toUpperCase();
-  $('#hudMap').textContent=MAPS[state.mapId].name;
+  $('#hudMap').textContent=G.camp?('LEVEL '+G.camp.n+'/'+LEVELS.length+' · '+G.camp.name.toUpperCase()):MAPS[state.mapId].name;
+  const ht=$('#hudTime');if(G.camp){ht.style.display='';ht.textContent='⏱ '+fmtTime(G.timeLeft);ht.style.color=G.timeLeft<10?'#fb3b53':G.timeLeft<20?'#fbbf24':'#6ee7b7';}else ht.style.display='none';
   $('#hudPos').textContent='TEK OYUNCU';
-  $('#hudLap').textContent='TUR '+G.lap+' / '+G.laps;
+  $('#hudLap').textContent='TUR '+G.lap+' / '+G.laps+' · BİTİŞ '+Math.max(0,Math.round(G.raceLength*G.laps-G.dist))+' m';
   $('#hudDrift').textContent=G.drifting?'DRIFT '+Math.round(G.drift)+'m':(G.damage?'HASAR '+G.damage+'/3':'');
   $('#hudCredits').textContent=(G.credits||0).toLocaleString('tr-TR')+' CR';
   $('#hudHearts').textContent='■'.repeat(Math.max(0,3-G.damage))+'□'.repeat(Math.min(3,G.damage));
@@ -2063,6 +2157,7 @@ $('#btnResume').onclick=()=>togglePause();
 $('#btnRestartP').onclick=()=>{ setPauseUI(false); startRun(); };
 $('#btnGarageP').onclick=()=>{ setPauseUI(false); setMode('garage'); };
 $('#btnAgain').onclick=()=>{ hideOver(); startRun(); };
+$('#btnNext').onclick=()=>{ hideOver(); startRun({level:Math.min(LEVELS.length,(state.campLevel||0)+1)}); };
 $('#btnGarage2').onclick=()=>{ hideOver(); setMode('garage'); };
 $('#pauseBtn').onclick=()=>togglePause();
 $('#btnDrive').onclick=()=>setRaceSetup(true);

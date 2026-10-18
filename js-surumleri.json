@@ -88,8 +88,8 @@
     "sha": "921e69d9a33e"
   },
   "js/izleyici.js": {
-    "v": "20261004a",
-    "sha": "cea784ae9a35"
+    "v": "20261018a",
+    "sha": "0e15b6210156"
   },
   "js/kelimelik-online.js": {
     "v": "20261003a",
@@ -112,8 +112,8 @@
     "sha": "a6223fa6be5b"
   },
   "js/lobby-sync.js": {
-    "v": "20261018a",
-    "sha": "2fa210e000fb"
+    "v": "20261018b",
+    "sha": "d95657eccfc4"
   },
   "js/masa-oylama.js": {
     "v": "20261005a",
@@ -188,8 +188,8 @@
     "sha": "6e805a54d7f8"
   },
   "js/tek-kisilik-online.js": {
-    "v": "20261017a",
-    "sha": "c3219277f4e3"
+    "v": "20261018a",
+    "sha": "dd8778392a76"
   },
   "js/tombala-online.js": {
     "v": "20261011a",

@@ -864,6 +864,19 @@ function applyPresetConfig(raw) {
         existing.moveLimitMs = istenenHamle;
         touchedGames.add(t.gameId);
       }
+    } else {
+      /* DOLU masa: isim/tip/oyun süresi oturum bitince değişir; ama HAMLE SÜRESİ
+         kurucu panelinden değişince oynanan masalarda da ANINDA geçerli olur
+         (kurucu isteği): tur sayacı yeni sınırı hemen kullanır. */
+      const istenenHamle = odaHamleMs(t.gameId, t.moveSeconds, existing.durationMinutes);
+      if (Number(existing.moveLimitMs || 0) !== Number(istenenHamle || 0)) {
+        existing.moveLimitMs = istenenHamle;
+        if (existing.okey) existing.okey.turnDeadlineMs = istenenHamle;
+        if (existing.kelimelik) existing.kelimelik.turnLimitMs = istenenHamle;
+        try { emitRoom(existing); } catch (_) {}
+        if (existing.okey) { try { emitOkeyState(existing, 'gameStateUpdated'); } catch (_) {} }
+        touchedGames.add(t.gameId);
+      }
     }
   }
   // Yapılandırmada olmayan BOŞ hazır odaları gerçekten kaldır:
@@ -1127,6 +1140,11 @@ const IZLEME_SECIMLI_OYUNLAR = ['okey', 'okey101', 'pisti', 'batak', 'battleship
 function izlemeSecimliMi(room) {
   return !!room && IZLEME_SECIMLI_OYUNLAR.includes(room.gameId);
 }
+/* TEK KİŞİLİK masa: oyuncu "İzleyici İznini Kaldır" derse kimse izlemeye bağlanamaz. */
+function soloIzleyiciKapali(room) {
+  const p = room && room.solo && room.players && room.players[0];
+  return !!p && p.allowSpectators === false;
+}
 function izleyiciIzinliMi(room, seat) {
   const p = room && room.players.find(x => x.seat === seat);
   return !!p && p.allowSpectators !== false;
@@ -1170,6 +1188,8 @@ function publicRoom(room) {
     players: room.players.map(publicPlayer),
     spectators: spectators.map(publicSpectator),
     spectatorCount: spectators.length,
+    solo: !!room.solo || SOLO_GAMES.includes(room.gameId),
+    spectatorsAllowed: !soloIzleyiciKapali(room),
     readyCount: room.players.filter(p => p.isReady).length,
     /* Hazır süresi sayacı işliyorsa kalan ms. Olay (hazirSayaci) anında
        bildirir; bu alan sayfa yenileyen / yeniden bağlanan oyuncu için
@@ -1192,6 +1212,7 @@ function publicLobbyRoom(room) {
     players: room.players.length,
     playerList: room.players.map(p => ({ name: p.name, isReady: !!p.isReady, color: p.color, uid: p.userId || null })),
     spectatorCount: spectators.length,
+    spectatorsAllowed: !soloIzleyiciKapali(room),
     status: room.status,
     isPrivate: !!room.isPrivate,
     duration: room.durationMinutes,
@@ -2594,6 +2615,7 @@ function buildBoardState(room, opts) {
 }
 
 function emitRoom(room) {
+  if (room && room.status === 'finished' && room.result && !room.__matchRecorded) { try { macSonucunuKaydet(room); } catch (_) {} }
   io.to(room.id).emit('roomUpdated', publicRoom(room));
   emitLobby(room.gameId);
   /* Tek kişilik oyun: izleyici sayısı değişince oyuncunun tarayıcısı haberdar
@@ -3707,7 +3729,7 @@ function removeSpectator(room, spec) {
    görünüme düşerdi ama oyuncunun kararı "beni izlemesin" idi. */
 function izleyicileriCikar(room, seat, oyuncuAdi) {
   if (!room) return 0;
-  const gidecek = (room.spectators || []).filter(x => x.watchSeat === seat);
+  const gidecek = (room.spectators || []).filter(x => room.solo ? true : x.watchSeat === seat);
   if (!gidecek.length) return 0;
   for (const spec of gidecek) {
     room.spectators = (room.spectators || []).filter(s => s !== spec);
@@ -3942,9 +3964,13 @@ function baslatRematch(room) {
   emitRoom(room);
 }
 
-function scheduleRoomReset(room) {
+/* Biten maçın sayaç / turnuva / maç geçmişi / puan kaydı. Her oyunun bitiş yolu
+   scheduleRoomReset'ten geçmediği için (ör. Reversi, Dama, Pişti, Batak satır içi
+   bitişleri) emitRoom de bunu çağırır; bayraklar sayesinde maç YALNIZ BİR KEZ
+   kaydedilir. Böylece üyelerin kazandığı VE kaybettiği her maç puana/istatistiğe
+   ve sıralamaya yansır. */
+function macSonucunuKaydet(room) {
   if (!room) return;
-  cancelRoomReset(room);
   // GERÇEK OYNANMA SAYACI: üye/ziyaretçi ayrımı yok, authApi'den de
   // BAĞIMSIZ — her tamamlanan maç (buradan, tek yoldan geçer) bir kez
   // sayılır. Ana sayfadaki "Popüler Oyunlar" sıralaması ve kartlardaki
@@ -3964,12 +3990,20 @@ function scheduleRoomReset(room) {
     room.__matchRecorded = true;
     try {
       const res = room.result;
-      const winnerName =
+      /* Kazanan koltuk sonuçta yoksa ama puanlar varsa (Batak): en yüksek puan kazanır. */
+      if ((res.winnerSeat === undefined || res.winnerSeat === null) && (res.winner === undefined || res.winner === null) &&
+          Array.isArray(res.scores) && res.scores.length > 1) {
+        const mx = Math.max(...res.scores);
+        if (res.scores.filter(v => v === mx).length === 1) res.winnerSeat = res.scores.indexOf(mx);
+      }
+      let winnerName =
         res.winnerSeat !== undefined && res.winnerSeat !== null
           ? ((room.players.find(p => p.seat === res.winnerSeat) || {}).name || null)
-          : res.winner
+          : (res.winner !== undefined && res.winner !== null && res.winner !== '')
+            /* koltuk 0 da geçerli bir kazanan (eskiden 0 "yok" sayılıp herkes kaybetmiş görünüyordu) */
             ? ((room.players.find(p => p.color === res.winner) || room.players.find(p => p.seat === res.winner) || {}).name || null)
             : null;
+      if (!winnerName && res.winnerName) winnerName = res.winnerName;
       const players = (room.players || []).map(p => ({
         id: p.userId || null,
         name: p.name,
@@ -4012,6 +4046,12 @@ function scheduleRoomReset(room) {
       }));
     } catch (e) { console.warn('maç kaydı atlandı:', e.message); }
   }
+}
+
+function scheduleRoomReset(room) {
+  if (!room) return;
+  cancelRoomReset(room);
+  macSonucunuKaydet(room);
   const roomId = room.id;
   const timer = setTimeout(() => {
     const current = rooms.get(roomId);
@@ -4566,6 +4606,14 @@ io.on('connection', socket => {
     }
     let player = findExistingPlayer(room, socket, userKey);
     let spectator = findExistingSpectator(room, socket, userKey);
+
+    /* TEK KİŞİLİK masada oyuncu izleyici iznini kapattıysa kimse izlemeye giremez. */
+    if (room.solo && !player && soloIzleyiciKapali(room)) {
+      try { socket.leave(roomId); } catch (_) {}
+      socket.roomId = null;
+      socket.emit('joinDenied', { roomId, code: 'spectate_closed', reason: 'Oyuncu izleyici iznini kapattı — bu masayı izleyemezsin.' });
+      return;
+    }
 
     // ÖZEL oda KOLTUK DEVRALMA KORUMASI: istemci userKey'siyle (p.id !==
     // socket.id) bir koltuğa/izleyiciliğe DEVRALMA deniyorsa ve sunucuda

@@ -2431,6 +2431,8 @@ body.gv-app input,body.gv-app textarea,body.gv-app .chat-msgs,body.gv-app .moves
    tahta alanını doldurur. */
 /* Tek kişilik masa: yan sütun (süre/skor/hamle/sohbet/bitiş) hiç yok; oyun alanın TAMAMINI kullanır. */
 #pg-room.tk-solo .game-side,#pg-room.tk-solo #gvEndSlot{display:none!important}
+/* Tek kişilik masada 'Pes Et' yok — yerine izleyici izni düğmesi (izleyici.js) */
+#pg-room.tk-solo #gvResignBtn,#pg-room.tk-solo .gv-resign-btn{display:none!important}
 #pg-room.tk-solo .game-layout{flex-wrap:nowrap}
 #pg-room.tk-solo .game-board-area{flex:1 1 100%;width:100%;max-width:none;min-width:0}
 #pg-room.tk-solo.gv-fs{grid-template-columns:minmax(0,1fr)!important;padding:6px 8px!important}
@@ -7141,7 +7143,7 @@ GV.init();
 <script src="js/app.js?v=20261017a" defer></script>
 <script src="js/games.js?v=20261017a" defer></script>
 <script src="js/utils.js?v=20261017a" defer></script>
-<script src="js/lobby-sync.js?v=20261018a" defer></script>
+<script src="js/lobby-sync.js?v=20261018b" defer></script>
 <script src="js/room-waiting-fix.js?v=20261017a" defer></script>
 <!-- Hamle (sıra) saati: sırası gelen oyuncunun kendi kartında sayar -->
 <!-- Mobil uygulama katmanı: PWA kurulumu, Android geri tuşu, WebView uyarlamaları -->
@@ -7182,7 +7184,7 @@ GV.init();
 <script src="js/passaparola-online.js?v=20261011b" defer></script>
 <script src="js/cenga-online.js?v=20261018a" defer></script>
 <script src="js/langirt-online.js?v=20261018d" defer></script>
-<script src="js/havahokeyi-online.js?v=20261018c" defer></script>
+<script src="js/havahokeyi-online.js?v=20261018d" defer></script>
 <!-- Fark Bulmaca sahneleri: sunucu ile AYNI dosya (js/fark-sahneler.js).
      ⚠ KÖKTE DEĞİL js/ ALTINDA olmak ZORUNDA: sunucu güvenlik gereği yalnız
      js/, css/ ve assets/ klasörlerini yayınlıyor (bkz. server.js statik
@@ -7192,7 +7194,7 @@ GV.init();
 <script src="js/fark-online.js?v=20261011b" defer></script>
 <script src="js/kizmabirader-online.js?v=20261011b" defer></script>
 <script src="js/metropol-online.js?v=20261013b" defer></script>
-<script src="js/tek-kisilik-online.js?v=20261017a" defer></script>
+<script src="js/tek-kisilik-online.js?v=20261018a" defer></script>
 <script src="js/chat.js?v=20260821c" defer></script>
 <script src="js/leave-guard.js?v=20260927c" defer></script>
 <!-- Tarayıcı GERİ/İLERİ tuşu: sayfa geçişleri geçmişe adım bırakır,
@@ -7224,7 +7226,7 @@ GV.init();
 <!-- İZLEYİCİ SİSTEMİ: koltuk seçerek izleme pop-up'ı + oyuncunun
      "İzleyiciye İzin Ver / İznini Kaldır" düğmesi (okey, 101 okey,
      pişti, batak, amiral battı). Oyundan bağımsız çalışır. -->
-<script src="js/izleyici.js?v=20261004a" defer></script>
+<script src="js/izleyici.js?v=20261018a" defer></script>
 <!-- Kullanıcıyı bildir (şikayet) + kişisel susturma -->
 <script src="js/report.js?v=20260920a" defer></script></body>
 </html>

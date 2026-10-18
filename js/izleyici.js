@@ -203,11 +203,13 @@
     return b;
   }
 
+  /* Tek kişilik masa: izin düğmesi var, oyuncu seçim penceresi yok. */
+  var soloOda = false;
   function dugmeYaz() {
     var b = dugmeYerlestir();
     if (!b) return;
     /* Yalnız KOLTUKTAKİ oyuncuya, seçimli oyunlarda, oda sayfasında. */
-    var gorunur = odaSayfasi() && secimliOda && !window.__gvIsSpectator && benimKoltuk !== null;
+    var gorunur = odaSayfasi() && (secimliOda || soloOda) && !window.__gvIsSpectator && benimKoltuk !== null;
     b.style.display = gorunur ? '' : 'none';
     if (!gorunur) return;
     b.textContent = benimIzin ? '👁️ İzleyici İznini Kaldır' : '🚫 İzleyiciye İzin Ver';
@@ -240,7 +242,7 @@
 
   function sifirla() {
     secenekler = []; izlenenKoltuk = null; benimKoltuk = null;
-    benimIzin = true; secimliOda = false; cikariliyor = false;
+    benimIzin = true; secimliOda = false; soloOda = false; cikariliyor = false;
     pencereKapat();
     var b = dugme(); if (b) b.style.display = 'none';
     var r = document.getElementById('gvIzleRozet'); if (r) r.remove();
@@ -294,6 +296,7 @@
     s.on('roomUpdated', function (r) {
       if (!r) return;
       secimliOda = SECIMLI.indexOf(r.gameId) >= 0;
+      soloOda = !!r.solo;
       var ben = (r.players || []).find(function (x) { return x.id === s.id; });
       var izleyiciyim = (r.spectators || []).some(function (x) { return x.id === s.id; });
       if (ben) { benimKoltuk = ben.seat; benimIzin = ben.allowSpectators !== false; }
@@ -311,7 +314,7 @@
 
     s.on('joinedRoom', function (p) {
       cikariliyor = false;
-      if (p && p.room) secimliOda = SECIMLI.indexOf(p.room.gameId) >= 0;
+      if (p && p.room) { secimliOda = SECIMLI.indexOf(p.room.gameId) >= 0; soloOda = !!p.room.solo; }
     });
   }
   function baglaHepsi() {
