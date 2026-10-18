@@ -254,7 +254,7 @@
     s.on('playerConnectionLost', function (p) {
       if (!p) return;
       kopukTemizle();
-      var kalan = Math.max(1, Math.round((Number(p.graceMs) || 30000) / 1000));
+      var kalan = Math.max(1, Math.round((Number(p.graceMs) || 60000) / 1000));
       var ad = esc(p.name || 'Rakip');
       toast('📴 ' + ad + ' bağlantısı koptu. ' + kalan +
             ' sn içinde dönmezse maçı sen kazanacaksın.', 'warning');
@@ -284,6 +284,18 @@
     s.on('rematchStarted', function () { window.__gvRoomStatus = 'playing'; });
 
     // Rakip odadan çıktıysa: rövanş imkânı yok → kısa bir uyarıdan sonra lobi.
+    /* Kopan oyuncu 60 sn içinde dönmediyse hükmen biter: kalan oyuncu lobiye
+       yönlendirilir (bitiş ekranı açık olmasa da). */
+    s.on('gameEnded', function (p) {
+      if (!p || p.reason !== 'player_left' || !p.youWon) return;
+      setTimeout(function () {
+        if (!window.__gvRoomStatus || window.__gvRoomStatus === 'finished') {
+          kutuKapat();
+          toast('Rakip geri dönmedi — maçı kazandın. Lobiye dönülüyor.', 'success');
+          setTimeout(lobiyeDon, 3500);
+        }
+      }, 300);
+    });
     s.on('playerLeft', function () {
       if (!bitisEkraniAcikMi()) return;
       kutuKapat();

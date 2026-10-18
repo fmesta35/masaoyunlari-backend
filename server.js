@@ -180,7 +180,7 @@ const MAX_SPECTATORS = 20;
 // görürken renginin değişmemesi için sonuç bir süre korunur.
 const POST_GAME_HOLD_MS = Number(process.env.GV_POST_GAME_HOLD_MS) || 8000;
 // Oyun sırasında kopan oyuncuya yeniden bağlanması için tanınan süre (ms).
-const RECONNECT_GRACE_MS = Number(process.env.GV_RECONNECT_GRACE_MS) || 30000;
+const RECONNECT_GRACE_MS = Number(process.env.GV_RECONNECT_GRACE_MS) || 60000;
 
 // ==================== SOHBET (masa içi + genel) ====================
 // Kurallar: mesaj GÖNDERMEK üyelere özeldir (misafirler okuyabilir);
@@ -3645,6 +3645,9 @@ function okeyAct(room, socket, act) {
 function findExistingPlayer(room, socket, userKey) {
   if (!room || !Array.isArray(room.players)) return null;
   return room.players.find(p => p.id === socket.id) ||
+    /* Üye girişli oyuncu koptuysa (yeni sekme/cihaz/yenileme, userKey değişmiş
+       olabilir) doğrulanmış userId ile kendi koltuğuna döner. */
+    (socket.userId ? room.players.find(p => p.userId && Number(p.userId) === Number(socket.userId)) : null) ||
     (userKey ? room.players.find(p => p.userKey && p.userKey === userKey) : null) ||
     (socket.userKey ? room.players.find(p => p.userKey && p.userKey === socket.userKey) : null);
 }
@@ -4548,6 +4551,14 @@ io.on('connection', socket => {
     socket.roomId = roomId;
     socket.join(roomId);
 
+    /* Oynanan odaya geri dönüş: kimlik henüz çözülmediyse (yenileme sonrası)
+       koltuk araması için kısa süre beklenir → "oda dolu" yerine kendi koltuğu. */
+    if (room.status === 'playing' && !wantSpectate && !socket.userId &&
+        ((data.memberToken && typeof data.memberToken === 'string') || data.memberAttestation)) {
+      try {
+        await Promise.race([ensureSocketIdentity(data), new Promise(res => setTimeout(res, 800))]);
+      } catch (_) {}
+    }
     let player = findExistingPlayer(room, socket, userKey);
     let spectator = findExistingSpectator(room, socket, userKey);
 
@@ -5978,7 +5989,7 @@ io.on('connection', socket => {
 // ağ kopması, Render uyku/uyanma gibi durumlarda 'disconnect' olayı geç veya
 // hiç düşmeyebilir; bu süpürme gerçek bağlantı durumunu (io.sockets) tek
 // doğru kaynak sayarak lobiyi kendi kendine iyileştirir. 'playing' odalara
-// KESİNLİKLE dokunulmaz — orada 30 sn'lik yeniden bağlanma hakkı işler.
+// KESİNLİKLE dokunulmaz — orada 60 sn'lik yeniden bağlanma hakkı işler.
 function socketAlive(id) {
   const s = id ? io.sockets.sockets.get(id) : null;
   return !!(s && s.connected);

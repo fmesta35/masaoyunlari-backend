@@ -81,7 +81,13 @@
       // Boş koltuğu olan bitmiş odaya normal KATILINABİLİR (sunucu odayı
       // beklemeye alıp koltuk verir); oynanan / dolu odaya yalnızca İZLEYİCİ.
       const canTakeSeat = !playing && !full;
-      const action = !canTakeSeat
+      /* Oyundan düşen ÜYE kendi koltuğuna "Devam Et" ile döner (izleyici değil). */
+      const benimUid = (window.st && st.user && !st.isGuest) ? Number(st.user.id) || 0 : 0;
+      const benimKoltugum = playing && benimUid > 0 && Array.isArray(r.playerList) &&
+        r.playerList.some(p => Number(p.uid) === benimUid);
+      const action = benimKoltugum
+        ? `<button class="btn btn-sm btn-p" onclick="GV.joinRoom('${esc(r.id)}')">▶ Devam Et</button>`
+        : !canTakeSeat
         ? `<button class="btn btn-sm btn-o" onclick="GV.joinRoom('${esc(r.id)}',{spectate:true})">👁️ İzle</button>`
         : `<button class="btn btn-sm ${r.isPrivate ? 'btn-a' : 'btn-p'}" onclick="GV.joinRoom('${esc(r.id)}')">${r.isPrivate ? '🔒 Katıl' : 'Katıl'}</button>`;
       const names = Array.isArray(r.playerList) && r.playerList.length
