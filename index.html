@@ -2429,6 +2429,13 @@ body.gv-app input,body.gv-app textarea,body.gv-app .chat-msgs,body.gv-app .moves
 /* Oyun referans koddaki gibi bir iframe içinde çalışır
    (assets/oyunlar/tek-*.html). Yükseklik alana göre verilir; tam ekranda
    tahta alanını doldurur. */
+/* Tek kişilik masa: yan sütun (süre/skor/hamle/sohbet/bitiş) hiç yok; oyun alanın TAMAMINI kullanır. */
+#pg-room.tk-solo .game-side,#pg-room.tk-solo #gvEndSlot{display:none!important}
+#pg-room.tk-solo .game-layout{flex-wrap:nowrap}
+#pg-room.tk-solo .game-board-area{flex:1 1 100%;width:100%;max-width:none;min-width:0}
+#pg-room.tk-solo.gv-fs{grid-template-columns:minmax(0,1fr)!important;padding:6px 8px!important}
+#pg-room.tk-solo.gv-fs .game-board-area{grid-column:1!important;align-items:stretch;justify-content:stretch}
+#pg-room.tk-solo.gv-fs .game-board-area>*{width:100%;height:100%;max-width:none;max-height:none}
 #pg-room.tk-solo #topTimers,#pg-room.tk-solo .score-panel,#pg-room.tk-solo .card:has(#moveHist),#pg-room.tk-solo .chat:has(#gameChat){display:none!important}
 .tk-wrap{position:relative;width:100%;height:clamp(460px,calc(100vh - 200px),880px);
   border-radius:14px;overflow:hidden;background:#04060c;border:1px solid var(--border)}
