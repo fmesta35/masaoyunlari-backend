@@ -130,7 +130,7 @@
     damga: function (m) { var s = m.state || {}; return 'cenga3d#' + (s.seed || 0); },
 
     render: function () {
-      return '<div class="cg3-wrap"><iframe class="cg3-frame" id="cg3Frame" title="Cenga" allow="fullscreen; autoplay" scrolling="no"></iframe></div>';
+      return '<div class="cg3-wrap"><iframe class="cg3-frame" id="cg3Frame" title="Jenga" allow="fullscreen; autoplay" scrolling="no"></iframe></div>';
     },
 
     bind: function (root, m) {

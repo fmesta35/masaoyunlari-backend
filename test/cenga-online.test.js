@@ -255,7 +255,7 @@ async function onlineTesti() {
 /* ---------------------------------------------------------------- ARAYÜZ */
 function arayuzTesti() {
   const sayfa = oku('index.html');
-  assert.ok(/cenga:\{name:'Cenga'/.test(sayfa), 'oyun listesinde cenga olmalı');
+  assert.ok(/cenga:\{name:'Jenga'/.test(sayfa), 'oyun listesinde cenga olmalı');
   assert.ok(/js\/cenga-online\.js/.test(sayfa), 'istemci adaptörü sayfaya bağlanmalı');
   assert.ok(/\.cg3-wrap\{/.test(sayfa) && /\.cg3-frame\{/.test(sayfa), 'iframe stilleri olmalı');
   assert.ok(/#pg-room\.gv-fs \.cg3-wrap/.test(sayfa), 'tam ekranda alan doldurulmalı');
@@ -273,7 +273,7 @@ function arayuzTesti() {
 
   const oyun = oku('assets/oyunlar/cenga3d.html');
   assert.ok(oyun.length > 500000, 'derlenmiş oyun (three.js + cannon-es) dosyada olmalı');
-  assert.ok(/CENGA/.test(oyun) && /cenga3d/.test(oyun), 'oyun dosyası referans Cenga olmalı');
+  assert.ok(/JENGA/.test(oyun) && /cenga3d/.test(oyun), 'oyun dosyası referans Cenga olmalı');
   assert.ok(/URLSearchParams/.test(oyun) && /gv-ses/.test(oyun), 'çevrimiçi mod ve site ses anahtarı bağlı olmalı');
 
   const sunucu = oku('server.js');
