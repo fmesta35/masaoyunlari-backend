@@ -26,8 +26,10 @@ const DIREK_R = 13;
 const DISK_R = 20;
 const TOKMAK_R = 43;
 const ADIM_SN = 1 / 120;          // sabit fizik adımı
-const TOKMAK_HIZI = 1120;         // birim/sn (imleci takip hızı)
-const DISK_TAVANI = 1450;
+const TOKMAK_HIZI = 1500;         // birim/sn (imleci takip hızı; imleçten geri kalmasın)
+const DISK_TAVANI = 1300;
+const ESNEKLIK = 0.88;            // disk–tokmak esnekliği (<1: durağan tokmakta enerji kazanılmaz)
+const TOKMAK_ETKISI = 0.82;       // tokmak hızının diske aktarılan payı (el + kütle sönümü)
 const GERI_SAYIM_SN = 3;
 
 function kirp(v, a, b) { return Math.max(a, Math.min(b, v)); }
@@ -143,25 +145,27 @@ function tokmaklaCarpis(st, i) {
   const nx = dx / uz, ny = dy / uz;
   d.x = t.x + nx * (enAz + 0.6);
   d.y = t.y + ny * (enAz + 0.6);
+  /* Gerçekçi temas: yalnız YAKINLAŞIRKEN ve YALNIZ çarpışma normali boyunca itme
+     verilir. Tokmak yandan sıyırıp dönerken (teğet hareket) diske güç binmez;
+     eskiden ayrılırken bile ek itme (0.62) uygulanıyordu → "değmeden/aşırı güçle fırlatma". */
   const bx = d.vx - t.vx, by = d.vy - t.vy;
   const bn = bx * nx + by * ny;
   const siddet = Math.max(90, Math.abs(bn));
   if (bn < 0) {
-    /* esneklik 0.92 (<1): durağan tokmağa çarpan disk enerji kazanmaz; eskiden 1.08 idi, her sekmede %8 hızlanıyordu. */
-    const itme = -(0.92 + 1) * bn;
-    d.vx += itme * nx; d.vy += itme * ny;
+    const vdn = d.vx * nx + d.vy * ny;            // diskin normal hızı
+    const tn = (t.vx * nx + t.vy * ny) * TOKMAK_ETKISI;   // tokmağın etkili normal hızı
+    const yeni = (1 + ESNEKLIK) * tn - ESNEKLIK * vdn;
+    d.vx += (yeni - vdn) * nx; d.vy += (yeni - vdn) * ny;
+    /* hafif teğet sürtünme (yalnız gerçek temasta) */
+    const tgx = -ny, tgy = nx;
+    const tgv = t.vx * tgx + t.vy * tgy;
+    d.vx += tgx * tgv * 0.03; d.vy += tgy * tgv * 0.03;
   } else {
-    const tn = t.vx * nx + t.vy * ny;
-    if (tn > 0) { d.vx += tn * nx * 0.62; d.vy += tn * ny * 0.62; }
+    return 0;                                     // ayrılıyor: itme yok (konum düzeltmesi yukarıda yapıldı)
   }
-  /* Teğet sürtünme: yandan sıyıran tokmak diske dönüş veriyor. */
-  const tgx = -ny, tgy = nx;
-  const tgv = t.vx * tgx + t.vy * tgy;
-  d.vx += tgx * tgv * 0.075;
-  d.vy += tgy * tgv * 0.075;
   const hiz = Math.hypot(d.vx, d.vy);
   if (hiz > DISK_TAVANI) { d.vx = (d.vx / hiz) * DISK_TAVANI; d.vy = (d.vy / hiz) * DISK_TAVANI; }
-  if (st.bekle) st.bekle[i] = 0.06;
+  if (st.bekle) st.bekle[i] = 0.03;
   st.temasKim = i; st.temasSn = st.gecenSn;
   return Math.min(1, siddet / 850);
 }
@@ -188,9 +192,9 @@ function gecmisVurus(st, seat, talep, diskGecmis, gecenSn) {
   const enAz = DISK_R + TOKMAK_R;
   if (Math.hypot(diskGecmis.x - m.x, diskGecmis.y - m.y) >= enAz) return false;
   const gecici = { disk: { x: diskGecmis.x, y: diskGecmis.y, vx: diskGecmis.vx, vy: diskGecmis.vy }, tokmak: [m, m] };
-  tokmaklaCarpis(gecici, i);
+  if (!tokmaklaCarpis(gecici, i)) return false;      // ayrılıyor / teğet: vuruş yok
   st.disk.x = gecici.disk.x; st.disk.y = gecici.disk.y; st.disk.vx = gecici.disk.vx; st.disk.vy = gecici.disk.vy;
-  st.bekle[i] = 0.2;
+  st.bekle[i] = 0.04;
   st.temasKim = i; st.temasSn = st.gecenSn;
   olay(st, 'vurus');
   let kalan = kirp(Number(gecenSn) || 0, 0, 0.3);

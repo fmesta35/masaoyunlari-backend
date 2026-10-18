@@ -74,7 +74,7 @@ type G = {
 };
 
 /* Yerel vuruş tahmini: sunucudaki disk–tokmak çarpışmasının (havahokeyi-engine.js) birebir kopyası. */
-const DISK_TAVANI = 1450;
+const DISK_TAVANI = 1300, ESNEKLIK = 0.88, TOKMAK_ETKISI = 0.82;
 function hitDisk(d: { x: number; y: number; vx: number; vy: number }, m: { x: number; y: number }, mvx: number, mvy: number) {
   const R = MALLET_RADIUS + PUCK_RADIUS;
   const dx = d.x - m.x, dy = d.y - m.y; const k2 = dx * dx + dy * dy;
@@ -82,9 +82,11 @@ function hitDisk(d: { x: number; y: number; vx: number; vy: number }, m: { x: nu
   const u = Math.sqrt(k2) || 0.001; const nx = dx / u, ny = dy / u;
   let vx = d.vx, vy = d.vy;
   const bn = (vx - mvx) * nx + (vy - mvy) * ny;
-  if (bn >= 0) return null;                       // uzaklaşıyor: tahmin yok, sunucu karar versin
-  const itme = -1.92 * bn; vx += itme * nx; vy += itme * ny;
-  const tgv = mvx * -ny + mvy * nx; vx += -ny * tgv * 0.075; vy += nx * tgv * 0.075;
+  if (bn >= 0) return null;                       // uzaklaşıyor / teğet: tahmin yok, sunucu karar versin
+  const vdn = vx * nx + vy * ny; const tn = (mvx * nx + mvy * ny) * TOKMAK_ETKISI;
+  const yeni = (1 + ESNEKLIK) * tn - ESNEKLIK * vdn;
+  vx += (yeni - vdn) * nx; vy += (yeni - vdn) * ny;
+  const tgv = mvx * -ny + mvy * nx; vx += -ny * tgv * 0.03; vy += nx * tgv * 0.03;
   const h = Math.hypot(vx, vy); if (h > DISK_TAVANI) { vx = vx / h * DISK_TAVANI; vy = vy / h * DISK_TAVANI; }
   return { x: m.x + nx * (R + 0.6), y: m.y + ny * (R + 0.6), vx, vy };
 }
@@ -332,7 +334,7 @@ export default function Online() {
         }
         if (s.target) {
           const dx = s.target.x - s.me.x, dy = s.target.y - s.me.y; const dist = Math.hypot(dx, dy);
-          const step = Math.min(dist, 1120 * dt);
+          const step = Math.min(dist, 1500 * dt);
           if (dist > 0.001) { s.me.x += (dx / dist) * step; s.me.y += (dy / dist) * step; }
         }
         /* Uzlaşma: sunucudaki tokmak ağ gecikmesi kadar GERİDEDİR; şimdiki tahminle
@@ -375,7 +377,7 @@ export default function Online() {
       if (s.pred && disk) {
         const pr = s.pred; advanceDisk(pr, dt);
         const age = time - pr.t0; const gap = Math.hypot(disk.x - pr.x, disk.y - pr.y);
-        if (pr.h === null && ((age > 150 && gap < 45) || age > 650)) pr.h = time;
+        if (pr.h === null && ((age > 150 && gap < 45) || (age > 260 && gap > 110) || age > 650)) pr.h = time;
         if (pr.h === null) disk = { x: pr.x, y: pr.y, vx: pr.vx, vy: pr.vy };
         else {
           const k = Math.min(1, (time - pr.h) / 160);
