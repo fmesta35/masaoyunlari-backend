@@ -566,7 +566,7 @@ function levelCfg(n){ // 10 DEV harita: her kat belirgin biçimde büyür ve zor
     darts:Math.min(Math.round(size/9)+n,26),
     slows:Math.round(4+size*.18+n*1.2),
     runes:Math.min(2+Math.floor(n/2),5),
-    gates:Math.min(1+Math.floor(n/3),3),
+    gates:Math.min(2+Math.floor(n/2),5),
     markerCap:3+(n-1)*2,                            // 3 → 21 işaretleme hakkı
     time:Math.round((110+size*2.5)*D.t)};
 }
@@ -595,8 +595,15 @@ function genLevel(n){
     if(c) runes.push({x:c.x+.5,y:c.y+.5,got:false,ph:Math.random()*6.28});
   }
   const gates=[]; const gp=shuffle(free.filter(c=>c.open===2&&c.d>4));
+  /* Kapılar mühürlenebilir (yanlış cevap/vazgeç): tüm kapılar kapalıyken bile çıkış ve rünlere
+     yol KALMALI, yoksa oyun kilitlenir. Her aday bu şartla denenir. */
+  const gSol=Uint8Array.from(grid);
+  const reachOK=()=>{ const d=bfs(gSol,GS,1,1); if(d[exitI]<0) return false;
+    for(const r of runes) if(d[Math.floor(r.y)*GS+Math.floor(r.x)]<0) return false; return true; };
   for(let i=0;i<gp.length&&gates.length<cfg.gates;i++){
-    const c=gp[i],k=c.x+','+c.y; if(occ.has(k))continue; occ.add(k);
+    const c=gp[i],k=c.x+','+c.y; if(occ.has(k))continue;
+    gSol[c.y*GS+c.x]=1; if(!reachOK()){ gSol[c.y*GS+c.x]=0; continue; }
+    occ.add(k);
     gates.push({cx:c.x,cy:c.y,open:false,cool:0,state:'locked',r:pick(RIDDLES),ph:Math.random()*6.28});
   }
   const spikes=[]; for(let i=0;i<cfg.spikes;i++){ const c=take(free,c=>c.d>3); if(c) spikes.push({cx:c.x,cy:c.y,ph:Math.random()*3,per:rnd(2.2,3.3)}); }
@@ -1940,15 +1947,10 @@ function sealGate(g){
   L.sol[g.cy*GS+g.cx]=1; L.nav[g.cy*GS+g.cx]=1; L.tex[g.cy*GS+g.cx]=5;
 }
 function pushBack(g){
-  const base=Math.atan2(P.y-(g.cy+.5),P.x-(g.cx+.5));
-  for(const rad of [1.5,2.0,2.6,3.2]){
-    for(let i=0;i<8;i++){
-      const a=base+(i%2?1:-1)*Math.ceil(i/2)*(Math.PI/4);
-      const nx=P.x+Math.cos(a)*rad, ny=P.y+Math.sin(a)*rad;
-      if(nx>.4&&ny>.4&&nx<GS-.4&&ny<GS-.4&&!hits(nx,ny,P.r)){ P.x=nx; P.y=ny; return; }
-    }
-  }
-  P.x=Math.floor(P.x)+.5; P.y=Math.floor(P.y)+.5;
+  /* ESKİ SÜRÜM oyuncuyu duvarların ötesine ışınlıyordu. Artık yerinde kalır, kapıdan yumuşakça uzağa itilir
+     (normal çarpışma kurallarıyla; duvarın içinden geçemez). */
+  let dx=P.x-(g.cx+.5), dy=P.y-(g.cy+.5); const d=Math.hypot(dx,dy)||1;
+  P.vx=dx/d*3.2; P.vy=dy/d*3.2;
 }
 /* DOĞRU CEVAP: çıkışa giden yola bir kestirme duvarı kaz */
 function carveShortcut(){

@@ -1658,8 +1658,9 @@ function initDrive(){
   // traffic templates
   trafficPool=[];
   const DIM={sedan:4.4,suv:4.7,truck:5.3,semi:12.8};
-  const tGeo={},tLight={},tTail={};
+  const tGeo={},tLight={},tTail={},tBox={};
   Object.keys(DIM).forEach(k=>{ tGeo[k]=trafficGeo('#ffffff',k); tLight[k]=trafficGeo('#fff','lights',DIM[k]); tTail[k]=trafficGeo('#fff','tail',DIM[k]); });
+  Object.keys(DIM).forEach(k=>{ tGeo[k].computeBoundingBox(); const bb=tGeo[k].boundingBox; tBox[k]={hw:(bb.max.x-bb.min.x)/2,hl:(bb.max.z-bb.min.z)/2}; });
   const lightMat=new THREE.MeshStandardMaterial({color:'#fff6d8',emissive:'#fff0c0',emissiveIntensity:2.2,toneMapped:false});
   const tlMat=new THREE.MeshStandardMaterial({color:'#ff3b3b',emissive:'#ff2222',emissiveIntensity:2.4,toneMapped:false});
   const trafficMix=['sedan','sedan','suv','sedan','truck','sedan','semi','suv','truck','semi'];
@@ -1669,7 +1670,7 @@ function initDrive(){
     g.add(b);
     const lg=new THREE.Mesh(tLight[type],lightMat); g.add(lg);
     const tg=new THREE.Mesh(tTail[type],tlMat); g.add(tg);
-    g.visible=false; dScene.add(g); trafficPool.push({g,type,active:false,z:0,x:0,sp:0,near:false});
+    g.visible=false; dScene.add(g); trafficPool.push({g,type,active:false,z:0,x:0,sp:0,near:false,bhw:tBox[type].hw,bhl:tBox[type].hl});
   }
   // pickups
   coinIM=new THREE.InstancedMesh(new THREE.CylinderGeometry(.36,.36,.07,14),
@@ -1934,7 +1935,7 @@ function spawnTraffic(){
   t.sp=(t.type==='semi'?5:t.type==='truck'?7:10)+Math.random()*8;
   const hex=TRAFFIC_COLORS[Math.floor(Math.random()*TRAFFIC_COLORS.length)];
   t.g.children[0].material.color.set(hex);
-  const L=t.type==='semi'?12.8:t.type==='truck'?5.3:t.type==='suv'?4.7:4.4; t.len=L; t.hw=Wd(t.type);
+  const L=t.type==='semi'?12.8:t.type==='truck'?5.3:t.type==='suv'?4.7:4.4; t.len=L; t.hw=Wd(t.type); if(t.bhw>0){t.hw=t.bhw; t.len=t.bhl*2;}
   t.g.position.set(t.x,0,t.z);
 }
 const Wd=t=>t==='semi'?1.12:t==='truck'?1.02:(t==='suv'?.98:.95); /* half width for collision checks */
@@ -2056,7 +2057,7 @@ function updateDrive(dt){
   if(Math.abs(G.slideVel)<.22&&!G.drifting)G.slide=Math.max(0,G.slide-dt*26);
   if(G.air<=0&&G.speed>63&&effectiveGrip<.56&&Math.abs(G.steer)>.65&&Math.random()<dt*.30){G.air=.54;popText('TEKERLER HAFİFLEDİ','#fbbf24');}
   if(G.air>0){G.air-=dt;if(G.air<=0){G.air=0;G.speed*=.84;shake(.35);}}
-  if(G.slide>105||(Math.abs(G.px)>XMAX*1.10&&G.speed>52&&effectiveGrip<.58)){startRollover();return;}
+  if(G.slide>105||(Math.abs(G.px)>XMAX*1.16&&G.speed>52&&effectiveGrip<.58)){startRollover();return;}
   if(G.drifting){G.drift+=dt*G.speed*.7;G.score+=dt*G.speed*1.6;if(Math.random()<.8)emit(smokeP,G.px-Math.sign(G.steer)*.85,.27,1.25,(Math.random()-.5)*2,.5,2+Math.random()*3,.55,'#9ca3af');}
   else if(G.drift>0){if(G.drift>24){const bonus=Math.round(G.drift*12);G.score+=bonus;popText('DRIFT +'+bonus,'#e879f9');}G.drift=0;}
   rTex.offset.y-=G.speed*dt/17.7;dWorld.forEach(w=>{w.o.position.z+=G.speed*dt;if(w.recycle(w.o.position.z))w.reset(w.o);});updateCurvedRoad();updateWeather(dt);
@@ -2066,7 +2067,8 @@ function updateDrive(dt){
   trafficPool.forEach(t=>{if(!t.active)return;t.z+=(G.speed-t.sp)*dt;
     t.g.position.set(t.x+roadOffset(t.z),0,t.z);t.g.rotation.y=-Math.atan(trackSlope(G.dist-t.z));
     if(t.z>25){t.active=false;t.g.visible=false;return;}const dx=Math.abs(t.x-G.px),dz=Math.abs(t.z);
-    if(G.inv<=0&&dx<t.hw+1.02&&dz<(t.len/2+2.1)){
+    const pw=((dCar.userData.sp.wid||1.9)/2)*.9, pl=((dCar.userData.sp.len||4.6)/2)*.9; /* gerçek araç ölçüsü, biraz küçültülmüş çarpışma kutusu */
+    if(G.inv<=0&&dx<pw+t.hw*.9&&dz<(pl+t.len/2*.9)){
       const heavy=t.type==='truck'||t.type==='semi';takeDamage(heavy?2:t.type==='suv'?1.35:1,heavy?'truck':'sedan',t.z);
       t.active=false;t.g.visible=false;
     }
