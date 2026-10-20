@@ -13,7 +13,11 @@
  *   - 106 taş: 4 renk × 1-13 × 2 + 2 sahte okey
  *   - Gösterge desteden çekilir, kimseye dağıtılmaz
  *   - Gerçek okey = gösterge + 1 (gösterge 13 ise aynı rengin 1'i)
- *   - Sahte okeyler göstergenin kimliğini alır (normal taş gibi oynanır)
+ *   - Sahte okeyler OKEYİN kimliğini alır (gösterge+1; normal taş gibi oynanır).
+ *     Eskiden göstergenin kimliğini alıyordu: gösterge mavi 13 iken masada
+ *     ÜÇ tane mavi 13 görünüyordu (1 gösterge + 1 gerçek + 2 sahte). Doğru
+ *     dağılım: göstergeyle aynı taştan destede yalnız 1 tane kalır; okeyin
+ *     sayısından 2 gerçek okey (joker) + 2 sahte okey (o sayı yerine) olur.
  *   - Dağıtım: BAŞLAYAN 22, diğerleri 21 taş. Başlayan çekmeden bir taş atar.
  *   - Sıra: taş al (desteden ya da ÖNCEKİ oyuncunun attığından) → istersen
  *     aç / işle → bir taş at
@@ -34,20 +38,35 @@
  *     elde iki okey varken ikisini aynı pere gömme sömürüsünü kapatıyor.)
  *   - Seride 13'ten 1'e dönüş YOKTUR (12-13-1 geçersiz).
  *   - Bir kütte aynı renk iki kez bulunamaz.
- *   - Elde kalan gerçek okeyin cezası 50'dir (üzerindeki sayı değil).
- *   - HİÇ AÇMAMIŞ oyuncunun el cezası İKİYE KATLANIR. Açmayı anlamlı kılan
- *     kural budur; olmazsa beklemek bedava olurdu.
- *   - Maç, bir oyuncunun ceza toplamı sınıra (varsayılan 101) ULAŞINCA biter;
- *     kazanan EN DÜŞÜK toplama sahip oyuncudur.
- *   - Deste biterse el berabere kapanır, kimseye ceza yazılmaz.
+ *
+ * PUANLAMA — standart 101 kuralları (kullanıcı isteği: "okey ile bitme,
+ * çifte bitme vs. normal bitmekten farklı olmalı, normal 101 kurallarına
+ * göre ayarla"). Çarpan m: normal 1 · son taş OKEY atılarak bitiş ×2 ·
+ * ÇİFTLE açıp bitiş ×2 · ikisi birden ×4.
+ *   - Biten oyuncu:            −101 × m
+ *   - Perle açmış oyuncu:      elindeki taş toplamı × m
+ *   - Çiftle açmış oyuncu:     elindeki taş toplamı × 2m
+ *   - Hiç açmamış oyuncu:      202 × min(m, 2)  (202 / 404)
+ *   - ELDEN BİTİŞ (hiç kimse açmadan tek seferde açıp biten): biten −202
+ *     (okeyle −404), diğer herkes 404 (okeyle 808).
+ *   - Elde kalan gerçek okey 101 sayılır.
+ *   - Deste biterse el berabere kapanır; elinde okey kalan her okey için
+ *     101 ceza yazılır, diğerlerine yazılmaz.
+ *   - Maç, masada belirlenen EL SAYISI oynanınca biter; EN DÜŞÜK toplam
+ *     kazanır (puanlar eksiye düşebilir).
+ *   - Açan oyuncu sonraki turlarda masaya YENİ per de koyabilir (101 şartı
+ *     yalnız ilk açılışta); çiftle açan yalnız yeni ÇİFT koyabilir.
  * ========================================================================= */
 
 const COLORS = ['t-red', 't-black', 't-blue', 't-yellow'];
 const CEZA_SINIRI = 101;      // maç bu ceza toplamında biter
 const ACMA_PUANI = 101;       // el açmak için gereken en az per toplamı
 const CIFT_ACMA_ADEDI = 5;    // çift açmada gereken çift sayısı
-const OKEY_CEZASI = 50;       // elde kalan gerçek okeyin ceza puanı
-const ACMAYAN_CARPANI = 2;    // hiç açmamış oyuncunun cezası ×2
+const OKEY_CEZASI = 101;      // elde kalan gerçek okeyin ceza puanı (101 kuralı)
+const ACMAYAN_CARPANI = 2;    // (eski) — açmayan artık sabit 202 alır, bkz. elBitti
+const BITEN_PUANI = -101;     // eli bitirenin puanı (çarpanla)
+const ACMAYAN_CEZASI = 202;   // hiç açmamış oyuncunun cezası (çarpan en fazla ×2)
+const ELDEN_CEZASI = 404;     // elden bitişte diğer herkesin cezası (okeyle ×2)
 
 function freshDeck(idPrefix) {
   const d = [];
@@ -167,6 +186,15 @@ function ciftDogrula(gruplar, realOkey) {
   return { ok: true };
 }
 
+function tekCiftGecerli(ts, realOkey) {
+  ts = (ts || []).filter(Boolean);
+  if (ts.length !== 2) return false;
+  const okeyler = ts.filter(t => isOkey(t, realOkey));
+  if (okeyler.length > 1) return false;
+  if (okeyler.length === 1) return true;
+  return renkOf(ts[0]) === renkOf(ts[1]) && ts[0].n === ts[1].n;
+}
+
 /* ---------------------------------------------------------------------------
  * EL (TUR) KURULUMU
  * ------------------------------------------------------------------------ */
@@ -181,7 +209,7 @@ function startRound(roundNo, seats, scores, rng, starterSeat) {
 
   deck.forEach(t => {
     if (!t.isFJ) t.isOkey = isOkey(t, realOkey);
-    else { t.n = indicator.n; t.dc = indicator.c; }   // sahte okey göstergeye bürünür
+    else { t.n = realOkey.n; t.dc = realOkey.c; }     // sahte okey OKEYE bürünür (gösterge+1)
   });
 
   const starter = (starterSeat !== undefined && seats.includes(starterSeat))
@@ -205,6 +233,9 @@ function startRound(roundNo, seats, scores, rng, starterSeat) {
     discardPiles: Object.fromEntries(seats.map(s => [s, []])),
     melds: [],                        // masadaki açık perler: {id, seat, tur, tiles}
     opened: Object.fromEntries(seats.map(s => [s, false])),
+    acilisTuru: Object.fromEntries(seats.map(s => [s, null])),   // 'per' | 'cift'
+    acilisHamle: Object.fromEntries(seats.map(s => [s, null])),  // hangi turda açtı (elden bitiş için)
+    hamleNo: 0,
     scores: Object.assign({}, scores),
     finished: false,
     result: null,
@@ -274,8 +305,16 @@ function openMelds(state, seat, gruplar, cift) {
   if (state.finished) return { ok: false, reason: 'round_over' };
   if (state.turn !== seat) return { ok: false, reason: 'not_your_turn' };
   if (state.phase !== 'discard') return { ok: false, reason: 'draw_first' };
-  if (state.opened[seat]) return { ok: false, reason: 'already_opened' };
   if (!Array.isArray(gruplar) || !gruplar.length) return { ok: false, reason: 'no_melds' };
+  /* AÇMIŞ oyuncu sonraki turlarda masaya YENİ per koyabilir: 101 şartı
+     aranmaz ama açılış türü korunur (çiftle açan yalnız çift, perle açan
+     yalnız per koyar). */
+  const sonradan = !!state.opened[seat];
+  if (sonradan) {
+    const tur = state.acilisTuru && state.acilisTuru[seat];
+    if (tur === 'cift' && !cift) return { ok: false, reason: 'cift_acan_per_koyamaz' };
+    if (tur === 'per' && cift) return { ok: false, reason: 'per_acan_cift_koyamaz' };
+  }
 
   const tumIdler = [].concat(...gruplar);
   if (new Set(tumIdler).size !== tumIdler.length) return { ok: false, reason: 'duplicate_tile' };
@@ -290,7 +329,12 @@ function openMelds(state, seat, gruplar, cift) {
   const harita = new Map(alinan.map(t => [t.id, t]));
   const obekler = gruplar.map(g => g.map(id => harita.get(id)));
 
-  if (cift) {
+  if (cift && sonradan) {
+    /* Sonradan konan çiftler: adet şartı yok, her çift tek tek sınanır. */
+    for (const o of obekler) {
+      if (!tekCiftGecerli(o, state.realOkey)) { eleGeriKoy(state, seat, alinan); return { ok: false, reason: 'bad_pairs', detail: 'her çift aynı renk ve aynı sayı olmalı' }; }
+    }
+  } else if (cift) {
     const d = ciftDogrula(obekler, state.realOkey);
     if (!d.ok) { eleGeriKoy(state, seat, alinan); return { ok: false, reason: 'bad_pairs', detail: d.sebep }; }
   } else {
@@ -300,7 +344,7 @@ function openMelds(state, seat, gruplar, cift) {
       if (!d.ok) { eleGeriKoy(state, seat, alinan); return { ok: false, reason: 'bad_meld', detail: d.sebep }; }
       toplam += d.puan;
     }
-    if (toplam < ACMA_PUANI) {
+    if (!sonradan && toplam < ACMA_PUANI) {
       eleGeriKoy(state, seat, alinan);
       return { ok: false, reason: 'below_101', puan: toplam, gereken: ACMA_PUANI };
     }
@@ -310,8 +354,12 @@ function openMelds(state, seat, gruplar, cift) {
     const tur = cift ? 'cift' : perDogrula(o, state.realOkey).tur;
     state.melds.push({ id: 'm' + (++state.meldSeq), seat, tur, tiles: o });
   });
-  state.opened[seat] = true;
-  return { ok: true, melds: state.melds.length, puan: cift ? null : obekler.reduce((a, o) => a + perDogrula(o, state.realOkey).puan, 0) };
+  if (!sonradan) {
+    state.opened[seat] = true;
+    state.acilisTuru[seat] = cift ? 'cift' : 'per';
+    state.acilisHamle[seat] = state.hamleNo;
+  }
+  return { ok: true, sonradan, melds: state.melds.length, puan: cift ? null : obekler.reduce((a, o) => a + perDogrula(o, state.realOkey).puan, 0) };
 }
 
 /* İŞLEME — açmış oyuncu, masadaki bir pere elinden taş ekler. */
@@ -352,9 +400,10 @@ function discard(state, seat, tileId) {
       eleGeriKoy(state, seat, alinan);
       return { ok: false, reason: 'not_opened' };
     }
-    elBitti(state, seat);
+    elBitti(state, seat, { okeyle: isOkey(t, state.realOkey) });
     return { ok: true, tile: t, finished: true, result: state.result };
   }
+  state.hamleNo = (state.hamleNo || 0) + 1;
   state.turn = nextSeatOf(state, seat);
   state.phase = 'draw';
   return { ok: true, tile: t };
@@ -363,24 +412,51 @@ function discard(state, seat, tileId) {
 /* ---------------------------------------------------------------------------
  * EL SONU VE PUANLAMA
  * ------------------------------------------------------------------------ */
-function elCezasi(state, seat) {
+/* Elde kalan taşların HAM toplamı (okey 101 sayılır). */
+function elToplami(state, seat) {
   const el = state.hands[seat] || [];
-  let ceza = el.reduce((a, t) => a + cezaDegeri(t, state.realOkey), 0);
-  if (!state.opened[seat]) ceza *= ACMAYAN_CARPANI;
-  return ceza;
+  return el.reduce((a, t) => a + cezaDegeri(t, state.realOkey), 0);
+}
+/* Normal bitişteki (çarpansız) ceza — eski API, testler ve önizleme için. */
+function elCezasi(state, seat) {
+  if (!state.opened[seat]) return ACMAYAN_CEZASI;
+  const ham = elToplami(state, seat);
+  return (state.acilisTuru && state.acilisTuru[seat] === 'cift') ? ham * 2 : ham;
 }
 
-function elBitti(state, kazanan) {
+/* EL BİTTİ — standart 101 puanlaması (bkz. dosya başı). */
+function elBitti(state, kazanan, secenek) {
+  const okeyle = !!(secenek && secenek.okeyle);
+  const ciftle = !!(state.acilisTuru && state.acilisTuru[kazanan] === 'cift');
+  const baskaAcanVar = state.seats.some(s => s !== kazanan && state.opened[s]);
+  const elden = !baskaAcanVar && state.acilisHamle && state.acilisHamle[kazanan] !== null &&
+                state.acilisHamle[kazanan] === state.hamleNo;
+  const m = (okeyle ? 2 : 1) * (ciftle ? 2 : 1);
   const cezalar = {};
-  state.seats.forEach(s => { cezalar[s] = (s === kazanan) ? 0 : elCezasi(state, s); });
+  state.seats.forEach(s => {
+    if (s === kazanan) { cezalar[s] = elden ? (okeyle ? -404 : -202) : BITEN_PUANI * m; return; }
+    if (elden) { cezalar[s] = okeyle ? ELDEN_CEZASI * 2 : ELDEN_CEZASI; return; }
+    if (!state.opened[s]) { cezalar[s] = ACMAYAN_CEZASI * Math.min(m, 2); return; }
+    const ham = elToplami(state, s);
+    const ciftAcan = state.acilisTuru && state.acilisTuru[s] === 'cift';
+    cezalar[s] = ham * m * (ciftAcan ? 2 : 1);
+  });
   state.seats.forEach(s => { state.scores[s] = (state.scores[s] || 0) + cezalar[s]; });
   state.finished = true;
-  state.result = { winner: kazanan, winType: 'finish', cezalar };
+  const winType = elden ? 'elden' : (okeyle && ciftle) ? 'cift_okey' : okeyle ? 'okey' : ciftle ? 'cift' : 'finish';
+  state.result = { winner: kazanan, winType, carpan: elden ? null : m, okeyle, ciftle, elden, cezalar };
 }
 
+/* Deste bitti: el berabere. Elinde gerçek okey kalan her okey için 101. */
 function elBerabere(state) {
+  const cezalar = {};
+  state.seats.forEach(s => {
+    const okeySayisi = (state.hands[s] || []).filter(t => isOkey(t, state.realOkey)).length;
+    cezalar[s] = okeySayisi * OKEY_CEZASI;
+    state.scores[s] = (state.scores[s] || 0) + cezalar[s];
+  });
   state.finished = true;
-  state.result = { winner: null, winType: 'draw', cezalar: Object.fromEntries(state.seats.map(s => [s, 0])) };
+  state.result = { winner: null, winType: 'draw', cezalar };
 }
 
 /* Maç bitti mi? Ceza sınırına ULAŞAN varsa biter, EN DÜŞÜK toplam kazanır. */
@@ -395,6 +471,7 @@ function macBittiMi(scores, seats, sinir) {
 
 module.exports = {
   COLORS, CEZA_SINIRI, ACMA_PUANI, CIFT_ACMA_ADEDI, OKEY_CEZASI, ACMAYAN_CARPANI,
+  BITEN_PUANI, ACMAYAN_CEZASI, ELDEN_CEZASI, elToplami,
   freshDeck, shuffle, isOkey, cezaDegeri, renkOf,
   perDogrula, ciftDogrula,
   startRound, prevSeatOf, nextSeatOf,

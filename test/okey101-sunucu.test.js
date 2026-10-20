@@ -154,7 +154,7 @@ async function main() {
   const son = await bitti;
   const sonuc = (son.gameState && son.gameState.result) || oda.okey.roundState.result || {};
   assert.strictEqual(sonuc.winner, sira, 'son taşı atan eli bitirmeli');
-  assert.strictEqual(sonuc.cezalar[sira], 0, 'bitirene ceza yazılmamalı');
+  assert.ok(sonuc.cezalar[sira] < 0, 'biten −101 (ya da elden −202) almalı: ' + sonuc.cezalar[sira]);
   assert.ok(sonuc.cezalar[1 - sira] > 0, 'bitirmeyene kalan taşlarının cezası yazılmalı');
   console.log('  ✓ 4) işleme çalışıyor, uymayan taş reddediliyor, son atış eli bitiriyor');
 

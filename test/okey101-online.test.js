@@ -161,7 +161,8 @@ async function main() {
     assert.strictEqual(first.kural, '101', 'istemciye gerçek 101 kuralı bildirilir');
     assert.strictEqual(first.cezaSiniri, 101, 'istemciye ceza sınırı gider');
     assert.strictEqual(first.acmaPuani, 101, 'istemciye el açma eşiği gider');
-    assert.strictEqual(first.maxRounds, 99, 'güvenlik el limiti 99 (UI değil kural)');
+    assert.strictEqual(first.maxRounds, Math.max(1, Math.round((room.durationMinutes || 10) / 5)), 'maç masanın el sayısı kadar sürer (standart 101: süre/5)');
+    assert.strictEqual(first.elSayisi, first.maxRounds, 'istemciye el sayısı gider');
     assert.strictEqual(room.okey.variant, 'okey101', 'oda varyantı okey101');
     assert.strictEqual(room.okey.yeni101, true, '101 masası yeni motorda olmalı');
 
@@ -180,7 +181,9 @@ async function main() {
     const kazanacak = seats.find(s => s !== sira0);
     seats.forEach(s => { room.okey.roundState.scores[s] = 60; });
     room.okey.roundState.scores[kazanacak] = 5;
-    room.okey.roundState.scores[sira0] = 105;         // ceza sınırını aşan
+    room.okey.roundState.scores[sira0] = 300;         // biten −101 alsa da en yüksek kalır
+    /* STANDART 101: maç masanın el sayısı kadar sürer → SON el oynanıyor say. */
+    room.okey.currentRound = room.okey.maxRounds;
     const bitti = socks.map(x => once(x, 'gameEnded', 12000));
     // Sırası gelen oyuncunun elini bitir: açmış say, tek taş bırak, at.
     const sira = sira0;
@@ -198,10 +201,10 @@ async function main() {
     room.okey.roundState.phase = 'discard';
     bySeat[sira].socket.emit('okeyDiscard', { roomId: '911', tileId: kalanTas.id });
     const ge = (await Promise.all(bitti))[0];
-    assert.strictEqual(ge.reason, 'completed', 'ceza sınırına ulaşılınca maç biter');
+    assert.strictEqual(ge.reason, 'completed', 'son el bitince maç biter');
     assert.strictEqual(ge.winnerSeat, kazanacak, 'EN DÜŞÜK ceza toplamı kazanır');
     socks.forEach(x => x.close());
-    console.log('  ✓ C) maç ceza sınırında bitiyor ve en düşük toplam kazanıyor');
+    console.log('  ✓ C) maç el sayısı dolunca bitiyor ve en düşük toplam kazanıyor');
   }
 
   server.close();

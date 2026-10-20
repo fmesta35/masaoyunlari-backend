@@ -97,7 +97,7 @@ async function main() {
     const hdr = [...d.querySelectorAll('#boardArea .okey-table > div')]
       .map(x => x.textContent).find(t => t.includes('101 OKEY')) || '';
     assert.ok(hdr.includes('101 OKEY'), 'başlık 101 OKEY: ' + hdr);
-    assert.ok(hdr.includes('Ceza sınırı 101'), 'başlıkta ceza sınırı: ' + hdr);
+    assert.ok(/El 1\/\d+/.test(hdr) && hdr.includes('En düşük puan kazanır'), 'başlıkta el sayısı ve kural: ' + hdr);
     assert.ok(hdr.includes('(4 Kişilik)'), 'başlıkta kişi sayısı: ' + hdr);
     const ok = c.win.st.boards.okey;
     assert.strictEqual(ok.variant, 'okey101', 'state variant=okey101');

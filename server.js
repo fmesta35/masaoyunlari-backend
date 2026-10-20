@@ -2910,6 +2910,15 @@ function startRoomGame(room) {
 //            diğer oyuncuların kalan el puanını SKORA ekler (gained). Maç,
 //            bir oyuncu 101 puana ulaşana kadar sürer (OKEY101_MAX_ROUNDS
 //            güvenlik sınırı).
+/* 101 OKEY EL SAYISI: masa süresine göre (koltuk başına ana saat tüm maç
+   boyunca işler; bir el kabaca 4-5 dk sürer): 10 dk → 2 el, 20 dk → 4 el,
+   30 dk → 6 el. GV_OKEY101_EL ile sabitlenebilir. */
+function okey101ElSayisi(room) {
+  const sabit = Number(process.env.GV_OKEY101_EL);
+  if (sabit > 0) return Math.min(20, Math.floor(sabit));
+  const dk = Math.max(1, Number(room && room.durationMinutes) || 10);
+  return Math.max(1, Math.min(20, Math.round(dk / 5)));
+}
 function startOkey(room) {
   if (!okeyEngine) return; // çağıran zaten kontrol eder; güvence
   if (room.status === 'playing') return;
@@ -2940,7 +2949,10 @@ function startOkey(room) {
     currentRound: 1,
     // Okey 101'de el limiti kullanılmaz (maç 101 puanda biter); standartta
     // oda bazlı el sayısı (masayı kuran / hazır masa tanımı belirler).
-    maxRounds: variant === 'okey101' ? OKEY101_MAX_ROUNDS : (room.okeyMaxRounds || OKEY_MAX_ROUNDS),
+    /* GERÇEK 101: maç, masanın EL SAYISI kadar sürer (standart 101 kuralı;
+       puanlar eksiye düşebildiği için "101 ceza sınırı" artık kullanılmaz). */
+    maxRounds: yeni101 ? okey101ElSayisi(room)
+      : variant === 'okey101' ? OKEY101_MAX_ROUNDS : (room.okeyMaxRounds || OKEY_MAX_ROUNDS),
     // Koltuk başına ANA süre (masa süresi 10/15/20 dk, herkesinki ayrı).
     clockMs: Object.fromEntries(seats.map(s => [s, room.durationMinutes * 60 * 1000])),
     clockStartedAt: now(),
@@ -3003,9 +3015,12 @@ function buildOkeyState(room, forSeat) {
       id: m.id, seat: m.seat, tur: m.tur, tiles: m.tiles.slice()
     }));
     state.opened = Object.assign({}, st8.opened);
+    state.acilisTuru = Object.assign({}, st8.acilisTuru || {});
     state.acmaPuani = okey101Engine.ACMA_PUANI;
     state.ciftAdedi = okey101Engine.CIFT_ACMA_ADEDI;
     state.cezaSiniri = Number(room.okeyTarget) > 0 ? Number(room.okeyTarget) : okey101Engine.CEZA_SINIRI;
+    state.elSayisi = ok.maxRounds;          // maç bu kadar el sürer (standart 101)
+    state.sonElSonucu = st8.result || null; // el sonu puan dökümü (çarpan, bitiş türü)
   }
   // Kendi eli yalnızca sahibine gider.
   if (forSeat !== null && forSeat !== undefined && st8.hands[forSeat]) {
@@ -3218,10 +3233,14 @@ function okeyRoundFinished(room) {
   if (yeni101Mi(room)) {
     /* GERÇEK 101: puanlar CEZA'dır, motor el sonunda zaten ekledi. Maç,
        biri ceza sınırına ulaşınca biter ve EN DÜŞÜK toplam kazanır. */
-    const sinir = Number(room.okeyTarget) > 0 ? Number(room.okeyTarget) : okey101Engine.CEZA_SINIRI;
-    const mac = okey101Engine.macBittiMi(ok.roundState.scores, ok.roundState.seats, sinir);
-    ok.macSonucu = mac || null;
-    matchOver = !!mac || ok.currentRound >= ok.maxRounds;
+    /* GERÇEK 101 (standart kural): maç masanın EL SAYISI oynanınca biter,
+       EN DÜŞÜK toplam kazanır. Puanlar eksiye düşebilir (biten −101). */
+    matchOver = ok.currentRound >= ok.maxRounds;
+    if (matchOver) {
+      let en = Infinity, kazanan = null;
+      ok.roundState.seats.forEach(s => { const v = ok.roundState.scores[s] || 0; if (v < en) { en = v; kazanan = s; } });
+      ok.macSonucu = { winner: kazanan, score: en };
+    } else ok.macSonucu = null;
   } else if (is101) {
     const target = okeyEngine.OKEY101_TARGET || 101;
     const someoneReached = Object.keys(ok.roundState.scores).some(

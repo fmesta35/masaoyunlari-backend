@@ -96,9 +96,16 @@ console.log('  ✓ 5) dağıtım 2/3/4 kişide 22-21, 106 taş eksiksiz, başlay
   const sahteler = [].concat(...Object.values(st.hands), st.deck).filter(t => t.isFJ);
   assert.strictEqual(sahteler.length, 2, 'destede 2 sahte okey olmalı');
   sahteler.forEach(t => {
-    assert.strictEqual(t.n, st.indicator.n, 'sahte okey göstergenin sayısını alır');
-    assert.strictEqual(t.dc, st.indicator.c, 'sahte okey göstergenin rengini alır');
+    /* DÜZELTME (kullanıcı raporu: "gösterge mavi 13 iken 3 tane mavi 13
+       oldu"): sahte okey GÖSTERGENİN değil OKEYİN yerine geçer. */
+    assert.strictEqual(t.n, st.realOkey.n, 'sahte okey okeyin sayısını alır (gösterge+1)');
+    assert.strictEqual(t.dc, st.realOkey.c, 'sahte okey okeyin rengini alır');
   });
+  // Göstergeyle aynı taştan oyunda (el + deste) yalnız 1 tane kalmalı.
+  const hepsi = [].concat(...Object.values(st.hands), st.deck);
+  const ayni = hepsi.filter(t => !t.isFJ && t.c === st.indicator.c && t.n === st.indicator.n).length +
+               hepsi.filter(t => t.isFJ && t.dc === st.indicator.c && t.n === st.indicator.n).length;
+  assert.strictEqual(ayni, 1, 'göstergenin eşi oyunda yalnız 1 tane olmalı');
 }
 console.log('  ✓ 6) okey = gösterge+1, sahte okeyler göstergeye bürünüyor');
 
@@ -197,28 +204,95 @@ console.log('  ✓ 9) işleme: uyan taş ekleniyor, uymayan reddediliyor, açmay
              T('t-black', 4), T('t-black', 5), T('t-black', 6),
              T('t-black', 1)];
   const st = elKur(a);
-  st.hands[1] = [T('t-red', 9), T('t-blue', 4), OK()];     // 9 + 4 + okey(50) = 63
+  st.hands[1] = [T('t-red', 9), T('t-blue', 4), OK()];     // 9 + 4 + okey(101) = 114
   st.opened[1] = true;                                      // açmış: katlanmaz
   E.openMelds(st, 0, [[a[0].id, a[1].id, a[2].id], [a[3].id, a[4].id, a[5].id],
                       [a[6].id, a[7].id, a[8].id], [a[9].id, a[10].id, a[11].id]]);
   const s = E.discard(st, 0, a[12].id);
   assert.ok(s.ok && s.finished, 'son taş atılınca el bitmeli');
   assert.strictEqual(st.result.winner, 0, 'bitiren 0. koltuk olmalı');
-  assert.strictEqual(st.result.cezalar[0], 0, 'bitirene ceza yazılmaz');
-  assert.strictEqual(st.result.cezalar[1], 63, 'kalan taşlar ceza: 9+4+okey(50) = 63');
-  assert.strictEqual(st.scores[1], 63, 'ceza toplam puana eklenmeli');
+  assert.strictEqual(st.result.cezalar[0], -101, 'normal bitişte biten −101 alır');
+  assert.strictEqual(st.result.winType, 'finish');
+  assert.strictEqual(st.result.cezalar[1], 114, 'kalan taşlar ceza: 9+4+okey(101) = 114');
+  assert.strictEqual(st.scores[1], 114, 'ceza toplam puana eklenmeli');
+}
+// 10b) OKEY ATARAK BİTİŞ: ×2 (biten −202), hiç açmayan 404
+{
+  const a = [T('t-red', 10), T('t-red', 11), T('t-red', 12),
+             T('t-blue', 7), T('t-blue', 8), T('t-blue', 9),
+             T('t-yellow', 12), T('t-red', 12), T('t-blue', 12),
+             T('t-black', 4), T('t-black', 5), T('t-black', 6), OK()];
+  const st = E.startRound(1, [0, 1, 2], {}, () => 0.5, 0);
+  st.realOkey = OKEY; st.turn = 0; st.phase = 'discard';
+  st.hands[0] = a.slice();
+  st.hands[1] = [T('t-red', 3), T('t-blue', 4)];  st.opened[1] = true; st.acilisTuru[1] = 'per';
+  st.hands[2] = [T('t-red', 5)];                   // hiç açmamış
+  E.openMelds(st, 0, [[a[0].id, a[1].id, a[2].id], [a[3].id, a[4].id, a[5].id],
+                      [a[6].id, a[7].id, a[8].id], [a[9].id, a[10].id, a[11].id]]);
+  const s2 = E.discard(st, 0, a[12].id);
+  assert.ok(s2.finished && st.result.winType === 'okey', 'okey atarak bitiş tanınmalı');
+  assert.strictEqual(st.result.cezalar[0], -202, 'okeyle biten −202');
+  assert.strictEqual(st.result.cezalar[1], 14, 'açmış oyuncu (3+4)×2 = 14');
+  assert.strictEqual(st.result.cezalar[2], 404, 'hiç açmayan 404');
+}
+// 10c) ÇİFTLE AÇIP BİTİŞ: ×2; çiftle açan rakip ×4
+{
+  const st = E.startRound(1, [0, 1, 2], {}, () => 0.5, 0);
+  st.realOkey = OKEY; st.turn = 0; st.phase = 'discard';
+  const p = [T('t-red', 2), T('t-red', 2), T('t-blue', 5), T('t-blue', 5), T('t-black', 9), T('t-black', 9),
+             T('t-yellow', 11), T('t-yellow', 11), T('t-red', 13), T('t-red', 13), T('t-blue', 1)];
+  st.hands[0] = p.slice();
+  st.hands[1] = [T('t-red', 6)]; st.opened[1] = true; st.acilisTuru[1] = 'per';
+  st.hands[2] = [T('t-blue', 3)]; st.opened[2] = true; st.acilisTuru[2] = 'cift';
+  const ac = E.openMelds(st, 0, [[p[0].id, p[1].id], [p[2].id, p[3].id], [p[4].id, p[5].id], [p[6].id, p[7].id], [p[8].id, p[9].id]], true);
+  assert.ok(ac.ok, '5 çiftle açılmalı');
+  const s3 = E.discard(st, 0, p[10].id);
+  assert.ok(s3.finished && st.result.winType === 'cift', 'çiftle bitiş tanınmalı');
+  assert.strictEqual(st.result.cezalar[0], -202, 'çiftle biten −202');
+  assert.strictEqual(st.result.cezalar[1], 12, 'perle açmış rakip 6×2 = 12');
+  assert.strictEqual(st.result.cezalar[2], 12, 'çiftle açmış rakip 3×4 = 12');
+}
+// 10d) ELDEN BİTİŞ: kimse açmadan tek seferde aç + bit → biten −202, diğerleri 404
+{
+  const a = [T('t-red', 10), T('t-red', 11), T('t-red', 12),
+             T('t-blue', 7), T('t-blue', 8), T('t-blue', 9),
+             T('t-yellow', 12), T('t-red', 12), T('t-blue', 12),
+             T('t-black', 4), T('t-black', 5), T('t-black', 6), T('t-black', 1)];
+  const st = elKur(a);
+  const ac = E.openMelds(st, 0, [[a[0].id, a[1].id, a[2].id], [a[3].id, a[4].id, a[5].id],
+                      [a[6].id, a[7].id, a[8].id], [a[9].id, a[10].id, a[11].id]]);
+  assert.ok(ac.ok);
+  E.discard(st, 0, a[12].id);
+  assert.strictEqual(st.result.winType, 'elden', 'elden bitiş tanınmalı');
+  assert.strictEqual(st.result.cezalar[0], -202);
+  assert.strictEqual(st.result.cezalar[1], 404);
+}
+// 10e) SONRADAN PER: açmış oyuncu sonraki turda 101 şartı olmadan yeni per koyar;
+//      çiftle açan yalnız çift koyabilir
+{
+  const st = E.startRound(1, [0, 1], {}, () => 0.5, 0);
+  st.realOkey = OKEY; st.turn = 0; st.phase = 'discard';
+  const h = [T('t-red', 1), T('t-red', 2), T('t-red', 3), T('t-blue', 4), T('t-blue', 4), T('t-black', 9)];
+  st.hands[0] = h.slice(); st.opened[0] = true; st.acilisTuru[0] = 'per';
+  const r1 = E.openMelds(st, 0, [[h[0].id, h[1].id, h[2].id]]);
+  assert.ok(r1.ok && r1.sonradan, 'açmış oyuncu 6 puanlık yeni peri koyabilmeli');
+  const r2 = E.openMelds(st, 0, [[h[3].id, h[4].id]], true);
+  assert.strictEqual(r2.reason, 'per_acan_cift_koyamaz', 'perle açan çift koyamaz');
+  st.acilisTuru[0] = 'cift';
+  const r3 = E.openMelds(st, 0, [[h[3].id, h[4].id]], true);
+  assert.ok(r3.ok, 'çiftle açan yeni çift koyabilmeli');
 }
 {
-  // AÇMAMIŞ oyuncunun cezası ikiye katlanır
+  // AÇMAMIŞ oyuncu sabit 202 ceza alır
   const st = E.startRound(1, [0, 1], {}, () => 0.5, 0);
   st.realOkey = OKEY;
   st.hands[1] = [T('t-red', 9), T('t-blue', 4)];            // 13
   st.opened[1] = false;
-  assert.strictEqual(E.elCezasi(st, 1), 26, 'açmayanın cezası ikiye katlanmalı (13 → 26)');
-  st.opened[1] = true;
-  assert.strictEqual(E.elCezasi(st, 1), 13, 'açmışın cezası katlanmaz');
+  assert.strictEqual(E.elCezasi(st, 1), 202, 'açmayanın cezası 202');
+  st.opened[1] = true; st.acilisTuru[1] = 'per';
+  assert.strictEqual(E.elCezasi(st, 1), 13, 'açmışın cezası elindeki taşlar');
 }
-console.log('  ✓ 10) bitiş ve ceza: okey 50, açmayana ×2, bitirene 0');
+console.log('  ✓ 10) puanlama: biten −101, okeyle/çiftle ×2, elden 404, açmayan 202, okey 101');
 
 // ---------- 11) AÇMADAN BİTİLEMEZ / ATACAK TAŞ KALMALI ----------
 {
@@ -264,7 +338,9 @@ console.log('  ✓ 11) atacak taş bırakmadan açılamıyor');
   const d = E.drawFromDeck(st, 1);
   assert.ok(d.deckEmpty && st.finished, 'deste bitince el kapanmalı');
   assert.strictEqual(st.result.winType, 'draw', 'beraberlik olmalı');
-  assert.strictEqual(st.result.cezalar[0], 0, 'beraberlikte ceza yazılmaz');
+  const okeyliMi = s => (st.hands[s] || []).filter(t => E.isOkey(t, st.realOkey)).length * 101;
+  assert.strictEqual(st.result.cezalar[0], okeyliMi(0), 'beraberlikte yalnız elde kalan okey 101 ceza');
+  assert.strictEqual(st.result.cezalar[1], okeyliMi(1));
 }
 console.log('  ✓ 12) çekme kaynakları, çift çekme engeli, deste bitince beraberlik');
 

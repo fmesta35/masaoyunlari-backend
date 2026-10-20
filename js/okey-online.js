@@ -353,7 +353,7 @@
     /* 101'de puanlar CEZA'dır: amaç yüksek değil DÜŞÜK toplam. Başlıkta
        "Hedef 101" yazmak tersini düşündürüyordu. */
     const hdrTxt = gercek101(gs)
-      ? `🔢 101 OKEY • El ${ok.currentRound} (${map.N} Kişilik) • Ceza sınırı ${gs.cezaSiniri || 101} — `
+      ? `🔢 101 OKEY • El ${ok.currentRound}/${gs.elSayisi || '?'} (${map.N} Kişilik) • En düşük puan kazanır — `
       : ok.variant === 'okey101'
       ? `🔢 OKEY 101 • El ${ok.currentRound} (${map.N} Kişilik) • Hedef ${ok.target || 101} — `
       : `El ${ok.currentRound}/${ok.maxRounds} (${map.N} Kişilik) • `;
@@ -437,7 +437,9 @@
 
     /* 101'de "Kontrol" (14 taşım per mi?) kavramı yok; onun yerine EL AÇ. */
     const ilkDugme = gercek101(gs)
-      ? `<button class="ok-act" onclick="GV._ok101Ac()"${(gs.opened && gs.opened[mySeat]) ? ' disabled title="Zaten açtın — taşları perlere işleyebilirsin"' : ''}>🎴 El Aç</button>`
+      ? ((gs.opened && gs.opened[mySeat])
+          ? `<button class="ok-act" onclick="GV._ok101Ac()" title="Açtın — masaya yeni ${(gs.acilisTuru && gs.acilisTuru[mySeat] === 'cift') ? 'çift' : 'per'} koyabilir ya da taşını mevcut perlere işleyebilirsin">🎴 ${(gs.acilisTuru && gs.acilisTuru[mySeat] === 'cift') ? 'Çift Koy' : 'Per Koy'}</button>`
+          : `<button class="ok-act" onclick="GV._ok101Ac()">🎴 El Aç</button>`)
       : '<button class="ok-act" onclick="GV._okCheck()">✅ Kontrol</button>';
     h += `<div class="ok-actions"${isSpectator ? ' style="display:none"' : ''}>
       ${ilkDugme}
@@ -598,8 +600,26 @@
   const WIN_TEXT = { standard: 'Normal bitiş', pairs: '🔥 Çifte gitti!', okey: '🃏 Okey atarak bitirdi!', draw: 'Deste bitti', '101': '💯 101 puana ulaştı!' };
   function handleRoundEnded(gs) {
     const res = gs.result || {};
+    const cz = res.cezalar || {};
+    const dokum = gercek101(gs)
+      ? (gs.seats || []).map(s2 => `${dispNameEsc(s2)}: ${cz[s2] > 0 ? '+' : ''}${cz[s2] || 0}`).join('  •  ')
+      : '';
     if (res.winType === 'draw' || res.winner === null || res.winner === undefined) {
-      roundInfo = { round: gs.round, title: '🤝 El Berabere', desc: 'Deste bitti — kimse puan alamadı.' };
+      roundInfo = { round: gs.round, title: '🤝 El Berabere',
+        desc: gercek101(gs) ? `Deste bitti. Elinde okey kalana 101 ceza.<br>Bu el — ${dokum}` : 'Deste bitti — kimse puan alamadı.' };
+    } else if (gercek101(gs)) {
+      /* 101 PUANLAMASI: bitiş türü + çarpan + bu elin puan dökümü. */
+      const nm = (res.winner === mySeat && !isSpectator) ? '🏆 Eli BİTİRDİNİZ!' : `🏆 ${esc(playerName(res.winner))} eli bitirdi!`;
+      const TUR = {
+        finish: 'Normal bitiş (biten −101)',
+        okey: '🃏 OKEY atarak bitti — puanlar ×2 (biten −202)',
+        cift: '👯 ÇİFTLE bitti — puanlar ×2 (biten −202)',
+        cift_okey: '👯🃏 Çiftle + okey atarak bitti — puanlar ×4 (biten −404)',
+        elden: '⚡ ELDEN bitti — diğer herkese 404' + (res.okeyle ? '×2' : '') + ' ceza'
+      };
+      const sLine = (gs.seats || []).map(s2 => `${dispNameEsc(s2)}: ${gs.scores?.[s2] || 0}`).join('  •  ');
+      roundInfo = { round: gs.round, title: nm,
+        desc: `${TUR[res.winType] || ''}<br>Bu el — ${dokum}<br>Toplam — ${sLine}` };
     } else {
       const nm = (res.winner === mySeat && !isSpectator) ? '🏆 Eli KAZANDINIZ!' : `🏆 ${esc(playerName(res.winner))} eli kazandı!`;
       const sLine = (gs.seats || []).map(s2 => `${dispNameEsc(s2)}:${gs.scores?.[s2] || 0}`).join('  •  ');
@@ -628,7 +648,7 @@
     if (reason === 'completed') {
       title = iWon ? '🏆 MAÇI KAZANDINIZ!' : '🏁 MAÇ BİTTİ';
       desc = isSpectator ? `${esc(winnerName)} maçı kazandı.`
-        : iWon ? '🎉 Tebrikler, en yüksek skoru siz yaptınız!' : `💔 ${esc(winnerName)} maçı kazandı.`;
+        : iWon ? (gercek101(gameState) ? '🎉 Tebrikler, en düşük puan sizde!' : '🎉 Tebrikler, en yüksek skoru siz yaptınız!') : `💔 ${esc(winnerName)} maçı kazandı.`;
     } else if (reason === 'player_left') {
       title = '🚪 OYUN TERK EDİLDİ';
       desc = isSpectator ? `Bir oyuncu ayrıldı. ${esc(winnerName)} kazandı.`
@@ -885,14 +905,20 @@
      Yerel tahta modeli taşıyamazsa elin tamamı tek sıra olarak döner —
      o zaman algılama bir şey bulamaz, elle kurma yolu açık kalır. */
   function ok101Raflar() {
-    const ok = (window.st && st.boards && st.boards.okey) || null;
-    if (!ok || !Array.isArray(ok.rack)) return [ok101Elim()];
+    /* HATA (kullanıcı raporu: "Eli aç dediğimde oyun perleri algılamıyor"):
+       eskiden burada `Array.isArray(st.boards.okey.rack)` soruluyordu; oysa
+       raf bir DİZİ değil {0:[...],1:[...]} nesnesi. Sınama hep yanlış çıkıyor,
+       elin tamamı TEK SIRA (sunucu sırasıyla, boşluksuz) gönderiliyordu ve
+       hiçbir per bulunamıyordu. Artık ıstakanın gerçek dizilimi doğrudan
+       yerel yerleşimden (rackIds — ekranda görülen gözler) okunur. */
     const elde = {};
     ok101Elim().forEach(t => { elde[t.id] = t; });
+    const ids = (typeof rackIds !== 'undefined' && rackIds) ? rackIds : null;
+    if (!ids || !ids[0] || !ids[1]) return [ok101Elim()];
     /* Üst raf önce: oyuncu perlerini genelde yukarıdan aşağı dizer. Yerel
        taş nesnesi yerine SUNUCUNUN taşı kullanılır (okey/sahte okey
        bayrakları orada doğrudur). */
-    return [1, 0].map(sh => (ok.rack[sh] || []).map(t => (t && elde[t.id]) ? elde[t.id] : null));
+    return [1, 0].map(sh => (ids[sh] || []).map(id => (id && elde[id]) ? elde[id] : null));
   }
   function ok101Puan(tiles) {
     /* Pencerede gösterilen tahmini puan. Okeyin temsil ettiği sayı sunucuda
@@ -975,10 +1001,9 @@
     window.GV._ok101Ac = function () {
       if (!onlineActive()) return;
       if (!gercek101(gameState)) return;
-      if (gameState.opened && gameState.opened[gameState.mySeat]) {
-        toast('🎴 Zaten açtın — taşını seçip masadaki bir pere dokunarak işleyebilirsin.', 'info');
-        return;
-      }
+      /* AÇMIŞ oyuncu: aynı pencere "yeni per / çift koy" kipinde açılır
+         (101 şartı yok). Tek taş işlemek için yine masadaki pere dokunulur. */
+      const acmis = !!(gameState.opened && gameState.opened[gameState.mySeat]);
       if (!myTurnNow()) { toast('⏳ Sıra sizde değil!', 'warning'); return; }
       if (gameState.phase !== 'discard') { toast('🀄 Önce taş çekmelisin.', 'warning'); return; }
       if (!window.GVOkey101Ac) { toast('⚠️ Açma penceresi yüklenemedi, sayfayı yenileyin.', 'error'); return; }
@@ -992,6 +1017,8 @@
         realOkey: gameState.realOkey,
         acmaPuani: gameState.acmaPuani || 101,
         ciftAdedi: gameState.ciftAdedi || 5,
+        sonradan: acmis,
+        acilisTuru: (gameState.acilisTuru && gameState.acilisTuru[gameState.mySeat]) || null,
         puanla: ok101Puan,
         gonder: onlineOpen
       });

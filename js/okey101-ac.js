@@ -198,10 +198,17 @@
     h += '<button type="button" class="ok101a-x" data-act="kapat">✕</button>';
     h += '</div>';
 
-    h += '<div class="ok101a-kip">';
-    h += '<button type="button" class="ok101a-sek' + (d.cift ? '' : ' etkin') + '" data-act="kip-per">Perle aç (en az ' + d.acmaPuani + ')</button>';
-    h += '<button type="button" class="ok101a-sek' + (d.cift ? ' etkin' : '') + '" data-act="kip-cift">' + d.ciftAdedi + ' çiftle aç</button>';
-    h += '</div>';
+    /* SONRADAN PER KOYMA (açmış oyuncu): kip seçilemez — çiftle açan yalnız
+       çift, perle açan yalnız per koyar; 101 / 5 çift şartı aranmaz. */
+    if (d.sonradan) {
+      h += '<div class="ok101a-kip"><span class="ok101a-sek etkin" style="cursor:default">' +
+           (d.cift ? '👯 Masaya yeni çift koy' : '🎴 Masaya yeni per koy') + '</span></div>';
+    } else {
+      h += '<div class="ok101a-kip">';
+      h += '<button type="button" class="ok101a-sek' + (d.cift ? '' : ' etkin') + '" data-act="kip-per">Perle aç (en az ' + d.acmaPuani + ')</button>';
+      h += '<button type="button" class="ok101a-sek' + (d.cift ? ' etkin' : '') + '" data-act="kip-cift">' + d.ciftAdedi + ' çiftle aç</button>';
+      h += '</div>';
+    }
 
     h += '<div class="ok101a-ozet' + (yeter ? ' tamam' : '') + '">';
     h += d.cift
@@ -277,6 +284,26 @@
       g.forEach(function (t) { d.kullanilan.push(t.id); kullanilanTas++; });
       eklenen++;
     });
+    /* ÇİFT KİPİ: çiftler ıstakada yan yana dizilmemiş olsa da bulunur
+       (kullanıcı isteği: "çift perlerin otomatik algılandığından emin ol").
+       Aynı renk + aynı sayı taşlar elin her yerinden eşlenir. */
+    if (d.cift) {
+      var bos = d.eller.filter(function (t) { return d.kullanilan.indexOf(t.id) === -1 && !okeyMi(t, d.realOkey); });
+      var kume = {};
+      bos.forEach(function (t) {
+        var k = renkOf(t) + ':' + t.n;
+        (kume[k] = kume[k] || []).push(t);
+      });
+      Object.keys(kume).forEach(function (k) {
+        var l = kume[k];
+        while (l.length >= 2) {
+          var cift2 = [l.shift(), l.shift()];
+          d.perler.push(cift2);
+          cift2.forEach(function (t) { d.kullanilan.push(t.id); kullanilanTas++; });
+          eklenen++;
+        }
+      });
+    }
     if (!sessiz || eklenen) {
       /* GEÇERSİZ dizilimler de gösterilir (kırmızı, sebebiyle): oyuncu niyet
        ettiği perde hata yaptıysa görsün, ✕ ile taş çıkarıp ya da "＋ ekle"
@@ -308,7 +335,7 @@
     var act = t.getAttribute('data-act');
 
     if (act === 'kapat') return kapat();
-    if (act === 'kip-per' || act === 'kip-cift') {
+    if ((act === 'kip-per' || act === 'kip-cift') && !d.sonradan) {
       d.cift = (act === 'kip-cift');
       d.perler = []; d.sepet = []; d.kullanilan = [];
       d.algiNot = '';
@@ -410,11 +437,12 @@
         : [(secenek.eller || []).slice()],
       algiNot: '',
       realOkey: secenek.realOkey,
-      acmaPuani: Number(secenek.acmaPuani) || 101,
-      ciftAdedi: Number(secenek.ciftAdedi) || 5,
+      sonradan: !!secenek.sonradan,
+      acmaPuani: secenek.sonradan ? 1 : (Number(secenek.acmaPuani) || 101),
+      ciftAdedi: secenek.sonradan ? 1 : (Number(secenek.ciftAdedi) || 5),
       puanla: secenek.puanla || function () { return 0; },
       gonder: secenek.gonder || function () {},
-      cift: false,
+      cift: !!(secenek.sonradan && secenek.acilisTuru === 'cift'),
       perler: [],
       sepet: [],
       kullanilan: []
@@ -432,6 +460,24 @@
     /* Pencere açılır açılmaz ıstakadaki dizilim perlere çevrilir: kullanıcı
        isteği "otomatik algılayan ve gruplar halinde açılmasını sağlayacak". */
     algila(true);
+    /* OTOMATİK KİP: perlerle 101'e ulaşılamıyor ama ıstakada 5 çift varsa
+       pencere kendiliğinden ÇİFT kipine geçer (oyuncu çifte gidiyor). */
+    if (!durum.sonradan && !durum.cift) {
+      var d0 = durum;
+      var perToplam = d0.perler.reduce(function (a, p) {
+        var g = perDogrula(p, d0.realOkey); return a + (g.ok ? d0.puanla(p) : 0);
+      }, 0);
+      if (perToplam < d0.acmaPuani) {
+        var yedek = { perler: d0.perler, kullanilan: d0.kullanilan, algiNot: d0.algiNot };
+        d0.cift = true; d0.perler = []; d0.kullanilan = []; d0.algiNot = '';
+        algila(true);
+        if (d0.perler.length >= d0.ciftAdedi) {
+          d0.algiNot = '👯 Istakanda ' + d0.perler.length + ' çift var — çiftle açma kipine geçildi. Perle açmak için üstteki sekmeye dokun.';
+        } else {
+          d0.cift = false; d0.perler = yedek.perler; d0.kullanilan = yedek.kullanilan; d0.algiNot = yedek.algiNot;
+        }
+      }
+    }
     ciz();
   }
 
