@@ -433,7 +433,7 @@ function varsayilanHamleMs(gameId, durationMinutes) {
        90/120/180 sn). Genel hamle sayacı buna karışmaz; yine de bir üst
        sınır gerekiyor — tek bir soruda sonsuza kadar beklenmesin diye
        oyuncunun kendi saatinin tamamı kadar süre tanınır. */
-    return ({ 10: 90000, 15: 120000, 20: 180000 })[durationMinutes] || 120000;
+    return 180000;   // kullanıcı isteği: "toplam süre de 180 saniye olsun"
   }
   if (gameId === 'cenga') {
     /* Cenga'da bir sıra iki adımdır (taş seç → çek); süre ikisi için
@@ -2342,14 +2342,14 @@ function cengaSonrasi(room) {
  * 🧠20 dk → 180 sn. Soru seti her maçta rastgele seçilir ve iki oyuncu da
  * AYNI seti oynar.
  * ===================================================================== */
-function passaparolaSureSn(room) {
-  return ({ 10: 90, 15: 120, 20: 180 })[Number(room && room.durationMinutes)] || 120;
-}
+/* Kullanıcı isteği: "toplam süre de 180 saniye olsun" — her masada her
+   yarışmacının toplam süresi 180 sn. */
+function passaparolaSureSn(room) { void room; return 180; }
 function passaparolaState(room, seat) {
   const q = room.passaparola;
   if (!q) return null;
   return passaparolaEngine.gorunum(q, (seat === 0 || seat === 1) ? seat : null,
-    { status: room.status, turnSeat: q.status === 'playing' ? q.turn : null,
+    { status: room.status, turnSeat: null, duraklatildi: !!room.duraklama,
       serverNow: now() });
 }
 function emitPassaparolaState(room, event = 'gameStateUpdated') {
@@ -2403,7 +2403,8 @@ function passaparolaBitisYayinla(room, reason) {
 /* Her hamleden sonra tek elden: bitti mi, yayınla. */
 function passaparolaSonrasi(room) {
   const q = room.passaparola;
-  room.passaparolaSonTik = now();     // yeni sıraya temiz saat
+  /* EŞZAMANLI: saat damgası burada SIFIRLANMAZ — bir yarışmacının hızlı
+     cevapları rakibinin saatindeki kesirli saniyeleri yutmasın. */
   touchMoveTimer(room);
   if (q.status !== 'playing') {
     passaparolaBitisYayinla(room);
@@ -4310,6 +4311,9 @@ function duraklamaKaydir(room) {
     if (/At$/.test(k) && typeof room[k] === 'number' && room[k] > DAMGA_MIN && room[k] < DAMGA_MAX) room[k] += d;
   }
   for (const m of DURAK_MOTORLAR) if (room[m]) damgalariKaydir(room[m], d, 0);
+  /* Passaparola saat damgası "At" ile bitmiyor; duraklama süresi yarışmacının
+     saatinden düşmesin diye ayrıca kaydırılır. */
+  if (typeof room.passaparolaSonTik === 'number') room.passaparolaSonTik += d;
 }
 function kopukInsanlar(room) {
   return (room.players || []).filter(p => p && !p.aiControlled && p.disconnectedAt);
@@ -5763,8 +5767,9 @@ io.on('connection', socket => {
     if (room.status !== 'playing') return;
     const r = passaparolaEngine.cevapla(room.passaparola, p.seat, (data && data.cevap) || '');
     if (!r.ok) return ppRed(room, r.reason);
-    /* Cevap herkese duyurulur — yanlış bilinen sorunun doğrusu da görünsün. */
-    io.to(room.id).emit('passaparolaResult', {
+    /* EŞZAMANLI YARIŞMA: sonuç (ve yanlışta doğru cevap) YALNIZ cevaplayana
+       gider — rakip aynı soruyu henüz görmemiş olabilir. */
+    socket.emit('passaparolaResult', {
       roomId: room.id, seat: p.seat, harf: r.harf, dogru: r.dogru, cevap: r.cevap
     });
     passaparolaSonrasi(room);
@@ -5778,7 +5783,7 @@ io.on('connection', socket => {
     if (room.status !== 'playing') return;
     const r = passaparolaEngine.pas(room.passaparola, p.seat);
     if (!r.ok) return ppRed(room, r.reason);
-    io.to(room.id).emit('passaparolaPassed', { roomId: room.id, seat: p.seat, harf: r.harf });
+    socket.emit('passaparolaPassed', { roomId: room.id, seat: p.seat, harf: r.harf });
     passaparolaSonrasi(room);
     emitRoom(room);
   });

@@ -2,21 +2,18 @@
 /* ============================================================================
  * PASSAPAROLA — SAF OYUN MOTORU (sunucu yetkili)
  * ============================================================================
- * İki kişilik bilgi yarışması. Her oyuncunun KENDİ 27 harflik çarkı ve KENDİ
- * saati vardır; saat yalnız o oyuncunun sırasındayken işler.
+ * İki kişilik bilgi yarışması — EŞZAMANLI. İki yarışmacı aynı soru setini
+ * AYNI ANDA, kendi 27 harflik çarkında ve kendi saatiyle (180 sn) oynar.
+ * Kimse rakibinin sorusunu görmez.
  *
- * KURALLAR (yerel prototipten birebir alındı)
- *   · Çark Türk alfabesinin 27 harfinden oluşur (J yok — soru havuzunda da
- *     yok). Her harfin o harfle başlayan bir sorusu vardır.
- *   · DOĞRU cevap: harf yeşile döner, SIRA OYUNCUDA KALIR, sıradaki
- *     cevaplanmamış harfe geçilir.
- *   · YANLIŞ cevap: harf kırmızıya döner ve SIRA RAKİBE GEÇER.
- *   · PAS ("passaparola"): harf maviye döner, sona bırakılır ve SIRA RAKİBE
- *     GEÇER. Cevaplanmamış harf kalmayınca pas geçilen harflere dönülür.
- *   · HARF AL: doğru cevaptan rastgele bir harf açılır, karşılığında
- *     5 saniye yanar.
- *   · Saat biten ya da çarkını bitiren oyuncu oynayamaz; ikisi de
- *     oynayamıyorsa maç biter.
+ * KURALLAR
+ *   · Çark Türk alfabesinin 27 harfinden oluşur (J yok).
+ *   · DOĞRU: harf yeşil · YANLIŞ: kırmızı · PAS: mavi (sona bırakılır).
+ *     Her durumda çark sıradaki harfe geçer; cevaplanmamış harf kalmayınca
+ *     pas geçilenlere dönülür.
+ *   · HARF AL: doğru cevaptan rastgele bir harf açılır, 5 saniye yanar.
+ *   · Saati dolan ya da çarkını bitiren rakibini bekler; ikisi de bitince
+ *     maç biter, bütün sorular ve cevaplar birlikte açılır.
  *   · Kazanan en çok DOĞRU cevabı olandır; eşitlikte saati çok kalan kazanır,
  *     o da eşitse maç berabere biter.
  *
@@ -31,7 +28,7 @@ const path = require('path');
 const HARFLER = ['A', 'B', 'C', 'Ç', 'D', 'E', 'F', 'G', 'H', 'I', 'İ', 'K', 'L', 'M',
   'N', 'O', 'Ö', 'P', 'R', 'S', 'Ş', 'T', 'U', 'Ü', 'V', 'Y', 'Z'];
 const HARF_AL_CEZASI_SN = 5;
-const VARSAYILAN_SURE_SN = 120;
+const VARSAYILAN_SURE_SN = 180;
 
 /* --------------------------------------------------------------- SORULAR */
 let SETLER = null;
@@ -159,10 +156,11 @@ function macBaslat(opts) {
     setAdi: set.name,
     sorular,                 // SIR: cevaplar burada, istemciye gitmez
     sureSn: sure,
-    turn: seats[0],
+    turn: null,              // EŞZAMANLI: sıra yok, iki yarışmacı aynı anda oynar
+    eszamanli: true,
     durum, indeks, saat,
-    acilanHarfler: [],       // o anki soru için açılmış harf indeksleri
-    son: null,               // son olayın özeti (ekran şeridi için)
+    acilan: seats.reduce((a, s) => { a[s] = []; return a; }, {}),  // koltuk → açılmış harf indeksleri
+    son: seats.reduce((a, s) => { a[s] = null; return a; }, {}),    // koltuk → son olay (yalnız kendisine)
     status: 'playing',
     winner: null,
     result: null
@@ -204,30 +202,41 @@ function dogruSayisi(st, seat) {
   return HARFLER.filter(h => d[h] === 'dogru').length;
 }
 
-/* ------------------------------------------------------------ SIRA GEÇİŞİ */
-function siraDegis(st) {
-  const rakip = st.seats.find(s => s !== st.turn);
-  st.acilanHarfler = [];
-  if (rakip !== undefined && oynayabilirMi(st, rakip)) {
-    st.turn = rakip;
-    return;
-  }
-  if (oynayabilirMi(st, st.turn)) return;    // rakip oynayamıyor, sıra kalır
-  macBitir(st, 'finished');
+/* ------------------------------------------------------- EŞZAMANLI YARIŞMA
+ * Kullanıcı isteği: "yarışmacılar aynı anda başlamalılar ki sorularını görüp
+ * kenara yazmasınlar. Süre ve yarışma aynı anda başlar, en son iki tarafın
+ * da bittiğinde sonuçlar paylaşılır ve rövanş atılır veya sonlanır."
+ *
+ * Artık SIRA YOKTUR: iki yarışmacı AYNI soru setini AYNI ANDA, kendi
+ * çarkında ve kendi saatiyle oynar. Kimse rakibinin sorusunu ya da
+ * cevabını görmez. Doğru / yanlış / pas — çark sıradaki harfe geçer.
+ * Saati biten ya da çarkını bitiren yarışmacı rakibini bekler; ikisi de
+ * bitirince maç biter ve bütün sorular + doğru cevaplar birlikte açılır. */
+function bitisKontrol(st) {
+  if (st.status !== 'playing') return;
+  if (!st.seats.some(s => oynayabilirMi(st, s))) macBitir(st, 'finished');
 }
+/* Geriye dönük ad: eski çağrılar için (artık sıra değişmez, yalnız bitiş denetlenir). */
+function siraDegis(st) { bitisKontrol(st); }
 
 /* Harfi işaretle ve çarkı ilerlet. */
 function isaretle(st, seat, harf, sonuc) {
   st.durum[seat][harf] = sonuc;
   const k = sonrakiIndeks(st, seat);
   if (k >= 0) st.indeks[seat] = k;
-  st.acilanHarfler = [];
+  st.acilan[seat] = [];
+}
+function oynamaEngeli(st, seat) {
+  if (st.status !== 'playing') return 'game_over';
+  if (st.seats.indexOf(seat) === -1) return 'not_in_room';
+  if (!oynayabilirMi(st, seat)) return 'bitirdin';
+  return null;
 }
 
 /* ---------------------------------------------------------------- CEVAP */
 function cevapla(st, seat, metin) {
-  if (st.status !== 'playing') return { ok: false, reason: 'game_over' };
-  if (seat !== st.turn) return { ok: false, reason: 'not_your_turn' };
+  const engel = oynamaEngeli(st, seat);
+  if (engel) return { ok: false, reason: engel };
   const soru = aktifSoru(st, seat);
   if (!soru) return { ok: false, reason: 'wrong_phase' };
   const yazi = String(metin == null ? '' : metin).trim();
@@ -236,26 +245,21 @@ function cevapla(st, seat, metin) {
   const harf = aktifHarf(st, seat);
   const dogru = cevapDogruMu(yazi, soru.answer, soru.alternatives);
   isaretle(st, seat, harf, dogru ? 'dogru' : 'yanlis');
-  st.son = { seat, harf, dogru, cevap: soru.answer, verilen: yazi, tur: 'cevap' };
-
-  if (dogru) {
-    /* DOĞRU: sıra oyuncuda kalır — ama çarkı bittiyse rakibe geçer. */
-    if (!oynayabilirMi(st, seat)) siraDegis(st);
-  } else {
-    siraDegis(st);
-  }
-  return { ok: true, dogru, harf, cevap: soru.answer, bitti: st.status !== 'playing' };
+  st.son[seat] = { seat, harf, dogru, cevap: soru.answer, verilen: yazi, tur: 'cevap' };
+  const kendiBitti = !oynayabilirMi(st, seat);
+  bitisKontrol(st);
+  return { ok: true, dogru, harf, cevap: soru.answer, kendiBitti, bitti: st.status !== 'playing' };
 }
 
 /* ------------------------------------------------------------------- PAS */
 function pas(st, seat) {
-  if (st.status !== 'playing') return { ok: false, reason: 'game_over' };
-  if (seat !== st.turn) return { ok: false, reason: 'not_your_turn' };
+  const engel = oynamaEngeli(st, seat);
+  if (engel) return { ok: false, reason: engel };
   const harf = aktifHarf(st, seat);
   if (!harf) return { ok: false, reason: 'wrong_phase' };
   isaretle(st, seat, harf, 'pas');
-  st.son = { seat, harf, tur: 'pas' };
-  siraDegis(st);
+  st.son[seat] = { seat, harf, tur: 'pas' };
+  bitisKontrol(st);
   return { ok: true, harf, bitti: st.status !== 'playing' };
 }
 
@@ -263,40 +267,45 @@ function pas(st, seat) {
    Doğru cevaptan rastgele bir harf açılır; karşılığında 5 saniye yanar.
    İlk harf zaten bilindiği için (soru o harfle başlar) 0. sıra atlanır. */
 function harfAl(st, seat, rng) {
-  if (st.status !== 'playing') return { ok: false, reason: 'game_over' };
-  if (seat !== st.turn) return { ok: false, reason: 'not_your_turn' };
+  const engel = oynamaEngeli(st, seat);
+  if (engel) return { ok: false, reason: engel };
   const soru = aktifSoru(st, seat);
   if (!soru) return { ok: false, reason: 'wrong_phase' };
   if (st.saat[seat] <= HARF_AL_CEZASI_SN) return { ok: false, reason: 'sure_yetmez' };
+  const acilan = st.acilan[seat] || [];
   const cevap = [...String(soru.answer || '')];
   const adaylar = [];
   for (let i = 1; i < cevap.length; i++) {
     if (cevap[i] === ' ') continue;
-    if (st.acilanHarfler.indexOf(i) === -1) adaylar.push(i);
+    if (acilan.indexOf(i) === -1) adaylar.push(i);
   }
   if (!adaylar.length) return { ok: false, reason: 'harf_kalmadi' };
   const r = rng || Math.random;
   const sec = adaylar[Math.floor(r() * adaylar.length)];
-  st.acilanHarfler = st.acilanHarfler.concat([sec]).sort((a, b) => a - b);
+  st.acilan[seat] = acilan.concat([sec]).sort((a, b) => a - b);
   st.saat[seat] = Math.max(0, st.saat[seat] - HARF_AL_CEZASI_SN);
-  if (st.saat[seat] <= 0) { st.son = { seat, tur: 'sure' }; siraDegis(st); }
+  if (st.saat[seat] <= 0) { st.son[seat] = { seat, tur: 'sure' }; bitisKontrol(st); }
   return { ok: true, indeks: sec, kalanSn: st.saat[seat] };
 }
 
 /* ------------------------------------------------------------------ SAAT
-   Sunucu saniyede bir çağırır. Yalnız SIRASI OLAN oyuncunun saati işler. */
+   Sunucu saniyede bir çağırır. HÂLÂ OYNAYAN HER yarışmacının saati
+   aynı anda işler (bitiren ya da saati dolan beklerken saati durur). */
 function tik(st, saniye) {
   if (st.status !== 'playing') return { degisti: false };
   const sn = Math.max(0, Number(saniye) || 1);
-  const seat = st.turn;
-  const once = st.saat[seat];
-  st.saat[seat] = Math.max(0, once - sn);
-  if (once > 0 && st.saat[seat] === 0) {
-    st.son = { seat, tur: 'sure' };
-    siraDegis(st);
-    return { degisti: true, sureBitti: true, seat, bitti: st.status !== 'playing' };
-  }
-  return { degisti: st.saat[seat] !== once };
+  const bitenler = [];
+  let degisti = false;
+  st.seats.forEach(seat => {
+    if (!oynayabilirMi(st, seat)) return;
+    const once = st.saat[seat];
+    st.saat[seat] = Math.max(0, once - sn);
+    if (st.saat[seat] !== once) degisti = true;
+    if (once > 0 && st.saat[seat] === 0) { st.son[seat] = { seat, tur: 'sure' }; bitenler.push(seat); }
+  });
+  bitisKontrol(st);
+  return { degisti: degisti || bitenler.length > 0, sureBitti: bitenler.length > 0,
+           seat: bitenler.length ? bitenler[0] : null, bitenler, bitti: st.status !== 'playing' };
 }
 
 /* ---------------------------------------------------------------- BİTİŞ */
@@ -334,37 +343,48 @@ function pesEt(st, seat) {
 function cevapMaskesi(st, seat) {
   const soru = aktifSoru(st, seat);
   if (!soru) return [];
+  const acilan = (st.acilan && st.acilan[seat]) || [];
   return [...String(soru.answer || '')].map((ch, i) => {
     if (ch === ' ') return ' ';
     if (i === 0) return ch;                       // ilk harf zaten bilinir
-    return st.acilanHarfler.indexOf(i) !== -1 ? ch : null;
+    return acilan.indexOf(i) !== -1 ? ch : null;
   });
 }
+/* GÖRÜNÜM — her yarışmacı YALNIZ KENDİ sorusunu görür. İzleyiciye maç
+   sürerken soru gösterilmez (yarışmacıya taşınmasın). Maç bitince bütün
+   sorular, doğru cevaplar ve iki tarafın harf harf sonucu "ozet"te açılır. */
 function gorunum(st, seat, ekstra) {
-  const bakan = (seat === 0 || seat === 1) ? seat : null;
-  const sirada = st.turn;
-  const soru = aktifSoru(st, sirada);
+  const bakan = (seat === 0 || seat === 1) && st.seats.indexOf(seat) !== -1 ? seat : null;
   const acik = st.status !== 'playing';
+  const oynuyor = st.seats.reduce((a, s) => { a[s] = !acik && oynayabilirMi(st, s); return a; }, {});
+  const soru = (bakan !== null && oynuyor[bakan]) ? aktifSoru(st, bakan) : null;
   return Object.assign({
     kind: 'passaparola',
+    eszamanli: true,
     status: st.status,
     seats: st.seats.slice(),
     seat: bakan,
-    turn: sirada,
+    turn: null,
     harfler: HARFLER.slice(),
     setAdi: st.setAdi,
     sureSn: st.sureSn,
     durum: st.seats.reduce((a, s) => { a[s] = Object.assign({}, st.durum[s]); return a; }, {}),
-    aktifHarf: st.seats.reduce((a, s) => { a[s] = aktifHarf(st, s); return a; }, {}),
+    aktifHarf: st.seats.reduce((a, s) => { a[s] = oynuyor[s] ? aktifHarf(st, s) : null; return a; }, {}),
+    oynuyor,
     saat: Object.assign({}, st.saat),
     dogru: st.seats.reduce((a, s) => { a[s] = dogruSayisi(st, s); return a; }, {}),
     soru: soru ? soru.question : null,
     harfSayisi: soru ? [...String(soru.answer || '')].length : 0,
-    maske: cevapMaskesi(st, sirada),
-    /* Cevap YALNIZ maç bitince açılır — kimse için erken görünmez. */
-    cevap: acik && soru ? soru.answer : null,
+    maske: soru ? cevapMaskesi(st, bakan) : [],
+    /* Cevap anahtarı YALNIZ maç bitince (iki taraf da bitirince) açılır. */
+    cevap: null,
+    ozet: acik ? HARFLER.map(h => {
+      const q = st.sorular[h] || {};
+      return { harf: h, soru: q.question || '', cevap: q.answer || '',
+               durum: st.seats.reduce((a, s) => { a[s] = st.durum[s][h]; return a; }, {}) };
+    }) : null,
     harfAlCezasi: HARF_AL_CEZASI_SN,
-    son: st.son,
+    son: bakan !== null ? (st.son[bakan] || null) : null,
     winner: st.winner,
     result: st.result
   }, ekstra || {});

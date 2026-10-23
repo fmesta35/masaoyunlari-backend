@@ -1,11 +1,14 @@
 /* ============================================================================
  * PASSAPAROLA — ONLINE İSTEMCİ (ortak yaşam döngüsü adaptörü)
  * ============================================================================
- * İki kişilik bilgi yarışması. Ekran üç parçadır:
+ * İki kişilik bilgi yarışması — EŞZAMANLI: iki yarışmacı aynı soruları
+ * aynı anda, kendi çarkında ve kendi saatiyle (180 sn) cevaplar; kimse
+ * rakibinin sorusunu görmez. İkisi de bitirince bütün sorular, cevaplar
+ * ve sonuç birlikte açılır (rövanş ortak katmandan). Ekran üç parçadır:
  *   · İKİ ÇARK — her oyuncunun 27 harfi; yeşil doğru, kırmızı yanlış,
  *     mavi pas, sarı o an sorulan harf.
  *   · SORU PANELİ — soru metni, cevabın harf maskesi ve giriş kutusu.
- *   · SAATLER — oyuncu başına ayrı geri sayım; yalnız sırası olanınki işler.
+ *   · SAATLER — oyuncu başına ayrı geri sayım; oynayan herkesinki işler.
  *
  * DOĞRU CEVAP SUNUCUDA KALIR: istemciye yalnız soru, harf sayısı ve açılmış
  * harfler gelir. Karşılaştırmayı sunucu yapar (passaparola-engine.js).
@@ -48,7 +51,7 @@
   function carkHtml(s, seat) {
     var d = (s.durum || {})[seat] || {};
     var aktif = (s.aktifHarf || {})[seat];
-    var sirada = s.turn === seat && s.status === 'playing';
+    var sirada = !!(s.oynuyor && s.oynuyor[seat]) && s.status === 'playing';
     return '<div class="pp-cark' + (seat === s.seat ? ' benim' : '') + (sirada ? ' sirada' : '') + '">' +
       '<div class="pp-cark-bas">' +
         '<span class="pp-ad">' + esc(adOf(seat)) + (seat === s.seat ? ' (Siz)' : '') + '</span>' +
@@ -70,17 +73,38 @@
 
   function sonOlayHtml(s) {
     var o = s.son;
-    if (!o) return '';
-    if (o.tur === 'sure') {
-      return '<div class="pp-son sure">⏱ ' + esc(adOf(o.seat)) + ' — süresi doldu, sıra rakibe geçti.</div>';
-    }
-    if (o.tur === 'pas') {
-      return '<div class="pp-son pas">🔵 ' + esc(adOf(o.seat)) + ' <b>' + esc(o.harf) +
-        '</b> harfini pas geçti.</div>';
-    }
+    if (!o || s.status !== 'playing') return '';
+    if (o.tur === 'sure') return '<div class="pp-son sure">⏱ Süreniz doldu.</div>';
+    if (o.tur === 'pas') return '<div class="pp-son pas">🔵 <b>' + esc(o.harf) + '</b> harfini pas geçtiniz.</div>';
     return '<div class="pp-son ' + (o.dogru ? 'dogru' : 'yanlis') + '">' +
-      (o.dogru ? '✅ ' : '❌ ') + esc(adOf(o.seat)) + ' <b>' + esc(o.harf) + '</b>: ' +
-      (o.dogru ? 'doğru!' : 'yanlış — doğrusu <b>' + esc(o.cevap) + '</b>') + '</div>';
+      (o.dogru ? '✅ <b>' + esc(o.harf) + '</b>: doğru!' :
+       '❌ <b>' + esc(o.harf) + '</b>: yanlış — doğrusu <b>' + esc(o.cevap) + '</b>') + '</div>';
+  }
+
+  var DURUM_IKON = { dogru: '✅', yanlis: '❌', pas: '🔵', bos: '—' };
+  /* Maç sonu: iki taraf da bitirdi — sonuç + bütün sorular ve cevaplar. */
+  function ozetHtml(s, m) {
+    var r = s.result || {};
+    var w = s.winner;
+    var baslik;
+    if (w === null || w === undefined) baslik = '🤝 Berabere';
+    else if (!m.isSpectator && w === s.seat) baslik = '🏆 Kazandınız!';
+    else if (!m.isSpectator) baslik = '😔 ' + esc(adOf(w)) + ' kazandı';
+    else baslik = '🏆 ' + esc(adOf(w)) + ' kazandı';
+    var d = r.dogru || s.dogru || {};
+    var h = '<div class="pp-sonuc">' + baslik + '</div>';
+    h += '<div class="pp-not" style="text-align:center">' + (s.seats || []).map(function (q) {
+      return esc(adOf(q)) + ': <b>' + (d[q] || 0) + '</b> doğru · ' + sureYaz((s.saat || {})[q]) + ' kaldı';
+    }).join(' &nbsp;|&nbsp; ') + (r.sureFarki ? ' — eşitlik kalan süreyle bozuldu' : '') + '</div>';
+    if (s.ozet && s.ozet.length) {
+      h += '<div class="pp-ozet-kap"><table class="pp-ozet"><thead><tr><th></th><th>Soru</th><th>Cevap</th>' +
+        (s.seats || []).map(function (q) { return '<th>' + esc(adOf(q)).slice(0, 10) + '</th>'; }).join('') +
+        '</tr></thead><tbody>' + s.ozet.map(function (x) {
+          return '<tr><td class="h">' + esc(x.harf) + '</td><td>' + esc(x.soru) + '</td><td class="c">' + esc(x.cevap) + '</td>' +
+            (s.seats || []).map(function (q) { return '<td class="d">' + (DURUM_IKON[(x.durum || {})[q]] || '—') + '</td>'; }).join('') + '</tr>';
+        }).join('') + '</tbody></table></div>';
+    }
+    return h;
   }
 
   if (!window.GVArena && !window.__gvArenaQueue) window.__gvArenaQueue = { push: function () {} };
@@ -102,9 +126,13 @@
       passaparolaPassed: function () { ses('tasKoy'); taslakCevap = ''; },
       passaparolaTimeout: function (p) {
         if (!p) return;
-        ses('hata');
-        uyar('⏱ ' + adOf(p.seat) + ' süresi doldu — sıra rakibe geçti.', 'warning');
-        taslakCevap = '';
+        var ben = window.__gvPassaparolaSeat;
+        if (p.seat === ben) {
+          ses('hata'); taslakCevap = '';
+          uyar('⏱ Süreniz doldu — rakibinizin bitirmesi bekleniyor.', 'warning');
+        } else {
+          uyar('⏱ ' + adOf(p.seat) + ' adlı yarışmacının süresi doldu.', 'info');
+        }
       }
     },
 
@@ -112,7 +140,8 @@
        için yeniden yazmak cevap kutusunu her saniye siler. */
     damga: function (m) {
       var s = m.state || {};
-      return (s.status || '') + '#' + s.turn + '#' + (s.soru || '').length + '#' +
+      return (s.status || '') + '#' + JSON.stringify(s.oynuyor || {}) + '#' + (s.soru || '') + '#' +
+        (s.ozet ? 'Z' : '') + '#' + (s.winner == null ? '' : s.winner) + '#' +
         (s.maske || []).join('') + '#' +
         (s.seats || []).map(function (q) {
           var d = (s.durum || {})[q] || {};
@@ -124,33 +153,43 @@
     render: function (m) {
       var s = m.state || {};
       if (!s.seats) return '<div class="pp-wrap"></div>';
-      var benimSira = s.turn === s.seat && s.status === 'playing' && !m.isSpectator;
+      window.__gvPassaparolaSeat = m.isSpectator ? null : s.seat;
+      var oynuyorum = s.status === 'playing' && !m.isSpectator && !!(s.oynuyor && s.oynuyor[s.seat]);
       var h = '<div class="pp-wrap">';
       h += '<div class="pp-carklar">' + s.seats.map(function (q) { return carkHtml(s, q); }).join('') + '</div>';
       h += sonOlayHtml(s);
       h += '<div class="pp-panel">';
-      h += '<div class="pp-ust">' +
-        '<span class="pp-set">📚 ' + esc(s.setAdi || '') + '</span>' +
-        '<span class="pp-sira">' + (s.status !== 'playing' ? 'Maç bitti'
-          : benimSira ? '🎯 Sıra sizde' : '⏳ ' + esc(adOf(s.turn)) + ' cevaplıyor') + '</span>' +
-        '</div>';
+      var durumYazi = s.status !== 'playing' ? '🏁 Yarışma bitti'
+        : m.isSpectator ? '👀 İki yarışmacı aynı anda oynuyor'
+        : oynuyorum ? '🎯 Yarışma sürüyor — rakibiniz de aynı anda cevaplıyor'
+        : '✅ Bitirdiniz — rakibinizin bitirmesi bekleniyor';
+      h += '<div class="pp-ust"><span class="pp-set">📚 ' + esc(s.setAdi || '') + '</span>' +
+        '<span class="pp-sira">' + durumYazi + '</span></div>';
+      if (s.status !== 'playing') {
+        h += ozetHtml(s, m);
+        h += '</div></div>';
+        return h;
+      }
+      if (!oynuyorum) {
+        h += '<div class="pp-bekle">' + (m.isSpectator
+          ? 'Yarışmacılar kendi sorularını aynı anda cevaplıyor. Sorular ve doğru cevaplar maç bitince burada açılacak.'
+          : 'Siz bitirdiniz. Rakibiniz bitirince (ya da süresi dolunca) sonuçlar ve bütün cevaplar birlikte açılacak.') + '</div>';
+        h += '</div></div>';
+        return h;
+      }
       h += '<div class="pp-soru">' + esc(s.soru || '—') + '</div>';
       h += maskeHtml(s);
-      if (s.status !== 'playing' && s.cevap) {
-        h += '<div class="pp-cevap-acik">Doğru cevap: <b>' + esc(s.cevap) + '</b></div>';
-      }
       h += '<div class="pp-giris-satir">' +
         '<input class="pp-giris" type="text" maxlength="40" autocomplete="off" ' +
-        'spellcheck="false" placeholder="Cevabınız"' + (benimSira ? '' : ' disabled') + '>' +
-        '<button class="btn pp-gonder" type="button"' + (benimSira ? '' : ' disabled') + '>Cevapla</button>' +
+        'spellcheck="false" placeholder="Cevabınız">' +
+        '<button class="btn pp-gonder" type="button">Cevapla</button>' +
         '</div>';
       h += '<div class="pp-dugmeler">' +
-        '<button class="btn secondary pp-pas" type="button"' + (benimSira ? '' : ' disabled') + '>' +
-          '🔵 Pas (passaparola)</button>' +
-        '<button class="btn secondary pp-harf" type="button"' + (benimSira ? '' : ' disabled') + '>' +
-          '💡 Harf al (−' + (s.harfAlCezasi || 5) + ' sn)</button>' +
+        '<button class="btn secondary pp-pas" type="button">🔵 Pas (passaparola)</button>' +
+        '<button class="btn secondary pp-harf" type="button">💡 Harf al (−' + (s.harfAlCezasi || 5) + ' sn)</button>' +
         '</div>';
-      h += '<div class="pp-not">Doğru cevapta sıra sizde kalır; yanlış cevap ve pas sırayı rakibe geçirir.</div>';
+      h += '<div class="pp-not">İki yarışmacı aynı soruları aynı anda cevaplar; kimse rakibinin sorusunu görmez. ' +
+        'Doğru, yanlış ya da pas — çarkınız sıradaki harfe geçer. Sonuçlar ikiniz de bitirince açılır.</div>';
       h += '</div></div>';
       return h;
     },
@@ -175,8 +214,11 @@
       root.__ppSaat = setInterval(function () {
         var gs = m.state;
         if (!gs || gs.status !== 'playing') return;
-        var t = gs.turn;
-        if (gs.saat && typeof gs.saat[t] === 'number' && gs.saat[t] > 0) gs.saat[t] -= 1;
+        if (gs.duraklatildi || m.duraklatildi) return;      // masa duraklatıldıysa saat donuk
+        (gs.seats || []).forEach(function (t) {
+          if (!(gs.oynuyor && gs.oynuyor[t])) return;
+          if (gs.saat && typeof gs.saat[t] === 'number' && gs.saat[t] > 0) gs.saat[t] -= 1;
+        });
         saatYaz();
       }, 1000);
 

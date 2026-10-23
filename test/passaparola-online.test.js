@@ -73,8 +73,8 @@ async function httpRooms(base, gameId) {
   return j.rooms || j;
 }
 /* Motorun o anki sorusunun doğru cevabı (yalnız TEST bilir — istemci bilmez). */
-function dogruCevap(st) {
-  const q = E.aktifSoru(st, st.turn);
+function dogruCevap(st, seat) {
+  const q = E.aktifSoru(st, seat === undefined ? st.seats[0] : seat);
   return q ? q.answer : '';
 }
 
@@ -106,79 +106,75 @@ function motorTesti() {
   assert.ok(E.cevapDogruMu('elma', 'Armut', ['Elma']), 'alternatif cevap kabul edilmeli');
   console.log('  ✓ 2) cevap karşılaştırma Türkçeye duyarlı ve hoşgörülü');
 
-  // 3) SIRA KURALI
+  // 3) EŞZAMANLI YARIŞMA: sıra yok, iki taraf aynı anda oynar
   let st = E.macBaslat({ seats: [0, 1], setId: 1, sureSn: 60 });
-  assert.strictEqual(st.turn, 0, 'ilk sıra koltuk 0');
+  assert.strictEqual(st.turn, null, 'eşzamanlı yarışmada sıra olmamalı');
   assert.strictEqual(E.aktifHarf(st, 0), 'A', 'çark A harfinden başlamalı');
-  assert.strictEqual(E.cevapla(st, 1, 'ankara').reason, 'not_your_turn',
-    'sırası olmayan cevaplayamaz');
-  let d = dogruCevap(st);
+  assert.strictEqual(E.aktifHarf(st, 1), 'A', 'iki çark da A harfinden başlamalı');
+  let d = dogruCevap(st, 0);
   assert.ok(E.cevapla(st, 0, d).dogru, 'doğru cevap kabul edilmeli');
-  assert.strictEqual(st.turn, 0, 'DOĞRU cevapta sıra oyuncuda KALMALI');
   assert.strictEqual(E.aktifHarf(st, 0), 'B', 'çark sıradaki harfe geçmeli');
+  assert.ok(E.cevapla(st, 1, 'kesinlikle yanlış').ok, 'rakip de AYNI ANDA cevaplayabilmeli');
+  assert.strictEqual(st.durum[1]['A'], 'yanlis', 'rakibin A harfi kırmızı olmalı');
+  assert.strictEqual(E.aktifHarf(st, 1), 'B', 'yanlışta da çark ilerlemeli');
   const r = E.cevapla(st, 0, 'kesinlikle yanlış bir cevap');
   assert.strictEqual(r.dogru, false, 'yanlış cevap yanlış sayılmalı');
-  assert.strictEqual(st.turn, 1, 'YANLIŞ cevapta sıra rakibe geçmeli');
   assert.strictEqual(st.durum[0]['A'], 'dogru', 'A harfi yeşil olmalı');
   assert.strictEqual(st.durum[0]['B'], 'yanlis', 'B harfi kırmızı olmalı');
-  assert.ok(E.pas(st, 1).ok, 'rakip pas geçebilmeli');
-  assert.strictEqual(st.turn, 0, 'PAS sırayı rakibe geçirmeli');
-  assert.strictEqual(st.durum[1]['A'], 'pas', 'pas geçilen harf mavi olmalı');
-  console.log('  ✓ 3) doğru → sıra kalır, yanlış ve pas → sıra geçer');
+  assert.ok(E.pas(st, 1).ok, 'pas geçilebilmeli');
+  assert.strictEqual(st.durum[1]['B'], 'pas', 'pas geçilen harf mavi olmalı');
+  assert.strictEqual(E.aktifHarf(st, 1), 'C', 'pastan sonra çark ilerlemeli');
+  console.log('  ✓ 3) eşzamanlı: iki yarışmacı aynı anda oynuyor; doğru/yanlış/pas çarkı ilerletiyor');
 
   // 4) PAS GEÇİLEN HARFE DÖNÜŞ
   st = E.macBaslat({ seats: [0, 1], setId: 1, sureSn: 600 });
-  E.pas(st, 0);                                   // A pas
-  st.turn = 0;                                    // sırayı geri al (test kolaylığı)
+  E.pas(st, 0);
   assert.strictEqual(E.aktifHarf(st, 0), 'B', 'pastan sonra sıradaki harfe geçilmeli');
-  /* A dışındaki 26 harfi yanlış cevapla → geriye yalnız pas geçilen A kalır. */
-  for (let i = 0; i < 26; i++) {
-    st.turn = 0;
-    E.cevapla(st, 0, '___yanlış___');
-  }
-  st.turn = 0;
+  for (let i = 0; i < 26; i++) E.cevapla(st, 0, '___yanlış___');
   assert.strictEqual(E.aktifHarf(st, 0), 'A',
     'cevaplanmamış harf kalmayınca pas geçilen harfe DÖNÜLMELİ');
   console.log('  ✓ 4) cevaplanmamış harf bitince pas geçilen harflere dönülüyor');
 
-  // 5) HARF AL
+  // 5) HARF AL (koltuk başına)
   st = E.macBaslat({ seats: [0, 1], setId: 1, sureSn: 60 });
   const maskeOnce = E.cevapMaskesi(st, 0).filter(x => x).length;
   const ha = E.harfAl(st, 0, () => 0);
   assert.ok(ha.ok, 'harf al çalışmalı');
   assert.strictEqual(st.saat[0], 55, 'harf al 5 saniye yakmalı');
-  assert.strictEqual(E.cevapMaskesi(st, 0).filter(x => x).length, maskeOnce + 1,
-    'bir harf daha açılmalı');
-  assert.strictEqual(E.harfAl(st, 1, () => 0).reason, 'not_your_turn',
-    'sırası olmayan harf alamaz');
+  assert.strictEqual(st.saat[1], 60, 'rakibin saati etkilenmemeli');
+  assert.strictEqual(E.cevapMaskesi(st, 0).filter(x => x).length, maskeOnce + 1, 'bir harf daha açılmalı');
+  assert.strictEqual(E.cevapMaskesi(st, 1).filter(x => x).length, maskeOnce, 'rakibin maskesi açılmamalı');
   st.saat[0] = 4;
-  assert.strictEqual(E.harfAl(st, 0, () => 0).reason, 'sure_yetmez',
-    '5 saniyeden az kalan harf alamaz');
-  console.log('  ✓ 5) harf al bir harf açıyor ve 5 saniye yakıyor');
+  assert.strictEqual(E.harfAl(st, 0, () => 0).reason, 'sure_yetmez', '5 saniyeden az kalan harf alamaz');
+  console.log('  ✓ 5) harf al yalnız alanın maskesini açıyor ve onun saatinden 5 sn yakıyor');
 
-  // 6) SAAT ve BİTİŞ
+  // 6) SAAT ve BİTİŞ — iki saat AYNI ANDA işler
   st = E.macBaslat({ seats: [0, 1], setId: 1, sureSn: 10 });
   E.tik(st, 3);
-  assert.strictEqual(st.saat[0], 7, 'yalnız sırası olanın saati işlemeli');
-  assert.strictEqual(st.saat[1], 10, 'sırası olmayanın saati DURMALI');
+  assert.strictEqual(st.saat[0], 7, 'koltuk 0 saati işlemeli');
+  assert.strictEqual(st.saat[1], 7, 'koltuk 1 saati de AYNI ANDA işlemeli');
+  E.cevapla(st, 1, dogruCevap(st, 1));
+  st.saat[1] = 20;                                   // 1 daha uzun oynasın
   const t = E.tik(st, 7);
-  assert.ok(t.sureBitti, 'saat bitince bildirilmeli');
-  assert.strictEqual(st.turn, 1, 'saati biten oyuncudan sıra geçmeli');
-  assert.strictEqual(st.status, 'playing', 'rakip oynayabildiği sürece maç sürmeli');
-  /* Koltuk 1 bir doğru yapsın, sonra onun da saati bitsin → maç biter. */
-  E.cevapla(st, 1, dogruCevap(st));
-  E.tik(st, 10);
-  assert.strictEqual(st.status, 'finished', 'iki saat de bitince maç bitmeli');
+  assert.ok(t.sureBitti && t.seat === 0, 'saat bitince bildirilmeli');
+  assert.strictEqual(st.status, 'playing', 'rakip bitirmeden maç bitmemeli (bekleme)');
+  assert.strictEqual(E.cevapla(st, 0, 'x').reason, 'bitirdin', 'saati biten artık cevaplayamaz');
+  assert.strictEqual(E.gorunum(st, 0).soru, null, 'bitiren yarışmacıya soru gösterilmemeli (bekliyor)');
+  assert.strictEqual(E.gorunum(st, 0).oynuyor[1], true, 'rakibin hâlâ oynadığı görünmeli');
+  assert.strictEqual(E.gorunum(st, 0).ozet, null, 'rakip bitirmeden cevaplar AÇILMAMALI');
+  E.tik(st, 13);
+  assert.strictEqual(st.status, 'finished', 'iki taraf da bitince maç bitmeli');
   assert.strictEqual(st.winner, 1, 'çok doğru yapan kazanmalı');
   assert.strictEqual(st.result.dogru[1], 1, 'kazananın doğru sayısı yazılmalı');
+  const oz = E.gorunum(st, 0).ozet;
+  assert.ok(oz && oz.length === 27 && oz.every(x => x.soru && x.cevap), 'maç sonunda 27 soru + cevap açılmalı');
 
-  /* Beraberlik: doğru sayıları eşitse saati çok kalan kazanır. */
   const b = E.macBaslat({ seats: [0, 1], setId: 1, sureSn: 30 });
   b.saat[0] = 0; b.saat[1] = 12;
   E.macBitir(b, 'finished');
   assert.strictEqual(b.winner, 1, 'doğru eşitken saati çok kalan kazanmalı');
   assert.strictEqual(b.result.sureFarki, true, 'sonuç "süre farkı" diye işaretlenmeli');
-  console.log('  ✓ 6) saat yalnız sırası olanda işliyor, bitiş ve beraberlik kuralı doğru');
+  console.log('  ✓ 6) iki saat aynı anda işliyor; bitiren bekliyor; ikisi bitince sonuç + cevaplar açılıyor');
 
   // GİZLİLİK
   st = E.macBaslat({ seats: [0, 1], setId: 1, sureSn: 60 });
@@ -187,6 +183,12 @@ function motorTesti() {
   assert.ok(g0.soru && g0.soru.length > 10, 'soru metni gitmeli');
   assert.ok(g0.harfSayisi > 0, 'cevabın harf sayısı gitmeli');
   assert.ok(!JSON.stringify(g0).includes('"answer"'), 'görünümde ham soru nesnesi olmamalı');
+  /* Rakibin sorusu sızmamalı: 0 ilerledikten sonra 1'in görünümü kendi A sorusunu göstermeli. */
+  E.pas(st, 0);
+  assert.strictEqual(E.gorunum(st, 1).soru, E.aktifSoru(st, 1).question, 'herkes KENDİ sorusunu görmeli');
+  assert.notStrictEqual(E.gorunum(st, 1).soru, E.gorunum(st, 0).soru, 'rakibin güncel sorusu gösterilmemeli');
+  assert.strictEqual(E.gorunum(st, null).soru, null, 'izleyiciye maç sürerken soru gösterilmemeli');
+  assert.strictEqual(E.gorunum(st, 1).son, null, 'rakibin olayı (ve cevabı) bana gelmemeli');
 }
 
 /* ----------------------------------------------------------------- ONLINE */
@@ -235,41 +237,41 @@ async function onlineTesti() {
   const odaNes = rooms.get(String(oda.id));
   const q = odaNes.passaparola;
 
-  // 9) CEVAP ve PAS
-  const sira = q.turn;
-  const sSok = pA.seat === sira ? A : B;
-  const dSok = pA.seat === sira ? B : A;
-  /* Sırası OLMAYAN cevaplayamaz. */
-  const red = once(dSok, 'passaparolaRejected', 8000);
-  dSok.emit('passaparolaAnswer', { roomId: String(oda.id), cevap: 'deneme' });
-  assert.strictEqual((await red).reason, 'not_your_turn', 'sırası olmayanın cevabı reddedilmeli');
-
+  // 9) EŞZAMANLI CEVAP ve PAS
+  assert.strictEqual(pA.gameState.sureSn, 180, 'toplam süre 180 sn olmalı');
+  assert.strictEqual(q.turn, null, 'sıra olmamalı');
+  const sira = pA.seat;
+  const sSok = A, dSok = B;
   const sonucA = once(A, 'passaparolaResult', 12000);
-  const sonucB = once(B, 'passaparolaResult', 12000);
-  const cevap = dogruCevap(q);
+  let bGordu = false;
+  B.once('passaparolaResult', () => { bGordu = true; });
+  const cevap = dogruCevap(q, sira);
   sSok.emit('passaparolaAnswer', { roomId: String(oda.id), cevap: cevap });
-  const [rA, rB] = await Promise.all([sonucA, sonucB]);
+  const rA = await sonucA;
   assert.strictEqual(rA.dogru, true, 'doğru cevap doğru bildirilmeli');
-  assert.strictEqual(rA.cevap, cevap, 'cevap olaydan sonra açıklanmalı');
-  assert.strictEqual(rB.seat, sira, 'cevaplayan koltuk bildirilmeli');
-  assert.strictEqual(q.turn, sira, 'doğru cevapta sıra aynı oyuncuda kalmalı');
+  assert.strictEqual(rA.cevap, cevap, 'cevap yalnız cevaplayana açıklanmalı');
+
+  /* Rakip AYNI ANDA cevaplayabilir — reddedilmez. */
+  const sonucB = once(B, 'passaparolaResult', 12000);
+  dSok.emit('passaparolaAnswer', { roomId: String(oda.id), cevap: 'yanlis-deneme' });
+  const rB = await sonucB;
+  assert.strictEqual(rB.dogru, false, 'rakibin cevabı da işlenmeli');
+  assert.strictEqual(bGordu, true, 'B yalnız kendi sonucunu aldı');
+  await new Promise(r => setTimeout(r, 300));
 
   let gA = await durumA.bekle();
   while (gA.gameState.durum[sira][rA.harf] !== 'dogru') gA = await durumA.bekle();
   assert.strictEqual(gA.gameState.cevap, null, 'yeni soruda cevap yine gizli olmalı');
+  assert.ok(!gA.gameState.son || gA.gameState.son.seat === sira, 'rakibin olayı bana gelmemeli');
 
-  /* PAS → sıra geçer. */
-  const pasOlay = once(B, 'passaparolaPassed', 12000);
+  const pasOlay = once(A, 'passaparolaPassed', 12000);
   sSok.emit('passaparolaPass', { roomId: String(oda.id) });
   await pasOlay;
-  assert.notStrictEqual(q.turn, sira, 'pas sırayı rakibe geçirmeli');
-  console.log('  ✓ 9) cevap ve pas iki istemciye yansıyor, sıra kuralı sunucuda');
+  console.log('  ✓ 9) iki yarışmacı aynı anda cevaplıyor; sonuç yalnız cevaplayana gidiyor');
 
-  /* HARF AL: maske bir harf daha açılır, saat 5 sn yanar. */
   {
-    const yeniSira = q.turn;
-    const ySok = pA.seat === yeniSira ? A : B;
-    const yDurum = pA.seat === yeniSira ? durumA : durumB;
+    const yeniSira = sira;
+    const ySok = A, yDurum = durumA;
     const saatOnce = q.saat[yeniSira];
     const acikOnce = E.cevapMaskesi(q, yeniSira).filter(x => x).length;
     ySok.emit('passaparolaReveal', { roomId: String(oda.id) });
@@ -290,6 +292,7 @@ async function onlineTesti() {
     assert.strictEqual(sA.gameState.status, 'finished', 'maç bitmeli');
     assert.strictEqual(sA.winnerSeat, sB.winnerSeat, 'iki pakette aynı kazanan olmalı');
     assert.ok(sA.gameState.result, 'sonuç özeti gitmeli');
+    assert.ok(sA.gameState.ozet && sA.gameState.ozet.length === 27, 'maç sonunda bütün sorular+cevaplar paylaşılmalı');
   }
 
   // 10) İZLEYİCİ
@@ -316,8 +319,8 @@ async function onlineTesti() {
     assert.strictEqual(iz.gameState.kind, 'passaparola', 'izleyiciye masa gitmeli');
     assert.strictEqual(iz.gameState.seat, null, 'izleyicinin koltuğu olmamalı');
     assert.strictEqual(iz.gameState.cevap, null, 'İZLEYİCİ CEVABI GÖREMEMELİ');
-    assert.ok(iz.gameState.soru, 'izleyici soruyu görebilmeli');
-    console.log('  ✓ 10) izleyici masayı görüyor ama cevabı göremiyor');
+    assert.strictEqual(iz.gameState.soru, null, 'izleyici maç sürerken soruyu görmemeli (yarışmacıya taşınmasın)');
+    console.log('  ✓ 10) izleyici masayı görüyor ama soru/cevap göremiyor');
   }
 
   acik.forEach(s => { try { s.close(); } catch (_) {} });
