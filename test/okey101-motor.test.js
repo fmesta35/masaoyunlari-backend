@@ -292,6 +292,27 @@ console.log('  ✓ 9) işleme: uyan taş ekleniyor, uymayan reddediliyor, açmay
   st.opened[1] = true; st.acilisTuru[1] = 'per';
   assert.strictEqual(E.elCezasi(st, 1), 13, 'açmışın cezası elindeki taşlar');
 }
+// 10f) İŞLEK TAŞ atılamaz (+101, taş elde kalır); OKEY atmak +101; son taş serbest
+{
+  const st = E.startRound(1, [0, 1], {}, () => 0.5, 0);
+  st.realOkey = OKEY; st.turn = 1; st.phase = 'discard';
+  st.melds = [{ id: 'mx', seat: 0, tur: 'seri', tiles: [T('t-red', 10), T('t-red', 9), T('t-red', 8), T('t-red', 7), T('t-red', 6)] }];
+  const r5 = T('t-red', 5), ok1 = OK(), b3 = T('t-blue', 3);
+  st.hands[1] = [r5, ok1, b3]; st.opened[1] = false; st.scores[1] = 0;
+  const a1 = E.discard(st, 1, r5.id);
+  assert.strictEqual(a1.reason, 'islek_tas', 'açmamış oyuncu da işlek taş atamamalı');
+  assert.strictEqual(st.scores[1], 101, 'işlek taş denemesi 101 ceza');
+  assert.ok(st.hands[1].includes(r5) && st.turn === 1, 'taş ele dönmeli, sıra değişmemeli');
+  const a2 = E.discard(st, 1, ok1.id);
+  assert.ok(a2.ok && a2.penalty && a2.penalty.amount === 101, 'okeyi yere atmak 101 ceza');
+  assert.strictEqual(st.scores[1], 202);
+  // otomatik oyun (süre aşımı) işlek denetimine takılmaz
+  const st2 = E.startRound(1, [0, 1], {}, () => 0.5, 0);
+  st2.realOkey = OKEY; st2.turn = 1; st2.phase = 'discard'; st2.melds = st.melds;
+  const x5 = T('t-red', 5); st2.hands[1] = [x5, T('t-blue', 2)];
+  assert.ok(E.discard(st2, 1, x5.id, { otomatik: true }).ok, 'otomatik atış kilitlenmemeli');
+  assert.deepStrictEqual(E.guvenliAtilacaklar(st, 1).map(t => t.n), [3], 'güvenli taşlar: işlek/okey olmayanlar');
+}
 console.log('  ✓ 10) puanlama: biten −101, okeyle/çiftle ×2, elden 404, açmayan 202, okey 101');
 
 // ---------- 11) AÇMADAN BİTİLEMEZ / ATACAK TAŞ KALMALI ----------

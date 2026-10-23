@@ -383,11 +383,49 @@ function addToMeld(state, seat, meldId, tileId) {
   return { ok: true, meldId, tur: d.tur };
 }
 
-/* TAŞ ATMA — sırayı devreder; el boşaldıysa oyuncu bitirir. */
-function discard(state, seat, tileId) {
+/* İŞLEK TAŞ: masadaki (çift olmayan) bir pere uyan taş. 101 kuralı: işlek
+   taş ATILAMAZ (son taş hariç). Atmaya çalışan 101 ceza alır, taş eline
+   döner. Kural açmış/açmamış herkes için geçerlidir. */
+function islekMeld(state, tile) {
+  if (!tile) return null;
+  for (const m of (state.melds || [])) {
+    if (m.tur === 'cift') continue;
+    if (perDogrula(m.tiles.concat([tile]), state.realOkey).ok) return m;
+  }
+  return null;
+}
+/* Otomatik oynayan (süre aşımı / bot) için GÜVENLİ atılacak taşlar: okey
+   değil ve işlek değil. Boşsa çağıran istediğini seçer. */
+function guvenliAtilacaklar(state, seat) {
+  return (state.hands[seat] || []).filter(t => !isOkey(t, state.realOkey) && !islekMeld(state, t));
+}
+
+/* TAŞ ATMA — sırayı devreder; el boşaldıysa oyuncu bitirir.
+   secenek.otomatik: süre aşımı / bot — işlek denetimi uygulanmaz (masa
+   kilitlenmesin); çağıran zaten güvenli taşı seçer. */
+function discard(state, seat, tileId, secenek) {
   if (state.finished) return { ok: false, reason: 'round_over' };
   if (state.turn !== seat) return { ok: false, reason: 'not_your_turn' };
   if (state.phase !== 'discard') return { ok: false, reason: 'draw_first' };
+  const otomatik = !!(secenek && secenek.otomatik);
+  const elde = (state.hands[seat] || []).find(x => x.id === tileId);
+  if (!elde) return { ok: false, reason: 'tile_not_in_hand' };
+  const sonTas = (state.hands[seat] || []).length === 1;
+  let penalty = null;
+  if (!sonTas && !otomatik) {
+    if (isOkey(elde, state.realOkey)) {
+      /* OKEY ATMAK: bitiş dışında gerçek okeyi atan 101 ceza alır (atış geçerli). */
+      state.scores[seat] = (state.scores[seat] || 0) + OKEY_CEZASI;
+      penalty = { seat, amount: OKEY_CEZASI, reason: 'real_okey_discarded' };
+    } else {
+      const m = islekMeld(state, elde);
+      if (m) {
+        state.scores[seat] = (state.scores[seat] || 0) + OKEY_CEZASI;
+        return { ok: false, reason: 'islek_tas', meldId: m.id,
+                 penalty: { seat, amount: OKEY_CEZASI, reason: 'islek_tas', tile: { n: elde.n, c: renkOf(elde) } } };
+      }
+    }
+  }
   const alinan = elindenAl(state, seat, [tileId]);
   if (!alinan) return { ok: false, reason: 'tile_not_in_hand' };
   const t = alinan[0];
@@ -406,7 +444,7 @@ function discard(state, seat, tileId) {
   state.hamleNo = (state.hamleNo || 0) + 1;
   state.turn = nextSeatOf(state, seat);
   state.phase = 'draw';
-  return { ok: true, tile: t };
+  return { ok: true, tile: t, penalty };
 }
 
 /* ---------------------------------------------------------------------------
@@ -475,6 +513,6 @@ module.exports = {
   freshDeck, shuffle, isOkey, cezaDegeri, renkOf,
   perDogrula, ciftDogrula,
   startRound, prevSeatOf, nextSeatOf,
-  drawFromDeck, drawFromPrev, openMelds, addToMeld, discard,
+  drawFromDeck, drawFromPrev, openMelds, addToMeld, discard, islekMeld, guvenliAtilacaklar,
   elCezasi, elBitti, elBerabere, macBittiMi
 };

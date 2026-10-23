@@ -101,4 +101,22 @@ console.log('  ✓ 2) sahte okey okeyin yerine geçiyor; göstergenin yalnız 1 
     'kendi atığım ıstakanın sağına (ortadan uzağa) alınmalı');
   console.log('  ✓ 1/4) sürükleme kopyası yalnız taş; atık bölgeleri ortadan kenara alındı');
 }
+// ---- 24.10 raporu: işlek taş, okeyi işleme (sürükle-bırak), ceza bildirimi ----
+{
+  const js = fs.readFileSync(path.join(KOK, 'js', 'okey-online.js'), 'utf8');
+  const sayfa = fs.readFileSync(path.join(KOK, 'index.html'), 'utf8');
+  assert.ok(/_ok101IsleBirak/.test(js) && /_ok101IsleBirak\(d\.x/.test(sayfa), 'taş pere sürüklenince işlenmeli');
+  assert.ok(/reason === 'islek_tas'/.test(js), 'işlek taş cezası herkese bildirilmeli');
+  // okey ve ortadan çekilen normal taş masadaki pere işlenebilmeli
+  const st = E.startRound(1, [0, 1], {}, () => 0.5, 0);
+  st.realOkey = { c: R, n: 1 }; st.turn = 0; st.phase = 'discard'; st.opened[0] = true; st.acilisTuru[0] = 'per';
+  st.melds = [{ id: 'k', seat: 0, tur: 'seri', tiles: [T(10, R), T(9, R), T(8, R), T(7, R), T(6, R)] }];
+  const okey = T(1, R), r5 = T(5, R), y10 = T(10, Y);
+  st.hands[0] = [okey, r5, y10];
+  assert.ok(E.addToMeld(st, 0, 'k', r5.id).ok, 'normal taş işlenmeli');
+  assert.ok(E.addToMeld(st, 0, 'k', okey.id).ok, 'okey işlenmeli');
+  const son = E.discard(st, 0, y10.id);
+  assert.ok(son.ok && son.finished, 'son taşı atınca el bitmeli');
+  console.log('  ✓ 24.10) okey ve normal taş işleniyor, el bitiyor; işlek taş cezası bildiriliyor');
+}
 console.log('OK 101 okey kullanıcı raporu düzeltmeleri');

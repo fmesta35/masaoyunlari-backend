@@ -1025,6 +1025,22 @@
     };
 
     /* İŞLEME: ıstakadan bir taş seçili olmalı; sonra masadaki pere dokun. */
+    /* SÜRÜKLE-BIRAK İLE İŞLEME: ıstakadaki taş masadaki bir perin üstüne
+       bırakılınca o pere işlenir (kullanıcı raporu: "okey/normal taş
+       işlenmiyor" — taş pere sürüklenince hiçbir şey olmuyordu). */
+    window.GV._ok101IsleBirak = function (cx, cy, sh, sl) {
+      if (!onlineActive() || !gercek101(gameState)) return false;
+      const el = document.elementFromPoint(cx, cy);
+      const per = el && el.closest ? el.closest('.ok101-per[data-meld]') : null;
+      if (!per) return false;
+      const t = rackTile(sh, sl);
+      if (!t) return false;
+      if (!myTurnNow()) { toast('⏳ Sıra sizde değil!', 'warning'); return true; }
+      if (!(gameState.opened && gameState.opened[gameState.mySeat])) { toast('🎴 İşlemek için önce elini açmalısın.', 'warning'); return true; }
+      if (gameState.phase !== 'discard') { toast('🧲 Önce taş çekmelisin.', 'warning'); return true; }
+      onlineAdd(per.getAttribute('data-meld'), t.id);
+      return true;
+    };
     window.GV._ok101Isle = function (meldId) {
       if (!onlineActive() || !gercek101(gameState)) return;
       if (!myTurnNow()) { toast('⏳ Sıra sizde değil!', 'warning'); return; }
@@ -1180,9 +1196,20 @@
     // (bkz. server.js okeyAct() → okey-engine.js discard() res.penalty).
     socket.on('okeyPenalty', payload => {
       if (!payload || String(payload.roomId) !== String(roomId)) return;
+      const kim = (typeof mySeat === 'number' && payload.seat === mySeat) ? 'Sen' : (payload.name || 'Rakip');
       if (payload.reason === 'real_okey_discarded') {
-        const kim = (typeof mySeat === 'number' && payload.seat === mySeat) ? 'Sen' : (payload.name || 'Rakip');
-        toast(`⚠️ ${kim} gerçek okeyi açık attı! -${payload.amount} puan cezası.`, 'error');
+        const m = gercek101(gameState)
+          ? `⚠️ ${kim} okeyi yere attı! +${payload.amount} ceza puanı.`
+          : `⚠️ ${kim} gerçek okeyi açık attı! -${payload.amount} puan cezası.`;
+        toast(m, 'error');
+        try { appendMove(m); } catch (_) {}
+      } else if (payload.reason === 'islek_tas') {
+        /* İŞLEK TAŞ: masadaki bir pere uyan taş atılamaz — atmaya çalışana
+           101 ceza, taş ıstakasına geri döner. Herkese bildirilir. */
+        const tt = payload.tile ? ` (${payload.tile.n})` : '';
+        const m = `🚫 ${kim} işlek taş${tt} atmaya çalıştı — +${payload.amount} ceza puanı! Taş ıstakaya geri döndü.`;
+        toast(m, 'error');
+        try { appendMove(m); } catch (_) {}
       }
     });
 
@@ -1210,7 +1237,12 @@
         not_a_win_hand: '⚠️ Eliniz henüz bitmeye uygun değil! Perlerinizi veya çiftlerinizi kontrol edin.',
         not_101: '⚠️ Kalan 14 taşınızın toplamı 101 puana ulaşmıyor!',
         no_discard: '⚠️ Sol oyuncunun atığı yok — orta desteden çekin.',
-        round_over: '🏁 El bitti, yeni el bekleniyor...'
+        round_over: '🏁 El bitti, yeni el bekleniyor...',
+        islek_tas: '🚫 İşlek taş atılamaz! Bu taş masadaki bir pere uyuyor — 101 ceza yazıldı, taş ıstakana döndü.',
+        bad_meld: '⚠️ Bu taş o pere uymuyor.',
+        need_discard_tile: '⚠️ Elinde atacak en az bir taş kalmalı.',
+        not_opened: '🎴 İşlemek için önce elini açmalısın.',
+        pairs_locked: '👯 Çift perlerine taş işlenmez.'
       };
       // Oyuna özel metin yoksa ortak sözlüğe düş: kullanıcı hiçbir zaman
       // "illegal_move" gibi bir KOD görmez (bkz. js/messages.js).

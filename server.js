@@ -3323,9 +3323,11 @@ function okeyClockTick(room) {
     const okeyMi = t => (M === okey101Engine)
       ? okey101Engine.isOkey(t, ok.roundState.realOkey)
       : okeyEngine.isRealOkeyTile(t, ok.roundState.realOkey);
-    const nonOkey = hand.find(t => !okeyMi(t));
+    /* 101: işlek ya da okey olmayan taşı seç (işlek taş atılamaz). */
+    const guvenli = (M === okey101Engine) ? okey101Engine.guvenliAtilacaklar(ok.roundState, turnSeat) : [];
+    const nonOkey = guvenli[0] || hand.find(t => !okeyMi(t));
     const tile = nonOkey || hand[0];
-    if (tile) M.discard(ok.roundState, turnSeat, tile.id);
+    if (tile) M.discard(ok.roundState, turnSeat, tile.id, { otomatik: true });
     if (ok.roundState.finished) { okeyRoundFinished(room); return; }
     ok.turnStartedAt = now();
     touchMoveTimer(room);
@@ -3692,14 +3694,27 @@ function aiOyna(room, bot) {
       if (r.ok && r.deckEmpty) { okeyRoundFinished(room); return; }
     }
     const el = (st8.hands || {})[bot.seat] || [];
-    if (el.length > 1) {
-      /* En pahalı taşı at ama okeyi elde tut (en değerli joker odur). */
+    /* Açmışsa önce uyan taşları masadaki perlere işle (işlek taş atılamaz). */
+    if (st8.opened[bot.seat]) {
+      let degisti = true;
+      while (degisti && el.length > 1) {
+        degisti = false;
+        for (const t of el.slice()) {
+          if (el.length <= 1) break;
+          const m = okey101Engine.islekMeld(st8, t);
+          if (m && okey101Engine.addToMeld(st8, bot.seat, m.id, t.id).ok) { degisti = true; }
+        }
+      }
+    }
+    if (el.length >= 1) {
+      /* Güvenli (okey ve işlek olmayan) en pahalı taşı at. */
+      const guvenli = okey101Engine.guvenliAtilacaklar(st8, bot.seat);
       let aday = null;
-      for (const t of el) {
-        if (okey101Engine.isOkey(t, st8.realOkey)) continue;
+      for (const t of (guvenli.length ? guvenli : el)) {
+        if (okey101Engine.isOkey(t, st8.realOkey) && guvenli.length) continue;
         if (!aday || (Number(t.n) || 0) > (Number(aday.n) || 0)) aday = t;
       }
-      okey101Engine.discard(st8, bot.seat, (aday || el[0]).id);
+      if (el.length > 1 || st8.opened[bot.seat]) okey101Engine.discard(st8, bot.seat, (aday || el[0]).id, { otomatik: true });
     }
     room.okey.turnStartedAt = now();
     touchMoveTimer(room);
@@ -3798,6 +3813,14 @@ function okeyAct(room, socket, act) {
   const res = act(ok.roundState, player.seat);
   if (!res.ok) {
     socket.emit('okeyRejected', { roomId: room.id, reason: res.reason, gameState: buildOkeyState(room, player.seat) });
+    /* 101 İŞLEK TAŞ CEZASI: hamle reddedildi ama 101 ceza yazıldı — bütün
+       masaya duyur ve yeni puanı herkese yolla. */
+    if (res.penalty) {
+      const pp = (room.players || []).find(p => p.seat === res.penalty.seat);
+      io.to(room.id).emit('okeyPenalty', { roomId: room.id, seat: res.penalty.seat, name: pp ? pp.name : null,
+        amount: res.penalty.amount, reason: res.penalty.reason, tile: res.penalty.tile || null });
+      emitOkeyState(room);
+    }
     return false;
   }
   // Başarılı eylem: saatleri muhasebele, strike sıfırla, herkese yayınla.
