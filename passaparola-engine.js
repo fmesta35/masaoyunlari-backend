@@ -49,7 +49,58 @@ function setleriYukle(yol) {
   }
   return SETLER;
 }
-function setSayisi() { return setleriYukle().length; }
+/* SORU HAVUZU (kullanıcı isteği: "en az 500/1000 farklı yarışma, zorluk
+   seviyeleri karışık"). passaparola-havuz.json harf başına ~35-45 soru
+   taşır (1 kolay · 2 orta · 3 zor). Her maçta her harf için havuzdan
+   RASTGELE bir soru seçilir → her maç yeni bir yarışmadır (27 harfin
+   kombinasyonu milyarlarca farklı yarışma verir). Eski sabit setlerin
+   soruları da havuza "kolay" olarak katılır. */
+let HAVUZ = null;
+function havuzYukle(yol) {
+  if (HAVUZ) return HAVUZ;
+  HAVUZ = {};
+  const ekle = q => {
+    if (!q || !q.letter || !q.question || !q.answer) return;
+    (HAVUZ[q.letter] = HAVUZ[q.letter] || []).push(q);
+  };
+  try {
+    const ham = JSON.parse(fs.readFileSync(yol || path.join(__dirname, 'passaparola-havuz.json'), 'utf8'));
+    (Array.isArray(ham) ? ham : (ham && ham.sorular) || []).forEach(ekle);
+  } catch (e) { console.warn('[passaparola] soru havuzu okunamadı, yalnız sabit setler kullanılacak:', e && e.message); }
+  setleriYukle().forEach(st => st.questions.forEach(q =>
+    ekle(Object.assign({ id: 'set' + st.id + '-' + q.letter, zorluk: 1 }, q))));
+  return HAVUZ;
+}
+function havuzBoyutu() { const h = havuzYukle(); return Object.values(h).reduce((a, l) => a + l.length, 0); }
+/* Son maçlarda sorulan soruları bir süre tekrar sorma (aynı oyuncular art
+   arda oynarken aynı soruyla karşılaşmasın). */
+const SON_SORULAN = [];
+const SON_SORULAN_MAX = 900;
+let yarismaSayaci = 0;
+/* Zorluk karışımı: her maçta ~%35 kolay, ~%40 orta, ~%25 zor. */
+function havuzdanSetKur(rng) {
+  const r = rng || Math.random;
+  const h = havuzYukle();
+  const hedefler = HARFLER.map(() => { const x = r(); return x < 0.35 ? 1 : x < 0.75 ? 2 : 3; });
+  const yakin = new Set(SON_SORULAN);
+  const sorular = [];
+  for (let i = 0; i < HARFLER.length; i++) {
+    const liste = h[HARFLER[i]] || [];
+    if (!liste.length) return null;
+    const taze = liste.filter(q => !yakin.has(q.id || q.question));
+    const kaynak = taze.length ? taze : liste;
+    const uygun = kaynak.filter(q => Number(q.zorluk || 2) === hedefler[i]);
+    const secim = (uygun.length ? uygun : kaynak);
+    sorular.push(secim[Math.floor(r() * secim.length)]);
+  }
+  sorular.forEach(q => { SON_SORULAN.push(q.id || q.question); });
+  while (SON_SORULAN.length > SON_SORULAN_MAX) SON_SORULAN.shift();
+  yarismaSayaci++;
+  const z = sorular.reduce((a, q) => a + Number(q.zorluk || 2), 0) / sorular.length;
+  const etiket = z < 1.75 ? 'Kolay' : z < 2.25 ? 'Orta' : 'Zor';
+  return { id: 'h' + Date.now().toString(36) + yarismaSayaci, name: 'Karışık Yarışma • ' + etiket, questions: sorular };
+}
+function setSayisi() { return setleriYukle().length + (havuzBoyutu() ? 1 : 0); }
 function setAdlari() { return setleriYukle().map(s => ({ id: s.id, ad: s.name })); }
 
 /* -------------------------------------------------------------- KARŞILAŞTIR
@@ -82,6 +133,8 @@ function macBaslat(opts) {
   /* Set seçimi: verilmemişse (ya da yoksa) rastgele. İki oyuncu AYNI seti
      oynar — sorular aynı olmazsa maç adil olmaz. */
   let set = setler.find(s => String(s.id) === String(o.setId));
+  /* Set istenmediyse her maç havuzdan YENİ bir yarışma kurulur. */
+  if (!set && o.setId === undefined) set = havuzdanSetKur(o.rng);
   if (!set) {
     const r = o.rng || Math.random;
     set = setler[Math.floor(r() * setler.length)] || { id: 0, name: '—', questions: [] };
@@ -319,7 +372,7 @@ function gorunum(st, seat, ekstra) {
 
 module.exports = {
   HARFLER, HARF_AL_CEZASI_SN, VARSAYILAN_SURE_SN,
-  setleriYukle, setSayisi, setAdlari, normalize, cevapDogruMu,
+  setleriYukle, setSayisi, setAdlari, normalize, cevapDogruMu, havuzYukle, havuzBoyutu, havuzdanSetKur, HARFLER,
   macBaslat, cevapla, pas, harfAl, tik, macBitir, pesEt,
   aktifHarf, aktifSoru, sonrakiIndeks, oynayabilirMi, dogruSayisi,
   cevapMaskesi, gorunum

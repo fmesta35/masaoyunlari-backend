@@ -335,8 +335,241 @@
     ],
   };
 
-  function sahneSayisi() { return SAHNE_BILGI.length; }
-  function sahneFarkSayisi(id) { return (FARK_KONUMLARI[id] || []).length; }
+
+  /* ======================================================================
+   * ÜRETİLEN SAHNELER (kullanıcı isteği: "Fark bulmacada 500/1000'den fazla
+   * örnek, zorluk seviyeleri karışık olsun").
+   * ======================================================================
+   * Elle çizilmiş 4 sahnenin yanına, kimliğinden (sahneId) DETERMİNİSTİK
+   * olarak üretilen 1200 sahne eklendi. Aynı kimlik sunucuda da istemcide de
+   * birebir aynı resmi ve aynı tıklama alanlarını verir — sunucu doğrulaması
+   * (farkBul) bu yüzden değişmeden çalışır.
+   *
+   *   · 10 tema (çayır, deniz altı, gece şehri, kış, çöl, sonbahar, lunapark,
+   *     bahçe partisi, orman, sahil kasabası), her temanın kendi nesneleri.
+   *   · Her sahnede 13 farklanabilir nesne; her el bunlardan 7'si seçilir.
+   *   · ZORLUK sahneye işlenir:
+   *       Kolay — iri nesneler, belirgin farklar (nesne yok / zıt renk)
+   *       Orta  — orta boy nesneler, renk / büyüklük / ayna farkları
+   *       Zor   — küçük nesneler, ince farklar (detay eksik, yakın renk,
+   *               hafif büyüme, küçük dönme) ve daha kalabalık süsleme
+   * ==================================================================== */
+  var URETILEN_SAHNE = 1200;
+  var ELLE_SAHNE = 4;
+
+  var TEMALAR = [
+    { ad: 'Çayır', gok: ['#7dd3fc', '#e0f2fe'], yer: ['#86efac', '#4ade80'], ufuk: 0.42,
+      nesne: ['agac', 'cicek', 'kelebek', 'kus', 'mantar', 'ev', 'balon', 'gunes'] },
+    { ad: 'Deniz Altı', gok: ['#0ea5e9', '#0c4a6e'], yer: ['#fde68a', '#f59e0b'], ufuk: 0.78,
+      nesne: ['balik', 'denizyildizi', 'yosun', 'kabuk', 'balik', 'kabarcik', 'denizyildizi', 'balik'] },
+    { ad: 'Gece Şehri', gok: ['#0f172a', '#312e81'], yer: ['#334155', '#1e293b'], ufuk: 0.62,
+      nesne: ['bina', 'yildiz', 'araba', 'lamba', 'bina', 'ay', 'yildiz', 'araba'] },
+    { ad: 'Kış Masalı', gok: ['#bfdbfe', '#eff6ff'], yer: ['#ffffff', '#e2e8f0'], ufuk: 0.5,
+      nesne: ['kardanadam', 'cam', 'hediye', 'yildiz', 'ev', 'cam', 'kus', 'hediye'] },
+    { ad: 'Çöl Vahası', gok: ['#fdba74', '#fef3c7'], yer: ['#fcd34d', '#d97706'], ufuk: 0.5,
+      nesne: ['kaktus', 'palmiye', 'deve', 'gunes', 'kaktus', 'piramit', 'kus', 'palmiye'] },
+    { ad: 'Sonbahar Yolu', gok: ['#fed7aa', '#fff7ed'], yer: ['#d97706', '#92400e'], ufuk: 0.48,
+      nesne: ['agac', 'mantar', 'semsiye', 'kus', 'ev', 'yaprak', 'agac', 'yaprak'] },
+    { ad: 'Lunapark', gok: ['#f0abfc', '#fdf4ff'], yer: ['#a78bfa', '#7c3aed'], ufuk: 0.55,
+      nesne: ['balon', 'kalp', 'yildiz', 'hediye', 'dondurma', 'balon', 'semsiye', 'kalp'] },
+    { ad: 'Bahçe Partisi', gok: ['#a7f3d0', '#ecfdf5'], yer: ['#65a30d', '#3f6212'], ufuk: 0.45,
+      nesne: ['cicek', 'dondurma', 'balon', 'hediye', 'kelebek', 'cicek', 'semsiye', 'pasta'] },
+    { ad: 'Orman Derinliği', gok: ['#bbf7d0', '#f0fdf4'], yer: ['#166534', '#14532d'], ufuk: 0.46,
+      nesne: ['cam', 'agac', 'mantar', 'kus', 'tavsan', 'mantar', 'cam', 'kelebek'] },
+    { ad: 'Sahil Kasabası', gok: ['#93c5fd', '#dbeafe'], yer: ['#fde68a', '#fbbf24'], ufuk: 0.5,
+      nesne: ['ev', 'semsiye', 'gemi', 'kus', 'palmiye', 'kabuk', 'gemi', 'denizyildizi'] }
+  ];
+  var ZORLUK_AD = ['', 'Kolay', 'Orta', 'Zor'];
+  var RENKLER = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#06b6d4', '#3b82f6', '#8b5cf6', '#ec4899', '#a16207', '#64748b'];
+
+  function tamsayiKarma(n) {
+    var x = (n | 0) * 2654435761;
+    x = (x ^ (x >>> 16)) >>> 0;
+    return x || 1;
+  }
+  /* Renk biraz kaydır (zor farklar için yakın ton). */
+  function renkKaydir(hex, miktar) {
+    var n = parseInt(hex.slice(1), 16);
+    var r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
+    var f = function (v) { return Math.max(0, Math.min(255, Math.round(v + miktar))); };
+    return '#' + ((1 << 24) + (f(r) << 16) + (f(g) << 8) + f(b)).toString(16).slice(1);
+  }
+
+  /* ---- Nesne çizimleri: (0,0) merkezli, ~70px kutu; c = ana renk,
+     d = detay var mı (false → "detay" farkı uygulanmış). */
+  var NESNE = {
+    agac: function (c, d) { return '<rect x="-7" y="5" width="14" height="32" rx="3" fill="#92400e"/>' +
+      '<circle cx="0" cy="-12" r="26" fill="' + c + '"/>' + (d ? '<circle cx="-9" cy="-18" r="5" fill="#dc2626"/><circle cx="10" cy="-6" r="5" fill="#dc2626"/>' : ''); },
+    cicek: function (c, d) { var s = '<rect x="-2" y="2" width="4" height="34" fill="#16a34a"/>';
+      for (var i = 0; i < (d ? 6 : 5); i++) { var a = i * Math.PI * 2 / (d ? 6 : 5); s += '<circle cx="' + (Math.cos(a) * 13).toFixed(1) + '" cy="' + (-10 + Math.sin(a) * 13).toFixed(1) + '" r="9" fill="' + c + '"/>'; }
+      return s + '<circle cx="0" cy="-10" r="7" fill="#fde047"/>'; },
+    kelebek: function (c, d) { return '<ellipse cx="-14" cy="-6" rx="14" ry="18" fill="' + c + '"/><ellipse cx="14" cy="-6" rx="14" ry="18" fill="' + c + '"/>' +
+      '<ellipse cx="-11" cy="14" rx="9" ry="10" fill="' + c + '" opacity=".8"/><ellipse cx="11" cy="14" rx="9" ry="10" fill="' + c + '" opacity=".8"/>' +
+      '<rect x="-3" y="-20" width="6" height="40" rx="3" fill="#1f2937"/>' + (d ? '<circle cx="-14" cy="-8" r="5" fill="#fff"/><circle cx="14" cy="-8" r="5" fill="#fff"/>' : ''); },
+    kus: function (c, d) { return '<ellipse cx="0" cy="0" rx="22" ry="15" fill="' + c + '"/><circle cx="17" cy="-10" r="10" fill="' + c + '"/>' +
+      '<polygon points="26,-11 36,-8 26,-5" fill="#f59e0b"/><circle cx="20" cy="-12" r="2.5" fill="#111"/>' + (d ? '<path d="M -6,-2 Q 0,-16 10,-2" fill="' + renkKaydir(c, -50) + '"/>' : ''); },
+    mantar: function (c, d) { return '<rect x="-8" y="0" width="16" height="26" rx="5" fill="#fef3c7"/><path d="M -28,4 Q 0,-40 28,4 Z" fill="' + c + '"/>' +
+      (d ? '<circle cx="-10" cy="-10" r="4.5" fill="#fff"/><circle cx="8" cy="-14" r="4" fill="#fff"/><circle cx="14" cy="-3" r="3.5" fill="#fff"/>' : ''); },
+    ev: function (c, d) { return '<rect x="-26" y="-8" width="52" height="40" fill="' + c + '"/><polygon points="-32,-8 0,-36 32,-8" fill="#b91c1c"/>' +
+      '<rect x="-6" y="12" width="12" height="20" fill="#78350f"/>' + (d ? '<rect x="-21" y="0" width="11" height="10" fill="#bae6fd"/><rect x="10" y="0" width="11" height="10" fill="#bae6fd"/>' : ''); },
+    balon: function (c, d) { return '<path d="M 0,26 Q -6,36 2,46" stroke="#475569" stroke-width="2" fill="none"/><ellipse cx="0" cy="-2" rx="20" ry="25" fill="' + c + '"/>' +
+      '<polygon points="-4,22 4,22 0,28" fill="' + c + '"/>' + (d ? '<ellipse cx="-7" cy="-11" rx="5" ry="8" fill="#fff" opacity=".6"/>' : ''); },
+    gunes: function (c, d) { var s = ''; for (var i = 0; i < (d ? 8 : 6); i++) { var a = i * Math.PI * 2 / (d ? 8 : 6);
+      s += '<line x1="' + (Math.cos(a) * 24).toFixed(1) + '" y1="' + (Math.sin(a) * 24).toFixed(1) + '" x2="' + (Math.cos(a) * 34).toFixed(1) + '" y2="' + (Math.sin(a) * 34).toFixed(1) + '" stroke="#f59e0b" stroke-width="5" stroke-linecap="round"/>'; }
+      return s + '<circle cx="0" cy="0" r="19" fill="' + c + '"/>'; },
+    balik: function (c, d) { return '<ellipse cx="0" cy="0" rx="26" ry="15" fill="' + c + '"/><polygon points="22,0 38,-13 38,13" fill="' + c + '"/>' +
+      '<circle cx="-14" cy="-4" r="3" fill="#111"/>' + (d ? '<path d="M -4,-13 L -4,13 M 6,-13 L 6,13" stroke="#fff" stroke-width="3" opacity=".7"/>' : ''); },
+    denizyildizi: function (c, d) { var p = []; for (var i = 0; i < 10; i++) { var r = i % 2 ? 11 : 28, a = -Math.PI / 2 + i * Math.PI / 5; p.push((Math.cos(a) * r).toFixed(1) + ',' + (Math.sin(a) * r).toFixed(1)); }
+      return '<polygon points="' + p.join(' ') + '" fill="' + c + '"/>' + (d ? '<circle cx="0" cy="0" r="4" fill="#fff"/><circle cx="0" cy="-13" r="2.5" fill="#fff"/>' : ''); },
+    yosun: function (c, d) { return '<path d="M -10,34 Q -22,8 -8,-8 Q 2,-24 -6,-38" stroke="' + c + '" stroke-width="7" fill="none" stroke-linecap="round"/>' +
+      '<path d="M 6,34 Q 18,10 6,-4" stroke="' + c + '" stroke-width="7" fill="none" stroke-linecap="round"/>' + (d ? '<path d="M 16,34 Q 26,20 20,8" stroke="' + c + '" stroke-width="6" fill="none" stroke-linecap="round"/>' : ''); },
+    kabuk: function (c, d) { var s = '<path d="M -26,14 Q 0,-34 26,14 Z" fill="' + c + '"/>';
+      if (d) for (var i = -2; i <= 2; i++) s += '<line x1="0" y1="14" x2="' + (i * 10) + '" y2="-12" stroke="#fff" stroke-width="2" opacity=".7"/>';
+      return s; },
+    kabarcik: function (c, d) { return '<circle cx="0" cy="0" r="16" fill="none" stroke="' + c + '" stroke-width="3"/><circle cx="16" cy="-20" r="9" fill="none" stroke="' + c + '" stroke-width="3"/>' +
+      (d ? '<circle cx="-14" cy="-24" r="6" fill="none" stroke="' + c + '" stroke-width="3"/>' : ''); },
+    bina: function (c, d) { var s = '<rect x="-22" y="-40" width="44" height="76" fill="' + c + '"/>';
+      for (var y = -32; y < 28; y += 14) for (var x = -15; x < 15; x += 14) if (d || y !== -18) s += '<rect x="' + x + '" y="' + y + '" width="8" height="8" fill="#fde047"/>';
+      return s; },
+    yildiz: function (c, d) { var p = []; for (var i = 0; i < 10; i++) { var r = i % 2 ? 10 : 24, a = -Math.PI / 2 + i * Math.PI / 5; p.push((Math.cos(a) * r).toFixed(1) + ',' + (Math.sin(a) * r).toFixed(1)); }
+      return '<polygon points="' + p.join(' ') + '" fill="' + c + '"/>' + (d ? '<circle cx="0" cy="0" r="4" fill="#fff" opacity=".85"/>' : ''); },
+    araba: function (c, d) { return '<rect x="-32" y="-6" width="64" height="20" rx="6" fill="' + c + '"/><path d="M -18,-6 L -10,-22 L 14,-22 L 22,-6 Z" fill="' + c + '"/>' +
+      (d ? '<path d="M -12,-8 L -7,-18 L 12,-18 L 17,-8 Z" fill="#bae6fd"/>' : '') + '<circle cx="-18" cy="16" r="8" fill="#111"/><circle cx="18" cy="16" r="8" fill="#111"/>'; },
+    lamba: function (c, d) { return '<rect x="-3" y="-20" width="6" height="56" fill="#475569"/><path d="M -16,-20 L 16,-20 L 8,-34 L -8,-34 Z" fill="#334155"/>' +
+      '<circle cx="0" cy="-14" r="' + (d ? 9 : 5) + '" fill="' + c + '"/>'; },
+    ay: function (c, d) { return '<circle cx="0" cy="0" r="24" fill="' + c + '"/><circle cx="12" cy="-6" r="20" fill="#0f172a"/>' + (d ? '<circle cx="-12" cy="6" r="3" fill="' + renkKaydir(c, -40) + '"/>' : ''); },
+    kardanadam: function (c, d) { return '<circle cx="0" cy="16" r="20" fill="#fff" stroke="#cbd5e1"/><circle cx="0" cy="-16" r="14" fill="#fff" stroke="#cbd5e1"/>' +
+      '<rect x="-12" y="-36" width="24" height="8" fill="' + c + '"/><rect x="-8" y="-46" width="16" height="12" fill="' + c + '"/>' +
+      (d ? '<polygon points="0,-15 12,-13 0,-11" fill="#f97316"/>' : '') + '<circle cx="0" cy="10" r="2.5" fill="#111"/><circle cx="0" cy="20" r="2.5" fill="#111"/>'; },
+    cam: function (c, d) { return '<rect x="-4" y="22" width="8" height="14" fill="#78350f"/><polygon points="0,-38 -18,-8 18,-8" fill="' + c + '"/>' +
+      '<polygon points="0,-22 -24,22 24,22" fill="' + c + '"/>' + (d ? '<circle cx="-8" cy="6" r="4" fill="#f43f5e"/><circle cx="7" cy="-12" r="3.5" fill="#fde047"/>' : ''); },
+    hediye: function (c, d) { return '<rect x="-22" y="-14" width="44" height="36" fill="' + c + '"/><rect x="-4" y="-14" width="8" height="36" fill="#fde047"/>' +
+      (d ? '<path d="M 0,-14 C -18,-32 -22,-12 0,-14 C 22,-12 18,-32 0,-14" fill="#fde047"/>' : '') + '<rect x="-24" y="-20" width="48" height="8" fill="' + renkKaydir(c, -30) + '"/>'; },
+    kaktus: function (c, d) { return '<rect x="-9" y="-34" width="18" height="70" rx="9" fill="' + c + '"/><rect x="-28" y="-10" width="12" height="26" rx="6" fill="' + c + '"/>' +
+      (d ? '<rect x="16" y="-22" width="12" height="24" rx="6" fill="' + c + '"/>' : '') + '<circle cx="0" cy="-36" r="5" fill="#ec4899"/>'; },
+    palmiye: function (c, d) { var s = '<path d="M 0,36 Q -6,0 0,-24" stroke="#92400e" stroke-width="7" fill="none"/>';
+      var n = d ? 5 : 4; for (var i = 0; i < n; i++) { var a = Math.PI + i * Math.PI / (n - 1); s += '<path d="M 0,-24 Q ' + (Math.cos(a) * 20).toFixed(1) + ',' + (-24 + Math.sin(a) * 20 - 10).toFixed(1) + ' ' + (Math.cos(a) * 36).toFixed(1) + ',' + (-24 + Math.sin(a) * 26 + 6).toFixed(1) + '" stroke="' + c + '" stroke-width="6" fill="none" stroke-linecap="round"/>'; }
+      return s; },
+    deve: function (c, d) { return '<ellipse cx="0" cy="0" rx="28" ry="14" fill="' + c + '"/>' + '<ellipse cx="-6" cy="-14" rx="10" ry="' + (d ? 10 : 4) + '" fill="' + c + '"/>' +
+      (d ? '<ellipse cx="10" cy="-12" rx="8" ry="8" fill="' + c + '"/>' : '') + '<rect x="22" y="-26" width="7" height="22" fill="' + c + '"/><ellipse cx="30" cy="-26" rx="8" ry="5" fill="' + c + '"/>' +
+      '<rect x="-20" y="8" width="5" height="22" fill="' + c + '"/><rect x="14" y="8" width="5" height="22" fill="' + c + '"/>'; },
+    piramit: function (c, d) { return '<polygon points="0,-34 -38,30 38,30" fill="' + c + '"/><polygon points="0,-34 0,30 38,30" fill="' + renkKaydir(c, -35) + '"/>' +
+      (d ? '<rect x="-5" y="14" width="10" height="16" fill="#451a03"/>' : ''); },
+    semsiye: function (c, d) { return '<path d="M 0,-14 L 0,30 Q 0,36 -6,34" stroke="#334155" stroke-width="3" fill="none"/><path d="M -32,-10 Q 0,-46 32,-10 Z" fill="' + c + '"/>' +
+      (d ? '<path d="M -11,-10 Q 0,-46 11,-10 Z" fill="#fff" opacity=".5"/>' : ''); },
+    yaprak: function (c, d) { return '<path d="M 0,-30 Q 26,-6 0,28 Q -26,-6 0,-30 Z" fill="' + c + '"/>' + (d ? '<path d="M 0,-26 L 0,28" stroke="' + renkKaydir(c, -50) + '" stroke-width="2.5"/>' : ''); },
+    kalp: function (c, d) { return '<path d="M 0,26 C -40,-4 -18,-32 0,-12 C 18,-32 40,-4 0,26 Z" fill="' + c + '"/>' + (d ? '<ellipse cx="-11" cy="-10" rx="4" ry="6" fill="#fff" opacity=".6"/>' : ''); },
+    dondurma: function (c, d) { return '<polygon points="-14,0 14,0 0,36" fill="#d97706"/><circle cx="0" cy="-8" r="15" fill="' + c + '"/>' +
+      (d ? '<circle cx="0" cy="-26" r="11" fill="' + renkKaydir(c, 60) + '"/>' : '') + '<circle cx="3" cy="-12" r="2" fill="#dc2626"/>'; },
+    pasta: function (c, d) { return '<rect x="-28" y="-4" width="56" height="30" rx="4" fill="' + c + '"/><rect x="-28" y="-6" width="56" height="7" fill="#fff"/>' +
+      (d ? '<rect x="-2" y="-22" width="4" height="16" fill="#facc15"/><ellipse cx="0" cy="-25" rx="3" ry="5" fill="#f97316"/>' : ''); },
+    tavsan: function (c, d) { return '<ellipse cx="0" cy="12" rx="20" ry="16" fill="' + c + '"/><circle cx="0" cy="-10" r="12" fill="' + c + '"/>' +
+      '<ellipse cx="-6" cy="-32" rx="4" ry="12" fill="' + c + '"/>' + (d ? '<ellipse cx="6" cy="-32" rx="4" ry="12" fill="' + c + '"/>' : '') + '<circle cx="-4" cy="-12" r="2" fill="#111"/>'; },
+    gemi: function (c, d) { return '<path d="M -34,6 L 34,6 L 24,24 L -24,24 Z" fill="' + c + '"/><rect x="-2" y="-34" width="4" height="40" fill="#475569"/>' +
+      '<polygon points="2,-32 26,0 2,0" fill="#f8fafc"/>' + (d ? '<polygon points="-2,-26 -22,0 -2,0" fill="#e2e8f0"/>' : ''); }
+  };
+  var NESNE_AD = { agac: 'Ağaç', cicek: 'Çiçek', kelebek: 'Kelebek', kus: 'Kuş', mantar: 'Mantar', ev: 'Ev', balon: 'Balon', gunes: 'Güneş',
+    balik: 'Balık', denizyildizi: 'Deniz yıldızı', yosun: 'Yosun', kabuk: 'Deniz kabuğu', kabarcik: 'Kabarcıklar', bina: 'Bina', yildiz: 'Yıldız',
+    araba: 'Araba', lamba: 'Sokak lambası', ay: 'Hilal', kardanadam: 'Kardan adam', cam: 'Çam ağacı', hediye: 'Hediye paketi', kaktus: 'Kaktüs',
+    palmiye: 'Palmiye', deve: 'Deve', piramit: 'Piramit', semsiye: 'Şemsiye', yaprak: 'Yaprak', kalp: 'Kalp', dondurma: 'Dondurma',
+    pasta: 'Pasta', tavsan: 'Tavşan', gemi: 'Yelkenli' };
+  var SIMETRIK = { cicek: 1, gunes: 1, yildiz: 1, denizyildizi: 1, kalp: 1, balon: 1, hediye: 1, pasta: 1, kabuk: 1, cam: 0, lamba: 1, bina: 1, yaprak: 1, kardanadam: 1, dondurma: 0 };
+  var FARK_TUR_AD = { yok: 'kayıp', renk: 'renk', buyuk: 'boyut', ayna: 'yön', detay: 'detay', don: 'açı' };
+
+  var _uretimOnbellek = {};
+  /* Üretilen sahnenin TAM tanımı (tema, zorluk, 13 nesne ve her birinin
+     farkı). Kimlikten deterministik; önbellekte tutulur. */
+  function uretilenSahne(sahneId) {
+    if (_uretimOnbellek[sahneId]) return _uretimOnbellek[sahneId];
+    var no = sahneId - ELLE_SAHNE;
+    var rng = mulberry32(tamsayiKarma(no + 7919));
+    var tema = TEMALAR[no % TEMALAR.length];
+    var zorluk = 1 + (Math.floor(no / TEMALAR.length) % 3);     // temalar ve zorluklar dengeli dağılır
+    var olcek = zorluk === 1 ? 1.18 : zorluk === 2 ? 0.95 : 0.72;
+    /* 13 nesne: 5×3 ızgarada (2 göz boş) titreşimli konumlar → çakışma yok. */
+    var gozler = []; for (var gy = 0; gy < 3; gy++) for (var gx = 0; gx < 5; gx++) gozler.push([gx, gy]);
+    for (var i = gozler.length - 1; i > 0; i--) { var j = Math.floor(rng() * (i + 1)); var t = gozler[i]; gozler[i] = gozler[j]; gozler[j] = t; }
+    gozler = gozler.slice(0, 13);
+    var turlerK = ['yok', 'renk', 'yok', 'renk', 'buyuk'];
+    var turlerO = ['renk', 'buyuk', 'ayna', 'yok', 'detay', 'renk'];
+    var turlerZ = ['detay', 'renk', 'detay', 'don', 'buyuk', 'detay'];
+    var turler = zorluk === 1 ? turlerK : zorluk === 2 ? turlerO : turlerZ;
+    var nesneler = gozler.map(function (g, k) {
+      var tip = tema.nesne[Math.floor(rng() * tema.nesne.length)];
+      var renk = RENKLER[Math.floor(rng() * RENKLER.length)];
+      var cx = Math.round(80 + g[0] * 160 + (rng() - 0.5) * 60);
+      var cy = Math.round(110 + g[1] * 140 + (rng() - 0.5) * 40);
+      var s = olcek * (0.85 + rng() * 0.3);
+      var fark = turler[Math.floor(rng() * turler.length)];
+      /* Simetrik nesnede ayna farkı görünmez → renk farkına çevir. */
+      if (fark === 'ayna' && SIMETRIK[tip]) fark = 'renk';
+      var yeniRenk;
+      if (zorluk === 3) yeniRenk = renkKaydir(renk, rng() < 0.5 ? 55 : -55);
+      else { do { yeniRenk = RENKLER[Math.floor(rng() * RENKLER.length)]; } while (yeniRenk === renk); }
+      var ayna = rng() < 0.5;
+      return { id: k + 1, tip: tip, renk: renk, yeniRenk: yeniRenk, cx: cx, cy: cy, s: s, fark: fark, ayna: ayna,
+               don: Math.round((rng() - 0.5) * 16) };
+    });
+    /* Tıklama alanı: nesne boyuna göre (en az 24 px). */
+    var konum = nesneler.map(function (n) {
+      return { id: n.id, cx: n.cx, cy: n.cy, r: Math.max(24, Math.round(38 * n.s)),
+               ad: (NESNE_AD[n.tip] || 'Nesne') + ' (' + FARK_TUR_AD[n.fark] + ')' };
+    });
+    var r = { id: sahneId, tema: tema, zorluk: zorluk, nesneler: nesneler, konum: konum,
+              bilgi: { id: sahneId, ad: tema.ad + ' • ' + ZORLUK_AD[zorluk] + ' #' + (no + 1),
+                       alt: ZORLUK_AD[zorluk] + ' seviye — 7 farkı bul', zorluk: zorluk } };
+    _uretimOnbellek[sahneId] = r;
+    return r;
+  }
+
+  function uretilenCiz(sahneId, o) {
+    var tn = uretilenSahne(sahneId);
+    var tema = tn.tema, uid = String(o.uid || 's');
+    var B = function (id) { return o.variant === 'b' && o.diffs.has(id); };
+    var ufukY = Math.round(GORUNUM_BOY * tema.ufuk);
+    var rng = mulberry32((Number(o.seed) || 1) ^ tamsayiKarma(sahneId));
+    var s = '<defs><linearGradient id="' + uid + 'g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="' + tema.gok[0] + '"/><stop offset="1" stop-color="' + tema.gok[1] + '"/></linearGradient>' +
+            '<linearGradient id="' + uid + 'y" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="' + tema.yer[0] + '"/><stop offset="1" stop-color="' + tema.yer[1] + '"/></linearGradient></defs>';
+    s += '<rect x="0" y="0" width="' + GORUNUM_EN + '" height="' + GORUNUM_BOY + '" fill="url(#' + uid + 'g)"/>';
+    s += '<path d="M0,' + ufukY + ' C 200,' + (ufukY - 18) + ' 600,' + (ufukY + 18) + ' 800,' + ufukY + ' L800,520 L0,520 Z" fill="url(#' + uid + 'y)"/>';
+    /* Süsleme (fark DEĞİL): iki kopyada birebir aynı, el tohumundan. Zor
+       sahnelerde daha kalabalık → farklar gözden kaçar. */
+    var susSay = tn.zorluk === 3 ? 46 : tn.zorluk === 2 ? 28 : 14;
+    for (var i = 0; i < susSay; i++) {
+      var x = (rng() * GORUNUM_EN).toFixed(1), y = (rng() * GORUNUM_BOY).toFixed(1), rr = (1.5 + rng() * 3).toFixed(1);
+      s += '<circle cx="' + x + '" cy="' + y + '" r="' + rr + '" fill="#ffffff" opacity="' + (0.15 + rng() * 0.3).toFixed(2) + '"/>';
+    }
+    tn.nesneler.forEach(function (n) {
+      var degis = B(n.id);
+      if (degis && n.fark === 'yok') return;
+      var renk = (degis && n.fark === 'renk') ? n.yeniRenk : n.renk;
+      var sc = n.s * (degis && n.fark === 'buyuk' ? (tn.zorluk === 3 ? 1.22 : 1.4) : 1);
+      var ayna = n.ayna !== (degis && n.fark === 'ayna');
+      var don = n.don + (degis && n.fark === 'don' ? 28 : 0);
+      var detay = !(degis && n.fark === 'detay');
+      var ciz = NESNE[n.tip] || NESNE.yildiz;
+      s += '<g transform="translate(' + n.cx + ' ' + n.cy + ') rotate(' + don + ') scale(' + (ayna ? -sc : sc).toFixed(3) + ' ' + sc.toFixed(3) + ')">' + ciz(renk, detay) + '</g>';
+    });
+    return s;
+  }
+
+  function sahneBilgi(id) {
+    id = Number(id) || 0;
+    if (id < ELLE_SAHNE) return SAHNE_BILGI[id] || null;
+    if (id < ELLE_SAHNE + URETILEN_SAHNE) return uretilenSahne(id).bilgi;
+    return null;
+  }
+  function farkKonumlari(id) {
+    id = Number(id) || 0;
+    if (id < ELLE_SAHNE) return FARK_KONUMLARI[id] || [];
+    if (id < ELLE_SAHNE + URETILEN_SAHNE) return uretilenSahne(id).konum;
+    return [];
+  }
+  function sahneZorlugu(id) { var b = sahneBilgi(id); return (b && b.zorluk) || 2; }
+
+  /* Toplam sahne: 4 elle çizilmiş + 1200 üretilmiş. */
+  function sahneSayisi() { return ELLE_SAHNE + URETILEN_SAHNE; }
+  function sahneFarkSayisi(id) { return farkKonumlari(id).length; }
 
   /* Bir eldeki farkları tohumla seç: iki istemci de AYNI 7 farkı görür. */
   function farkSec(toplam, adet, tohum) {
@@ -353,7 +586,7 @@
   /* Tıklanan noktada bir fark var mı? Döner: farkın id'si ya da null.
      Çakışan alanlarda MERKEZE EN YAKIN olan kazanır. */
   function farkBul(sahneId, x, y, gecerliIdler) {
-    var liste = FARK_KONUMLARI[sahneId] || [];
+    var liste = farkKonumlari(sahneId);
     var izin = gecerliIdler ? (gecerliIdler instanceof Set ? gecerliIdler : new Set(gecerliIdler)) : null;
     var enIyi = null, enYakin = Infinity;
     for (var i = 0; i < liste.length; i++) {
@@ -372,8 +605,11 @@
   /* Bir sahnenin SVG'si. variant 'a' özgün, 'b' farkların uygulandığı kopya. */
   function sahneCiz(sahneId, opts) {
     var o = opts || {};
-    var fn = SAHNELER[Number(sahneId) || 0] || SAHNELER[0];
     var kume = o.diffs instanceof Set ? o.diffs : new Set(o.diffs || []);
+    if ((Number(sahneId) || 0) >= ELLE_SAHNE) {
+      return uretilenCiz(Number(sahneId), { seed: o.seed, uid: o.uid, variant: o.variant === 'b' ? 'b' : 'a', diffs: kume });
+    }
+    var fn = SAHNELER[Number(sahneId) || 0] || SAHNELER[0];
     var r = fn({ seed: Number(o.seed) || 1, uid: String(o.uid || 's'),
                  variant: o.variant === 'b' ? 'b' : 'a', diffs: kume });
     return (r && r.__svg !== undefined) ? r.__svg : String(r);
@@ -384,6 +620,8 @@
     EL_BASINA_FARK: EL_BASINA_FARK,
     SAHNE_BILGI: SAHNE_BILGI, FARK_KONUMLARI: FARK_KONUMLARI,
     sahneSayisi: sahneSayisi, sahneFarkSayisi: sahneFarkSayisi,
+    sahneBilgi: sahneBilgi, farkKonumlari: farkKonumlari, sahneZorlugu: sahneZorlugu,
+    ELLE_SAHNE: ELLE_SAHNE, URETILEN_SAHNE: URETILEN_SAHNE, TEMALAR: TEMALAR,
     farkSec: farkSec, farkBul: farkBul, mulberry32: mulberry32,
     sahneCiz: sahneCiz, _h: h, _Fragment: Fragment
   };

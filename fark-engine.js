@@ -208,8 +208,9 @@ function gorunum(st, seat, ekstra) {
     seats: st.seats.slice(),
     seat: bakan,
     sahneId: st.sahneId,
-    sahneAdi: (S.SAHNE_BILGI[st.sahneId] || {}).ad || '',
-    sahneAlt: (S.SAHNE_BILGI[st.sahneId] || {}).alt || '',
+    sahneAdi: (S.sahneBilgi(st.sahneId) || {}).ad || '',
+    sahneAlt: (S.sahneBilgi(st.sahneId) || {}).alt || '',
+    sahneZorluk: S.sahneZorlugu(st.sahneId),
     tohum: st.tohum,
     farkIdleri: st.farkIdleri.slice(),
     toplamFark: st.farkIdleri.length,
@@ -224,7 +225,7 @@ function gorunum(st, seat, ekstra) {
     /* El bitince farkların adları açıklanır (özet şeridi). */
     farkAdlari: (st.faz === 'elSonu' || st.status !== 'playing')
       ? st.farkIdleri.map(id => {
-          const d = (S.FARK_KONUMLARI[st.sahneId] || []).find(x => x.id === id);
+          const d = S.farkKonumlari(st.sahneId).find(x => x.id === id);
           return { id, ad: d ? d.ad : '', cx: d ? d.cx : 0, cy: d ? d.cy : 0, r: d ? d.r : 0 };
         })
       : null,

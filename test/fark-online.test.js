@@ -79,13 +79,15 @@ function tohumlu(seed) {
   let x = seed >>> 0;
   return () => ((x = (x * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff);
 }
-const konum = (sahne, id) => (S.FARK_KONUMLARI[sahne] || []).find(d => d.id === id);
+const konum = (sahne, id) => S.farkKonumlari(sahne).find(d => d.id === id);
 
 /* ---------------------------------------------------------------- SAHNELER */
 function sahneTesti() {
   // 1) YAPI
-  assert.strictEqual(S.sahneSayisi(), 4, 'dört sahne olmalı');
-  assert.strictEqual(S.SAHNE_BILGI.length, 4, 'dört sahne bilgisi olmalı');
+  /* 4 elle çizilmiş + 1200 üretilmiş sahne (kullanıcı isteği: 500/1000+
+     örnek, karışık zorluk). Elle çizilenler aşağıda ayrıca ölçülüyor. */
+  assert.ok(S.sahneSayisi() >= 1000, 'en az 1000 sahne olmalı: ' + S.sahneSayisi());
+  assert.strictEqual(S.SAHNE_BILGI.length, 4, 'dört elle çizilmiş sahne bilgisi olmalı');
   for (let i = 0; i < 4; i++) {
     const liste = S.FARK_KONUMLARI[i];
     assert.strictEqual(liste.length, 13, i + '. sahnede 13 fark olmalı');
@@ -144,6 +146,27 @@ function sahneTesti() {
     }
   }
   console.log('  ✓ 4) 4 sahne × 13 farkın tamamı çizimde gerçek bir değişiklik yapıyor');
+
+  // 4b) ÜRETİLEN SAHNELER: hepsi 13 fark, her fark gerçek bir değişiklik,
+  //     tıklama alanı doğru; üç zorluk dengeli
+  {
+    const zor = { 1: 0, 2: 0, 3: 0 };
+    for (let i = S.ELLE_SAHNE; i < S.sahneSayisi(); i++) {
+      const liste = S.farkKonumlari(i);
+      assert.strictEqual(liste.length, 13, i + '. üretilen sahnede 13 fark olmalı');
+      zor[S.sahneZorlugu(i)]++;
+      const a = S.sahneCiz(i, { seed: 31, uid: 'u', variant: 'a', diffs: [] });
+      assert.ok(!/undefined|NaN|\[object/.test(a), i + '. üretilen sahnede bozuk değer');
+      liste.forEach(d => {
+        assert.ok(d.cx - d.r >= -5 && d.cx + d.r <= S.GORUNUM_EN + 5 && d.cy - d.r >= -5 && d.cy + d.r <= S.GORUNUM_BOY + 5, 'alan görünümde');
+        const b = S.sahneCiz(i, { seed: 31, uid: 'u', variant: 'b', diffs: [d.id] });
+        assert.notStrictEqual(a, b, i + '. üretilen sahnede ' + d.ad + ' değişmiyor');
+        assert.strictEqual(S.farkBul(i, d.cx, d.cy, [d.id]), d.id, 'merkez tıklaması farkı bulmalı');
+      });
+    }
+    assert.ok(zor[1] >= 300 && zor[2] >= 300 && zor[3] >= 300, 'zorluklar karışık ve dengeli olmalı: ' + JSON.stringify(zor));
+    console.log('  ✓ 4b) ' + (S.sahneSayisi() - S.ELLE_SAHNE) + ' üretilen sahne: 13 fark, gerçek değişiklik, zorluk ' + JSON.stringify(zor));
+  }
 
   // Tıklama alanı eşlemesi
   {

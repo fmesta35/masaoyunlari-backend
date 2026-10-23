@@ -50,7 +50,7 @@
     /* Bulunan farkların üstüne halka: iki kopyada da işaretlenir. */
     var halka = '';
     (s.bulunan || []).forEach(function (id) {
-      var d = (f.FARK_KONUMLARI[s.sahneId] || []).find(function (x) { return x.id === id; });
+      var d = (f.farkKonumlari ? f.farkKonumlari(s.sahneId) : (f.FARK_KONUMLARI[s.sahneId] || [])).find(function (x) { return x.id === id; });
       if (!d) return;
       halka += '<circle class="fk-halka' + (sonIsaret === id ? ' yeni' : '') +
         '" cx="' + d.cx + '" cy="' + d.cy + '" r="' + d.r + '"/>';

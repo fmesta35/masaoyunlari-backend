@@ -1,0 +1,7987 @@
+{
+ "aciklama": "Passaparola soru havuzu: her maçta harf başına rastgele bir soru seçilir. zorluk: 1 kolay, 2 orta, 3 zor.",
+ "sorular": [
+  {
+   "id": "h0001",
+   "letter": "A",
+   "zorluk": 1,
+   "question": "Tohumlarından yağ elde edilen, yüzünü güneşe çeviren sarı çiçekli bitki.",
+   "answer": "Ayçiçeği"
+  },
+  {
+   "id": "h0002",
+   "letter": "A",
+   "zorluk": 1,
+   "question": "Bal ve balmumu üreten, kovanlarda yaşayan kanatlı böcek.",
+   "answer": "Arı"
+  },
+  {
+   "id": "h0003",
+   "letter": "A",
+   "zorluk": 1,
+   "question": "Sarı renkli, tüylü kabuğu olan, tatlısı da yapılan güz meyvesi.",
+   "answer": "Ayva"
+  },
+  {
+   "id": "h0004",
+   "letter": "A",
+   "zorluk": 1,
+   "question": "Türkiye Cumhuriyeti'nin kurucusu ve ilk cumhurbaşkanı.",
+   "answer": "Atatürk",
+   "alternatives": [
+    "Mustafa Kemal Atatürk",
+    "Mustafa Kemal"
+   ]
+  },
+  {
+   "id": "h0005",
+   "letter": "A",
+   "zorluk": 1,
+   "question": "Türkiye'nin başkenti olan İç Anadolu şehri.",
+   "answer": "Ankara"
+  },
+  {
+   "id": "h0006",
+   "letter": "A",
+   "zorluk": 1,
+   "question": "Gövdesi odunsu olan, yıllarca yaşayabilen büyük bitki.",
+   "answer": "Ağaç"
+  },
+  {
+   "id": "h0007",
+   "letter": "A",
+   "zorluk": 1,
+   "question": "Dünya'nın tek doğal uydusu.",
+   "answer": "Ay"
+  },
+  {
+   "id": "h0008",
+   "letter": "A",
+   "zorluk": 1,
+   "question": "\"Ormanlar kralı\" olarak anılan, yelesiyle bilinen büyük kedi.",
+   "answer": "Aslan"
+  },
+  {
+   "id": "h0009",
+   "letter": "A",
+   "zorluk": 1,
+   "question": "Ayağı korumak için giyilen, bağcıklı ya da bağcıksız giyecek.",
+   "answer": "Ayakkabı"
+  },
+  {
+   "id": "h0010",
+   "letter": "A",
+   "zorluk": 1,
+   "question": "Alt kısmı geniş, sapına doğru incelen sulu meyve.",
+   "answer": "Armut"
+  },
+  {
+   "id": "h0011",
+   "letter": "A",
+   "zorluk": 2,
+   "question": "Kaleiçi, Düden Şelalesi ve Konyaaltı plajıyla bilinen Akdeniz ili.",
+   "answer": "Antalya"
+  },
+  {
+   "id": "h0012",
+   "letter": "A",
+   "zorluk": 2,
+   "question": "Türkiye'nin en yüksek dağına adını veren Doğu Anadolu ili.",
+   "answer": "Ağrı"
+  },
+  {
+   "id": "h0013",
+   "letter": "A",
+   "zorluk": 2,
+   "question": "Güney Amerika'da dünyanın en büyük yağmur ormanının adını taşıyan, en çok suyu taşıyan nehir.",
+   "answer": "Amazon"
+  },
+  {
+   "id": "h0014",
+   "letter": "A",
+   "zorluk": 2,
+   "question": "Avrupa, Asya ve Afrika arasında kalan, Türkiye'nin güneyini çevreleyen deniz.",
+   "answer": "Akdeniz"
+  },
+  {
+   "id": "h0015",
+   "letter": "A",
+   "zorluk": 2,
+   "question": "Haritaların bir araya getirildiği kitap.",
+   "answer": "Atlas"
+  },
+  {
+   "id": "h0016",
+   "letter": "A",
+   "zorluk": 2,
+   "question": "\"Eureka!\" diye bağırdığı rivayet edilen Antik Yunan bilgini.",
+   "answer": "Arşimet",
+   "alternatives": [
+    "Arşimed"
+   ]
+  },
+  {
+   "id": "h0017",
+   "letter": "A",
+   "zorluk": 2,
+   "question": "Hem bir kıta hem de bir ülke olan, kanguruyla özdeşleşmiş yer.",
+   "answer": "Avustralya"
+  },
+  {
+   "id": "h0018",
+   "letter": "A",
+   "zorluk": 2,
+   "question": "Bir dilde kullanılan harflerin belli bir sıradaki dizisi.",
+   "answer": "Alfabe"
+  },
+  {
+   "id": "h0019",
+   "letter": "A",
+   "zorluk": 2,
+   "question": "Solunumda havadaki oksijeni kana geçiren organ çifti.",
+   "answer": "Akciğer"
+  },
+  {
+   "id": "h0020",
+   "letter": "A",
+   "zorluk": 2,
+   "question": "Yüzölçümü ve nüfus bakımından dünyanın en büyük kıtası.",
+   "answer": "Asya"
+  },
+  {
+   "id": "h0021",
+   "letter": "A",
+   "zorluk": 2,
+   "question": "Sekiz kollu, mürekkep püskürtebilen deniz canlısı.",
+   "answer": "Ahtapot"
+  },
+  {
+   "id": "h0022",
+   "letter": "A",
+   "zorluk": 2,
+   "question": "İstanbul'da, 537 yılında Bizans İmparatoru Justinianus döneminde tamamlanan tarihi yapı.",
+   "answer": "Ayasofya"
+  },
+  {
+   "id": "h0023",
+   "letter": "A",
+   "zorluk": 2,
+   "question": "\"Saatleri Ayarlama Enstitüsü\" romanının yazarı.",
+   "answer": "Ahmet Hamdi Tanpınar",
+   "alternatives": [
+    "Tanpınar"
+   ]
+  },
+  {
+   "id": "h0024",
+   "letter": "A",
+   "zorluk": 2,
+   "question": "\"Uzun ince bir yoldayım\" türküsüyle tanınan Sivaslı halk ozanı.",
+   "answer": "Aşık Veysel",
+   "alternatives": [
+    "Veysel"
+   ]
+  },
+  {
+   "id": "h0025",
+   "letter": "A",
+   "zorluk": 2,
+   "question": "Bir elementin kimyasal özelliğini taşıyan en küçük yapı taşı.",
+   "answer": "Atom"
+  },
+  {
+   "id": "h0026",
+   "letter": "A",
+   "zorluk": 2,
+   "question": "Kuyruğunun ucunda zehirli iğnesi bulunan eklembacaklı.",
+   "answer": "Akrep"
+  },
+  {
+   "id": "h0027",
+   "letter": "A",
+   "zorluk": 2,
+   "question": "Sahra Çölü ve Nil Nehri'nin bulunduğu kıta.",
+   "answer": "Afrika"
+  },
+  {
+   "id": "h0028",
+   "letter": "A",
+   "zorluk": 2,
+   "question": "Başkenti Buenos Aires olan, tango ile ünlü Güney Amerika ülkesi.",
+   "answer": "Arjantin"
+  },
+  {
+   "id": "h0029",
+   "letter": "A",
+   "zorluk": 3,
+   "question": "Atatürk'ün mozolesi; Ankara'da Rasattepe üzerine kurulmuştur.",
+   "answer": "Anıtkabir"
+  },
+  {
+   "id": "h0030",
+   "letter": "A",
+   "zorluk": 3,
+   "question": "Kars'ta, \"bin bir kilise\" olarak anılan ve UNESCO listesindeki ören yeri.",
+   "answer": "Ani",
+   "alternatives": [
+    "Ani Harabeleri",
+    "Ani Ören Yeri"
+   ]
+  },
+  {
+   "id": "h0031",
+   "letter": "A",
+   "zorluk": 3,
+   "question": "Antalya'da, Roma döneminden kalma ve hâlâ kullanılan antik tiyatrosuyla ünlü kent.",
+   "answer": "Aspendos"
+  },
+  {
+   "id": "h0032",
+   "letter": "A",
+   "zorluk": 3,
+   "question": "Bağışıklık sisteminin mikroplara karşı ürettiği savunma proteini.",
+   "answer": "Antikor"
+  },
+  {
+   "id": "h0033",
+   "letter": "A",
+   "zorluk": 3,
+   "question": "Gök cisimlerini ve evreni inceleyen bilim dalı.",
+   "answer": "Astronomi"
+  },
+  {
+   "id": "h0034",
+   "letter": "A",
+   "zorluk": 3,
+   "question": "Atina'da Parthenon tapınağının bulunduğu yüksek kayalık.",
+   "answer": "Akropolis"
+  },
+  {
+   "id": "h0035",
+   "letter": "A",
+   "zorluk": 3,
+   "question": "\"Nikomakhos'a Etik\"in yazarı, Büyük İskender'in hocası olan filozof.",
+   "answer": "Aristoteles",
+   "alternatives": [
+    "Aristo"
+   ]
+  },
+  {
+   "id": "h0036",
+   "letter": "A",
+   "zorluk": 3,
+   "question": "Selçuklu ve Osmanlı'da esnaf ve zanaatkârları örgütleyen dayanışma kurumu.",
+   "answer": "Ahilik"
+  },
+  {
+   "id": "h0037",
+   "letter": "A",
+   "zorluk": 3,
+   "question": "1969'da Ay'a ayak basan ilk insan olan astronot.",
+   "answer": "Armstrong",
+   "alternatives": [
+    "Neil Armstrong"
+   ]
+  },
+  {
+   "id": "h0038",
+   "letter": "A",
+   "zorluk": 3,
+   "question": "Elektrik akımının SI birimi.",
+   "answer": "Amper"
+  },
+  {
+   "id": "h0039",
+   "letter": "A",
+   "zorluk": 3,
+   "question": "Kaymağı, sucuğu ve termal kaplıcalarıyla bilinen Ege ili.",
+   "answer": "Afyonkarahisar",
+   "alternatives": [
+    "Afyon"
+   ]
+  },
+  {
+   "id": "h0040",
+   "letter": "A",
+   "zorluk": 3,
+   "question": "1071'de Malazgirt Meydan Muharebesi'ni kazanan Selçuklu sultanı.",
+   "answer": "Alp Arslan",
+   "alternatives": [
+    "Alparslan"
+   ]
+  },
+  {
+   "id": "h0041",
+   "letter": "A",
+   "zorluk": 3,
+   "question": "Fransa ile İspanya arasında, Pireneler'de yer alan küçük prenslik.",
+   "answer": "Andorra"
+  },
+  {
+   "id": "h0042",
+   "letter": "B",
+   "zorluk": 1,
+   "question": "Suda yaşayan, solungaçla nefes alan omurgalı.",
+   "answer": "Balık"
+  },
+  {
+   "id": "h0043",
+   "letter": "B",
+   "zorluk": 1,
+   "question": "Arıların çiçek özünden ürettiği tatlı besin.",
+   "answer": "Bal"
+  },
+  {
+   "id": "h0044",
+   "letter": "B",
+   "zorluk": 1,
+   "question": "Gökyüzünde su buharının yoğunlaşmasıyla oluşan beyaz ya da gri kütle.",
+   "answer": "Bulut"
+  },
+  {
+   "id": "h0045",
+   "letter": "B",
+   "zorluk": 1,
+   "question": "Bir devleti ya da kurumu simgeleyen, direğe çekilen kumaş.",
+   "answer": "Bayrak"
+  },
+  {
+   "id": "h0046",
+   "letter": "B",
+   "zorluk": 1,
+   "question": "Dolması da yapılan, acısı ve tatlısı olan sebze.",
+   "answer": "Biber"
+  },
+  {
+   "id": "h0047",
+   "letter": "B",
+   "zorluk": 1,
+   "question": "Pedal çevrilerek ilerleyen iki tekerlekli taşıt.",
+   "answer": "Bisiklet"
+  },
+  {
+   "id": "h0048",
+   "letter": "B",
+   "zorluk": 1,
+   "question": "Su ya da çay içmek için kullanılan kap.",
+   "answer": "Bardak"
+  },
+  {
+   "id": "h0049",
+   "letter": "B",
+   "zorluk": 1,
+   "question": "İnce yufka katları, ceviz ya da fıstık ve şerbetle yapılan tatlı.",
+   "answer": "Baklava"
+  },
+  {
+   "id": "h0050",
+   "letter": "B",
+   "zorluk": 1,
+   "question": "Dünyanın en büyük memeli hayvan türünü de içeren deniz memelisi.",
+   "answer": "Balina"
+  },
+  {
+   "id": "h0051",
+   "letter": "B",
+   "zorluk": 1,
+   "question": "Soğukta üstümüze örttüğümüz kalın yün örtü.",
+   "answer": "Battaniye"
+  },
+  {
+   "id": "h0052",
+   "letter": "B",
+   "zorluk": 2,
+   "question": "Osmanlı Devleti'nin ilk başkenti olan, İskender kebabıyla ünlü il.",
+   "answer": "Bursa"
+  },
+  {
+   "id": "h0053",
+   "letter": "B",
+   "zorluk": 2,
+   "question": "\"Adam Olacak Çocuk\" programını sunan, \"Dağlar Dağlar\"ın yorumcusu sanatçı.",
+   "answer": "Barış Manço",
+   "alternatives": [
+    "Manço"
+   ]
+  },
+  {
+   "id": "h0054",
+   "letter": "B",
+   "zorluk": 2,
+   "question": "Karadeniz'i Marmara'ya bağlayan, İstanbul'u ikiye bölen su yolu.",
+   "answer": "Boğaziçi",
+   "alternatives": [
+    "İstanbul Boğazı"
+   ]
+  },
+  {
+   "id": "h0055",
+   "letter": "B",
+   "zorluk": 2,
+   "question": "Mart ile mayıs arasını kapsayan, ilkbahar da denen mevsim.",
+   "answer": "Bahar",
+   "alternatives": [
+    "İlkbahar"
+   ]
+  },
+  {
+   "id": "h0056",
+   "letter": "B",
+   "zorluk": 2,
+   "question": "Kanı süzerek idrar üreten fasulye biçimli organ.",
+   "answer": "Böbrek"
+  },
+  {
+   "id": "h0057",
+   "letter": "B",
+   "zorluk": 2,
+   "question": "En çok Dünya Kupası kazanan milli takıma sahip Güney Amerika ülkesi.",
+   "answer": "Brezilya"
+  },
+  {
+   "id": "h0058",
+   "letter": "B",
+   "zorluk": 2,
+   "question": "Elektriği çok iyi ileten, kırmızımsı renkli metal.",
+   "answer": "Bakır"
+  },
+  {
+   "id": "h0059",
+   "letter": "B",
+   "zorluk": 2,
+   "question": "Hava basıncını ölçen alet.",
+   "answer": "Barometre"
+  },
+  {
+   "id": "h0060",
+   "letter": "B",
+   "zorluk": 2,
+   "question": "Başkenti Brüksel olan, Avrupa Birliği kurumlarına ev sahipliği yapan ülke.",
+   "answer": "Belçika"
+  },
+  {
+   "id": "h0061",
+   "letter": "B",
+   "zorluk": 2,
+   "question": "İşitme yetisini kaybettikten sonra da besteler yapan, 9. Senfoni'nin bestecisi.",
+   "answer": "Beethoven"
+  },
+  {
+   "id": "h0062",
+   "letter": "B",
+   "zorluk": 2,
+   "question": "Abant Gölü ve Yedigöller'in bulunduğu, aşçılarıyla ünlü il.",
+   "answer": "Bolu"
+  },
+  {
+   "id": "h0063",
+   "letter": "B",
+   "zorluk": 2,
+   "question": "Nemrut Krater Gölü ve Ahlat'ın bağlı olduğu Doğu Anadolu ili.",
+   "answer": "Bitlis"
+  },
+  {
+   "id": "h0064",
+   "letter": "B",
+   "zorluk": 2,
+   "question": "Yiyecekleri soğuk tutarak bozulmasını geciktiren mutfak aleti.",
+   "answer": "Buzdolabı"
+  },
+  {
+   "id": "h0065",
+   "letter": "B",
+   "zorluk": 2,
+   "question": "Topu potadan geçirerek sayı alınan takım sporu.",
+   "answer": "Basketbol"
+  },
+  {
+   "id": "h0066",
+   "letter": "B",
+   "zorluk": 2,
+   "question": "Otomobilde yük ve valizlerin konduğu bölüm.",
+   "answer": "Bagaj"
+  },
+  {
+   "id": "h0067",
+   "letter": "B",
+   "zorluk": 2,
+   "question": "Verileri işleyen, programlanabilen elektronik makine.",
+   "answer": "Bilgisayar"
+  },
+  {
+   "id": "h0068",
+   "letter": "B",
+   "zorluk": 2,
+   "question": "2009'da ortaya çıkan ilk ve en bilinen kripto para.",
+   "answer": "Bitcoin"
+  },
+  {
+   "id": "h0069",
+   "letter": "B",
+   "zorluk": 2,
+   "question": "1989'da duvarı yıkılan, Almanya'nın başkenti.",
+   "answer": "Berlin"
+  },
+  {
+   "id": "h0070",
+   "letter": "B",
+   "zorluk": 3,
+   "question": "Türk mitolojisinde Ergenekon'dan çıkışta yol gösteren hayvan.",
+   "answer": "Bozkurt"
+  },
+  {
+   "id": "h0071",
+   "letter": "B",
+   "zorluk": 3,
+   "question": "Doğu Roma İmparatorluğu'nun yaygın olarak bilinen diğer adı.",
+   "answer": "Bizans"
+  },
+  {
+   "id": "h0072",
+   "letter": "B",
+   "zorluk": 3,
+   "question": "Parşömenin adını aldığı, Asklepion ve akropolüyle bilinen antik kent.",
+   "answer": "Bergama",
+   "alternatives": [
+    "Pergamon"
+   ]
+  },
+  {
+   "id": "h0073",
+   "letter": "B",
+   "zorluk": 3,
+   "question": "\"Karadut\" şiiriyle tanınan ressam ve şair.",
+   "answer": "Bedri Rahmi",
+   "alternatives": [
+    "Bedri Rahmi Eyüboğlu"
+   ]
+  },
+  {
+   "id": "h0074",
+   "letter": "B",
+   "zorluk": 3,
+   "question": "Osmanlı'da sadrazamlık makamını ve hükümeti ifade eden ad.",
+   "answer": "Bab-ı Âli",
+   "alternatives": [
+    "Babıali"
+   ]
+  },
+  {
+   "id": "h0075",
+   "letter": "B",
+   "zorluk": 3,
+   "question": "Merkezi sinir sisteminin kafatası içindeki yönetim merkezi.",
+   "answer": "Beyin"
+  },
+  {
+   "id": "h0076",
+   "letter": "B",
+   "zorluk": 3,
+   "question": "Canlıları ve yaşam olaylarını inceleyen bilim.",
+   "answer": "Biyoloji"
+  },
+  {
+   "id": "h0077",
+   "letter": "B",
+   "zorluk": 3,
+   "question": "Azerbaycan'ın Hazar Denizi kıyısındaki başkenti.",
+   "answer": "Bakü"
+  },
+  {
+   "id": "h0078",
+   "letter": "B",
+   "zorluk": 3,
+   "question": "Ortama göre renk değiştirebilen sürüngen.",
+   "answer": "Bukalemun"
+  },
+  {
+   "id": "h0079",
+   "letter": "B",
+   "zorluk": 3,
+   "question": "1919'da Weimar'da kurulan, modern tasarımı etkileyen sanat okulu.",
+   "answer": "Bauhaus"
+  },
+  {
+   "id": "h0080",
+   "letter": "B",
+   "zorluk": 3,
+   "question": "Orhun Yazıtları'ndan birini diktiren Göktürk hükümdarı.",
+   "answer": "Bilge Kağan"
+  },
+  {
+   "id": "h0081",
+   "letter": "B",
+   "zorluk": 3,
+   "question": "Alüminyum elde edilen ana cevher.",
+   "answer": "Boksit"
+  },
+  {
+   "id": "h0082",
+   "letter": "B",
+   "zorluk": 3,
+   "question": "Kanuni'nin 1521'de fethettiği, bugün Sırbistan'ın başkenti olan şehir.",
+   "answer": "Belgrad"
+  },
+  {
+   "id": "h0083",
+   "letter": "B",
+   "zorluk": 3,
+   "question": "Şeyh Edebali Türbesi'nin bulunduğu, Osmanlı'nın doğduğu topraklardaki il.",
+   "answer": "Bilecik"
+  },
+  {
+   "id": "h0084",
+   "letter": "C",
+   "zorluk": 1,
+   "question": "Giysilere dikilen, içine eşya konulan küçük torba.",
+   "answer": "Cep"
+  },
+  {
+   "id": "h0085",
+   "letter": "C",
+   "zorluk": 1,
+   "question": "Sert kabuklu, içi beyne benzeyen kuruyemiş.",
+   "answer": "Ceviz"
+  },
+  {
+   "id": "h0086",
+   "letter": "C",
+   "zorluk": 1,
+   "question": "Kum eritilerek yapılan, saydam ve kırılgan madde.",
+   "answer": "Cam"
+  },
+  {
+   "id": "h0087",
+   "letter": "C",
+   "zorluk": 1,
+   "question": "Gömleğin üstüne giyilen, önü düğmeli dış giysi.",
+   "answer": "Ceket"
+  },
+  {
+   "id": "h0088",
+   "letter": "C",
+   "zorluk": 1,
+   "question": "Haftanın altıncı günü, pazardan önceki gün.",
+   "answer": "Cumartesi"
+  },
+  {
+   "id": "h0089",
+   "letter": "C",
+   "zorluk": 1,
+   "question": "Para ve kart taşınan küçük çanta.",
+   "answer": "Cüzdan"
+  },
+  {
+   "id": "h0090",
+   "letter": "C",
+   "zorluk": 1,
+   "question": "Yumurtadan yeni çıkmış tavuk yavrusu.",
+   "answer": "Civciv"
+  },
+  {
+   "id": "h0091",
+   "letter": "C",
+   "zorluk": 1,
+   "question": "İri gözleriyle şiirlere konu olan zarif ve hızlı hayvan.",
+   "answer": "Ceylan"
+  },
+  {
+   "id": "h0092",
+   "letter": "C",
+   "zorluk": 1,
+   "question": "Düz çizgi çizmeye ve uzunluk ölçmeye yarayan araç.",
+   "answer": "Cetvel"
+  },
+  {
+   "id": "h0093",
+   "letter": "C",
+   "zorluk": 2,
+   "question": "Türkiye'de 29 Ekim 1923'te ilan edilen yönetim biçimi.",
+   "answer": "Cumhuriyet"
+  },
+  {
+   "id": "h0094",
+   "letter": "C",
+   "zorluk": 2,
+   "question": "Afrika'nın yüzölçümü en büyük ülkesi.",
+   "answer": "Cezayir"
+  },
+  {
+   "id": "h0095",
+   "letter": "C",
+   "zorluk": 2,
+   "question": "Oda sıcaklığında sıvı hâlde bulunan tek metal.",
+   "answer": "Cıva",
+   "alternatives": [
+    "Civa"
+   ]
+  },
+  {
+   "id": "h0096",
+   "letter": "C",
+   "zorluk": 2,
+   "question": "Fotoğrafı 10 TL banknotun arkasında yer alan Türk matematikçi.",
+   "answer": "Cahit Arf",
+   "alternatives": [
+    "Arf"
+   ]
+  },
+  {
+   "id": "h0097",
+   "letter": "C",
+   "zorluk": 2,
+   "question": "13. yüzyılda Moğol İmparatorluğu'nu kuran hükümdar.",
+   "answer": "Cengiz Han",
+   "alternatives": [
+    "Cengizhan"
+   ]
+  },
+  {
+   "id": "h0098",
+   "letter": "C",
+   "zorluk": 2,
+   "question": "Masallarda Pamuk Prenses'in yedi arkadaşı.",
+   "answer": "Cüce",
+   "alternatives": [
+    "Yedi Cüceler"
+   ]
+  },
+  {
+   "id": "h0099",
+   "letter": "C",
+   "zorluk": 2,
+   "question": "Müslümanların ibadet ettiği, minareli yapı.",
+   "answer": "Cami"
+  },
+  {
+   "id": "h0100",
+   "letter": "C",
+   "zorluk": 2,
+   "question": "Kurallara uymayana verilen yaptırım.",
+   "answer": "Ceza"
+  },
+  {
+   "id": "h0101",
+   "letter": "C",
+   "zorluk": 2,
+   "question": "Akciğer ya da karaciğer için kullanılan genel ad; Edirne'de tavası meşhurdur.",
+   "answer": "Ciğer"
+  },
+  {
+   "id": "h0102",
+   "letter": "C",
+   "zorluk": 2,
+   "question": "Birleşmiş Milletler'in Avrupa merkezinin ve CERN'in yakınında bulunduğu İsviçre şehri.",
+   "answer": "Cenevre"
+  },
+  {
+   "id": "h0103",
+   "letter": "C",
+   "zorluk": 2,
+   "question": "Yeryüzünü, iklimi ve insan-doğa ilişkisini inceleyen bilim.",
+   "answer": "Coğrafya"
+  },
+  {
+   "id": "h0104",
+   "letter": "C",
+   "zorluk": 2,
+   "question": "Somunla birlikte kullanılan, dişli metal bağlantı parçası.",
+   "answer": "Cıvata"
+  },
+  {
+   "id": "h0105",
+   "letter": "C",
+   "zorluk": 2,
+   "question": "\"Üvercinka\" şiirinin şairi, İkinci Yeni'nin önemli adı.",
+   "answer": "Cemal Süreya",
+   "alternatives": [
+    "Süreya"
+   ]
+  },
+  {
+   "id": "h0106",
+   "letter": "C",
+   "zorluk": 3,
+   "question": "\"Yaş otuz beş, yolun yarısı eder\" dizesinin şairi.",
+   "answer": "Cahit Sıtkı",
+   "alternatives": [
+    "Cahit Sıtkı Tarancı"
+   ]
+  },
+  {
+   "id": "h0107",
+   "letter": "C",
+   "zorluk": 3,
+   "question": "\"Dünyayı Kurtaran Adam\" filminin başrol oyuncusu.",
+   "answer": "Cüneyt Arkın",
+   "alternatives": [
+    "Arkın"
+   ]
+  },
+  {
+   "id": "h0108",
+   "letter": "C",
+   "zorluk": 3,
+   "question": "İstanbul'da tıp fakültesiyle tanınan semt.",
+   "answer": "Cerrahpaşa"
+  },
+  {
+   "id": "h0109",
+   "letter": "C",
+   "zorluk": 3,
+   "question": "\"Mesnevi\"nin yazarı Mevlana'nın adı.",
+   "answer": "Celaleddin",
+   "alternatives": [
+    "Mevlana Celaleddin Rumi",
+    "Celaleddin Rumi"
+   ]
+  },
+  {
+   "id": "h0110",
+   "letter": "C",
+   "zorluk": 3,
+   "question": "Harezmi'nin kitabından adını alan, bilinmeyenlerle işlem yapan matematik dalı.",
+   "answer": "Cebir"
+  },
+  {
+   "id": "h0111",
+   "letter": "C",
+   "zorluk": 3,
+   "question": "Su saatleri ve otomatlarıyla sibernetiğin öncüsü sayılan 12-13. yüzyıl mühendisi.",
+   "answer": "Cezeri",
+   "alternatives": [
+    "El Cezeri"
+   ]
+  },
+  {
+   "id": "h0112",
+   "letter": "C",
+   "zorluk": 3,
+   "question": "Türkiye'de devletin başı olan makamın adı.",
+   "answer": "Cumhurbaşkanı"
+  },
+  {
+   "id": "h0113",
+   "letter": "C",
+   "zorluk": 3,
+   "question": "Endonezya'nın başkenti Cakarta'nın bulunduğu ada.",
+   "answer": "Cava",
+   "alternatives": [
+    "Java"
+   ]
+  },
+  {
+   "id": "h0114",
+   "letter": "C",
+   "zorluk": 3,
+   "question": "Kur'an-ı Kerim'in otuz bölümünden her biri.",
+   "answer": "Cüz"
+  },
+  {
+   "id": "h0115",
+   "letter": "C",
+   "zorluk": 3,
+   "question": "Şırnak'ta, Dicle kıyısında Mem ile Zin türbesinin bulunduğu ilçe.",
+   "answer": "Cizre"
+  },
+  {
+   "id": "h0116",
+   "letter": "C",
+   "zorluk": 3,
+   "question": "Ayvalık'a köprüyle bağlı, Alibey Adası da denen ada.",
+   "answer": "Cunda",
+   "alternatives": [
+    "Alibey"
+   ]
+  },
+  {
+   "id": "h0117",
+   "letter": "C",
+   "zorluk": 3,
+   "question": "\"Gün Olur Asra Bedel\" romanının Kırgız yazarı.",
+   "answer": "Cengiz Aytmatov",
+   "alternatives": [
+    "Aytmatov"
+   ]
+  },
+  {
+   "id": "h0118",
+   "letter": "Ç",
+   "zorluk": 1,
+   "question": "Kırmızı, üzeri küçük tohumlarla kaplı ilkbahar meyvesi.",
+   "answer": "Çilek"
+  },
+  {
+   "id": "h0119",
+   "letter": "Ç",
+   "zorluk": 1,
+   "question": "Eşya taşımak için kullanılan saplı ya da askılı kap.",
+   "answer": "Çanta"
+  },
+  {
+   "id": "h0120",
+   "letter": "Ç",
+   "zorluk": 1,
+   "question": "Yemeğe genellikle onunla başlanan, kaşıkla içilen sıcak yemek.",
+   "answer": "Çorba"
+  },
+  {
+   "id": "h0121",
+   "letter": "Ç",
+   "zorluk": 1,
+   "question": "Bitkilerin genellikle renkli ve kokulu üreme organı.",
+   "answer": "Çiçek"
+  },
+  {
+   "id": "h0122",
+   "letter": "Ç",
+   "zorluk": 1,
+   "question": "Yemek yerken kullanılan, uçları dişli sofra aracı.",
+   "answer": "Çatal"
+  },
+  {
+   "id": "h0123",
+   "letter": "Ç",
+   "zorluk": 1,
+   "question": "Çivi çakmaya yarayan alet.",
+   "answer": "Çekiç"
+  },
+  {
+   "id": "h0124",
+   "letter": "Ç",
+   "zorluk": 1,
+   "question": "Ayakkabının içine, ayağa giyilen örme giysi.",
+   "answer": "Çorap"
+  },
+  {
+   "id": "h0125",
+   "letter": "Ç",
+   "zorluk": 1,
+   "question": "Yaprakları iğne biçiminde olan, kozalaklı ve her dem yeşil ağaç.",
+   "answer": "Çam"
+  },
+  {
+   "id": "h0126",
+   "letter": "Ç",
+   "zorluk": 1,
+   "question": "Kakaodan yapılan tatlı yiyecek.",
+   "answer": "Çikolata"
+  },
+  {
+   "id": "h0127",
+   "letter": "Ç",
+   "zorluk": 1,
+   "question": "Haftanın üçüncü günü.",
+   "answer": "Çarşamba"
+  },
+  {
+   "id": "h0128",
+   "letter": "Ç",
+   "zorluk": 2,
+   "question": "\"Geçilmez\" diye anılan 1915 zaferinin kazanıldığı boğaz ve il.",
+   "answer": "Çanakkale"
+  },
+  {
+   "id": "h0129",
+   "letter": "Ç",
+   "zorluk": 2,
+   "question": "Başkenti Pekin olan, Seddi ve ipek yoluyla ünlü kalabalık Asya ülkesi.",
+   "answer": "Çin"
+  },
+  {
+   "id": "h0130",
+   "letter": "Ç",
+   "zorluk": 2,
+   "question": "Karada en hızlı koşan hayvan.",
+   "answer": "Çita"
+  },
+  {
+   "id": "h0131",
+   "letter": "Ç",
+   "zorluk": 2,
+   "question": "Rize'de kurulan, Türkiye'nin devlet çay işletmesi.",
+   "answer": "Çaykur"
+  },
+  {
+   "id": "h0132",
+   "letter": "Ç",
+   "zorluk": 2,
+   "question": "Leblebisi ve Hitit başkenti Hattuşa'sıyla bilinen il.",
+   "answer": "Çorum"
+  },
+  {
+   "id": "h0133",
+   "letter": "Ç",
+   "zorluk": 2,
+   "question": "Tuz mağarasıyla bilinen İç Anadolu ili.",
+   "answer": "Çankırı"
+  },
+  {
+   "id": "h0134",
+   "letter": "Ç",
+   "zorluk": 2,
+   "question": "Suyun yüksekten dökülmesiyle oluşan şelale.",
+   "answer": "Çağlayan"
+  },
+  {
+   "id": "h0135",
+   "letter": "Ç",
+   "zorluk": 2,
+   "question": "Hücrenin genetik bilgisini taşıyan yönetim merkezi.",
+   "answer": "Çekirdek"
+  },
+  {
+   "id": "h0136",
+   "letter": "Ç",
+   "zorluk": 2,
+   "question": "Dörtte bir anlamına gelen, altının da bir türünü belirten sözcük.",
+   "answer": "Çeyrek"
+  },
+  {
+   "id": "h0137",
+   "letter": "Ç",
+   "zorluk": 2,
+   "question": "İçinden su akan, musluklu ya da lüleli yapı; aynı zamanda bir İzmir ilçesi.",
+   "answer": "Çeşme"
+  },
+  {
+   "id": "h0138",
+   "letter": "Ç",
+   "zorluk": 2,
+   "question": "İznik ve Kütahya'nın ünlü olduğu, sırlı süslü seramik.",
+   "answer": "Çini"
+  },
+  {
+   "id": "h0139",
+   "letter": "Ç",
+   "zorluk": 2,
+   "question": "Aynı çağda yaşayan, aynı zamanda modern anlamına gelen sözcük.",
+   "answer": "Çağdaş"
+  },
+  {
+   "id": "h0140",
+   "letter": "Ç",
+   "zorluk": 2,
+   "question": "Gemiyi demirlemek için suya atılan ağır araç; bahçe aracı da olabilir.",
+   "answer": "Çapa",
+   "alternatives": [
+    "Demir"
+   ]
+  },
+  {
+   "id": "h0141",
+   "letter": "Ç",
+   "zorluk": 2,
+   "question": "Gece uçan, ağzını açarak böcek avlayan kuş.",
+   "answer": "Çobanaldatan"
+  },
+  {
+   "id": "h0142",
+   "letter": "Ç",
+   "zorluk": 2,
+   "question": "1993'te barışçıl biçimde ikiye ayrılan Orta Avrupa ülkesi.",
+   "answer": "Çekoslovakya"
+  },
+  {
+   "id": "h0143",
+   "letter": "Ç",
+   "zorluk": 2,
+   "question": "1514'te Yavuz Sultan Selim'in Şah İsmail'i yendiği savaş.",
+   "answer": "Çaldıran"
+  },
+  {
+   "id": "h0144",
+   "letter": "Ç",
+   "zorluk": 3,
+   "question": "Konya'da, dünyanın en eski yerleşim yerlerinden biri sayılan Neolitik höyük.",
+   "answer": "Çatalhöyük"
+  },
+  {
+   "id": "h0145",
+   "letter": "Ç",
+   "zorluk": 3,
+   "question": "Osmanlı'da ilk vezir-i azamlık hanedanının adı.",
+   "answer": "Çandarlı"
+  },
+  {
+   "id": "h0146",
+   "letter": "Ç",
+   "zorluk": 3,
+   "question": "Tuğrul Bey'in kardeşi, Selçuklu Devleti'nin kurucularından.",
+   "answer": "Çağrı Bey"
+  },
+  {
+   "id": "h0147",
+   "letter": "Ç",
+   "zorluk": 3,
+   "question": "2022'de açılan, dünyanın en uzun orta açıklıklı asma köprüsü.",
+   "answer": "Çanakkale Köprüsü",
+   "alternatives": [
+    "1915 Çanakkale Köprüsü"
+   ]
+  },
+  {
+   "id": "h0148",
+   "letter": "Ç",
+   "zorluk": 3,
+   "question": "Kafkasya kökenli, Adige olarak da bilinen halk.",
+   "answer": "Çerkes",
+   "alternatives": [
+    "Adige"
+   ]
+  },
+  {
+   "id": "h0149",
+   "letter": "Ç",
+   "zorluk": 3,
+   "question": "\"Vişne Bahçesi\" ve \"Martı\" oyunlarının Rus yazarı.",
+   "answer": "Çehov",
+   "alternatives": [
+    "Anton Çehov"
+   ]
+  },
+  {
+   "id": "h0150",
+   "letter": "Ç",
+   "zorluk": 3,
+   "question": "Reşat Nuri Güntekin'in Feride karakterini anlattığı romanı.",
+   "answer": "Çalıkuşu"
+  },
+  {
+   "id": "h0151",
+   "letter": "Ç",
+   "zorluk": 3,
+   "question": "1986'da büyük nükleer kazanın yaşandığı Ukrayna'daki santral.",
+   "answer": "Çernobil"
+  },
+  {
+   "id": "h0152",
+   "letter": "Ç",
+   "zorluk": 3,
+   "question": "Seyhan ve Ceyhan'ın suladığı, Yaşar Kemal romanlarına konu ova.",
+   "answer": "Çukurova"
+  },
+  {
+   "id": "h0153",
+   "letter": "Ç",
+   "zorluk": 3,
+   "question": "Pişmiş topraktan yapılan, ağzı geniş kap.",
+   "answer": "Çömlek"
+  },
+  {
+   "id": "h0154",
+   "letter": "D",
+   "zorluk": 1,
+   "question": "Okyanustan küçük, gölden büyük tuzlu su kütlesi.",
+   "answer": "Deniz"
+  },
+  {
+   "id": "h0155",
+   "letter": "D",
+   "zorluk": 1,
+   "question": "Salatanın vazgeçilmezi, kırmızı renkli sebze.",
+   "answer": "Domates"
+  },
+  {
+   "id": "h0156",
+   "letter": "D",
+   "zorluk": 1,
+   "question": "Yazın soğuk soğuk yenen, Maraş'ınki uzayan tatlı.",
+   "answer": "Dondurma"
+  },
+  {
+   "id": "h0157",
+   "letter": "D",
+   "zorluk": 1,
+   "question": "Tokmakla çalınan, iki yüzü deri kaplı vurmalı çalgı.",
+   "answer": "Davul"
+  },
+  {
+   "id": "h0158",
+   "letter": "D",
+   "zorluk": 1,
+   "question": "Ağızda yiyecekleri kesip öğütmeye yarayan sert organ.",
+   "answer": "Diş"
+  },
+  {
+   "id": "h0159",
+   "letter": "D",
+   "zorluk": 1,
+   "question": "Çevresine göre çok yüksek olan yeryüzü şekli.",
+   "answer": "Dağ"
+  },
+  {
+   "id": "h0160",
+   "letter": "D",
+   "zorluk": 1,
+   "question": "Hastaları muayene edip tedavi eden kişi.",
+   "answer": "Doktor",
+   "alternatives": [
+    "Hekim"
+   ]
+  },
+  {
+   "id": "h0161",
+   "letter": "D",
+   "zorluk": 1,
+   "question": "Yazı yazmak için kullanılan, sayfaları bir arada tutulan kâğıt topluluğu.",
+   "answer": "Defter"
+  },
+  {
+   "id": "h0162",
+   "letter": "D",
+   "zorluk": 1,
+   "question": "Beyazı, karası ve pekmezi olan meyve.",
+   "answer": "Dut"
+  },
+  {
+   "id": "h0163",
+   "letter": "D",
+   "zorluk": 1,
+   "question": "İçine eşya konulan, kapaklı mobilya.",
+   "answer": "Dolap"
+  },
+  {
+   "id": "h0164",
+   "letter": "D",
+   "zorluk": 2,
+   "question": "Güneş Sistemi'nde üzerinde yaşam bilinen tek gezegen.",
+   "answer": "Dünya"
+  },
+  {
+   "id": "h0165",
+   "letter": "D",
+   "zorluk": 2,
+   "question": "Pamukkale travertenleri ve horozuyla ünlü il.",
+   "answer": "Denizli"
+  },
+  {
+   "id": "h0166",
+   "letter": "D",
+   "zorluk": 2,
+   "question": "Surları ve karpuzuyla ünlü, Dicle kıyısındaki il.",
+   "answer": "Diyarbakır"
+  },
+  {
+   "id": "h0167",
+   "letter": "D",
+   "zorluk": 2,
+   "question": "Fırat'la birleşerek Şattülarap'ı oluşturan nehir.",
+   "answer": "Dicle"
+  },
+  {
+   "id": "h0168",
+   "letter": "D",
+   "zorluk": 2,
+   "question": "Milyonlarca yıl önce yaşamış, soyu tükenmiş dev sürüngen.",
+   "answer": "Dinozor"
+  },
+  {
+   "id": "h0169",
+   "letter": "D",
+   "zorluk": 2,
+   "question": "Yer kabuğunun ani sarsılması.",
+   "answer": "Deprem"
+  },
+  {
+   "id": "h0170",
+   "letter": "D",
+   "zorluk": 2,
+   "question": "Başkenti Kopenhag olan, LEGO'nun doğduğu İskandinav ülkesi.",
+   "answer": "Danimarka"
+  },
+  {
+   "id": "h0171",
+   "letter": "D",
+   "zorluk": 2,
+   "question": "Oğuz Türklerinin destansı hikâyelerini anlatan bilge ozan.",
+   "answer": "Dede Korkut"
+  },
+  {
+   "id": "h0172",
+   "letter": "D",
+   "zorluk": 2,
+   "question": "Bir şairin şiirlerini topladığı eser; aynı zamanda Osmanlı'da yönetim kurulu.",
+   "answer": "Divan"
+  },
+  {
+   "id": "h0173",
+   "letter": "D",
+   "zorluk": 2,
+   "question": "1999'da büyük depremle sarsılan, 1999'da il olan Batı Karadeniz şehri.",
+   "answer": "Düzce"
+  },
+  {
+   "id": "h0174",
+   "letter": "D",
+   "zorluk": 2,
+   "question": "Sıvının küçük yuvarlak parçası.",
+   "answer": "Damla"
+  },
+  {
+   "id": "h0175",
+   "letter": "D",
+   "zorluk": 2,
+   "question": "Su altında çalışan ya da dalış yapan kişi.",
+   "answer": "Dalgıç"
+  },
+  {
+   "id": "h0176",
+   "letter": "D",
+   "zorluk": 2,
+   "question": "Göğüs boşluğunu karın boşluğundan ayıran solunum kası.",
+   "answer": "Diyafram"
+  },
+  {
+   "id": "h0177",
+   "letter": "D",
+   "zorluk": 2,
+   "question": "Noktalı taşlarla oynanan, sıra devirme oyunlarıyla da bilinen oyun.",
+   "answer": "Domino"
+  },
+  {
+   "id": "h0178",
+   "letter": "D",
+   "zorluk": 2,
+   "question": "Duvardaki yuvarlak hedefe küçük oklar fırlatılan oyun.",
+   "answer": "Dart"
+  },
+  {
+   "id": "h0179",
+   "letter": "D",
+   "zorluk": 2,
+   "question": "ABD'nin para birimi.",
+   "answer": "Dolar"
+  },
+  {
+   "id": "h0180",
+   "letter": "D",
+   "zorluk": 3,
+   "question": "30 Ağustos 1922 Başkomutanlık Meydan Muharebesi'nin yapıldığı yer.",
+   "answer": "Dumlupınar"
+  },
+  {
+   "id": "h0181",
+   "letter": "D",
+   "zorluk": 3,
+   "question": "1040'ta Selçukluların Gazneliler'i yendiği savaş.",
+   "answer": "Dandanakan"
+  },
+  {
+   "id": "h0182",
+   "letter": "D",
+   "zorluk": 3,
+   "question": "Elementlerin periyodik tablosunu düzenleyen Rus kimyager.",
+   "answer": "Dimitri Mendeleyev",
+   "alternatives": [
+    "Mendeleyev"
+   ]
+  },
+  {
+   "id": "h0183",
+   "letter": "D",
+   "zorluk": 3,
+   "question": "\"Türlerin Kökeni\" kitabının yazarı doğa bilimci.",
+   "answer": "Darwin",
+   "alternatives": [
+    "Charles Darwin"
+   ]
+  },
+  {
+   "id": "h0184",
+   "letter": "D",
+   "zorluk": 3,
+   "question": "Kaşgarlı Mahmud'un yazdığı ilk Türkçe sözlük.",
+   "answer": "Divan-ı Lügati't-Türk",
+   "alternatives": [
+    "Divanu Lugatit Türk",
+    "Divan-ı Lügat-it Türk"
+   ]
+  },
+  {
+   "id": "h0185",
+   "letter": "D",
+   "zorluk": 3,
+   "question": "\"Suç ve Ceza\" romanının yazarı.",
+   "answer": "Dostoyevski",
+   "alternatives": [
+    "Fyodor Dostoyevski"
+   ]
+  },
+  {
+   "id": "h0186",
+   "letter": "D",
+   "zorluk": 3,
+   "question": "Canlıların kalıtsal bilgisini taşıyan sarmal molekülün kısaltması.",
+   "answer": "DNA",
+   "alternatives": [
+    "Deoksiribonükleik asit"
+   ]
+  },
+  {
+   "id": "h0187",
+   "letter": "D",
+   "zorluk": 3,
+   "question": "Atatürk'ün hayatını kaybettiği, Boğaz kıyısındaki saray.",
+   "answer": "Dolmabahçe"
+  },
+  {
+   "id": "h0188",
+   "letter": "D",
+   "zorluk": 3,
+   "question": "Knidos antik kentinin bulunduğu, badem ağaçlarıyla ünlü Muğla yarımadası.",
+   "answer": "Datça"
+  },
+  {
+   "id": "h0189",
+   "letter": "D",
+   "zorluk": 3,
+   "question": "\"İlahi Komedya\"nın İtalyan şairi.",
+   "answer": "Dante",
+   "alternatives": [
+    "Dante Alighieri"
+   ]
+  },
+  {
+   "id": "h0190",
+   "letter": "D",
+   "zorluk": 3,
+   "question": "Uzaktaki nesneleri yakın gösteren iki gözlü optik alet.",
+   "answer": "Dürbün"
+  },
+  {
+   "id": "h0191",
+   "letter": "D",
+   "zorluk": 3,
+   "question": "Ege'de kış aylarında düzenlenen, iki erkek devenin karşılaştığı geleneksel etkinlik.",
+   "answer": "Deve Güreşi"
+  },
+  {
+   "id": "h0192",
+   "letter": "D",
+   "zorluk": 3,
+   "question": "Uygur Türklerinin yaşadığı, bugün Çin sınırları içindeki bölge.",
+   "answer": "Doğu Türkistan"
+  },
+  {
+   "id": "h0193",
+   "letter": "D",
+   "zorluk": 3,
+   "question": "Kaunos kaya mezarları ve caretta kaplumbağalarıyla bilinen Muğla beldesi.",
+   "answer": "Dalyan"
+  },
+  {
+   "id": "h0194",
+   "letter": "E",
+   "zorluk": 1,
+   "question": "\"Ağaçtan uzağa düşmez\" denen, kırmızısı ve yeşili olan meyve.",
+   "answer": "Elma"
+  },
+  {
+   "id": "h0195",
+   "letter": "E",
+   "zorluk": 1,
+   "question": "Fırından taze alınan temel unlu gıda.",
+   "answer": "Ekmek"
+  },
+  {
+   "id": "h0196",
+   "letter": "E",
+   "zorluk": 1,
+   "question": "İnsanların içinde yaşadığı yapı.",
+   "answer": "Ev"
+  },
+  {
+   "id": "h0197",
+   "letter": "E",
+   "zorluk": 1,
+   "question": "Elleri soğuktan korumak için giyilen giysi.",
+   "answer": "Eldiven"
+  },
+  {
+   "id": "h0198",
+   "letter": "E",
+   "zorluk": 1,
+   "question": "Yeşilken ekşi ekşi tuzla yenen, sonra mor ya da sarıya dönen meyve.",
+   "answer": "Erik"
+  },
+  {
+   "id": "h0199",
+   "letter": "E",
+   "zorluk": 1,
+   "question": "Kadınların belden aşağı giydiği giysi.",
+   "answer": "Etek"
+  },
+  {
+   "id": "h0200",
+   "letter": "E",
+   "zorluk": 1,
+   "question": "Uzun kulaklı, yük taşımada kullanılan hayvan.",
+   "answer": "Eşek"
+  },
+  {
+   "id": "h0201",
+   "letter": "E",
+   "zorluk": 1,
+   "question": "Cumhuriyet Bayramı'nın kutlandığı ay.",
+   "answer": "Ekim"
+  },
+  {
+   "id": "h0202",
+   "letter": "E",
+   "zorluk": 1,
+   "question": "Masallarda ağzından ateş saçan kanatlı yaratık.",
+   "answer": "Ejderha"
+  },
+  {
+   "id": "h0203",
+   "letter": "E",
+   "zorluk": 1,
+   "question": "Kadınların giydiği, üst ve alt kısmı bir arada olan giysi.",
+   "answer": "Elbise"
+  },
+  {
+   "id": "h0204",
+   "letter": "E",
+   "zorluk": 2,
+   "question": "Palandöken kayak merkezi ve cağ kebabıyla ünlü il.",
+   "answer": "Erzurum"
+  },
+  {
+   "id": "h0205",
+   "letter": "E",
+   "zorluk": 2,
+   "question": "Selimiye Camii ve Kırkpınar güreşleriyle ünlü il.",
+   "answer": "Edirne"
+  },
+  {
+   "id": "h0206",
+   "letter": "E",
+   "zorluk": 2,
+   "question": "Odunpazarı evleri ve lületaşıyla ünlü il.",
+   "answer": "Eskişehir"
+  },
+  {
+   "id": "h0207",
+   "letter": "E",
+   "zorluk": 2,
+   "question": "Dünyanın en yüksek dağı.",
+   "answer": "Everest"
+  },
+  {
+   "id": "h0208",
+   "letter": "E",
+   "zorluk": 2,
+   "question": "Dünya'yı kuzey ve güney yarımküre olarak ikiye ayıran hayali çizgi.",
+   "answer": "Ekvator"
+  },
+  {
+   "id": "h0209",
+   "letter": "E",
+   "zorluk": 2,
+   "question": "Elektronların hareketiyle oluşan enerji türü.",
+   "answer": "Elektrik"
+  },
+  {
+   "id": "h0210",
+   "letter": "E",
+   "zorluk": 2,
+   "question": "Türkiye ile Yunanistan arasındaki adalarla dolu deniz.",
+   "answer": "Ege"
+  },
+  {
+   "id": "h0211",
+   "letter": "E",
+   "zorluk": 2,
+   "question": "Harput kalesi ve Hazar Gölü'yle bilinen il.",
+   "answer": "Elazığ"
+  },
+  {
+   "id": "h0212",
+   "letter": "E",
+   "zorluk": 2,
+   "question": "Paris'in simgesi olan demir kule.",
+   "answer": "Eyfel",
+   "alternatives": [
+    "Eiffel"
+   ]
+  },
+  {
+   "id": "h0213",
+   "letter": "E",
+   "zorluk": 2,
+   "question": "Ampulü geliştiren ve ticarileştiren mucit.",
+   "answer": "Edison",
+   "alternatives": [
+    "Thomas Edison"
+   ]
+  },
+  {
+   "id": "h0214",
+   "letter": "E",
+   "zorluk": 2,
+   "question": "Görelilik kuramının fizikçisi.",
+   "answer": "Einstein",
+   "alternatives": [
+    "Albert Einstein",
+    "Aynştayn"
+   ]
+  },
+  {
+   "id": "h0215",
+   "letter": "E",
+   "zorluk": 2,
+   "question": "Binlerce adadan oluşan, başkenti Cakarta olan ülke.",
+   "answer": "Endonezya"
+  },
+  {
+   "id": "h0216",
+   "letter": "E",
+   "zorluk": 2,
+   "question": "Dijital mesajlarda duyguları anlatan küçük simgeler.",
+   "answer": "Emoji"
+  },
+  {
+   "id": "h0217",
+   "letter": "E",
+   "zorluk": 2,
+   "question": "Tulum peyniri ve Kemaliye'siyle bilinen il.",
+   "answer": "Erzincan"
+  },
+  {
+   "id": "h0218",
+   "letter": "E",
+   "zorluk": 2,
+   "question": "Celsus Kütüphanesi'nin bulunduğu antik kent.",
+   "answer": "Efes",
+   "alternatives": [
+    "Ephesos"
+   ]
+  },
+  {
+   "id": "h0219",
+   "letter": "E",
+   "zorluk": 2,
+   "question": "İş yapabilme yeteneği.",
+   "answer": "Enerji"
+  },
+  {
+   "id": "h0220",
+   "letter": "E",
+   "zorluk": 2,
+   "question": "Okulların genellikle açıldığı, yaz sonu ayı.",
+   "answer": "Eylül"
+  },
+  {
+   "id": "h0221",
+   "letter": "E",
+   "zorluk": 2,
+   "question": "Başkenti Tallinn olan, dijital devletiyle bilinen Baltık ülkesi.",
+   "answer": "Estonya"
+  },
+  {
+   "id": "h0222",
+   "letter": "E",
+   "zorluk": 3,
+   "question": "Osman Bey'in babası.",
+   "answer": "Ertuğrul Gazi",
+   "alternatives": [
+    "Ertuğrul"
+   ]
+  },
+  {
+   "id": "h0223",
+   "letter": "E",
+   "zorluk": 3,
+   "question": "Göktürklerin dört yüz yıl kaldıkları vadiden demir dağı eriterek çıkışını anlatan destan.",
+   "answer": "Ergenekon"
+  },
+  {
+   "id": "h0224",
+   "letter": "E",
+   "zorluk": 3,
+   "question": "\"Seyahatname\"nin yazarı Osmanlı gezgini.",
+   "answer": "Evliya Çelebi"
+  },
+  {
+   "id": "h0225",
+   "letter": "E",
+   "zorluk": 3,
+   "question": "\"Aşk\" romanıyla geniş kitlelere ulaşan çağdaş yazar.",
+   "answer": "Elif Şafak",
+   "alternatives": [
+    "Şafak"
+   ]
+  },
+  {
+   "id": "h0226",
+   "letter": "E",
+   "zorluk": 3,
+   "question": "Avrupa Birliği'nde ortak kullanılan para birimi.",
+   "answer": "Euro",
+   "alternatives": [
+    "Avro"
+   ]
+  },
+  {
+   "id": "h0227",
+   "letter": "E",
+   "zorluk": 3,
+   "question": "Müslümanların İber Yarımadası'nda kurduğu, Elhamra Sarayı'nı yapan devlet.",
+   "answer": "Endülüs"
+  },
+  {
+   "id": "h0228",
+   "letter": "E",
+   "zorluk": 3,
+   "question": "Kayseri'de, kayak merkeziyle bilinen sönmüş yanardağ.",
+   "answer": "Erciyes"
+  },
+  {
+   "id": "h0229",
+   "letter": "E",
+   "zorluk": 3,
+   "question": "Canlılarda kimyasal tepkimeleri hızlandıran protein.",
+   "answer": "Enzim"
+  },
+  {
+   "id": "h0230",
+   "letter": "E",
+   "zorluk": 3,
+   "question": "Canlı türlerinin nesiller boyunca değişmesini açıklayan kuram.",
+   "answer": "Evrim"
+  },
+  {
+   "id": "h0231",
+   "letter": "E",
+   "zorluk": 3,
+   "question": "Hayvan masallarıyla tanınan Antik Yunan fabl yazarı.",
+   "answer": "Ezop",
+   "alternatives": [
+    "Aisopos"
+   ]
+  },
+  {
+   "id": "h0232",
+   "letter": "E",
+   "zorluk": 3,
+   "question": "İspanya'nın Granada şehrindeki ünlü Endülüs sarayı.",
+   "answer": "Elhamra"
+  },
+  {
+   "id": "h0233",
+   "letter": "E",
+   "zorluk": 3,
+   "question": "Dünya'nın çevresini ilk kez yaklaşık olarak hesaplayan antik bilgin.",
+   "answer": "Eratosthenes",
+   "alternatives": [
+    "Eratostenes"
+   ]
+  },
+  {
+   "id": "h0234",
+   "letter": "F",
+   "zorluk": 1,
+   "question": "Hortumu ve uzun dişleriyle bilinen en büyük kara hayvanı.",
+   "answer": "Fil"
+  },
+  {
+   "id": "h0235",
+   "letter": "F",
+   "zorluk": 1,
+   "question": "Ekmek ve börek pişirilen kapalı ocak.",
+   "answer": "Fırın"
+  },
+  {
+   "id": "h0236",
+   "letter": "F",
+   "zorluk": 1,
+   "question": "Kuru ve taze çeşitleri olan, pilavla yenen baklagil.",
+   "answer": "Fasulye"
+  },
+  {
+   "id": "h0237",
+   "letter": "F",
+   "zorluk": 1,
+   "question": "On birer kişilik iki takımın ayakla oynadığı top oyunu.",
+   "answer": "Futbol"
+  },
+  {
+   "id": "h0238",
+   "letter": "F",
+   "zorluk": 1,
+   "question": "Peynire düşkün olduğu söylenen küçük kemirgen.",
+   "answer": "Fare"
+  },
+  {
+   "id": "h0239",
+   "letter": "F",
+   "zorluk": 1,
+   "question": "Karadeniz'de yetişen, Türkiye'nin dünyada ilk sırada ürettiği kuruyemiş.",
+   "answer": "Fındık"
+  },
+  {
+   "id": "h0240",
+   "letter": "F",
+   "zorluk": 1,
+   "question": "Diş temizlemeye ya da boya yapmaya yarayan kıllı araç.",
+   "answer": "Fırça"
+  },
+  {
+   "id": "h0241",
+   "letter": "F",
+   "zorluk": 1,
+   "question": "Karanlıkta yol görmeye yarayan taşınabilir ışık.",
+   "answer": "Fener"
+  },
+  {
+   "id": "h0242",
+   "letter": "F",
+   "zorluk": 1,
+   "question": "Kahve ya da çay içilen kulplu küçük kap.",
+   "answer": "Fincan"
+  },
+  {
+   "id": "h0243",
+   "letter": "F",
+   "zorluk": 1,
+   "question": "Üflenerek çalınan, yan tutulan nefesli çalgı.",
+   "answer": "Flüt"
+  },
+  {
+   "id": "h0244",
+   "letter": "F",
+   "zorluk": 2,
+   "question": "Başkenti Paris olan Avrupa ülkesi.",
+   "answer": "Fransa"
+  },
+  {
+   "id": "h0245",
+   "letter": "F",
+   "zorluk": 2,
+   "question": "Madde, enerji ve hareketi inceleyen bilim.",
+   "answer": "Fizik"
+  },
+  {
+   "id": "h0246",
+   "letter": "F",
+   "zorluk": 2,
+   "question": "Erzurum'dan doğup Suriye ve Irak'tan geçen, Türkiye'nin en uzun nehirlerinden biri.",
+   "answer": "Fırat"
+  },
+  {
+   "id": "h0247",
+   "letter": "F",
+   "zorluk": 2,
+   "question": "Taşlaşmış canlı kalıntısı.",
+   "answer": "Fosil"
+  },
+  {
+   "id": "h0248",
+   "letter": "F",
+   "zorluk": 2,
+   "question": "Bitkilerin ışıkla besin üretmesi.",
+   "answer": "Fotosentez"
+  },
+  {
+   "id": "h0249",
+   "letter": "F",
+   "zorluk": 2,
+   "question": "1453'te İstanbul'u fetheden Osmanlı padişahı.",
+   "answer": "Fatih Sultan Mehmet",
+   "alternatives": [
+    "Fatih",
+    "II. Mehmet",
+    "Mehmet"
+   ]
+  },
+  {
+   "id": "h0250",
+   "letter": "F",
+   "zorluk": 2,
+   "question": "Işığa duyarlı yüzeyle elde edilen görüntü.",
+   "answer": "Fotoğraf"
+  },
+  {
+   "id": "h0251",
+   "letter": "F",
+   "zorluk": 2,
+   "question": "1907'de Kadıköy'de kurulan köklü spor kulübü.",
+   "answer": "Fenerbahçe"
+  },
+  {
+   "id": "h0252",
+   "letter": "F",
+   "zorluk": 2,
+   "question": "Pembe tüyleriyle bilinen, tek ayak üstünde durabilen kuş.",
+   "answer": "Flamingo"
+  },
+  {
+   "id": "h0253",
+   "letter": "F",
+   "zorluk": 2,
+   "question": "Başkenti Rabat olan, 2022 Dünya Kupası'nda yarı finale çıkan Afrika ülkesi.",
+   "answer": "Fas"
+  },
+  {
+   "id": "h0254",
+   "letter": "F",
+   "zorluk": 2,
+   "question": "Pasifik Okyanusu'nda, başkenti Suva olan ada ülkesi.",
+   "answer": "Fiji"
+  },
+  {
+   "id": "h0255",
+   "letter": "F",
+   "zorluk": 2,
+   "question": "Yer kabuğundaki kırık; depremler buralarda oluşur.",
+   "answer": "Fay",
+   "alternatives": [
+    "Fay hattı"
+   ]
+  },
+  {
+   "id": "h0256",
+   "letter": "F",
+   "zorluk": 2,
+   "question": "Buzulların oyduğu, denizin içerilere girdiği derin vadi.",
+   "answer": "Fiyort"
+  },
+  {
+   "id": "h0257",
+   "letter": "F",
+   "zorluk": 2,
+   "question": "\"Leyla ile Mecnun\" mesnevisini yazan 16. yüzyıl divan şairi.",
+   "answer": "Fuzuli"
+  },
+  {
+   "id": "h0258",
+   "letter": "F",
+   "zorluk": 2,
+   "question": "Başkenti Helsinki olan, Noel Baba'nın köyünün bulunduğu söylenen ülke.",
+   "answer": "Finlandiya"
+  },
+  {
+   "id": "h0259",
+   "letter": "F",
+   "zorluk": 2,
+   "question": "Araç ve yolcu taşıyan gemi.",
+   "answer": "Feribot"
+  },
+  {
+   "id": "h0260",
+   "letter": "F",
+   "zorluk": 3,
+   "question": "Elektromanyetik indüksiyonu bulan İngiliz bilim insanı.",
+   "answer": "Faraday",
+   "alternatives": [
+    "Michael Faraday"
+   ]
+  },
+  {
+   "id": "h0261",
+   "letter": "F",
+   "zorluk": 3,
+   "question": "Her sayının kendinden önceki iki sayının toplamı olduğu ünlü dizi.",
+   "answer": "Fibonacci"
+  },
+  {
+   "id": "h0262",
+   "letter": "F",
+   "zorluk": 3,
+   "question": "Otoportreleriyle tanınan Meksikalı ressam.",
+   "answer": "Frida Kahlo",
+   "alternatives": [
+    "Kahlo"
+   ]
+  },
+  {
+   "id": "h0263",
+   "letter": "F",
+   "zorluk": 3,
+   "question": "\"İkinci Öğretmen\" olarak anılan İslam filozofu.",
+   "answer": "Farabi",
+   "alternatives": [
+    "Farabi"
+   ]
+  },
+  {
+   "id": "h0264",
+   "letter": "F",
+   "zorluk": 3,
+   "question": "Ölüdeniz ve Kelebekler Vadisi'nin bulunduğu Muğla ilçesi.",
+   "answer": "Fethiye"
+  },
+  {
+   "id": "h0265",
+   "letter": "F",
+   "zorluk": 3,
+   "question": "Suyun 32 derecede donduğu sıcaklık ölçeği.",
+   "answer": "Fahrenheit"
+  },
+  {
+   "id": "h0266",
+   "letter": "F",
+   "zorluk": 3,
+   "question": "Paris'te yaşamış, kahve ve meyhane sahneleriyle bilinen Türk ressam.",
+   "answer": "Fikret Mualla",
+   "alternatives": [
+    "Mualla"
+   ]
+  },
+  {
+   "id": "h0267",
+   "letter": "F",
+   "zorluk": 3,
+   "question": "\"Bilgelik sevgisi\" anlamına gelen düşünce disiplini.",
+   "answer": "Felsefe"
+  },
+  {
+   "id": "h0268",
+   "letter": "F",
+   "zorluk": 3,
+   "question": "\"Çakırın Destanı\"nın şairi.",
+   "answer": "Fazıl Hüsnü Dağlarca",
+   "alternatives": [
+    "Dağlarca"
+   ]
+  },
+  {
+   "id": "h0269",
+   "letter": "F",
+   "zorluk": 3,
+   "question": "Mayalanma; ekmek ve yoğurt yapımındaki biyokimyasal süreç.",
+   "answer": "Fermantasyon",
+   "alternatives": [
+    "Mayalanma"
+   ]
+  },
+  {
+   "id": "h0270",
+   "letter": "F",
+   "zorluk": 3,
+   "question": "Gazze ve Batı Şeria bölgelerinden oluşan topraklar.",
+   "answer": "Filistin"
+  },
+  {
+   "id": "h0271",
+   "letter": "F",
+   "zorluk": 3,
+   "question": "Bir dalganın saniyedeki titreşim sayısı; birimi hertz.",
+   "answer": "Frekans"
+  },
+  {
+   "id": "h0272",
+   "letter": "G",
+   "zorluk": 1,
+   "question": "Denizde yük ve yolcu taşıyan büyük taşıt.",
+   "answer": "Gemi"
+  },
+  {
+   "id": "h0273",
+   "letter": "G",
+   "zorluk": 1,
+   "question": "Görmemizi sağlayan organ.",
+   "answer": "Göz"
+  },
+  {
+   "id": "h0274",
+   "letter": "G",
+   "zorluk": 1,
+   "question": "Dünya'ya ışık ve ısı veren yıldız.",
+   "answer": "Güneş"
+  },
+  {
+   "id": "h0275",
+   "letter": "G",
+   "zorluk": 1,
+   "question": "Isparta'da yağı üretilen, dikenli ve kokulu çiçek.",
+   "answer": "Gül"
+  },
+  {
+   "id": "h0276",
+   "letter": "G",
+   "zorluk": 1,
+   "question": "Görmeyi düzeltmek için takılan camlı araç.",
+   "answer": "Gözlük"
+  },
+  {
+   "id": "h0277",
+   "letter": "G",
+   "zorluk": 1,
+   "question": "Yağmurdan sonra gökyüzünde beliren yedi renkli yay.",
+   "answer": "Gökkuşağı"
+  },
+  {
+   "id": "h0278",
+   "letter": "G",
+   "zorluk": 1,
+   "question": "Telli, mızrapla ya da parmakla çalınan çalgı.",
+   "answer": "Gitar"
+  },
+  {
+   "id": "h0279",
+   "letter": "G",
+   "zorluk": 1,
+   "question": "Üzerimize giydiğimiz her şey için genel ad.",
+   "answer": "Giysi",
+   "alternatives": [
+    "Elbise"
+   ]
+  },
+  {
+   "id": "h0280",
+   "letter": "G",
+   "zorluk": 1,
+   "question": "Günlük haberlerin basıldığı yayın.",
+   "answer": "Gazete"
+  },
+  {
+   "id": "h0281",
+   "letter": "G",
+   "zorluk": 1,
+   "question": "Yakası ve düğmeleri olan, pantolonla giyilen üst giysi.",
+   "answer": "Gömlek"
+  },
+  {
+   "id": "h0282",
+   "letter": "G",
+   "zorluk": 2,
+   "question": "Fındığı ve Karadeniz kıyımızdaki tek adasıyla bilinen il.",
+   "answer": "Giresun"
+  },
+  {
+   "id": "h0283",
+   "letter": "G",
+   "zorluk": 2,
+   "question": "Baklavası ve kebabıyla UNESCO gastronomi şehri seçilen il.",
+   "answer": "Gaziantep",
+   "alternatives": [
+    "Antep"
+   ]
+  },
+  {
+   "id": "h0284",
+   "letter": "G",
+   "zorluk": 2,
+   "question": "Ceneviz döneminden kalma kulesiyle İstanbul'un simgelerinden.",
+   "answer": "Galata"
+  },
+  {
+   "id": "h0285",
+   "letter": "G",
+   "zorluk": 2,
+   "question": "Bir yıldızın çevresinde dolanan büyük gök cismi.",
+   "answer": "Gezegen"
+  },
+  {
+   "id": "h0286",
+   "letter": "G",
+   "zorluk": 2,
+   "question": "Başkenti Tiflis olan Kafkas ülkesi.",
+   "answer": "Gürcistan"
+  },
+  {
+   "id": "h0287",
+   "letter": "G",
+   "zorluk": 2,
+   "question": "Işığın önüne geçen cismin arkasında oluşan karanlık alan.",
+   "answer": "Gölge"
+  },
+  {
+   "id": "h0288",
+   "letter": "G",
+   "zorluk": 2,
+   "question": "Şanlıurfa'da, yaklaşık 12 bin yıllık tapınak alanı.",
+   "answer": "Göbeklitepe"
+  },
+  {
+   "id": "h0289",
+   "letter": "G",
+   "zorluk": 2,
+   "question": "En büyük primat; Afrika ormanlarında yaşar.",
+   "answer": "Goril"
+  },
+  {
+   "id": "h0290",
+   "letter": "G",
+   "zorluk": 2,
+   "question": "Teleskopla Jüpiter'in uydularını keşfeden İtalyan bilgin.",
+   "answer": "Galileo",
+   "alternatives": [
+    "Galileo Galilei",
+    "Galile"
+   ]
+  },
+  {
+   "id": "h0291",
+   "letter": "G",
+   "zorluk": 2,
+   "question": "Dünyanın en büyük adası.",
+   "answer": "Grönland"
+  },
+  {
+   "id": "h0292",
+   "letter": "G",
+   "zorluk": 2,
+   "question": "\"Türk\" adını devlet adı olarak kullanan ilk Türk devleti.",
+   "answer": "Göktürk",
+   "alternatives": [
+    "Göktürkler",
+    "Kök Türk"
+   ]
+  },
+  {
+   "id": "h0293",
+   "letter": "G",
+   "zorluk": 2,
+   "question": "Barışın simgesi sayılan, posta taşımada da kullanılan kuş.",
+   "answer": "Güvercin"
+  },
+  {
+   "id": "h0294",
+   "letter": "G",
+   "zorluk": 2,
+   "question": "Simgesi Ag olan değerli metal.",
+   "answer": "Gümüş"
+  },
+  {
+   "id": "h0295",
+   "letter": "G",
+   "zorluk": 2,
+   "question": "Milyarlarca yıldızdan oluşan dev sistem; bizimki Samanyolu.",
+   "answer": "Galaksi",
+   "alternatives": [
+    "Gökada"
+   ]
+  },
+  {
+   "id": "h0296",
+   "letter": "G",
+   "zorluk": 2,
+   "question": "Gülümseyince yanakta oluşan küçük çukur.",
+   "answer": "Gamze"
+  },
+  {
+   "id": "h0297",
+   "letter": "G",
+   "zorluk": 2,
+   "question": "Kapadokya'da peribacaları ve açık hava müzesiyle bilinen yer.",
+   "answer": "Göreme"
+  },
+  {
+   "id": "h0298",
+   "letter": "G",
+   "zorluk": 3,
+   "question": "Dünyanın bilinen en eski destanlarından Sümer kahramanı.",
+   "answer": "Gılgamış",
+   "alternatives": [
+    "Gılgameş",
+    "Gilgamış"
+   ]
+  },
+  {
+   "id": "h0299",
+   "letter": "G",
+   "zorluk": 3,
+   "question": "Avrupa'da hareketli harflerle matbaayı geliştiren kişi.",
+   "answer": "Gutenberg"
+  },
+  {
+   "id": "h0300",
+   "letter": "G",
+   "zorluk": 3,
+   "question": "Hindistan'ın bağımsızlık mücadelesini şiddetsizlikle yürüten lider.",
+   "answer": "Gandi",
+   "alternatives": [
+    "Gandhi",
+    "Mahatma Gandi"
+   ]
+  },
+  {
+   "id": "h0301",
+   "letter": "G",
+   "zorluk": 3,
+   "question": "Demiri korozyondan korumak için çinkoyla kaplama işlemi.",
+   "answer": "Galvaniz"
+  },
+  {
+   "id": "h0302",
+   "letter": "G",
+   "zorluk": 3,
+   "question": "TBMM'nin Sakarya Zaferi sonrası Mustafa Kemal'e verdiği unvanla anılan adı.",
+   "answer": "Gazi Mustafa Kemal",
+   "alternatives": [
+    "Gazi"
+   ]
+  },
+  {
+   "id": "h0303",
+   "letter": "G",
+   "zorluk": 3,
+   "question": "Çanakkale Savaşları'nın kara muharebelerinin yapıldığı yarımada.",
+   "answer": "Gelibolu"
+  },
+  {
+   "id": "h0304",
+   "letter": "G",
+   "zorluk": 3,
+   "question": "Astronominin Türkçe karşılığı.",
+   "answer": "Gökbilim"
+  },
+  {
+   "id": "h0305",
+   "letter": "G",
+   "zorluk": 3,
+   "question": "Fotosentezle üretilen, hücrelerin temel enerji kaynağı olan şeker.",
+   "answer": "Glikoz",
+   "alternatives": [
+    "Glukoz"
+   ]
+  },
+  {
+   "id": "h0306",
+   "letter": "G",
+   "zorluk": 3,
+   "question": "Barselona'daki Sagrada Familia'nın mimarı.",
+   "answer": "Gaudi",
+   "alternatives": [
+    "Antoni Gaudi"
+   ]
+  },
+  {
+   "id": "h0307",
+   "letter": "G",
+   "zorluk": 3,
+   "question": "Sivri kemerleri ve vitraylarıyla bilinen Orta Çağ mimari üslubu.",
+   "answer": "Gotik"
+  },
+  {
+   "id": "h0308",
+   "letter": "G",
+   "zorluk": 3,
+   "question": "Sultan Mahmud döneminde Hindistan seferleriyle ünlenen Türk devleti.",
+   "answer": "Gazneliler"
+  },
+  {
+   "id": "h0309",
+   "letter": "H",
+   "zorluk": 1,
+   "question": "Göz sağlığına iyi gelen turuncu kök sebze.",
+   "answer": "Havuç"
+  },
+  {
+   "id": "h0310",
+   "letter": "H",
+   "zorluk": 1,
+   "question": "Sabahları ötüşüyle uyandıran kümes hayvanı.",
+   "answer": "Horoz"
+  },
+  {
+   "id": "h0311",
+   "letter": "H",
+   "zorluk": 1,
+   "question": "Yere serilen, dokuma örtü.",
+   "answer": "Halı"
+  },
+  {
+   "id": "h0312",
+   "letter": "H",
+   "zorluk": 1,
+   "question": "Karadeniz'in kış balığı.",
+   "answer": "Hamsi"
+  },
+  {
+   "id": "h0313",
+   "letter": "H",
+   "zorluk": 1,
+   "question": "Hastaların tedavi edildiği kurum.",
+   "answer": "Hastane"
+  },
+  {
+   "id": "h0314",
+   "letter": "H",
+   "zorluk": 1,
+   "question": "Pervanesiyle dikey kalkış yapabilen hava taşıtı.",
+   "answer": "Helikopter"
+  },
+  {
+   "id": "h0315",
+   "letter": "H",
+   "zorluk": 1,
+   "question": "Yeryüzünün küçültülerek düz bir yüzeye çizilmiş hâli.",
+   "answer": "Harita"
+  },
+  {
+   "id": "h0316",
+   "letter": "H",
+   "zorluk": 1,
+   "question": "Sevindirmek için birine verilen armağan.",
+   "answer": "Hediye",
+   "alternatives": [
+    "Armağan"
+   ]
+  },
+  {
+   "id": "h0317",
+   "letter": "H",
+   "zorluk": 1,
+   "question": "Ramazanda iftarın açıldığı, palmiyede yetişen tatlı meyve.",
+   "answer": "Hurma"
+  },
+  {
+   "id": "h0318",
+   "letter": "H",
+   "zorluk": 1,
+   "question": "Islanan bedeni kurulamaya yarayan kumaş.",
+   "answer": "Havlu"
+  },
+  {
+   "id": "h0319",
+   "letter": "H",
+   "zorluk": 2,
+   "question": "Künefesiyle ünlü, 1939'da Türkiye'ye katılan il.",
+   "answer": "Hatay"
+  },
+  {
+   "id": "h0320",
+   "letter": "H",
+   "zorluk": 2,
+   "question": "Lale, yel değirmeni ve bisikletleriyle bilinen Avrupa ülkesi.",
+   "answer": "Hollanda"
+  },
+  {
+   "id": "h0321",
+   "letter": "H",
+   "zorluk": 2,
+   "question": "Taç Mahal'in bulunduğu ülke.",
+   "answer": "Hindistan"
+  },
+  {
+   "id": "h0322",
+   "letter": "H",
+   "zorluk": 2,
+   "question": "Dünyanın en büyük gölü sayılan iç deniz.",
+   "answer": "Hazar",
+   "alternatives": [
+    "Hazar Denizi"
+   ]
+  },
+  {
+   "id": "h0323",
+   "letter": "H",
+   "zorluk": 2,
+   "question": "Dik üçgende dik açının karşısındaki kenar.",
+   "answer": "Hipotenüs"
+  },
+  {
+   "id": "h0324",
+   "letter": "H",
+   "zorluk": 2,
+   "question": "Evrende en bol bulunan, en hafif element.",
+   "answer": "Hidrojen"
+  },
+  {
+   "id": "h0325",
+   "letter": "H",
+   "zorluk": 2,
+   "question": "Cilo Dağları'nın bulunduğu Türkiye'nin güneydoğu ucundaki il.",
+   "answer": "Hakkari"
+  },
+  {
+   "id": "h0326",
+   "letter": "H",
+   "zorluk": 2,
+   "question": "Hititlerin başkenti; Çorum Boğazkale'de.",
+   "answer": "Hattuşa",
+   "alternatives": [
+    "Hattuşaş"
+   ]
+  },
+  {
+   "id": "h0327",
+   "letter": "H",
+   "zorluk": 2,
+   "question": "Başkenti Zagreb olan, 2018 Dünya Kupası finalisti Balkan ülkesi.",
+   "answer": "Hırvatistan"
+  },
+  {
+   "id": "h0328",
+   "letter": "H",
+   "zorluk": 2,
+   "question": "Türk kültürüne özgü, kurnalı ve göbek taşlı yıkanma yeri.",
+   "answer": "Hamam"
+  },
+  {
+   "id": "h0329",
+   "letter": "H",
+   "zorluk": 2,
+   "question": "Karagöz'ün bilgiç oyun arkadaşı.",
+   "answer": "Hacivat"
+  },
+  {
+   "id": "h0330",
+   "letter": "H",
+   "zorluk": 2,
+   "question": "İstanbul'da Boğaz'dan ayrılan, Altın Boynuz da denen körfez.",
+   "answer": "Haliç"
+  },
+  {
+   "id": "h0331",
+   "letter": "H",
+   "zorluk": 2,
+   "question": "ABD'nin en eski üniversitesi.",
+   "answer": "Harvard"
+  },
+  {
+   "id": "h0332",
+   "letter": "H",
+   "zorluk": 2,
+   "question": "Afrika, Asya ve Avustralya arasındaki okyanus.",
+   "answer": "Hint Okyanusu",
+   "alternatives": [
+    "Hint"
+   ]
+  },
+  {
+   "id": "h0333",
+   "letter": "H",
+   "zorluk": 3,
+   "question": "Galata Kulesi'nden Üsküdar'a uçtuğu rivayet edilen Osmanlı bilgini.",
+   "answer": "Hezarfen Ahmet Çelebi",
+   "alternatives": [
+    "Hezarfen"
+   ]
+  },
+  {
+   "id": "h0334",
+   "letter": "H",
+   "zorluk": 3,
+   "question": "Dünyanın yedi harikasından Mozolos'un anıt mezarının bulunduğu antik kent; bugünkü Bodrum.",
+   "answer": "Halikarnas"
+  },
+  {
+   "id": "h0335",
+   "letter": "H",
+   "zorluk": 3,
+   "question": "Bilinen en eski yazılı kanunlardan birini hazırlatan Babil kralı.",
+   "answer": "Hammurabi"
+  },
+  {
+   "id": "h0336",
+   "letter": "H",
+   "zorluk": 3,
+   "question": "Alyuvarlarda oksijen taşıyan protein.",
+   "answer": "Hemoglobin"
+  },
+  {
+   "id": "h0337",
+   "letter": "H",
+   "zorluk": 3,
+   "question": "Mete Han'ın hükümdarlığında güçlenen ilk büyük Türk devleti.",
+   "answer": "Hun",
+   "alternatives": [
+    "Hunlar",
+    "Büyük Hun"
+   ]
+  },
+  {
+   "id": "h0338",
+   "letter": "H",
+   "zorluk": 3,
+   "question": "\"Aşk-ı Memnu\" romanının yazarı.",
+   "answer": "Halit Ziya",
+   "alternatives": [
+    "Halit Ziya Uşaklıgil"
+   ]
+  },
+  {
+   "id": "h0339",
+   "letter": "H",
+   "zorluk": 3,
+   "question": "Canlıların en küçük yapı ve işlev birimi.",
+   "answer": "Hücre"
+  },
+  {
+   "id": "h0340",
+   "letter": "H",
+   "zorluk": 3,
+   "question": "\"Olmak ya da olmamak\" repliğiyle bilinen Shakespeare oyunu.",
+   "answer": "Hamlet"
+  },
+  {
+   "id": "h0341",
+   "letter": "H",
+   "zorluk": 3,
+   "question": "Frekans birimi.",
+   "answer": "Hertz"
+  },
+  {
+   "id": "h0342",
+   "letter": "H",
+   "zorluk": 3,
+   "question": "6 Mayıs'ta kutlanan, Hızır ile İlyas'ın buluştuğuna inanılan bahar bayramı.",
+   "answer": "Hıdırellez"
+  },
+  {
+   "id": "h0343",
+   "letter": "H",
+   "zorluk": 3,
+   "question": "Etiyopya'nın eski adı.",
+   "answer": "Habeşistan"
+  },
+  {
+   "id": "h0344",
+   "letter": "H",
+   "zorluk": 3,
+   "question": "Antik Yunanlıların kendilerine verdiği ad.",
+   "answer": "Helen"
+  },
+  {
+   "id": "h0345",
+   "letter": "H",
+   "zorluk": 3,
+   "question": "Darda kalanların yardımına koştuğuna inanılan ölümsüz kişi.",
+   "answer": "Hızır"
+  },
+  {
+   "id": "h0346",
+   "letter": "I",
+   "zorluk": 1,
+   "question": "Denize ya da göle dökülen büyük akarsu.",
+   "answer": "Irmak",
+   "alternatives": [
+    "Nehir"
+   ]
+  },
+  {
+   "id": "h0347",
+   "letter": "I",
+   "zorluk": 1,
+   "question": "Karanlığı aydınlatan, görmemizi sağlayan şey.",
+   "answer": "Işık"
+  },
+  {
+   "id": "h0348",
+   "letter": "I",
+   "zorluk": 1,
+   "question": "Temel Reis'in güç aldığı yeşil yapraklı sebze.",
+   "answer": "Ispanak"
+  },
+  {
+   "id": "h0349",
+   "letter": "I",
+   "zorluk": 1,
+   "question": "Ne sıcak ne soğuk olan.",
+   "answer": "Ilık"
+  },
+  {
+   "id": "h0350",
+   "letter": "I",
+   "zorluk": 1,
+   "question": "Suyla nemlenmiş, kuru olmayan.",
+   "answer": "Islak"
+  },
+  {
+   "id": "h0351",
+   "letter": "I",
+   "zorluk": 1,
+   "question": "Kışın soğuk algınlığına karşı demlenen çiçekli bitki çayı.",
+   "answer": "Ihlamur"
+  },
+  {
+   "id": "h0352",
+   "letter": "I",
+   "zorluk": 1,
+   "question": "Dokununca yakan, çorbası da yapılan otsu bitki.",
+   "answer": "Isırgan"
+  },
+  {
+   "id": "h0353",
+   "letter": "I",
+   "zorluk": 1,
+   "question": "Kömür ateşi üzerinde et pişirmeye yarayan demir parmaklık.",
+   "answer": "Izgara"
+  },
+  {
+   "id": "h0354",
+   "letter": "I",
+   "zorluk": 1,
+   "question": "Tuzlu topraklarda yetişen, pembe çiçekli çalı; Konya'nın bir ilçesinin de adı.",
+   "answer": "Ilgın"
+  },
+  {
+   "id": "h0355",
+   "letter": "I",
+   "zorluk": 2,
+   "question": "Gülleri ve halısıyla ünlü Göller Bölgesi ili.",
+   "answer": "Isparta"
+  },
+  {
+   "id": "h0356",
+   "letter": "I",
+   "zorluk": 2,
+   "question": "Ağrı Dağı'nın eteklerinde, kayısısıyla ünlü sınır ili.",
+   "answer": "Iğdır"
+  },
+  {
+   "id": "h0357",
+   "letter": "I",
+   "zorluk": 2,
+   "question": "Başkenti Bağdat olan, Dicle ile Fırat'ın aktığı ülke.",
+   "answer": "Irak"
+  },
+  {
+   "id": "h0358",
+   "letter": "I",
+   "zorluk": 2,
+   "question": "Işığın bir kaynaktan çıkıp düz bir çizgi boyunca yayılan kısmı.",
+   "answer": "Işın"
+  },
+  {
+   "id": "h0359",
+   "letter": "I",
+   "zorluk": 2,
+   "question": "Kastamonu ile Çankırı arasındaki, kayak merkezi olan dağ.",
+   "answer": "Ilgaz"
+  },
+  {
+   "id": "h0360",
+   "letter": "I",
+   "zorluk": 2,
+   "question": "Dudakları büzüp üfleyerek çıkarılan ince ses.",
+   "answer": "Islık"
+  },
+  {
+   "id": "h0361",
+   "letter": "I",
+   "zorluk": 2,
+   "question": "Tarımda gündelikle çalışan işçi.",
+   "answer": "Irgat"
+  },
+  {
+   "id": "h0362",
+   "letter": "I",
+   "zorluk": 2,
+   "question": "Matematikte bir sayıya yakınsamayan dizi ya da seri.",
+   "answer": "Iraksak"
+  },
+  {
+   "id": "h0363",
+   "letter": "I",
+   "zorluk": 2,
+   "question": "Sıcaklık farkı nedeniyle aktarılan enerji.",
+   "answer": "Isı"
+  },
+  {
+   "id": "h0364",
+   "letter": "I",
+   "zorluk": 2,
+   "question": "Kullanılmaz diye ayrılan, işe yaramaz olarak bir kenara atılan.",
+   "answer": "Iskarta"
+  },
+  {
+   "id": "h0365",
+   "letter": "I",
+   "zorluk": 2,
+   "question": "Büyük kıskaçları olan, pahalı deniz kabuklusu.",
+   "answer": "Istakoz"
+  },
+  {
+   "id": "h0366",
+   "letter": "I",
+   "zorluk": 2,
+   "question": "Yerden kendiliğinden sıcak su çıkan yer; kaplıca.",
+   "answer": "Ilıca",
+   "alternatives": [
+    "Kaplıca"
+   ]
+  },
+  {
+   "id": "h0367",
+   "letter": "I",
+   "zorluk": 2,
+   "question": "Osmanlı'da kimsesiz çocuklar için açılan meslek okulu.",
+   "answer": "Islahhane"
+  },
+  {
+   "id": "h0368",
+   "letter": "I",
+   "zorluk": 3,
+   "question": "Siparişle, isteğe göre yapılmış olan.",
+   "answer": "Ismarlama"
+  },
+  {
+   "id": "h0369",
+   "letter": "I",
+   "zorluk": 3,
+   "question": "Balık avlamada kullanılan büyük ağ.",
+   "answer": "Iğrıp"
+  },
+  {
+   "id": "h0370",
+   "letter": "I",
+   "zorluk": 3,
+   "question": "Radyasyonun Türkçe karşılığı.",
+   "answer": "Işınım",
+   "alternatives": [
+    "Radyasyon"
+   ]
+  },
+  {
+   "id": "h0371",
+   "letter": "I",
+   "zorluk": 3,
+   "question": "Önemsiz, değersiz ufak tefek şeyler.",
+   "answer": "Ivır zıvır"
+  },
+  {
+   "id": "h0372",
+   "letter": "I",
+   "zorluk": 3,
+   "question": "Ani saldırı, akın anlamına gelen eski sözcük.",
+   "answer": "Ilgar"
+  },
+  {
+   "id": "h0373",
+   "letter": "İ",
+   "zorluk": 1,
+   "question": "Avrupa ile Asya'yı birleştiren en kalabalık şehrimiz.",
+   "answer": "İstanbul"
+  },
+  {
+   "id": "h0374",
+   "letter": "İ",
+   "zorluk": 1,
+   "question": "Süt veren büyükbaş hayvan.",
+   "answer": "İnek"
+  },
+  {
+   "id": "h0375",
+   "letter": "İ",
+   "zorluk": 1,
+   "question": "Aydın'da yetişen, kurusu da yenen tatlı meyve.",
+   "answer": "İncir"
+  },
+  {
+   "id": "h0376",
+   "letter": "İ",
+   "zorluk": 1,
+   "question": "Dikiş dikmeye yarayan ince, sivri araç.",
+   "answer": "İğne"
+  },
+  {
+   "id": "h0377",
+   "letter": "İ",
+   "zorluk": 1,
+   "question": "Kıştan sonra gelen, çiçeklerin açtığı mevsim.",
+   "answer": "İlkbahar",
+   "alternatives": [
+    "Bahar"
+   ]
+  },
+  {
+   "id": "h0378",
+   "letter": "İ",
+   "zorluk": 1,
+   "question": "\"Güzel\" sıfatıyla anılan Ege'nin incisi.",
+   "answer": "İzmir"
+  },
+  {
+   "id": "h0379",
+   "letter": "İ",
+   "zorluk": 1,
+   "question": "Gemilerin yanaştığı, denize uzanan yapı.",
+   "answer": "İskele"
+  },
+  {
+   "id": "h0380",
+   "letter": "İ",
+   "zorluk": 1,
+   "question": "İstiridyelerin içinde oluşan değerli süs taşı.",
+   "answer": "İnci"
+  },
+  {
+   "id": "h0381",
+   "letter": "İ",
+   "zorluk": 1,
+   "question": "Bir şeyi bağlamaya yarayan uzun ve ince lif dizisi.",
+   "answer": "İp"
+  },
+  {
+   "id": "h0382",
+   "letter": "İ",
+   "zorluk": 1,
+   "question": "Hastalıkları tedavi etmek için kullanılan madde.",
+   "answer": "İlaç"
+  },
+  {
+   "id": "h0383",
+   "letter": "İ",
+   "zorluk": 2,
+   "question": "Haritada çizmeye benzeyen, başkenti Roma olan ülke.",
+   "answer": "İtalya"
+  },
+  {
+   "id": "h0384",
+   "letter": "İ",
+   "zorluk": 2,
+   "question": "Kocaeli'nin merkezi, pişmaniyesiyle ünlü şehir.",
+   "answer": "İzmit"
+  },
+  {
+   "id": "h0385",
+   "letter": "İ",
+   "zorluk": 2,
+   "question": "Mehmet Akif Ersoy'un yazdığı ulusal marşımız.",
+   "answer": "İstiklal Marşı",
+   "alternatives": [
+    "İstiklal"
+   ]
+  },
+  {
+   "id": "h0386",
+   "letter": "İ",
+   "zorluk": 2,
+   "question": "Başkenti Reykjavik olan, gayzerleri ve yanardağlarıyla ünlü ada ülkesi.",
+   "answer": "İzlanda"
+  },
+  {
+   "id": "h0387",
+   "letter": "İ",
+   "zorluk": 2,
+   "question": "Başkenti Londra olan, Big Ben saat kulesiyle bilinen ülke.",
+   "answer": "İngiltere",
+   "alternatives": [
+    "Birleşik Krallık"
+   ]
+  },
+  {
+   "id": "h0388",
+   "letter": "İ",
+   "zorluk": 2,
+   "question": "Başkenti Tahran olan, Pers kökenli komşumuz.",
+   "answer": "İran"
+  },
+  {
+   "id": "h0389",
+   "letter": "İ",
+   "zorluk": 2,
+   "question": "Kurtuluş Savaşı'nda cephane taşınan kıyı kasabası; Kastamonu'da.",
+   "answer": "İnebolu"
+  },
+  {
+   "id": "h0390",
+   "letter": "İ",
+   "zorluk": 2,
+   "question": "Kurtuluş Savaşı'nda iki muharebeye adını veren, İsmet Paşa'ya soyadı olan yer.",
+   "answer": "İnönü"
+  },
+  {
+   "id": "h0391",
+   "letter": "İ",
+   "zorluk": 2,
+   "question": "İpek böceğinin kozasından elde edilen parlak lif.",
+   "answer": "İpek"
+  },
+  {
+   "id": "h0392",
+   "letter": "İ",
+   "zorluk": 2,
+   "question": "Bir bölgede uzun yıllar görülen hava koşullarının ortalaması.",
+   "answer": "İklim"
+  },
+  {
+   "id": "h0393",
+   "letter": "İ",
+   "zorluk": 2,
+   "question": "Saatleri, çikolatası ve tarafsızlığıyla bilinen Alp ülkesi.",
+   "answer": "İsviçre"
+  },
+  {
+   "id": "h0394",
+   "letter": "İ",
+   "zorluk": 2,
+   "question": "Flamenko ve boğa güreşiyle bilinen, başkenti Madrid olan ülke.",
+   "answer": "İspanya"
+  },
+  {
+   "id": "h0395",
+   "letter": "İ",
+   "zorluk": 2,
+   "question": "Bilgisayarları dünya çapında birbirine bağlayan ağ.",
+   "answer": "İnternet"
+  },
+  {
+   "id": "h0396",
+   "letter": "İ",
+   "zorluk": 2,
+   "question": "Pankreasın salgıladığı, kan şekerini düşüren hormon.",
+   "answer": "İnsülin"
+  },
+  {
+   "id": "h0397",
+   "letter": "İ",
+   "zorluk": 2,
+   "question": "İnci oluşturabilen kabuklu deniz canlısı.",
+   "answer": "İstiridye"
+  },
+  {
+   "id": "h0398",
+   "letter": "İ",
+   "zorluk": 2,
+   "question": "\"Kanun\" adlı tıp kitabının yazarı, Batı'da Avicenna olarak bilinen hekim.",
+   "answer": "İbni Sina",
+   "alternatives": [
+    "İbn-i Sina",
+    "Avicenna"
+   ]
+  },
+  {
+   "id": "h0399",
+   "letter": "İ",
+   "zorluk": 3,
+   "question": "\"Mukaddime\"nin yazarı, sosyolojinin öncülerinden.",
+   "answer": "İbn Haldun",
+   "alternatives": [
+    "İbni Haldun"
+   ]
+  },
+  {
+   "id": "h0400",
+   "letter": "İ",
+   "zorluk": 3,
+   "question": "Doğubayazıt'ta, Ağrı Dağı eteklerindeki 18. yüzyıl sarayı.",
+   "answer": "İshak Paşa Sarayı",
+   "alternatives": [
+    "İshak Paşa"
+   ]
+  },
+  {
+   "id": "h0401",
+   "letter": "İ",
+   "zorluk": 3,
+   "question": "İlk yazıyı yazdığına ve terziliğin piri olduğuna inanılan peygamber.",
+   "answer": "İdris"
+  },
+  {
+   "id": "h0402",
+   "letter": "İ",
+   "zorluk": 3,
+   "question": "Proton sayısı aynı, nötron sayısı farklı atom.",
+   "answer": "İzotop"
+  },
+  {
+   "id": "h0403",
+   "letter": "İ",
+   "zorluk": 3,
+   "question": "Atatürk'ün yaptığı köklü yenilikler için kullanılan sözcük.",
+   "answer": "İnkılap",
+   "alternatives": [
+    "Devrim"
+   ]
+  },
+  {
+   "id": "h0404",
+   "letter": "İ",
+   "zorluk": 3,
+   "question": "Türkiye'nin ikinci cumhurbaşkanı.",
+   "answer": "İsmet İnönü",
+   "alternatives": [
+    "İnönü"
+   ]
+  },
+  {
+   "id": "h0405",
+   "letter": "İ",
+   "zorluk": 3,
+   "question": "Hristiyanlığın peygamberi.",
+   "answer": "İsa"
+  },
+  {
+   "id": "h0406",
+   "letter": "İ",
+   "zorluk": 3,
+   "question": "Mumdan kanatlarıyla güneşe fazla yaklaşan mitolojik kahraman.",
+   "answer": "İkarus",
+   "alternatives": [
+    "İkaros"
+   ]
+  },
+  {
+   "id": "h0407",
+   "letter": "İ",
+   "zorluk": 3,
+   "question": "Topkapı Sarayı Müzesi müdürlüğü de yapan ünlü tarihçimiz.",
+   "answer": "İlber Ortaylı",
+   "alternatives": [
+    "Ortaylı"
+   ]
+  },
+  {
+   "id": "h0408",
+   "letter": "İ",
+   "zorluk": 3,
+   "question": "Dünyanın yedi harikasından deniz fenerinin bulunduğu Mısır kenti.",
+   "answer": "İskenderiye"
+  },
+  {
+   "id": "h0409",
+   "letter": "İ",
+   "zorluk": 3,
+   "question": "Çinileri ve 325'teki ilk konsiliyle bilinen Bursa ilçesi.",
+   "answer": "İznik",
+   "alternatives": [
+    "Nikea"
+   ]
+  },
+  {
+   "id": "h0410",
+   "letter": "İ",
+   "zorluk": 3,
+   "question": "Moğolların İran ve Anadolu'da kurduğu devlet.",
+   "answer": "İlhanlılar"
+  },
+  {
+   "id": "h0411",
+   "letter": "K",
+   "zorluk": 1,
+   "question": "Miyavlayan evcil hayvan.",
+   "answer": "Kedi"
+  },
+  {
+   "id": "h0412",
+   "letter": "K",
+   "zorluk": 1,
+   "question": "Yazı yazmaya yarayan araç.",
+   "answer": "Kalem"
+  },
+  {
+   "id": "h0413",
+   "letter": "K",
+   "zorluk": 1,
+   "question": "Yazın serinleten, içi kırmızı dev meyve.",
+   "answer": "Karpuz"
+  },
+  {
+   "id": "h0414",
+   "letter": "K",
+   "zorluk": 1,
+   "question": "Sayfaları bir arada ciltlenmiş yazılı eser.",
+   "answer": "Kitap"
+  },
+  {
+   "id": "h0415",
+   "letter": "K",
+   "zorluk": 1,
+   "question": "Kışın gökten yağan beyaz, soğuk yağış.",
+   "answer": "Kar"
+  },
+  {
+   "id": "h0416",
+   "letter": "K",
+   "zorluk": 1,
+   "question": "Sırtındaki kabuğunu taşıyan yavaş hayvan.",
+   "answer": "Kaplumbağa"
+  },
+  {
+   "id": "h0417",
+   "letter": "K",
+   "zorluk": 1,
+   "question": "Saplı, çift çift asılan kırmızı yaz meyvesi.",
+   "answer": "Kiraz"
+  },
+  {
+   "id": "h0418",
+   "letter": "K",
+   "zorluk": 1,
+   "question": "Türk usulü pişirilip fincanla ikram edilen içecek.",
+   "answer": "Kahve"
+  },
+  {
+   "id": "h0419",
+   "letter": "K",
+   "zorluk": 1,
+   "question": "Nehrin ya da boğazın iki yakasını birleştiren yapı.",
+   "answer": "Köprü"
+  },
+  {
+   "id": "h0420",
+   "letter": "K",
+   "zorluk": 1,
+   "question": "Fırında pişen, çaya eşlik eden küçük tatlı.",
+   "answer": "Kurabiye"
+  },
+  {
+   "id": "h0421",
+   "letter": "K",
+   "zorluk": 2,
+   "question": "Peribacaları ve balon turlarıyla ünlü bölge.",
+   "answer": "Kapadokya"
+  },
+  {
+   "id": "h0422",
+   "letter": "K",
+   "zorluk": 2,
+   "question": "Kaşarı, gravyeri ve Ani Harabeleri'yle ünlü sınır ili.",
+   "answer": "Kars"
+  },
+  {
+   "id": "h0423",
+   "letter": "K",
+   "zorluk": 2,
+   "question": "Mevlana Müzesi ve etli ekmeğiyle ünlü il.",
+   "answer": "Konya"
+  },
+  {
+   "id": "h0424",
+   "letter": "K",
+   "zorluk": 2,
+   "question": "Pastırması ve mantısıyla ünlü il.",
+   "answer": "Kayseri"
+  },
+  {
+   "id": "h0425",
+   "letter": "K",
+   "zorluk": 2,
+   "question": "Yavrusunu karın kesesinde taşıyan Avustralya hayvanı.",
+   "answer": "Kanguru"
+  },
+  {
+   "id": "h0426",
+   "letter": "K",
+   "zorluk": 2,
+   "question": "Akçaağaç yaprağı bayrağında olan ülke.",
+   "answer": "Kanada"
+  },
+  {
+   "id": "h0427",
+   "letter": "K",
+   "zorluk": 2,
+   "question": "Mısır'ın başkenti.",
+   "answer": "Kahire"
+  },
+  {
+   "id": "h0428",
+   "letter": "K",
+   "zorluk": 2,
+   "question": "Kanı vücuda pompalayan organ.",
+   "answer": "Kalp"
+  },
+  {
+   "id": "h0429",
+   "letter": "K",
+   "zorluk": 2,
+   "question": "Türkiye'nin kuzeyindeki, hamsisiyle ünlü deniz.",
+   "answer": "Karadeniz"
+  },
+  {
+   "id": "h0430",
+   "letter": "K",
+   "zorluk": 2,
+   "question": "Çinileri ve Aizanoi antik kentiyle bilinen il.",
+   "answer": "Kütahya"
+  },
+  {
+   "id": "h0431",
+   "letter": "K",
+   "zorluk": 2,
+   "question": "Ahi Evran'ın şehri, Neşet Ertaş'ın memleketi.",
+   "answer": "Kırşehir"
+  },
+  {
+   "id": "h0432",
+   "letter": "K",
+   "zorluk": 2,
+   "question": "Hacivat'la birlikte gölge oyununun ana kahramanı.",
+   "answer": "Karagöz"
+  },
+  {
+   "id": "h0433",
+   "letter": "K",
+   "zorluk": 2,
+   "question": "Kesim ibadetiyle kutlanan dini bayram.",
+   "answer": "Kurban Bayramı",
+   "alternatives": [
+    "Kurban"
+   ]
+  },
+  {
+   "id": "h0434",
+   "letter": "K",
+   "zorluk": 2,
+   "question": "Birecik'te koruma altındaki, nesli tehlikedeki kuş.",
+   "answer": "Kelaynak"
+  },
+  {
+   "id": "h0435",
+   "letter": "K",
+   "zorluk": 2,
+   "question": "Başkenti Astana olan, denize kıyısı olmayan en büyük ülke.",
+   "answer": "Kazakistan"
+  },
+  {
+   "id": "h0436",
+   "letter": "K",
+   "zorluk": 2,
+   "question": "Kahvesiyle ünlü, başkenti Bogota olan ülke.",
+   "answer": "Kolombiya"
+  },
+  {
+   "id": "h0437",
+   "letter": "K",
+   "zorluk": 2,
+   "question": "Beyni koruyan kemik yapı.",
+   "answer": "Kafatası"
+  },
+  {
+   "id": "h0438",
+   "letter": "K",
+   "zorluk": 2,
+   "question": "Maddenin yapısını ve tepkimelerini inceleyen bilim.",
+   "answer": "Kimya"
+  },
+  {
+   "id": "h0439",
+   "letter": "K",
+   "zorluk": 3,
+   "question": "\"Divanü Lügati't-Türk\"ün yazarı.",
+   "answer": "Kaşgarlı Mahmud",
+   "alternatives": [
+    "Kaşgarlı Mahmut",
+    "Kaşgarlı"
+   ]
+  },
+  {
+   "id": "h0440",
+   "letter": "K",
+   "zorluk": 3,
+   "question": "1916'da İngilizlere karşı kazanılan Irak cephesi zaferi.",
+   "answer": "Kut'ül Amare",
+   "alternatives": [
+    "Kutülamare",
+    "Kut"
+   ]
+  },
+  {
+   "id": "h0441",
+   "letter": "K",
+   "zorluk": 3,
+   "question": "Kurtuluş Savaşı'nın başlangıcındaki milis kuvvetler.",
+   "answer": "Kuvayımilliye",
+   "alternatives": [
+    "Kuvâ-yi Milliye",
+    "Kuvayi Milliye"
+   ]
+  },
+  {
+   "id": "h0442",
+   "letter": "K",
+   "zorluk": 3,
+   "question": "Irak'ta, Türkmen nüfusuyla bilinen petrol şehri.",
+   "answer": "Kerkük"
+  },
+  {
+   "id": "h0443",
+   "letter": "K",
+   "zorluk": 3,
+   "question": "Güneş merkezli evren modelini savunan Polonyalı gök bilimci.",
+   "answer": "Kopernik",
+   "alternatives": [
+    "Nicolaus Copernicus",
+    "Copernicus"
+   ]
+  },
+  {
+   "id": "h0444",
+   "letter": "K",
+   "zorluk": 3,
+   "question": "\"Hababam Sınıfı\"nda İnek Şaban'ı canlandıran güldürü ustası.",
+   "answer": "Kemal Sunal",
+   "alternatives": [
+    "Sunal"
+   ]
+  },
+  {
+   "id": "h0445",
+   "letter": "K",
+   "zorluk": 3,
+   "question": "Edirne'de 1346'dan beri düzenlendiği bilinen yağlı güreş festivali.",
+   "answer": "Kırkpınar"
+  },
+  {
+   "id": "h0446",
+   "letter": "K",
+   "zorluk": 3,
+   "question": "İstanbul Adaları'nın kıyıya en yakın olanı.",
+   "answer": "Kınalıada"
+  },
+  {
+   "id": "h0447",
+   "letter": "K",
+   "zorluk": 3,
+   "question": "Türkiye sınırları içinde doğup denize dökülen en uzun nehir.",
+   "answer": "Kızılırmak"
+  },
+  {
+   "id": "h0448",
+   "letter": "K",
+   "zorluk": 3,
+   "question": "1389'da Osmanlı'nın Haçlılara karşı savaştığı ve sonraki yıllarda bağımsızlık ilan eden Balkan bölgesi.",
+   "answer": "Kosova"
+  },
+  {
+   "id": "h0449",
+   "letter": "K",
+   "zorluk": 3,
+   "question": "Tepkimeyi hızlandıran ama kendisi değişmeyen madde.",
+   "answer": "Katalizör"
+  },
+  {
+   "id": "h0450",
+   "letter": "K",
+   "zorluk": 3,
+   "question": "Türkiye'de 1868'de kurulan, kan bağışıyla da bilinen insani yardım kuruluşu.",
+   "answer": "Kızılay"
+  },
+  {
+   "id": "h0451",
+   "letter": "K",
+   "zorluk": 3,
+   "question": "Gezegenlerin hareket yasalarını bulan Alman gök bilimci.",
+   "answer": "Kepler",
+   "alternatives": [
+    "Johannes Kepler"
+   ]
+  },
+  {
+   "id": "h0452",
+   "letter": "L",
+   "zorluk": 1,
+   "question": "Ekşi tadıyla bilinen sarı narenciye.",
+   "answer": "Limon"
+  },
+  {
+   "id": "h0453",
+   "letter": "L",
+   "zorluk": 1,
+   "question": "Osmanlı'da bir döneme adını veren, İstanbul'da her nisan festivali yapılan çiçek.",
+   "answer": "Lale"
+  },
+  {
+   "id": "h0454",
+   "letter": "L",
+   "zorluk": 1,
+   "question": "Şekerli, nişastalı, Türk mutfağına özgü tatlı.",
+   "answer": "Lokum"
+  },
+  {
+   "id": "h0455",
+   "letter": "L",
+   "zorluk": 1,
+   "question": "Odayı aydınlatan elektrikli araç.",
+   "answer": "Lamba"
+  },
+  {
+   "id": "h0456",
+   "letter": "L",
+   "zorluk": 1,
+   "question": "Sarması ve turşusu yapılan yapraklı sebze.",
+   "answer": "Lahana"
+  },
+  {
+   "id": "h0457",
+   "letter": "L",
+   "zorluk": 1,
+   "question": "Uzun bacaklı, göçmen kuş; bebek getirdiği söylenir.",
+   "answer": "Leylek"
+  },
+  {
+   "id": "h0458",
+   "letter": "L",
+   "zorluk": 1,
+   "question": "Banyoda el yüzü yıkanan musluklu tekne.",
+   "answer": "Lavabo"
+  },
+  {
+   "id": "h0459",
+   "letter": "L",
+   "zorluk": 1,
+   "question": "Kavrulmuş nohuttan yapılan çerez.",
+   "answer": "Leblebi"
+  },
+  {
+   "id": "h0460",
+   "letter": "L",
+   "zorluk": 1,
+   "question": "Araç tekerleklerine geçirilen, kauçuktan yapılmış kısım.",
+   "answer": "Lastik"
+  },
+  {
+   "id": "h0461",
+   "letter": "L",
+   "zorluk": 1,
+   "question": "Gemilerin barındığı, yük boşalttığı kıyı yeri.",
+   "answer": "Liman"
+  },
+  {
+   "id": "h0462",
+   "letter": "L",
+   "zorluk": 2,
+   "question": "Thames Nehri kıyısındaki İngiltere başkenti.",
+   "answer": "Londra"
+  },
+  {
+   "id": "h0463",
+   "letter": "L",
+   "zorluk": 2,
+   "question": "Portekiz'in başkenti.",
+   "answer": "Lizbon"
+  },
+  {
+   "id": "h0464",
+   "letter": "L",
+   "zorluk": 2,
+   "question": "Başkenti Trablus olan Kuzey Afrika ülkesi.",
+   "answer": "Libya"
+  },
+  {
+   "id": "h0465",
+   "letter": "L",
+   "zorluk": 2,
+   "question": "Bayrağında sedir ağacı bulunan, başkenti Beyrut olan ülke.",
+   "answer": "Lübnan"
+  },
+  {
+   "id": "h0466",
+   "letter": "L",
+   "zorluk": 2,
+   "question": "Bilimsel deney ve araştırmaların yapıldığı yer.",
+   "answer": "Laboratuvar"
+  },
+  {
+   "id": "h0467",
+   "letter": "L",
+   "zorluk": 2,
+   "question": "Yanardağdan püsküren erimiş kaya.",
+   "answer": "Lav"
+  },
+  {
+   "id": "h0468",
+   "letter": "L",
+   "zorluk": 2,
+   "question": "Benekli postuyla bilinen büyük kedi; pars da denir.",
+   "answer": "Leopar",
+   "alternatives": [
+    "Pars"
+   ]
+  },
+  {
+   "id": "h0469",
+   "letter": "L",
+   "zorluk": 2,
+   "question": "Tek renkli, yoğun ve yönlü ışık demeti üreten düzenek.",
+   "answer": "Lazer"
+  },
+  {
+   "id": "h0470",
+   "letter": "L",
+   "zorluk": 2,
+   "question": "\"Mona Lisa\" tablosunun ressamı.",
+   "answer": "Leonardo da Vinci",
+   "alternatives": [
+    "Leonardo",
+    "Da Vinci"
+   ]
+  },
+  {
+   "id": "h0471",
+   "letter": "L",
+   "zorluk": 2,
+   "question": "Koyu mavi renk; Fenerbahçe'nin sarı ile birlikte rengi.",
+   "answer": "Lacivert"
+  },
+  {
+   "id": "h0472",
+   "letter": "L",
+   "zorluk": 2,
+   "question": "Başkenti Riga olan Baltık ülkesi.",
+   "answer": "Letonya"
+  },
+  {
+   "id": "h0473",
+   "letter": "L",
+   "zorluk": 2,
+   "question": "Bir topluluğa önderlik eden kişi.",
+   "answer": "Lider",
+   "alternatives": [
+    "Önder"
+   ]
+  },
+  {
+   "id": "h0474",
+   "letter": "L",
+   "zorluk": 2,
+   "question": "Antik Yunan'dan kalma, kucakta tutulan telli çalgı.",
+   "answer": "Lir"
+  },
+  {
+   "id": "h0475",
+   "letter": "L",
+   "zorluk": 2,
+   "question": "Treni çeken güçlü araç.",
+   "answer": "Lokomotif"
+  },
+  {
+   "id": "h0476",
+   "letter": "L",
+   "zorluk": 3,
+   "question": "1923'te Türkiye'nin bağımsızlığının uluslararası alanda tanındığı antlaşmanın imzalandığı İsviçre şehri.",
+   "answer": "Lozan",
+   "alternatives": [
+    "Lausanne"
+   ]
+  },
+  {
+   "id": "h0477",
+   "letter": "L",
+   "zorluk": 3,
+   "question": "1718-1730 arası Osmanlı'da zevk ve sefa dönemi.",
+   "answer": "Lale Devri"
+  },
+  {
+   "id": "h0478",
+   "letter": "L",
+   "zorluk": 3,
+   "question": "\"Hiçbir şey yoktan var olmaz\" diyen, modern kimyanın babası.",
+   "answer": "Lavoisier",
+   "alternatives": [
+    "Antoine Lavoisier"
+   ]
+  },
+  {
+   "id": "h0479",
+   "letter": "L",
+   "zorluk": 3,
+   "question": "Kuzey Kıbrıs Türk Cumhuriyeti'nin başkenti.",
+   "answer": "Lefkoşa"
+  },
+  {
+   "id": "h0480",
+   "letter": "L",
+   "zorluk": 3,
+   "question": "Bağışıklıkta görev alan, damarlarda dolaşan renksiz sıvı.",
+   "answer": "Lenf"
+  },
+  {
+   "id": "h0481",
+   "letter": "L",
+   "zorluk": 3,
+   "question": "Duygu ve heyecanları dile getiren şiir türü.",
+   "answer": "Lirik"
+  },
+  {
+   "id": "h0482",
+   "letter": "L",
+   "zorluk": 3,
+   "question": "1912'de Balkan Savaşı'nda büyük muharebenin yapıldığı Kırklareli ilçesi.",
+   "answer": "Lüleburgaz"
+  },
+  {
+   "id": "h0483",
+   "letter": "L",
+   "zorluk": 3,
+   "question": "Fuzuli'nin ünlü mesnevisi.",
+   "answer": "Leyla ile Mecnun",
+   "alternatives": [
+    "Leyla vü Mecnun"
+   ]
+  },
+  {
+   "id": "h0484",
+   "letter": "L",
+   "zorluk": 3,
+   "question": "Uluslararası Adalet Divanı'nın bulunduğu Hollanda şehri.",
+   "answer": "Lahey"
+  },
+  {
+   "id": "h0485",
+   "letter": "L",
+   "zorluk": 3,
+   "question": "Mantar ve alg ortaklığından oluşan, kayalarda yaşayan canlı.",
+   "answer": "Liken"
+  },
+  {
+   "id": "h0486",
+   "letter": "L",
+   "zorluk": 3,
+   "question": "Denizden kum seddiyle ayrılmış kıyı gölü.",
+   "answer": "Lagün",
+   "alternatives": [
+    "Deniz kulağı"
+   ]
+  },
+  {
+   "id": "h0487",
+   "letter": "M",
+   "zorluk": 1,
+   "question": "Üzerinde yemek yenen ya da çalışılan ayaklı mobilya.",
+   "answer": "Masa"
+  },
+  {
+   "id": "h0488",
+   "letter": "M",
+   "zorluk": 1,
+   "question": "Maymunların sevdiği, kabuğu soyularak yenen sarı meyve.",
+   "answer": "Muz"
+  },
+  {
+   "id": "h0489",
+   "letter": "M",
+   "zorluk": 1,
+   "question": "Ağaçlarda yaşayan, insana en çok benzeyen hayvanlardan.",
+   "answer": "Maymun"
+  },
+  {
+   "id": "h0490",
+   "letter": "M",
+   "zorluk": 1,
+   "question": "Kayseri'nin ünlü, yoğurtlu hamur yemeği.",
+   "answer": "Mantı"
+  },
+  {
+   "id": "h0491",
+   "letter": "M",
+   "zorluk": 1,
+   "question": "Zarfa konup gönderilen yazılı haber.",
+   "answer": "Mektup"
+  },
+  {
+   "id": "h0492",
+   "letter": "M",
+   "zorluk": 1,
+   "question": "Kâğıt ya da kumaş kesmeye yarayan iki ağızlı araç.",
+   "answer": "Makas"
+  },
+  {
+   "id": "h0493",
+   "letter": "M",
+   "zorluk": 1,
+   "question": "Patlamış hâli sinemada yenen sarı taneli bitki.",
+   "answer": "Mısır"
+  },
+  {
+   "id": "h0494",
+   "letter": "M",
+   "zorluk": 1,
+   "question": "Salatanın temel yeşil yapraklı sebzesi.",
+   "answer": "Marul"
+  },
+  {
+   "id": "h0495",
+   "letter": "M",
+   "zorluk": 1,
+   "question": "Seslerin uyum içinde birleştirilmesi sanatı.",
+   "answer": "Müzik"
+  },
+  {
+   "id": "h0496",
+   "letter": "M",
+   "zorluk": 1,
+   "question": "Gökyüzünün ve denizin rengi.",
+   "answer": "Mavi"
+  },
+  {
+   "id": "h0497",
+   "letter": "M",
+   "zorluk": 2,
+   "question": "Tantunisi ve limanıyla ünlü Akdeniz ili.",
+   "answer": "Mersin"
+  },
+  {
+   "id": "h0498",
+   "letter": "M",
+   "zorluk": 2,
+   "question": "Taş evleri ve Mezopotamya manzarasıyla ünlü il.",
+   "answer": "Mardin"
+  },
+  {
+   "id": "h0499",
+   "letter": "M",
+   "zorluk": 2,
+   "question": "Bodrum, Marmaris ve Fethiye'nin bağlı olduğu il.",
+   "answer": "Muğla"
+  },
+  {
+   "id": "h0500",
+   "letter": "M",
+   "zorluk": 2,
+   "question": "\"Kızıl gezegen\" olarak bilinen gezegen.",
+   "answer": "Mars"
+  },
+  {
+   "id": "h0501",
+   "letter": "M",
+   "zorluk": 2,
+   "question": "Güneş'e en yakın gezegen.",
+   "answer": "Merkür"
+  },
+  {
+   "id": "h0502",
+   "letter": "M",
+   "zorluk": 2,
+   "question": "İstiklal Marşı'nın şairi.",
+   "answer": "Mehmet Akif Ersoy",
+   "alternatives": [
+    "Mehmet Akif",
+    "Akif"
+   ]
+  },
+  {
+   "id": "h0503",
+   "letter": "M",
+   "zorluk": 2,
+   "question": "Süleymaniye ve Selimiye camilerinin mimarı.",
+   "answer": "Mimar Sinan",
+   "alternatives": [
+    "Sinan"
+   ]
+  },
+  {
+   "id": "h0504",
+   "letter": "M",
+   "zorluk": 2,
+   "question": "Başkenti Mexico City olan, tacosuyla ünlü ülke.",
+   "answer": "Meksika"
+  },
+  {
+   "id": "h0505",
+   "letter": "M",
+   "zorluk": 2,
+   "question": "Kızıl Meydan'ın bulunduğu Rusya başkenti.",
+   "answer": "Moskova"
+  },
+  {
+   "id": "h0506",
+   "letter": "M",
+   "zorluk": 2,
+   "question": "İç denizimiz; adını mermerinden alan adaya da ad olan deniz.",
+   "answer": "Marmara"
+  },
+  {
+   "id": "h0507",
+   "letter": "M",
+   "zorluk": 2,
+   "question": "Demiri çeken cisim.",
+   "answer": "Mıknatıs"
+  },
+  {
+   "id": "h0508",
+   "letter": "M",
+   "zorluk": 2,
+   "question": "\"Sihirli Flüt\" operasının Avusturyalı bestecisi.",
+   "answer": "Mozart"
+  },
+  {
+   "id": "h0509",
+   "letter": "M",
+   "zorluk": 2,
+   "question": "Konya'da türbesi bulunan, \"Gel, ne olursan ol yine gel\" sözüyle anılan mutasavvıf.",
+   "answer": "Mevlana",
+   "alternatives": [
+    "Mevlana Celaleddin Rumi"
+   ]
+  },
+  {
+   "id": "h0510",
+   "letter": "M",
+   "zorluk": 2,
+   "question": "1071'de Anadolu'nun kapılarını Türklere açan savaş.",
+   "answer": "Malazgirt"
+  },
+  {
+   "id": "h0511",
+   "letter": "M",
+   "zorluk": 2,
+   "question": "Gözle görülmeyen, hastalık yapabilen canlı.",
+   "answer": "Mikrop"
+  },
+  {
+   "id": "h0512",
+   "letter": "M",
+   "zorluk": 2,
+   "question": "Ne bitki ne hayvan olan, yenebilen türleri de bulunan canlı grubu.",
+   "answer": "Mantar"
+  },
+  {
+   "id": "h0513",
+   "letter": "M",
+   "zorluk": 2,
+   "question": "İspanya'nın başkenti.",
+   "answer": "Madrid"
+  },
+  {
+   "id": "h0514",
+   "letter": "M",
+   "zorluk": 3,
+   "question": "1526'da Kanuni'nin iki saatte kazandığı rivayet edilen meydan muharebesi.",
+   "answer": "Mohaç"
+  },
+  {
+   "id": "h0515",
+   "letter": "M",
+   "zorluk": 3,
+   "question": "Dicle ile Fırat arasındaki, uygarlığın beşiği sayılan bölge.",
+   "answer": "Mezopotamya"
+  },
+  {
+   "id": "h0516",
+   "letter": "M",
+   "zorluk": 3,
+   "question": "1919'da Samsun'a çıkarak Milli Mücadele'yi başlatan komutan.",
+   "answer": "Mustafa Kemal",
+   "alternatives": [
+    "Atatürk"
+   ]
+  },
+  {
+   "id": "h0517",
+   "letter": "M",
+   "zorluk": 3,
+   "question": "Hücrenin enerji santrali olarak bilinen organeli.",
+   "answer": "Mitokondri"
+  },
+  {
+   "id": "h0518",
+   "letter": "M",
+   "zorluk": 3,
+   "question": "Bezelyelerle kalıtım yasalarını bulan bilim insanı.",
+   "answer": "Mendel",
+   "alternatives": [
+    "Gregor Mendel"
+   ]
+  },
+  {
+   "id": "h0519",
+   "letter": "M",
+   "zorluk": 3,
+   "question": "\"Cimri\" oyununun Fransız yazarı.",
+   "answer": "Molyer",
+   "alternatives": [
+    "Molière",
+    "Moliere"
+   ]
+  },
+  {
+   "id": "h0520",
+   "letter": "M",
+   "zorluk": 3,
+   "question": "İki farklı dalda Nobel kazanan ilk kişi.",
+   "answer": "Marie Curie",
+   "alternatives": [
+    "Curie"
+   ]
+  },
+  {
+   "id": "h0521",
+   "letter": "M",
+   "zorluk": 3,
+   "question": "Süleyman Çelebi'nin Hz. Muhammed'in doğumunu anlatan eseri.",
+   "answer": "Mevlid",
+   "alternatives": [
+    "Vesiletü'n-Necat",
+    "Mevlit"
+   ]
+  },
+  {
+   "id": "h0522",
+   "letter": "M",
+   "zorluk": 3,
+   "question": "Kanuni'nin kızı; adına Edirnekapı ve Üsküdar'da camiler yapılan sultan.",
+   "answer": "Mihrimah",
+   "alternatives": [
+    "Mihrimah Sultan"
+   ]
+  },
+  {
+   "id": "h0523",
+   "letter": "M",
+   "zorluk": 3,
+   "question": "Dünyanın çevresini dolaşan ilk seferi başlatan Portekizli denizci.",
+   "answer": "Magellan",
+   "alternatives": [
+    "Macellan"
+   ]
+  },
+  {
+   "id": "h0524",
+   "letter": "M",
+   "zorluk": 3,
+   "question": "Formula 1 sokak yarışıyla bilinen küçük prenslik.",
+   "answer": "Monako"
+  },
+  {
+   "id": "h0525",
+   "letter": "M",
+   "zorluk": 3,
+   "question": "Doğal gazın ana bileşeni olan gaz.",
+   "answer": "Metan"
+  },
+  {
+   "id": "h0526",
+   "letter": "M",
+   "zorluk": 3,
+   "question": "1922'de ateşkes antlaşmasının imzalandığı Bursa ilçesi.",
+   "answer": "Mudanya"
+  },
+  {
+   "id": "h0527",
+   "letter": "N",
+   "zorluk": 1,
+   "question": "Taneleri kırmızı, ekşisi sos olan meyve.",
+   "answer": "Nar"
+  },
+  {
+   "id": "h0528",
+   "letter": "N",
+   "zorluk": 1,
+   "question": "Leblebisi ve pilavüstüsüyle bilinen baklagil.",
+   "answer": "Nohut"
+  },
+  {
+   "id": "h0529",
+   "letter": "N",
+   "zorluk": 1,
+   "question": "Ferahlatıcı kokulu, kurusu çorbaya atılan yeşil bitki.",
+   "answer": "Nane"
+  },
+  {
+   "id": "h0530",
+   "letter": "N",
+   "zorluk": 1,
+   "question": "Denize dökülen büyük akarsu.",
+   "answer": "Nehir",
+   "alternatives": [
+    "Irmak"
+   ]
+  },
+  {
+   "id": "h0531",
+   "letter": "N",
+   "zorluk": 1,
+   "question": "Okulda karneye yazılan değerlendirme puanı.",
+   "answer": "Not"
+  },
+  {
+   "id": "h0532",
+   "letter": "N",
+   "zorluk": 1,
+   "question": "Annenin ya da babanın annesi; büyükanne.",
+   "answer": "Nine",
+   "alternatives": [
+    "Babaanne",
+    "Anneanne"
+   ]
+  },
+  {
+   "id": "h0533",
+   "letter": "N",
+   "zorluk": 1,
+   "question": "1 Nisan şakalarıyla bilinen ay; 23 Nisan da bu aydadır.",
+   "answer": "Nisan"
+  },
+  {
+   "id": "h0534",
+   "letter": "N",
+   "zorluk": 1,
+   "question": "Göz değmesine karşı takılan mavi cam süs.",
+   "answer": "Nazar boncuğu",
+   "alternatives": [
+    "Nazar"
+   ]
+  },
+  {
+   "id": "h0535",
+   "letter": "N",
+   "zorluk": 1,
+   "question": "Havadaki su buharı miktarı.",
+   "answer": "Nem"
+  },
+  {
+   "id": "h0536",
+   "letter": "N",
+   "zorluk": 2,
+   "question": "Kapadokya'nın merkezi olan il.",
+   "answer": "Nevşehir"
+  },
+  {
+   "id": "h0537",
+   "letter": "N",
+   "zorluk": 2,
+   "question": "Elmasıyla ve Aladağlar'ıyla bilinen il.",
+   "answer": "Niğde"
+  },
+  {
+   "id": "h0538",
+   "letter": "N",
+   "zorluk": 2,
+   "question": "Afrika'nın en uzun nehri.",
+   "answer": "Nil"
+  },
+  {
+   "id": "h0539",
+   "letter": "N",
+   "zorluk": 2,
+   "question": "Fiyortlarıyla ünlü, başkenti Oslo olan ülke.",
+   "answer": "Norveç"
+  },
+  {
+   "id": "h0540",
+   "letter": "N",
+   "zorluk": 2,
+   "question": "Güneş'e en uzak gezegen.",
+   "answer": "Neptün"
+  },
+  {
+   "id": "h0541",
+   "letter": "N",
+   "zorluk": 2,
+   "question": "Akşehir'de türbesi bulunan, fıkralarıyla ünlü bilge.",
+   "answer": "Nasreddin Hoca",
+   "alternatives": [
+    "Nasrettin Hoca"
+   ]
+  },
+  {
+   "id": "h0542",
+   "letter": "N",
+   "zorluk": 2,
+   "question": "Adıyaman'da dev heykelleriyle ünlü dağ.",
+   "answer": "Nemrut"
+  },
+  {
+   "id": "h0543",
+   "letter": "N",
+   "zorluk": 2,
+   "question": "Yerçekimi yasasını bulan, başına elma düştüğü anlatılan bilim insanı.",
+   "answer": "Newton",
+   "alternatives": [
+    "Isaac Newton",
+    "Nevton"
+   ]
+  },
+  {
+   "id": "h0544",
+   "letter": "N",
+   "zorluk": 2,
+   "question": "Afrika'nın en kalabalık ülkesi.",
+   "answer": "Nijerya"
+  },
+  {
+   "id": "h0545",
+   "letter": "N",
+   "zorluk": 2,
+   "question": "Paslanmaz çelik yapımında kullanılan gümüşi metal.",
+   "answer": "Nikel"
+  },
+  {
+   "id": "h0546",
+   "letter": "N",
+   "zorluk": 2,
+   "question": "Akciğerlere alınıp verilen hava.",
+   "answer": "Nefes"
+  },
+  {
+   "id": "h0547",
+   "letter": "N",
+   "zorluk": 2,
+   "question": "Müzikte sesleri gösteren işaret.",
+   "answer": "Nota"
+  },
+  {
+   "id": "h0548",
+   "letter": "N",
+   "zorluk": 2,
+   "question": "\"Memleketimden İnsan Manzaraları\"nın şairi.",
+   "answer": "Nazım Hikmet",
+   "alternatives": [
+    "Nazım"
+   ]
+  },
+  {
+   "id": "h0549",
+   "letter": "N",
+   "zorluk": 2,
+   "question": "Atom çekirdeğiyle ilgili; enerji santrali türü.",
+   "answer": "Nükleer"
+  },
+  {
+   "id": "h0550",
+   "letter": "N",
+   "zorluk": 3,
+   "question": "Selçuklu veziri Nizamülmülk'ün kurduğu medreseler.",
+   "answer": "Nizamiye",
+   "alternatives": [
+    "Nizamiye Medreseleri"
+   ]
+  },
+  {
+   "id": "h0551",
+   "letter": "N",
+   "zorluk": 3,
+   "question": "Waterloo'da yenilen Fransız imparatoru.",
+   "answer": "Napolyon",
+   "alternatives": [
+    "Napoleon",
+    "Napolyon Bonapart"
+   ]
+  },
+  {
+   "id": "h0552",
+   "letter": "N",
+   "zorluk": 3,
+   "question": "\"Gönül Dağı\" türküsüyle bilinen Kırşehirli bozlak ustası.",
+   "answer": "Neşet Ertaş",
+   "alternatives": [
+    "Ertaş"
+   ]
+  },
+  {
+   "id": "h0553",
+   "letter": "N",
+   "zorluk": 3,
+   "question": "\"Ben Sana Vurgunum\" şarkısıyla tanınan şarkıcı.",
+   "answer": "Nükhet Duru",
+   "alternatives": [
+    "Duru"
+   ]
+  },
+  {
+   "id": "h0554",
+   "letter": "N",
+   "zorluk": 3,
+   "question": "Alternatif akımın öncüsü mucit.",
+   "answer": "Nikola Tesla",
+   "alternatives": [
+    "Tesla"
+   ]
+  },
+  {
+   "id": "h0555",
+   "letter": "N",
+   "zorluk": 3,
+   "question": "Uzayda gaz ve tozdan oluşan bulut; yıldızların doğduğu yer.",
+   "answer": "Nebula",
+   "alternatives": [
+    "Bulutsu"
+   ]
+  },
+  {
+   "id": "h0556",
+   "letter": "N",
+   "zorluk": 3,
+   "question": "21 Mart'ta baharın gelişi olarak kutlanan bayram.",
+   "answer": "Nevruz"
+  },
+  {
+   "id": "h0557",
+   "letter": "N",
+   "zorluk": 3,
+   "question": "Sinir hücresi.",
+   "answer": "Nöron"
+  },
+  {
+   "id": "h0558",
+   "letter": "N",
+   "zorluk": 3,
+   "question": "Meraga Rasathanesi'ni kuran 13. yüzyıl bilgini.",
+   "answer": "Nasıreddin Tusi",
+   "alternatives": [
+    "Tusi"
+   ]
+  },
+  {
+   "id": "h0559",
+   "letter": "N",
+   "zorluk": 3,
+   "question": "\"Kaldırımlar\" şiirinin şairi.",
+   "answer": "Necip Fazıl",
+   "alternatives": [
+    "Necip Fazıl Kısakürek"
+   ]
+  },
+  {
+   "id": "h0560",
+   "letter": "N",
+   "zorluk": 3,
+   "question": "Türk müziğinde bir makam.",
+   "answer": "Nihavent"
+  },
+  {
+   "id": "h0561",
+   "letter": "N",
+   "zorluk": 3,
+   "question": "11. yüzyılda İngiltere'yi fetheden kuzeyli halk.",
+   "answer": "Norman",
+   "alternatives": [
+    "Normanlar"
+   ]
+  },
+  {
+   "id": "h0562",
+   "letter": "O",
+   "zorluk": 1,
+   "question": "Öğrencilerin eğitim aldığı yer.",
+   "answer": "Okul"
+  },
+  {
+   "id": "h0563",
+   "letter": "O",
+   "zorluk": 1,
+   "question": "Ağaçlarla kaplı geniş alan.",
+   "answer": "Orman"
+  },
+  {
+   "id": "h0564",
+   "letter": "O",
+   "zorluk": 1,
+   "question": "Çok sayıda yolcu taşıyan büyük kara taşıtı.",
+   "answer": "Otobüs"
+  },
+  {
+   "id": "h0565",
+   "letter": "O",
+   "zorluk": 1,
+   "question": "Çocukların oynamak için kullandığı eşya.",
+   "answer": "Oyuncak"
+  },
+  {
+   "id": "h0566",
+   "letter": "O",
+   "zorluk": 1,
+   "question": "Yılın ilk ayı; aynı zamanda yemek pişirilen yer.",
+   "answer": "Ocak"
+  },
+  {
+   "id": "h0567",
+   "letter": "O",
+   "zorluk": 1,
+   "question": "Yayla fırlatılan uçlu çubuk.",
+   "answer": "Ok"
+  },
+  {
+   "id": "h0568",
+   "letter": "O",
+   "zorluk": 1,
+   "question": "Evin duvarlarla ayrılmış bölümü.",
+   "answer": "Oda"
+  },
+  {
+   "id": "h0569",
+   "letter": "O",
+   "zorluk": 1,
+   "question": "Birçok çalgıcının birlikte müzik yaptığı topluluk.",
+   "answer": "Orkestra"
+  },
+  {
+   "id": "h0570",
+   "letter": "O",
+   "zorluk": 1,
+   "question": "Ücret karşılığı konaklanan yer.",
+   "answer": "Otel"
+  },
+  {
+   "id": "h0571",
+   "letter": "O",
+   "zorluk": 1,
+   "question": "Yufka açmaya yarayan uzun ince sopa.",
+   "answer": "Oklava"
+  },
+  {
+   "id": "h0572",
+   "letter": "O",
+   "zorluk": 2,
+   "question": "Fındığı ve Boztepe'siyle bilinen Karadeniz ili.",
+   "answer": "Ordu"
+  },
+  {
+   "id": "h0573",
+   "letter": "O",
+   "zorluk": 2,
+   "question": "Karfiyesi ve yer fıstığıyla ünlü Akdeniz ili.",
+   "answer": "Osmaniye"
+  },
+  {
+   "id": "h0574",
+   "letter": "O",
+   "zorluk": 2,
+   "question": "Kıtaları birbirinden ayıran büyük su kütlesi.",
+   "answer": "Okyanus"
+  },
+  {
+   "id": "h0575",
+   "letter": "O",
+   "zorluk": 2,
+   "question": "Solunum için gerekli, simgesi O olan gaz.",
+   "answer": "Oksijen"
+  },
+  {
+   "id": "h0576",
+   "letter": "O",
+   "zorluk": 2,
+   "question": "Osmanlı Devleti'nin kurucusu.",
+   "answer": "Osman Gazi",
+   "alternatives": [
+    "Osman Bey",
+    "Osman"
+   ]
+  },
+  {
+   "id": "h0577",
+   "letter": "O",
+   "zorluk": 2,
+   "question": "Dört yılda bir düzenlenen, 2024'te Paris'te yapılan büyük spor organizasyonu.",
+   "answer": "Olimpiyat",
+   "alternatives": [
+    "Olimpiyat Oyunları"
+   ]
+  },
+  {
+   "id": "h0578",
+   "letter": "O",
+   "zorluk": 2,
+   "question": "Göktürk yazıtlarının bulunduğu Moğolistan'daki vadi ve ırmak.",
+   "answer": "Orhun"
+  },
+  {
+   "id": "h0579",
+   "letter": "O",
+   "zorluk": 2,
+   "question": "Norveç'in başkenti; Nobel Barış Ödülü burada verilir.",
+   "answer": "Oslo"
+  },
+  {
+   "id": "h0580",
+   "letter": "O",
+   "zorluk": 2,
+   "question": "Saz çalıp şiir söyleyen halk şairi.",
+   "answer": "Ozan",
+   "alternatives": [
+    "Âşık",
+    "Aşık"
+   ]
+  },
+  {
+   "id": "h0581",
+   "letter": "O",
+   "zorluk": 2,
+   "question": "Motorlu dört tekerlekli kara taşıtı.",
+   "answer": "Otomobil",
+   "alternatives": [
+    "Araba"
+   ]
+  },
+  {
+   "id": "h0582",
+   "letter": "O",
+   "zorluk": 2,
+   "question": "Endonezya ve Malezya ormanlarında yaşayan kızıl tüylü büyük maymun.",
+   "answer": "Orangutan"
+  },
+  {
+   "id": "h0583",
+   "letter": "O",
+   "zorluk": 2,
+   "question": "Sözlerin şarkıyla söylendiği tiyatro türü.",
+   "answer": "Opera"
+  },
+  {
+   "id": "h0584",
+   "letter": "O",
+   "zorluk": 2,
+   "question": "Kalp, böbrek gibi belli bir işi gören vücut parçası.",
+   "answer": "Organ"
+  },
+  {
+   "id": "h0585",
+   "letter": "O",
+   "zorluk": 2,
+   "question": "Yumurta biçimli.",
+   "answer": "Oval"
+  },
+  {
+   "id": "h0586",
+   "letter": "O",
+   "zorluk": 3,
+   "question": "2006 Nobel Edebiyat Ödülü'nü kazanan Türk yazar.",
+   "answer": "Orhan Pamuk",
+   "alternatives": [
+    "Pamuk"
+   ]
+  },
+  {
+   "id": "h0587",
+   "letter": "O",
+   "zorluk": 3,
+   "question": "\"İstanbul'u Dinliyorum\" şiirinin şairi, Garip akımının öncüsü.",
+   "answer": "Orhan Veli",
+   "alternatives": [
+    "Orhan Veli Kanık"
+   ]
+  },
+  {
+   "id": "h0588",
+   "letter": "O",
+   "zorluk": 3,
+   "question": "Oğuzların efsanevi atası; destanı Uygur harfleriyle yazılmıştır.",
+   "answer": "Oğuz Kağan",
+   "alternatives": [
+    "Oğuz Han"
+   ]
+  },
+  {
+   "id": "h0589",
+   "letter": "O",
+   "zorluk": 3,
+   "question": "Güneşin zararlı ışınlarını süzen atmosfer tabakasındaki gaz.",
+   "answer": "Ozon"
+  },
+  {
+   "id": "h0590",
+   "letter": "O",
+   "zorluk": 3,
+   "question": "Ton balığının diğer adı.",
+   "answer": "Orkinos",
+   "alternatives": [
+    "Ton balığı"
+   ]
+  },
+  {
+   "id": "h0591",
+   "letter": "O",
+   "zorluk": 3,
+   "question": "Hükümdarların sefer sırasında kurulan büyük çadırı.",
+   "answer": "Otağ"
+  },
+  {
+   "id": "h0592",
+   "letter": "O",
+   "zorluk": 3,
+   "question": "Elektrik direncinin birimi.",
+   "answer": "Ohm"
+  },
+  {
+   "id": "h0593",
+   "letter": "O",
+   "zorluk": 3,
+   "question": "Arap harfleriyle yazılan Osmanlı Türkçesi.",
+   "answer": "Osmanlıca",
+   "alternatives": [
+    "Osmanlı Türkçesi"
+   ]
+  },
+  {
+   "id": "h0594",
+   "letter": "O",
+   "zorluk": 3,
+   "question": "Yunan mitolojisinde tanrıların yaşadığı dağ; Antalya'da da bir antik kent.",
+   "answer": "Olimpos"
+  },
+  {
+   "id": "h0595",
+   "letter": "O",
+   "zorluk": 3,
+   "question": "Boğaz Köprüsü'nün dibindeki camisi ve kumpiriyle ünlü İstanbul semti.",
+   "answer": "Ortaköy"
+  },
+  {
+   "id": "h0596",
+   "letter": "Ö",
+   "zorluk": 1,
+   "question": "Gölde yüzen, \"vak vak\" diye ses çıkaran kuş.",
+   "answer": "Ördek"
+  },
+  {
+   "id": "h0597",
+   "letter": "Ö",
+   "zorluk": 1,
+   "question": "Okulda ders veren kişi.",
+   "answer": "Öğretmen"
+  },
+  {
+   "id": "h0598",
+   "letter": "Ö",
+   "zorluk": 1,
+   "question": "Öğrencilere evde yapmaları için verilen çalışma.",
+   "answer": "Ödev"
+  },
+  {
+   "id": "h0599",
+   "letter": "Ö",
+   "zorluk": 1,
+   "question": "Ağ ören sekiz bacaklı hayvan.",
+   "answer": "Örümcek"
+  },
+  {
+   "id": "h0600",
+   "letter": "Ö",
+   "zorluk": 1,
+   "question": "Günün ortası; bu saatte yenen yemeğe de adını verir.",
+   "answer": "Öğle"
+  },
+  {
+   "id": "h0601",
+   "letter": "Ö",
+   "zorluk": 1,
+   "question": "Bir şeyin uzunluğunu ya da miktarını belirleme.",
+   "answer": "Ölçü"
+  },
+  {
+   "id": "h0602",
+   "letter": "Ö",
+   "zorluk": 1,
+   "question": "Başarı karşılığı verilen armağan.",
+   "answer": "Ödül"
+  },
+  {
+   "id": "h0603",
+   "letter": "Ö",
+   "zorluk": 1,
+   "question": "Soğuk algınlığında boğazdan gelen kesik kesik ses.",
+   "answer": "Öksürük"
+  },
+  {
+   "id": "h0604",
+   "letter": "Ö",
+   "zorluk": 1,
+   "question": "Bir canlının yaşadığı süre.",
+   "answer": "Ömür",
+   "alternatives": [
+    "Hayat"
+   ]
+  },
+  {
+   "id": "h0605",
+   "letter": "Ö",
+   "zorluk": 1,
+   "question": "Uzaktaki birini görme isteği.",
+   "answer": "Özlem"
+  },
+  {
+   "id": "h0606",
+   "letter": "Ö",
+   "zorluk": 2,
+   "question": "Fethiye'de yamaç paraşütüyle ünlü lagün plajı.",
+   "answer": "Ölüdeniz"
+  },
+  {
+   "id": "h0607",
+   "letter": "Ö",
+   "zorluk": 2,
+   "question": "Göktürklerin kutsal saydığı başkent bölgesi.",
+   "answer": "Ötüken"
+  },
+  {
+   "id": "h0608",
+   "letter": "Ö",
+   "zorluk": 2,
+   "question": "İzmir'de, Birgi köyü ve patatesiyle bilinen ilçe.",
+   "answer": "Ödemiş"
+  },
+  {
+   "id": "h0609",
+   "letter": "Ö",
+   "zorluk": 2,
+   "question": "Okulda eğitim gören kişi.",
+   "answer": "Öğrenci"
+  },
+  {
+   "id": "h0610",
+   "letter": "Ö",
+   "zorluk": 2,
+   "question": "Tarlada saban çeken iğdiş edilmiş erkek sığır.",
+   "answer": "Öküz"
+  },
+  {
+   "id": "h0611",
+   "letter": "Ö",
+   "zorluk": 2,
+   "question": "Bir şeyi açıklamak için gösterilen benzer durum.",
+   "answer": "Örnek"
+  },
+  {
+   "id": "h0612",
+   "letter": "Ö",
+   "zorluk": 2,
+   "question": "Kişinin baskı altında olmadan karar verebilmesi.",
+   "answer": "Özgürlük",
+   "alternatives": [
+    "Hürriyet"
+   ]
+  },
+  {
+   "id": "h0613",
+   "letter": "Ö",
+   "zorluk": 2,
+   "question": "Bir arada bulunan küçük topluluk.",
+   "answer": "Öbek"
+  },
+  {
+   "id": "h0614",
+   "letter": "Ö",
+   "zorluk": 2,
+   "question": "Haritadaki uzunlukla gerçek uzunluk arasındaki oran.",
+   "answer": "Ölçek"
+  },
+  {
+   "id": "h0615",
+   "letter": "Ö",
+   "zorluk": 2,
+   "question": "Kısa düzyazı anlatı; hikâye.",
+   "answer": "Öykü",
+   "alternatives": [
+    "Hikâye",
+    "Hikaye"
+   ]
+  },
+  {
+   "id": "h0616",
+   "letter": "Ö",
+   "zorluk": 2,
+   "question": "Geri verilmek üzere alınan şey.",
+   "answer": "Ödünç"
+  },
+  {
+   "id": "h0617",
+   "letter": "Ö",
+   "zorluk": 3,
+   "question": "\"Kaşağı\" ve \"Pembe İncili Kaftan\" hikâyelerinin yazarı.",
+   "answer": "Ömer Seyfettin",
+   "alternatives": [
+    "Seyfettin"
+   ]
+  },
+  {
+   "id": "h0618",
+   "letter": "Ö",
+   "zorluk": 3,
+   "question": "Semerkant ve Buhara'nın bulunduğu Orta Asya Türk cumhuriyeti.",
+   "answer": "Özbekistan"
+  },
+  {
+   "id": "h0619",
+   "letter": "Ö",
+   "zorluk": 3,
+   "question": "Geometrinin babası sayılan, \"Elementler\"in yazarı.",
+   "answer": "Öklid",
+   "alternatives": [
+    "Euclid",
+    "Euclides"
+   ]
+  },
+  {
+   "id": "h0620",
+   "letter": "Ö",
+   "zorluk": 3,
+   "question": "Yabancı kökenli olmayan, Türkçenin kendi sözcükleri.",
+   "answer": "Öz Türkçe",
+   "alternatives": [
+    "Öztürkçe"
+   ]
+  },
+  {
+   "id": "h0621",
+   "letter": "Ö",
+   "zorluk": 3,
+   "question": "\"Yalnızlık paylaşılmaz, paylaşılsa yalnızlık olmaz\" dizesinin şairi.",
+   "answer": "Özdemir Asaf",
+   "alternatives": [
+    "Asaf"
+   ]
+  },
+  {
+   "id": "h0622",
+   "letter": "Ö",
+   "zorluk": 3,
+   "question": "Anadolu, Mezopotamya ve İran'ı kapsayan bölge.",
+   "answer": "Önasya",
+   "alternatives": [
+    "Ön Asya"
+   ]
+  },
+  {
+   "id": "h0623",
+   "letter": "Ö",
+   "zorluk": 3,
+   "question": "Birine yol gösteren tavsiye; nasihat.",
+   "answer": "Öğüt",
+   "alternatives": [
+    "Nasihat"
+   ]
+  },
+  {
+   "id": "h0624",
+   "letter": "P",
+   "zorluk": 1,
+   "question": "Sütten yapılan, kahvaltının vazgeçilmezi.",
+   "answer": "Peynir"
+  },
+  {
+   "id": "h0625",
+   "letter": "P",
+   "zorluk": 1,
+   "question": "Kızartması çocukların en sevdiği yumru sebze.",
+   "answer": "Patates"
+  },
+  {
+   "id": "h0626",
+   "letter": "P",
+   "zorluk": 1,
+   "question": "Kışın yenen, suyu sıkılan turuncu meyve.",
+   "answer": "Portakal"
+  },
+  {
+   "id": "h0627",
+   "letter": "P",
+   "zorluk": 1,
+   "question": "Uçamayan, Antarktika'da yaşayan siyah beyaz kuş.",
+   "answer": "Penguen"
+  },
+  {
+   "id": "h0628",
+   "letter": "P",
+   "zorluk": 1,
+   "question": "Doğum günlerinde mum üflenen tatlı.",
+   "answer": "Pasta"
+  },
+  {
+   "id": "h0629",
+   "letter": "P",
+   "zorluk": 1,
+   "question": "Odaya ışık ve hava girmesini sağlayan camlı açıklık.",
+   "answer": "Pencere"
+  },
+  {
+   "id": "h0630",
+   "letter": "P",
+   "zorluk": 1,
+   "question": "İki paçası olan, belden aşağı giyilen giysi.",
+   "answer": "Pantolon"
+  },
+  {
+   "id": "h0631",
+   "letter": "P",
+   "zorluk": 1,
+   "question": "Haftanın son günü; aynı zamanda alışveriş yeri.",
+   "answer": "Pazar"
+  },
+  {
+   "id": "h0632",
+   "letter": "P",
+   "zorluk": 1,
+   "question": "Pirinçten yapılan sofra yemeği.",
+   "answer": "Pilav"
+  },
+  {
+   "id": "h0633",
+   "letter": "P",
+   "zorluk": 1,
+   "question": "Konuşmayı taklit edebilen renkli kuş.",
+   "answer": "Papağan"
+  },
+  {
+   "id": "h0634",
+   "letter": "P",
+   "zorluk": 2,
+   "question": "Eyfel Kulesi'nin bulunduğu şehir.",
+   "answer": "Paris"
+  },
+  {
+   "id": "h0635",
+   "letter": "P",
+   "zorluk": 2,
+   "question": "Beyaz travertenleriyle ünlü Denizli'deki doğal güzellik.",
+   "answer": "Pamukkale"
+  },
+  {
+   "id": "h0636",
+   "letter": "P",
+   "zorluk": 2,
+   "question": "Mısır'daki firavun mezarları.",
+   "answer": "Piramit"
+  },
+  {
+   "id": "h0637",
+   "letter": "P",
+   "zorluk": 2,
+   "question": "Dünyanın en büyük okyanusu.",
+   "answer": "Pasifik",
+   "alternatives": [
+    "Büyük Okyanus"
+   ]
+  },
+  {
+   "id": "h0638",
+   "letter": "P",
+   "zorluk": 2,
+   "question": "Alexander Fleming'in bulduğu ilk antibiyotik.",
+   "answer": "Penisilin"
+  },
+  {
+   "id": "h0639",
+   "letter": "P",
+   "zorluk": 2,
+   "question": "Çemberin çevresinin çapına oranı; yaklaşık 3,14.",
+   "answer": "Pi"
+  },
+  {
+   "id": "h0640",
+   "letter": "P",
+   "zorluk": 2,
+   "question": "Yön bulmaya yarayan, ibresi kuzeyi gösteren alet.",
+   "answer": "Pusula"
+  },
+  {
+   "id": "h0641",
+   "letter": "P",
+   "zorluk": 2,
+   "question": "Başkenti Lizbon olan İber ülkesi.",
+   "answer": "Portekiz"
+  },
+  {
+   "id": "h0642",
+   "letter": "P",
+   "zorluk": 2,
+   "question": "Başkenti Varşova olan ülke.",
+   "answer": "Polonya"
+  },
+  {
+   "id": "h0643",
+   "letter": "P",
+   "zorluk": 2,
+   "question": "Uçağı kullanan kişi.",
+   "answer": "Pilot"
+  },
+  {
+   "id": "h0644",
+   "letter": "P",
+   "zorluk": 2,
+   "question": "\"Pireyi deve yapmak\" deyimine konu olan küçük böcek.",
+   "answer": "Pire"
+  },
+  {
+   "id": "h0645",
+   "letter": "P",
+   "zorluk": 2,
+   "question": "Pullarla kaplı, karınca yiyen memeli.",
+   "answer": "Pangolin"
+  },
+  {
+   "id": "h0646",
+   "letter": "P",
+   "zorluk": 2,
+   "question": "Haftanın ilk günü.",
+   "answer": "Pazartesi"
+  },
+  {
+   "id": "h0647",
+   "letter": "P",
+   "zorluk": 2,
+   "question": "Üzümden ya da duttan yapılan koyu tatlı şurup.",
+   "answer": "Pekmez"
+  },
+  {
+   "id": "h0648",
+   "letter": "P",
+   "zorluk": 3,
+   "question": "Sivas'ta yaşamış, Alevi-Bektaşi şiirinin büyük ozanı.",
+   "answer": "Pir Sultan Abdal",
+   "alternatives": [
+    "Pir Sultan"
+   ]
+  },
+  {
+   "id": "h0649",
+   "letter": "P",
+   "zorluk": 3,
+   "question": "\"Kitab-ı Bahriye\"nin yazarı, ünlü haritasıyla bilinen Osmanlı denizcisi.",
+   "answer": "Piri Reis"
+  },
+  {
+   "id": "h0650",
+   "letter": "P",
+   "zorluk": 3,
+   "question": "Dik üçgende kenarlar arasındaki bağıntıyı veren teoremin sahibi.",
+   "answer": "Pisagor",
+   "alternatives": [
+    "Pythagoras"
+   ]
+  },
+  {
+   "id": "h0651",
+   "letter": "P",
+   "zorluk": 3,
+   "question": "\"Devlet\" kitabının yazarı, Sokrates'in öğrencisi.",
+   "answer": "Platon",
+   "alternatives": [
+    "Eflatun"
+   ]
+  },
+  {
+   "id": "h0652",
+   "letter": "P",
+   "zorluk": 3,
+   "question": "Almanya'nın birleşmesine öncülük eden krallık.",
+   "answer": "Prusya"
+  },
+  {
+   "id": "h0653",
+   "letter": "P",
+   "zorluk": 3,
+   "question": "İnsülin üreten organ.",
+   "answer": "Pankreas"
+  },
+  {
+   "id": "h0654",
+   "letter": "P",
+   "zorluk": 3,
+   "question": "2006'da gezegen sınıfından çıkarılan cüce gezegen.",
+   "answer": "Plüton"
+  },
+  {
+   "id": "h0655",
+   "letter": "P",
+   "zorluk": 3,
+   "question": "Malazgirt'te Bizans ordusundan Türk tarafına geçen Türk boylarından biri.",
+   "answer": "Peçenek",
+   "alternatives": [
+    "Peçenekler"
+   ]
+  },
+  {
+   "id": "h0656",
+   "letter": "P",
+   "zorluk": 3,
+   "question": "Antalya'da, uzun kumsalı ve antik kentiyle bilinen yer.",
+   "answer": "Patara"
+  },
+  {
+   "id": "h0657",
+   "letter": "P",
+   "zorluk": 3,
+   "question": "Fosilleri inceleyen bilim dalı.",
+   "answer": "Paleontoloji"
+  },
+  {
+   "id": "h0658",
+   "letter": "P",
+   "zorluk": 3,
+   "question": "\"Guernica\" tablosunun İspanyol ressamı.",
+   "answer": "Pikasso",
+   "alternatives": [
+    "Picasso",
+    "Pablo Picasso"
+   ]
+  },
+  {
+   "id": "h0659",
+   "letter": "R",
+   "zorluk": 1,
+   "question": "Ses yayınlarını dinlediğimiz alet.",
+   "answer": "Radyo"
+  },
+  {
+   "id": "h0660",
+   "letter": "R",
+   "zorluk": 1,
+   "question": "Programlanarak çalışan makine insan.",
+   "answer": "Robot"
+  },
+  {
+   "id": "h0661",
+   "letter": "R",
+   "zorluk": 1,
+   "question": "Meyvenin şekerle kaynatılmasıyla yapılan kahvaltılık.",
+   "answer": "Reçel"
+  },
+  {
+   "id": "h0662",
+   "letter": "R",
+   "zorluk": 1,
+   "question": "Resim yapan sanatçı.",
+   "answer": "Ressam"
+  },
+  {
+   "id": "h0663",
+   "letter": "R",
+   "zorluk": 1,
+   "question": "Havanın yer değiştirmesiyle oluşan hava akımı.",
+   "answer": "Rüzgar",
+   "alternatives": [
+    "Rüzgâr"
+   ]
+  },
+  {
+   "id": "h0664",
+   "letter": "R",
+   "zorluk": 1,
+   "question": "Duvara takılan, üzerine eşya konan tahta.",
+   "answer": "Raf"
+  },
+  {
+   "id": "h0665",
+   "letter": "R",
+   "zorluk": 1,
+   "question": "Oruç tutulan mübarek ay.",
+   "answer": "Ramazan"
+  },
+  {
+   "id": "h0666",
+   "letter": "R",
+   "zorluk": 1,
+   "question": "Kırmızı, mavi, sarı gibi gözle algılanan özellik.",
+   "answer": "Renk"
+  },
+  {
+   "id": "h0667",
+   "letter": "R",
+   "zorluk": 1,
+   "question": "Dudaklara sürülen makyaj malzemesi.",
+   "answer": "Ruj"
+  },
+  {
+   "id": "h0668",
+   "letter": "R",
+   "zorluk": 1,
+   "question": "Sayıları yazmaya yarayan işaret.",
+   "answer": "Rakam"
+  },
+  {
+   "id": "h0669",
+   "letter": "R",
+   "zorluk": 2,
+   "question": "Çay bahçeleri ve Ayder Yaylası'yla ünlü il.",
+   "answer": "Rize"
+  },
+  {
+   "id": "h0670",
+   "letter": "R",
+   "zorluk": 2,
+   "question": "\"Bütün yollar oraya çıkar\" denen, kolezyumuyla ünlü şehir.",
+   "answer": "Roma"
+  },
+  {
+   "id": "h0671",
+   "letter": "R",
+   "zorluk": 2,
+   "question": "Dünyanın yüzölçümü en büyük ülkesi.",
+   "answer": "Rusya"
+  },
+  {
+   "id": "h0672",
+   "letter": "R",
+   "zorluk": 2,
+   "question": "Başkenti Bükreş olan, Drakula efsanesinin geçtiği ülke.",
+   "answer": "Romanya"
+  },
+  {
+   "id": "h0673",
+   "letter": "R",
+   "zorluk": 2,
+   "question": "Osmanlı'nın Kanuni döneminde aldığı, yedi harikadan dev heykelinin bulunduğu ada.",
+   "answer": "Rodos"
+  },
+  {
+   "id": "h0674",
+   "letter": "R",
+   "zorluk": 2,
+   "question": "Noel Baba'nın kızağını çektiği hayvan.",
+   "answer": "Rengeyiği",
+   "alternatives": [
+    "Ren geyiği"
+   ]
+  },
+  {
+   "id": "h0675",
+   "letter": "R",
+   "zorluk": 2,
+   "question": "Gök cisimlerinin gözlemlendiği yer.",
+   "answer": "Rasathane",
+   "alternatives": [
+    "Gözlemevi"
+   ]
+  },
+  {
+   "id": "h0676",
+   "letter": "R",
+   "zorluk": 2,
+   "question": "Müzikte seslerin düzenli tekrarı.",
+   "answer": "Ritim"
+  },
+  {
+   "id": "h0677",
+   "letter": "R",
+   "zorluk": 2,
+   "question": "Uzun kurmaca düzyazı eser.",
+   "answer": "Roman"
+  },
+  {
+   "id": "h0678",
+   "letter": "R",
+   "zorluk": 2,
+   "question": "Renkleri eşleştirilmeye çalışılan döndürülebilir küp bulmaca.",
+   "answer": "Rubik Küpü",
+   "alternatives": [
+    "Rubik"
+   ]
+  },
+  {
+   "id": "h0679",
+   "letter": "R",
+   "zorluk": 2,
+   "question": "14-16. yüzyıllarda Avrupa'da yaşanan yeniden doğuş dönemi.",
+   "answer": "Rönesans"
+  },
+  {
+   "id": "h0680",
+   "letter": "R",
+   "zorluk": 2,
+   "question": "Yüzündeki maske gibi siyah lekesiyle bilinen Amerika memelisi.",
+   "answer": "Rakun"
+  },
+  {
+   "id": "h0681",
+   "letter": "R",
+   "zorluk": 3,
+   "question": "\"Çalıkuşu\"nun yazarı.",
+   "answer": "Reşat Nuri Güntekin",
+   "alternatives": [
+    "Reşat Nuri"
+   ]
+  },
+  {
+   "id": "h0682",
+   "letter": "R",
+   "zorluk": 3,
+   "question": "Osmanlı'nın Balkan topraklarına verdiği ad.",
+   "answer": "Rumeli"
+  },
+  {
+   "id": "h0683",
+   "letter": "R",
+   "zorluk": 3,
+   "question": "Fatih'in İstanbul'un fethinden önce Boğaz'da yaptırdığı hisar.",
+   "answer": "Rumelihisarı",
+   "alternatives": [
+    "Rumeli Hisarı",
+    "Boğazkesen"
+   ]
+  },
+  {
+   "id": "h0684",
+   "letter": "R",
+   "zorluk": 3,
+   "question": "\"Gece Devriyesi\" tablosunun Hollandalı ressamı.",
+   "answer": "Rembrandt"
+  },
+  {
+   "id": "h0685",
+   "letter": "R",
+   "zorluk": 3,
+   "question": "Hücrede protein sentezinin yapıldığı organel.",
+   "answer": "Ribozom"
+  },
+  {
+   "id": "h0686",
+   "letter": "R",
+   "zorluk": 3,
+   "question": "Deprem büyüklüğünü ölçmek için geliştirilen ölçeğin adı.",
+   "answer": "Richter",
+   "alternatives": [
+    "Rihter"
+   ]
+  },
+  {
+   "id": "h0687",
+   "letter": "R",
+   "zorluk": 3,
+   "question": "Mondros Mütarekesi'ni imzalayan, Hamidiye kruvazörü komutanı.",
+   "answer": "Rauf Orbay",
+   "alternatives": [
+    "Orbay"
+   ]
+  },
+  {
+   "id": "h0688",
+   "letter": "R",
+   "zorluk": 3,
+   "question": "Daniel Defoe'nun ıssız adada yaşayan kahramanı.",
+   "answer": "Robinson Crusoe",
+   "alternatives": [
+    "Robinson"
+   ]
+  },
+  {
+   "id": "h0689",
+   "letter": "R",
+   "zorluk": 3,
+   "question": "Kanuni'nin damadı ve veziri; çinileriyle ünlü camisi Eminönü'ndedir.",
+   "answer": "Rüstem Paşa"
+  },
+  {
+   "id": "h0690",
+   "letter": "R",
+   "zorluk": 3,
+   "question": "Abu Simbel tapınaklarını yaptıran Mısır firavunu.",
+   "answer": "Ramses",
+   "alternatives": [
+    "II. Ramses"
+   ]
+  },
+  {
+   "id": "h0691",
+   "letter": "S",
+   "zorluk": 1,
+   "question": "Hayatın kaynağı, renksiz ve kokusuz sıvı.",
+   "answer": "Su"
+  },
+  {
+   "id": "h0692",
+   "letter": "S",
+   "zorluk": 1,
+   "question": "Zamanı gösteren alet.",
+   "answer": "Saat"
+  },
+  {
+   "id": "h0693",
+   "letter": "S",
+   "zorluk": 1,
+   "question": "Susamlı, halka biçimli, çayla yenen unlu mamul.",
+   "answer": "Simit"
+  },
+  {
+   "id": "h0694",
+   "letter": "S",
+   "zorluk": 1,
+   "question": "İnek, koyun ve keçiden sağılan beyaz içecek.",
+   "answer": "Süt"
+  },
+  {
+   "id": "h0695",
+   "letter": "S",
+   "zorluk": 1,
+   "question": "Üzerine oturulan arkalıklı mobilya.",
+   "answer": "Sandalye"
+  },
+  {
+   "id": "h0696",
+   "letter": "S",
+   "zorluk": 1,
+   "question": "Ağaçlarda yaşayan, fındık ve ceviz biriktiren kabarık kuyruklu hayvan.",
+   "answer": "Sincap"
+  },
+  {
+   "id": "h0697",
+   "letter": "S",
+   "zorluk": 1,
+   "question": "Ellerimizi yıkarken köpürttüğümüz temizlik maddesi.",
+   "answer": "Sabun"
+  },
+  {
+   "id": "h0698",
+   "letter": "S",
+   "zorluk": 1,
+   "question": "Haftanın ikinci günü.",
+   "answer": "Salı"
+  },
+  {
+   "id": "h0699",
+   "letter": "S",
+   "zorluk": 1,
+   "question": "Çay demlemek için kullanılan, içinde su kaynatılan kap.",
+   "answer": "Semaver"
+  },
+  {
+   "id": "h0700",
+   "letter": "S",
+   "zorluk": 1,
+   "question": "Limonun ve muzun rengi.",
+   "answer": "Sarı"
+  },
+  {
+   "id": "h0701",
+   "letter": "S",
+   "zorluk": 2,
+   "question": "Atatürk'ün 19 Mayıs 1919'da ayak bastığı il.",
+   "answer": "Samsun"
+  },
+  {
+   "id": "h0702",
+   "letter": "S",
+   "zorluk": 2,
+   "question": "Kongresi ve Divriği Ulu Camii'yle bilinen il.",
+   "answer": "Sivas"
+  },
+  {
+   "id": "h0703",
+   "letter": "S",
+   "zorluk": 2,
+   "question": "\"Sakarya Meydan Muharebesi\"ne adını veren nehir ve il.",
+   "answer": "Sakarya"
+  },
+  {
+   "id": "h0704",
+   "letter": "S",
+   "zorluk": 2,
+   "question": "Halkalarıyla ünlü gezegen.",
+   "answer": "Satürn"
+  },
+  {
+   "id": "h0705",
+   "letter": "S",
+   "zorluk": 2,
+   "question": "Dünyanın en büyük sıcak çölü.",
+   "answer": "Sahra"
+  },
+  {
+   "id": "h0706",
+   "letter": "S",
+   "zorluk": 2,
+   "question": "Türkiye'nin en kuzey ucundaki il.",
+   "answer": "Sinop"
+  },
+  {
+   "id": "h0707",
+   "letter": "S",
+   "zorluk": 2,
+   "question": "Mimar Sinan'ın \"kalfalık eserim\" dediği İstanbul camisi.",
+   "answer": "Süleymaniye"
+  },
+  {
+   "id": "h0708",
+   "letter": "S",
+   "zorluk": 2,
+   "question": "Başkenti Şam olan güney komşumuz.",
+   "answer": "Suriye"
+  },
+  {
+   "id": "h0709",
+   "letter": "S",
+   "zorluk": 2,
+   "question": "Başkenti Belgrad olan Balkan ülkesi.",
+   "answer": "Sırbistan"
+  },
+  {
+   "id": "h0710",
+   "letter": "S",
+   "zorluk": 2,
+   "question": "Timur'un başkenti; Registan Meydanı'yla ünlü Özbek şehri.",
+   "answer": "Semerkant"
+  },
+  {
+   "id": "h0711",
+   "letter": "S",
+   "zorluk": 2,
+   "question": "\"Minik Serçe\" lakaplı ünlü şarkıcı ve söz yazarı.",
+   "answer": "Sezen Aksu",
+   "alternatives": [
+    "Aksu"
+   ]
+  },
+  {
+   "id": "h0712",
+   "letter": "S",
+   "zorluk": 2,
+   "question": "Mimar Sinan'ın \"ustalık eserim\" dediği Edirne'deki cami.",
+   "answer": "Selimiye"
+  },
+  {
+   "id": "h0713",
+   "letter": "S",
+   "zorluk": 2,
+   "question": "Yazıyı icat eden Mezopotamya uygarlığı.",
+   "answer": "Sümerler",
+   "alternatives": [
+    "Sümer"
+   ]
+  },
+  {
+   "id": "h0714",
+   "letter": "S",
+   "zorluk": 2,
+   "question": "Caz müziğinin simgelerinden, metalden yapılan nefesli çalgı.",
+   "answer": "Saksafon"
+  },
+  {
+   "id": "h0715",
+   "letter": "S",
+   "zorluk": 2,
+   "question": "Trabzon'da kayalara oyulmuş ünlü manastır.",
+   "answer": "Sumela"
+  },
+  {
+   "id": "h0716",
+   "letter": "S",
+   "zorluk": 3,
+   "question": "Malazgirt Savaşı'nı kazanan Türk devleti.",
+   "answer": "Selçuklu",
+   "alternatives": [
+    "Büyük Selçuklu",
+    "Selçuklular"
+   ]
+  },
+  {
+   "id": "h0717",
+   "letter": "S",
+   "zorluk": 3,
+   "question": "\"Semaver\" ve \"Sarnıç\" öykülerinin yazarı.",
+   "answer": "Sait Faik",
+   "alternatives": [
+    "Sait Faik Abasıyanık"
+   ]
+  },
+  {
+   "id": "h0718",
+   "letter": "S",
+   "zorluk": 3,
+   "question": "\"Kendini bil\" öğretisiyle bilinen, baldıran zehri içirilen filozof.",
+   "answer": "Sokrates"
+  },
+  {
+   "id": "h0719",
+   "letter": "S",
+   "zorluk": 3,
+   "question": "1920'de imzalanan ama hiç yürürlüğe girmeyen antlaşma.",
+   "answer": "Sevr"
+  },
+  {
+   "id": "h0720",
+   "letter": "S",
+   "zorluk": 3,
+   "question": "Üç padişaha sadrazamlık yapan Osmanlı veziri.",
+   "answer": "Sokullu Mehmet Paşa",
+   "alternatives": [
+    "Sokullu"
+   ]
+  },
+  {
+   "id": "h0721",
+   "letter": "S",
+   "zorluk": 3,
+   "question": "Roma'ya karşı köle ayaklanmasını yöneten gladyatör.",
+   "answer": "Spartaküs"
+  },
+  {
+   "id": "h0722",
+   "letter": "S",
+   "zorluk": 3,
+   "question": "Evliya Çelebi'nin on ciltlik gezi kitabı.",
+   "answer": "Seyahatname"
+  },
+  {
+   "id": "h0723",
+   "letter": "S",
+   "zorluk": 3,
+   "question": "Nobel ödüllerinin çoğunun verildiği İsveç başkenti.",
+   "answer": "Stockholm"
+  },
+  {
+   "id": "h0724",
+   "letter": "S",
+   "zorluk": 3,
+   "question": "Dünyanın ilk kadın savaş pilotu sayılan Türk havacı.",
+   "answer": "Sabiha Gökçen",
+   "alternatives": [
+    "Gökçen"
+   ]
+  },
+  {
+   "id": "h0725",
+   "letter": "S",
+   "zorluk": 3,
+   "question": "Bilgisayar çiplerinin yapıldığı yarı iletken element.",
+   "answer": "Silikon",
+   "alternatives": [
+    "Silisyum"
+   ]
+  },
+  {
+   "id": "h0726",
+   "letter": "S",
+   "zorluk": 3,
+   "question": "Kadıköy'de, 1927'de açılan tarihi opera binası.",
+   "answer": "Süreyya Operası",
+   "alternatives": [
+    "Süreyya"
+   ]
+  },
+  {
+   "id": "h0727",
+   "letter": "Ş",
+   "zorluk": 1,
+   "question": "Çaya atılan tatlandırıcı.",
+   "answer": "Şeker"
+  },
+  {
+   "id": "h0728",
+   "letter": "Ş",
+   "zorluk": 1,
+   "question": "Yağmurda ıslanmamak için açılan araç.",
+   "answer": "Şemsiye"
+  },
+  {
+   "id": "h0729",
+   "letter": "Ş",
+   "zorluk": 1,
+   "question": "Başa giyilen, güneşten koruyan giysi.",
+   "answer": "Şapka"
+  },
+  {
+   "id": "h0730",
+   "letter": "Ş",
+   "zorluk": 1,
+   "question": "Tüylü kabuklu, sulu yaz meyvesi.",
+   "answer": "Şeftali"
+  },
+  {
+   "id": "h0731",
+   "letter": "Ş",
+   "zorluk": 1,
+   "question": "Yılın en kısa ayı.",
+   "answer": "Şubat"
+  },
+  {
+   "id": "h0732",
+   "letter": "Ş",
+   "zorluk": 1,
+   "question": "Bestelenmiş sözlerin söylenmesi.",
+   "answer": "Şarkı"
+  },
+  {
+   "id": "h0733",
+   "letter": "Ş",
+   "zorluk": 1,
+   "question": "Kalabalık nüfusun yaşadığı büyük yerleşim; kent.",
+   "answer": "Şehir",
+   "alternatives": [
+    "Kent"
+   ]
+  },
+  {
+   "id": "h0734",
+   "letter": "Ş",
+   "zorluk": 1,
+   "question": "Suyun yüksekten döküldüğü yer.",
+   "answer": "Şelale",
+   "alternatives": [
+    "Çağlayan"
+   ]
+  },
+  {
+   "id": "h0735",
+   "letter": "Ş",
+   "zorluk": 1,
+   "question": "Fırtınada gökyüzünde çakan ışık.",
+   "answer": "Şimşek"
+  },
+  {
+   "id": "h0736",
+   "letter": "Ş",
+   "zorluk": 1,
+   "question": "Adana'da kebapla içilen kırmızı içecek.",
+   "answer": "Şalgam",
+   "alternatives": [
+    "Şalgam suyu"
+   ]
+  },
+  {
+   "id": "h0737",
+   "letter": "Ş",
+   "zorluk": 2,
+   "question": "Balıklıgöl ve Göbeklitepe'nin bulunduğu il.",
+   "answer": "Şanlıurfa",
+   "alternatives": [
+    "Urfa"
+   ]
+  },
+  {
+   "id": "h0738",
+   "letter": "Ş",
+   "zorluk": 2,
+   "question": "Cudi Dağı'nın bulunduğu güneydoğu ili.",
+   "answer": "Şırnak"
+  },
+  {
+   "id": "h0739",
+   "letter": "Ş",
+   "zorluk": 2,
+   "question": "Uzun ve ince biçimli, başkenti Santiago olan Güney Amerika ülkesi.",
+   "answer": "Şili"
+  },
+  {
+   "id": "h0740",
+   "letter": "Ş",
+   "zorluk": 2,
+   "question": "Suriye'nin başkenti.",
+   "answer": "Şam"
+  },
+  {
+   "id": "h0741",
+   "letter": "Ş",
+   "zorluk": 2,
+   "question": "Keskin gözlü yırtıcı kuş.",
+   "answer": "Şahin"
+  },
+  {
+   "id": "h0742",
+   "letter": "Ş",
+   "zorluk": 2,
+   "question": "Şiir yazan kişi.",
+   "answer": "Şair"
+  },
+  {
+   "id": "h0743",
+   "letter": "Ş",
+   "zorluk": 2,
+   "question": "Orta Çağ'da zırhlı atlı savaşçı.",
+   "answer": "Şövalye"
+  },
+  {
+   "id": "h0744",
+   "letter": "Ş",
+   "zorluk": 2,
+   "question": "İrmikli hamurdan yapılan şerbetli tatlı.",
+   "answer": "Şekerpare"
+  },
+  {
+   "id": "h0745",
+   "letter": "Ş",
+   "zorluk": 2,
+   "question": "Eski Türk inanışında ruhlarla iletişim kurduğuna inanılan din adamı.",
+   "answer": "Şaman",
+   "alternatives": [
+    "Kam"
+   ]
+  },
+  {
+   "id": "h0746",
+   "letter": "Ş",
+   "zorluk": 2,
+   "question": "Yol kenarındaki çukur.",
+   "answer": "Şarampole"
+  },
+  {
+   "id": "h0747",
+   "letter": "Ş",
+   "zorluk": 2,
+   "question": "Gizli bilgiye erişim için kullanılan karakter dizisi.",
+   "answer": "Şifre",
+   "alternatives": [
+    "Parola"
+   ]
+  },
+  {
+   "id": "h0748",
+   "letter": "Ş",
+   "zorluk": 2,
+   "question": "Otomobilde motor gücünü tekerleklere aktaran vites kutusu.",
+   "answer": "Şanzıman"
+  },
+  {
+   "id": "h0749",
+   "letter": "Ş",
+   "zorluk": 3,
+   "question": "Agah Efendi ile ilk özel Türk gazetesi \"Tercüman-ı Ahval\"i çıkaran yazar.",
+   "answer": "Şinasi"
+  },
+  {
+   "id": "h0750",
+   "letter": "Ş",
+   "zorluk": 3,
+   "question": "Osman Bey'in kayınpederi ve manevi rehberi.",
+   "answer": "Şeyh Edebali",
+   "alternatives": [
+    "Edebali"
+   ]
+  },
+  {
+   "id": "h0751",
+   "letter": "Ş",
+   "zorluk": 3,
+   "question": "Osmanlı'da padişah oğullarına verilen unvan.",
+   "answer": "Şehzade"
+  },
+  {
+   "id": "h0752",
+   "letter": "Ş",
+   "zorluk": 3,
+   "question": "Yarısı kadın yarısı yılan olan Anadolu efsane yaratığı.",
+   "answer": "Şahmeran"
+  },
+  {
+   "id": "h0753",
+   "letter": "Ş",
+   "zorluk": 3,
+   "question": "Ramazan ayının ardından kutlanan bayram.",
+   "answer": "Şeker Bayramı",
+   "alternatives": [
+    "Ramazan Bayramı"
+   ]
+  },
+  {
+   "id": "h0754",
+   "letter": "Ş",
+   "zorluk": 3,
+   "question": "Hafız ve Sadi'nin şehri İran'daki kent.",
+   "answer": "Şiraz"
+  },
+  {
+   "id": "h0755",
+   "letter": "Ş",
+   "zorluk": 3,
+   "question": "Fenerbahçe stadına adı verilen, eski başbakan.",
+   "answer": "Şükrü Saracoğlu",
+   "alternatives": [
+    "Saracoğlu"
+   ]
+  },
+  {
+   "id": "h0756",
+   "letter": "Ş",
+   "zorluk": 3,
+   "question": "Bir sanatçının en iyi eseri; başyapıt.",
+   "answer": "Şaheser",
+   "alternatives": [
+    "Başyapıt"
+   ]
+  },
+  {
+   "id": "h0757",
+   "letter": "Ş",
+   "zorluk": 3,
+   "question": "\"Romeo ve Juliet\"in yazarı İngiliz oyun yazarı.",
+   "answer": "Şekspir",
+   "alternatives": [
+    "Shakespeare",
+    "William Shakespeare"
+   ]
+  },
+  {
+   "id": "h0758",
+   "letter": "Ş",
+   "zorluk": 3,
+   "question": "Osmanlı'da din işlerinden sorumlu en yüksek makam.",
+   "answer": "Şeyhülislam"
+  },
+  {
+   "id": "h0759",
+   "letter": "T",
+   "zorluk": 1,
+   "question": "Hamsi ve Uzungöl'üyle ünlü il.",
+   "answer": "Trabzon"
+  },
+  {
+   "id": "h0760",
+   "letter": "T",
+   "zorluk": 1,
+   "question": "Uzun kulaklı, havuç sevdiği söylenen hayvan.",
+   "answer": "Tavşan"
+  },
+  {
+   "id": "h0761",
+   "letter": "T",
+   "zorluk": 1,
+   "question": "Raylar üzerinde giden taşıt.",
+   "answer": "Tren"
+  },
+  {
+   "id": "h0762",
+   "letter": "T",
+   "zorluk": 1,
+   "question": "Yemeklere lezzet veren beyaz mineral.",
+   "answer": "Tuz"
+  },
+  {
+   "id": "h0763",
+   "letter": "T",
+   "zorluk": 1,
+   "question": "Görüntülü yayınları izlediğimiz cihaz.",
+   "answer": "Televizyon"
+  },
+  {
+   "id": "h0764",
+   "letter": "T",
+   "zorluk": 1,
+   "question": "Yumurtlayan kümes hayvanı.",
+   "answer": "Tavuk"
+  },
+  {
+   "id": "h0765",
+   "letter": "T",
+   "zorluk": 1,
+   "question": "Uzaktaki biriyle konuşmamızı sağlayan cihaz.",
+   "answer": "Telefon"
+  },
+  {
+   "id": "h0766",
+   "letter": "T",
+   "zorluk": 1,
+   "question": "Yemek pişirilen kapaklı kap.",
+   "answer": "Tencere"
+  },
+  {
+   "id": "h0767",
+   "letter": "T",
+   "zorluk": 1,
+   "question": "Evde giyilen hafif ayakkabı.",
+   "answer": "Terlik"
+  },
+  {
+   "id": "h0768",
+   "letter": "T",
+   "zorluk": 1,
+   "question": "Kelebek olmadan önceki evre.",
+   "answer": "Tırtıl"
+  },
+  {
+   "id": "h0769",
+   "letter": "T",
+   "zorluk": 2,
+   "question": "Bez baskısı ve kebabıyla ünlü il; aynı zamanda bir vuruş.",
+   "answer": "Tokat"
+  },
+  {
+   "id": "h0770",
+   "letter": "T",
+   "zorluk": 2,
+   "question": "Köftesi ve rakısıyla bilinen Trakya ili.",
+   "answer": "Tekirdağ"
+  },
+  {
+   "id": "h0771",
+   "letter": "T",
+   "zorluk": 2,
+   "question": "Munzur Vadisi'nin bulunduğu il.",
+   "answer": "Tunceli"
+  },
+  {
+   "id": "h0772",
+   "letter": "T",
+   "zorluk": 2,
+   "question": "Japonya'nın başkenti.",
+   "answer": "Tokyo"
+  },
+  {
+   "id": "h0773",
+   "letter": "T",
+   "zorluk": 2,
+   "question": "Başkenti aynı adı taşıyan Kuzey Afrika ülkesi.",
+   "answer": "Tunus"
+  },
+  {
+   "id": "h0774",
+   "letter": "T",
+   "zorluk": 2,
+   "question": "Başkenti Bangkok olan ülke.",
+   "answer": "Tayland"
+  },
+  {
+   "id": "h0775",
+   "letter": "T",
+   "zorluk": 2,
+   "question": "Hindistan'da Şah Cihan'ın eşi için yaptırdığı anıt mezar.",
+   "answer": "Taç Mahal"
+  },
+  {
+   "id": "h0776",
+   "letter": "T",
+   "zorluk": 2,
+   "question": "Sıcaklık ölçen alet.",
+   "answer": "Termometre"
+  },
+  {
+   "id": "h0777",
+   "letter": "T",
+   "zorluk": 2,
+   "question": "Uzaydaki cisimleri gözlemeye yarayan alet.",
+   "answer": "Teleskop"
+  },
+  {
+   "id": "h0778",
+   "letter": "T",
+   "zorluk": 2,
+   "question": "Osmanlı padişahlarının yüzyıllarca yaşadığı İstanbul sarayı.",
+   "answer": "Topkapı"
+  },
+  {
+   "id": "h0779",
+   "letter": "T",
+   "zorluk": 2,
+   "question": "Türkiye'nin ikinci büyük gölü, Aksaray-Konya-Ankara arasında.",
+   "answer": "Tuz Gölü"
+  },
+  {
+   "id": "h0780",
+   "letter": "T",
+   "zorluk": 2,
+   "question": "Nil'de de yaşayan, güçlü çeneli sürüngen.",
+   "answer": "Timsah"
+  },
+  {
+   "id": "h0781",
+   "letter": "T",
+   "zorluk": 2,
+   "question": "\"Şımarık\" şarkısıyla Avrupa'da da ünlenen pop yıldızı.",
+   "answer": "Tarkan"
+  },
+  {
+   "id": "h0782",
+   "letter": "T",
+   "zorluk": 2,
+   "question": "Zarla oynanan, pulların toplandığı masa oyunu.",
+   "answer": "Tavla"
+  },
+  {
+   "id": "h0783",
+   "letter": "T",
+   "zorluk": 3,
+   "question": "23 Nisan 1920'de açılan meclisin kısaltması.",
+   "answer": "TBMM",
+   "alternatives": [
+    "Türkiye Büyük Millet Meclisi"
+   ]
+  },
+  {
+   "id": "h0784",
+   "letter": "T",
+   "zorluk": 3,
+   "question": "Büyük Selçuklu Devleti'nin kurucusu.",
+   "answer": "Tuğrul Bey",
+   "alternatives": [
+    "Tuğrul"
+   ]
+  },
+  {
+   "id": "h0785",
+   "letter": "T",
+   "zorluk": 3,
+   "question": "Pers hükümdarı Kiros'u yenen Saka kraliçesi.",
+   "answer": "Tomris",
+   "alternatives": [
+    "Tomris Hatun"
+   ]
+  },
+  {
+   "id": "h0786",
+   "letter": "T",
+   "zorluk": 3,
+   "question": "1839'da ilan edilen Osmanlı yenilik fermanı.",
+   "answer": "Tanzimat"
+  },
+  {
+   "id": "h0787",
+   "letter": "T",
+   "zorluk": 3,
+   "question": "\"Sis\" ve \"Han-ı Yağma\" şiirlerinin şairi.",
+   "answer": "Tevfik Fikret",
+   "alternatives": [
+    "Fikret"
+   ]
+  },
+  {
+   "id": "h0788",
+   "letter": "T",
+   "zorluk": 3,
+   "question": "\"Savaş ve Barış\"ın yazarı.",
+   "answer": "Tolstoy",
+   "alternatives": [
+    "Lev Tolstoy"
+   ]
+  },
+  {
+   "id": "h0789",
+   "letter": "T",
+   "zorluk": 3,
+   "question": "Tahta atıyla ünlü, Çanakkale'deki antik kent.",
+   "answer": "Truva",
+   "alternatives": [
+    "Troya",
+    "Troia"
+   ]
+  },
+  {
+   "id": "h0790",
+   "letter": "T",
+   "zorluk": 3,
+   "question": "Sahnede oyuncuların canlandırdığı sanat.",
+   "answer": "Tiyatro"
+  },
+  {
+   "id": "h0791",
+   "letter": "T",
+   "zorluk": 3,
+   "question": "Miğfer anlamına gelen eski Türkçe sözcük.",
+   "answer": "Tolga"
+  },
+  {
+   "id": "h0792",
+   "letter": "T",
+   "zorluk": 3,
+   "question": "Türklerin yaşadığı ülkeleri simgeleyen efsanevi yurt adı.",
+   "answer": "Turan"
+  },
+  {
+   "id": "h0793",
+   "letter": "T",
+   "zorluk": 3,
+   "question": "Avrupa'nın Volga'dan sonra en uzun nehri; Viyana ve Budapeşte'den geçer.",
+   "answer": "Tuna"
+  },
+  {
+   "id": "h0794",
+   "letter": "T",
+   "zorluk": 3,
+   "question": "Gürcistan'ın başkenti.",
+   "answer": "Tiflis"
+  },
+  {
+   "id": "h0795",
+   "letter": "U",
+   "zorluk": 1,
+   "question": "Gökyüzünde uçan yolcu taşıtı.",
+   "answer": "Uçak"
+  },
+  {
+   "id": "h0796",
+   "letter": "U",
+   "zorluk": 1,
+   "question": "Buğdayın öğütülmesiyle elde edilen toz.",
+   "answer": "Un"
+  },
+  {
+   "id": "h0797",
+   "letter": "U",
+   "zorluk": 1,
+   "question": "Gece dinlenmek için kapattığımız gözlerle geçen süre.",
+   "answer": "Uyku"
+  },
+  {
+   "id": "h0798",
+   "letter": "U",
+   "zorluk": 1,
+   "question": "Dünya atmosferinin dışındaki sonsuz boşluk.",
+   "answer": "Uzay"
+  },
+  {
+   "id": "h0799",
+   "letter": "U",
+   "zorluk": 1,
+   "question": "Mahcup olma duygusu.",
+   "answer": "Utanç"
+  },
+  {
+   "id": "h0800",
+   "letter": "U",
+   "zorluk": 1,
+   "question": "İşinde çok deneyimli kişi.",
+   "answer": "Usta"
+  },
+  {
+   "id": "h0801",
+   "letter": "U",
+   "zorluk": 1,
+   "question": "Rüzgârda iple uçurulan oyuncak.",
+   "answer": "Uçurtma"
+  },
+  {
+   "id": "h0802",
+   "letter": "U",
+   "zorluk": 1,
+   "question": "Karadeniz'in yağlı balıklarından.",
+   "answer": "Uskumru"
+  },
+  {
+   "id": "h0803",
+   "letter": "U",
+   "zorluk": 1,
+   "question": "Sırtı benekli, şans getirdiğine inanılan böcek.",
+   "answer": "Uğur böceği"
+  },
+  {
+   "id": "h0804",
+   "letter": "U",
+   "zorluk": 1,
+   "question": "Bir şeyin olacağına dair beklenti.",
+   "answer": "Umut",
+   "alternatives": [
+    "Ümit"
+   ]
+  },
+  {
+   "id": "h0805",
+   "letter": "U",
+   "zorluk": 2,
+   "question": "Halısı ve Karun Hazinesi'yle bilinen Ege ili.",
+   "answer": "Uşak"
+  },
+  {
+   "id": "h0806",
+   "letter": "U",
+   "zorluk": 2,
+   "question": "Bursa'da kayak merkeziyle ünlü dağ.",
+   "answer": "Uludağ"
+  },
+  {
+   "id": "h0807",
+   "letter": "U",
+   "zorluk": 2,
+   "question": "Yan yatık dönen buz devi gezegen.",
+   "answer": "Uranüs"
+  },
+  {
+   "id": "h0808",
+   "letter": "U",
+   "zorluk": 2,
+   "question": "Başkenti Kiev olan, Karadeniz'e kıyısı bulunan ülke.",
+   "answer": "Ukrayna"
+  },
+  {
+   "id": "h0809",
+   "letter": "U",
+   "zorluk": 2,
+   "question": "İlk Dünya Kupası'nı 1930'da düzenleyen ve kazanan ülke.",
+   "answer": "Uruguay"
+  },
+  {
+   "id": "h0810",
+   "letter": "U",
+   "zorluk": 2,
+   "question": "Doğu Türkistan'ın Türk halkı.",
+   "answer": "Uygur",
+   "alternatives": [
+    "Uygurlar"
+   ]
+  },
+  {
+   "id": "h0811",
+   "letter": "U",
+   "zorluk": 2,
+   "question": "Trabzon Çaykara'daki ünlü göl.",
+   "answer": "Uzungöl"
+  },
+  {
+   "id": "h0812",
+   "letter": "U",
+   "zorluk": 2,
+   "question": "Tıraşta kullanılan keskin bıçak.",
+   "answer": "Ustura"
+  },
+  {
+   "id": "h0813",
+   "letter": "U",
+   "zorluk": 2,
+   "question": "Gök ile yerin birleşir gibi göründüğü çizgi.",
+   "answer": "Ufuk"
+  },
+  {
+   "id": "h0814",
+   "letter": "U",
+   "zorluk": 2,
+   "question": "Ortak tarihi ve kültürü olan topluluk; millet.",
+   "answer": "Ulus",
+   "alternatives": [
+    "Millet"
+   ]
+  },
+  {
+   "id": "h0815",
+   "letter": "U",
+   "zorluk": 2,
+   "question": "Birleşmiş Milletler'in eğitim, bilim ve kültür örgütü.",
+   "answer": "UNESCO"
+  },
+  {
+   "id": "h0816",
+   "letter": "U",
+   "zorluk": 3,
+   "question": "İstanbul surlarına ilk sancağı diktiği anlatılan yiğit.",
+   "answer": "Ulubatlı Hasan",
+   "alternatives": [
+    "Ulubatlı"
+   ]
+  },
+  {
+   "id": "h0817",
+   "letter": "U",
+   "zorluk": 3,
+   "question": "Dünya'nın yörüngesinde astronotların yaşadığı uluslararası üs.",
+   "answer": "Uzay İstasyonu",
+   "alternatives": [
+    "Uluslararası Uzay İstasyonu"
+   ]
+  },
+  {
+   "id": "h0818",
+   "letter": "U",
+   "zorluk": 3,
+   "question": "Merkür gezegeninin eski adı.",
+   "answer": "Utarid"
+  },
+  {
+   "id": "h0819",
+   "letter": "U",
+   "zorluk": 3,
+   "question": "Başkenti Maskat olan Arap Yarımadası ülkesi.",
+   "answer": "Umman"
+  },
+  {
+   "id": "h0820",
+   "letter": "U",
+   "zorluk": 3,
+   "question": "Hz. Muhammed döneminde Medine yakınlarında yapılan savaş.",
+   "answer": "Uhud"
+  },
+  {
+   "id": "h0821",
+   "letter": "U",
+   "zorluk": 3,
+   "question": "Van Kalesi'ni yapan antik Anadolu uygarlığı.",
+   "answer": "Urartu",
+   "alternatives": [
+    "Urartular"
+   ]
+  },
+  {
+   "id": "h0822",
+   "letter": "U",
+   "zorluk": 3,
+   "question": "Tarafların ortak noktada buluşması.",
+   "answer": "Uzlaşma",
+   "alternatives": [
+    "Mutabakat"
+   ]
+  },
+  {
+   "id": "h0823",
+   "letter": "U",
+   "zorluk": 3,
+   "question": "İnebahtı'dan sonra donanmayı yeniden kuran kaptanıderya.",
+   "answer": "Uluç Ali Paşa",
+   "alternatives": [
+    "Kılıç Ali Paşa"
+   ]
+  },
+  {
+   "id": "h0824",
+   "letter": "U",
+   "zorluk": 3,
+   "question": "Osmanlı'da din bilginleri sınıfı.",
+   "answer": "Ulema"
+  },
+  {
+   "id": "h0825",
+   "letter": "U",
+   "zorluk": 3,
+   "question": "Avrupa ile Asya arasında sınır sayılan dağ sırası.",
+   "answer": "Ural"
+  },
+  {
+   "id": "h0826",
+   "letter": "Ü",
+   "zorluk": 1,
+   "question": "Salkım salkım asmada yetişen meyve.",
+   "answer": "Üzüm"
+  },
+  {
+   "id": "h0827",
+   "letter": "Ü",
+   "zorluk": 1,
+   "question": "Kırışık kıyafetleri düzelten ısınan alet.",
+   "answer": "Ütü"
+  },
+  {
+   "id": "h0828",
+   "letter": "Ü",
+   "zorluk": 1,
+   "question": "Liseden sonra okunan yükseköğretim kurumu.",
+   "answer": "Üniversite"
+  },
+  {
+   "id": "h0829",
+   "letter": "Ü",
+   "zorluk": 1,
+   "question": "Üç kenarlı geometrik şekil.",
+   "answer": "Üçgen"
+  },
+  {
+   "id": "h0830",
+   "letter": "Ü",
+   "zorluk": 1,
+   "question": "Kendi sınırları ve yönetimi olan toprak parçası.",
+   "answer": "Ülke"
+  },
+  {
+   "id": "h0831",
+   "letter": "Ü",
+   "zorluk": 1,
+   "question": "Soğuktan titreme hâli.",
+   "answer": "Üşümek"
+  },
+  {
+   "id": "h0832",
+   "letter": "Ü",
+   "zorluk": 1,
+   "question": "Şaşkınlık bildiren noktalama işareti.",
+   "answer": "Ünlem"
+  },
+  {
+   "id": "h0833",
+   "letter": "Ü",
+   "zorluk": 1,
+   "question": "Bir iş karşılığında ödenen para.",
+   "answer": "Ücret"
+  },
+  {
+   "id": "h0834",
+   "letter": "Ü",
+   "zorluk": 1,
+   "question": "Mutsuz, kederli kimse.",
+   "answer": "Üzgün"
+  },
+  {
+   "id": "h0835",
+   "letter": "Ü",
+   "zorluk": 1,
+   "question": "Bir şeyin yukarı yüzü; altın karşıtı.",
+   "answer": "Üst"
+  },
+  {
+   "id": "h0836",
+   "letter": "Ü",
+   "zorluk": 2,
+   "question": "Kapadokya'da peribacalarıyla bilinen Nevşehir ilçesi.",
+   "answer": "Ürgüp"
+  },
+  {
+   "id": "h0837",
+   "letter": "Ü",
+   "zorluk": 2,
+   "question": "Kız Kulesi'nin karşısındaki Anadolu yakası ilçesi.",
+   "answer": "Üsküdar"
+  },
+  {
+   "id": "h0838",
+   "letter": "Ü",
+   "zorluk": 2,
+   "question": "Ordu'nun sahil ilçesi; fındık ve kalesiyle bilinir.",
+   "answer": "Ünye"
+  },
+  {
+   "id": "h0839",
+   "letter": "Ü",
+   "zorluk": 2,
+   "question": "Petra antik kentinin bulunduğu, başkenti Amman olan ülke.",
+   "answer": "Ürdün"
+  },
+  {
+   "id": "h0840",
+   "letter": "Ü",
+   "zorluk": 2,
+   "question": "Herkesçe tanınan kişi; aynı zamanda sesli harf.",
+   "answer": "Ünlü"
+  },
+  {
+   "id": "h0841",
+   "letter": "Ü",
+   "zorluk": 2,
+   "question": "Mal ya da hizmet üreten kişi veya kuruluş.",
+   "answer": "Üretici"
+  },
+  {
+   "id": "h0842",
+   "letter": "Ü",
+   "zorluk": 2,
+   "question": "Nefesle çalınan çalgılar için kullanılan sıfat.",
+   "answer": "Üflemeli",
+   "alternatives": [
+    "Nefesli"
+   ]
+  },
+  {
+   "id": "h0843",
+   "letter": "Ü",
+   "zorluk": 2,
+   "question": "İstanbul'un Anadolu yakasındaki kalabalık ilçesi.",
+   "answer": "Ümraniye"
+  },
+  {
+   "id": "h0844",
+   "letter": "Ü",
+   "zorluk": 2,
+   "question": "Ders kitaplarının bölümlerine verilen ad.",
+   "answer": "Ünite"
+  },
+  {
+   "id": "h0845",
+   "letter": "Ü",
+   "zorluk": 2,
+   "question": "Üretilen şey; tarlada yetişen mahsul.",
+   "answer": "Ürün"
+  },
+  {
+   "id": "h0846",
+   "letter": "Ü",
+   "zorluk": 3,
+   "question": "\"Doğu'nun yıldızı\" olarak anılan Mısırlı şarkıcı.",
+   "answer": "Ümmü Gülsüm",
+   "alternatives": [
+    "Ümmü Külsüm"
+   ]
+  },
+  {
+   "id": "h0847",
+   "letter": "Ü",
+   "zorluk": 3,
+   "question": "Ulaşılmak istenen yüce amaç; ideal.",
+   "answer": "Ülkü",
+   "alternatives": [
+    "İdeal"
+   ]
+  },
+  {
+   "id": "h0848",
+   "letter": "Ü",
+   "zorluk": 3,
+   "question": "Bir alanda ustalığı kabul edilen kişi.",
+   "answer": "Üstad",
+   "alternatives": [
+    "Üstat"
+   ]
+  },
+  {
+   "id": "h0849",
+   "letter": "Ü",
+   "zorluk": 3,
+   "question": "Afrika'nın güney ucundaki, Vasco da Gama'nın dolaştığı burun.",
+   "answer": "Ümit Burnu"
+  },
+  {
+   "id": "h0850",
+   "letter": "Ü",
+   "zorluk": 3,
+   "question": "Yaban güvercini türü bir kuş.",
+   "answer": "Üveyik"
+  },
+  {
+   "id": "h0851",
+   "letter": "Ü",
+   "zorluk": 3,
+   "question": "Kuzey Makedonya'nın başkenti.",
+   "answer": "Üsküp"
+  },
+  {
+   "id": "h0852",
+   "letter": "Ü",
+   "zorluk": 3,
+   "question": "Karaciğerde oluşan ve idrarla atılan azotlu madde.",
+   "answer": "Üre"
+  },
+  {
+   "id": "h0853",
+   "letter": "V",
+   "zorluk": 1,
+   "question": "İçine çiçek konan süs kabı.",
+   "answer": "Vazo"
+  },
+  {
+   "id": "h0854",
+   "letter": "V",
+   "zorluk": 1,
+   "question": "İstanbul'da iki yaka arasında yolcu taşıyan buharlı gemi.",
+   "answer": "Vapur"
+  },
+  {
+   "id": "h0855",
+   "letter": "V",
+   "zorluk": 1,
+   "question": "Hayvanları tedavi eden doktor.",
+   "answer": "Veteriner"
+  },
+  {
+   "id": "h0856",
+   "letter": "V",
+   "zorluk": 1,
+   "question": "Kirazdan ekşi, koyu kırmızı meyve.",
+   "answer": "Vişne"
+  },
+  {
+   "id": "h0857",
+   "letter": "V",
+   "zorluk": 1,
+   "question": "Yolculukta eşya taşınan çanta.",
+   "answer": "Valiz",
+   "alternatives": [
+    "Bavul"
+   ]
+  },
+  {
+   "id": "h0858",
+   "letter": "V",
+   "zorluk": 1,
+   "question": "İnsanın doğup büyüdüğü ülke; yurt.",
+   "answer": "Vatan",
+   "alternatives": [
+    "Yurt"
+   ]
+  },
+  {
+   "id": "h0859",
+   "letter": "V",
+   "zorluk": 1,
+   "question": "Trenin yolcu ya da yük taşınan bölümü.",
+   "answer": "Vagon"
+  },
+  {
+   "id": "h0860",
+   "letter": "V",
+   "zorluk": 1,
+   "question": "Dondurma ve pastalara koku veren baharat.",
+   "answer": "Vanilya"
+  },
+  {
+   "id": "h0861",
+   "letter": "V",
+   "zorluk": 1,
+   "question": "File üzerinden topa elle vurularak oynanan takım sporu.",
+   "answer": "Voleybol"
+  },
+  {
+   "id": "h0862",
+   "letter": "V",
+   "zorluk": 2,
+   "question": "Kedisi, gölü ve kahvaltısıyla ünlü il.",
+   "answer": "Van"
+  },
+  {
+   "id": "h0863",
+   "letter": "V",
+   "zorluk": 2,
+   "question": "Avusturya'nın başkenti; Osmanlı'nın iki kez kuşattığı şehir.",
+   "answer": "Viyana"
+  },
+  {
+   "id": "h0864",
+   "letter": "V",
+   "zorluk": 2,
+   "question": "Güneş Sistemi'nin en sıcak gezegeni.",
+   "answer": "Venüs"
+  },
+  {
+   "id": "h0865",
+   "letter": "V",
+   "zorluk": 2,
+   "question": "Gondolları ve kanallarıyla ünlü İtalyan şehri.",
+   "answer": "Venedik"
+  },
+  {
+   "id": "h0866",
+   "letter": "V",
+   "zorluk": 2,
+   "question": "Başkenti Hanoi olan Güneydoğu Asya ülkesi.",
+   "answer": "Vietnam"
+  },
+  {
+   "id": "h0867",
+   "letter": "V",
+   "zorluk": 2,
+   "question": "Yanardağın diğer adı.",
+   "answer": "Volkan",
+   "alternatives": [
+    "Yanardağ"
+   ]
+  },
+  {
+   "id": "h0868",
+   "letter": "V",
+   "zorluk": 2,
+   "question": "Vücudun az miktarda ihtiyaç duyduğu besin öğesi.",
+   "answer": "Vitamin"
+  },
+  {
+   "id": "h0869",
+   "letter": "V",
+   "zorluk": 2,
+   "question": "Dünyanın en küçük ülkesi.",
+   "answer": "Vatikan"
+  },
+  {
+   "id": "h0870",
+   "letter": "V",
+   "zorluk": 2,
+   "question": "Polonya'nın başkenti.",
+   "answer": "Varşova"
+  },
+  {
+   "id": "h0871",
+   "letter": "V",
+   "zorluk": 2,
+   "question": "Satrançta en güçlü taş.",
+   "answer": "Vezir"
+  },
+  {
+   "id": "h0872",
+   "letter": "V",
+   "zorluk": 2,
+   "question": "Yalnızca canlı hücre içinde çoğalabilen mikroorganizma.",
+   "answer": "Virüs"
+  },
+  {
+   "id": "h0873",
+   "letter": "V",
+   "zorluk": 3,
+   "question": "\"Yıldızlı Gece\" tablosunun ressamı.",
+   "answer": "Van Gogh",
+   "alternatives": [
+    "Vincent van Gogh"
+   ]
+  },
+  {
+   "id": "h0874",
+   "letter": "V",
+   "zorluk": 3,
+   "question": "\"Dört Mevsim\"in bestecisi.",
+   "answer": "Vivaldi",
+   "alternatives": [
+    "Antonio Vivaldi"
+   ]
+  },
+  {
+   "id": "h0875",
+   "letter": "V",
+   "zorluk": 3,
+   "question": "1444'te II. Murat'ın Haçlıları yendiği Bulgar şehri.",
+   "answer": "Varna"
+  },
+  {
+   "id": "h0876",
+   "letter": "V",
+   "zorluk": 3,
+   "question": "Ümit Burnu'nu dolaşarak Hindistan'a ulaşan Portekizli denizci.",
+   "answer": "Vasco da Gama"
+  },
+  {
+   "id": "h0877",
+   "letter": "V",
+   "zorluk": 3,
+   "question": "Avrupa'nın en uzun nehri.",
+   "answer": "Volga"
+  },
+  {
+   "id": "h0878",
+   "letter": "V",
+   "zorluk": 3,
+   "question": "Toplum yararına mülk bağışlanarak kurulan kurum.",
+   "answer": "Vakıf"
+  },
+  {
+   "id": "h0879",
+   "letter": "V",
+   "zorluk": 3,
+   "question": "İskandinav kökenli Orta Çağ denizci savaşçıları.",
+   "answer": "Viking",
+   "alternatives": [
+    "Vikingler"
+   ]
+  },
+  {
+   "id": "h0880",
+   "letter": "V",
+   "zorluk": 3,
+   "question": "\"Sefiller\"in yazarı.",
+   "answer": "Victor Hugo",
+   "alternatives": [
+    "Hugo"
+   ]
+  },
+  {
+   "id": "h0881",
+   "letter": "V",
+   "zorluk": 3,
+   "question": "Samsun'un, adını Köprülü Mehmet Paşa'nın yaptırdığı köprüden alan ilçesi.",
+   "answer": "Vezirköprü"
+  },
+  {
+   "id": "h0882",
+   "letter": "V",
+   "zorluk": 3,
+   "question": "Son Osmanlı padişahı.",
+   "answer": "Vahdettin",
+   "alternatives": [
+    "Mehmet Vahdettin",
+    "VI. Mehmet"
+   ]
+  },
+  {
+   "id": "h0883",
+   "letter": "V",
+   "zorluk": 3,
+   "question": "Gerilim birimi.",
+   "answer": "Volt"
+  },
+  {
+   "id": "h0884",
+   "letter": "Y",
+   "zorluk": 1,
+   "question": "Tavuğun yumurtladığı, kahvaltıda haşlanan besin.",
+   "answer": "Yumurta"
+  },
+  {
+   "id": "h0885",
+   "letter": "Y",
+   "zorluk": 1,
+   "question": "Bulutlardan damla damla düşen su.",
+   "answer": "Yağmur"
+  },
+  {
+   "id": "h0886",
+   "letter": "Y",
+   "zorluk": 1,
+   "question": "Geceleri gökyüzünde parlayan ışık kaynağı.",
+   "answer": "Yıldız"
+  },
+  {
+   "id": "h0887",
+   "letter": "Y",
+   "zorluk": 1,
+   "question": "Üzerinde uyuduğumuz mobilya.",
+   "answer": "Yatak"
+  },
+  {
+   "id": "h0888",
+   "letter": "Y",
+   "zorluk": 1,
+   "question": "Sütün mayalanmasıyla yapılan, Türklerin dünyaya tanıttığı besin.",
+   "answer": "Yoğurt"
+  },
+  {
+   "id": "h0889",
+   "letter": "Y",
+   "zorluk": 1,
+   "question": "Ağaçların sonbaharda dökülen yeşil parçası.",
+   "answer": "Yaprak"
+  },
+  {
+   "id": "h0890",
+   "letter": "Y",
+   "zorluk": 1,
+   "question": "Ayakları olmayan, sürünerek hareket eden hayvan.",
+   "answer": "Yılan"
+  },
+  {
+   "id": "h0891",
+   "letter": "Y",
+   "zorluk": 1,
+   "question": "Okulların tatil olduğu sıcak mevsim.",
+   "answer": "Yaz"
+  },
+  {
+   "id": "h0892",
+   "letter": "Y",
+   "zorluk": 1,
+   "question": "Karnımızı doyurmak için yediğimiz şey.",
+   "answer": "Yemek"
+  },
+  {
+   "id": "h0893",
+   "letter": "Y",
+   "zorluk": 1,
+   "question": "Parmağa takılan halka biçimli takı.",
+   "answer": "Yüzük"
+  },
+  {
+   "id": "h0894",
+   "letter": "Y",
+   "zorluk": 2,
+   "question": "Çamlığı ve testi kebabıyla bilinen İç Anadolu ili.",
+   "answer": "Yozgat"
+  },
+  {
+   "id": "h0895",
+   "letter": "Y",
+   "zorluk": 2,
+   "question": "Termal kaplıcalarıyla ünlü, Marmara'nın küçük ili.",
+   "answer": "Yalova"
+  },
+  {
+   "id": "h0896",
+   "letter": "Y",
+   "zorluk": 2,
+   "question": "Başkenti Atina olan batı komşumuz.",
+   "answer": "Yunanistan"
+  },
+  {
+   "id": "h0897",
+   "letter": "Y",
+   "zorluk": 2,
+   "question": "Başkenti Sana olan Arap Yarımadası ülkesi.",
+   "answer": "Yemen"
+  },
+  {
+   "id": "h0898",
+   "letter": "Y",
+   "zorluk": 2,
+   "question": "Akıllı ve oyuncu deniz memelisi.",
+   "answer": "Yunus"
+  },
+  {
+   "id": "h0899",
+   "letter": "Y",
+   "zorluk": 2,
+   "question": "Lav püskürten dağ.",
+   "answer": "Yanardağ",
+   "alternatives": [
+    "Volkan"
+   ]
+  },
+  {
+   "id": "h0900",
+   "letter": "Y",
+   "zorluk": 2,
+   "question": "Cisimleri Dünya'ya doğru çeken kuvvet.",
+   "answer": "Yerçekimi",
+   "alternatives": [
+    "Kütleçekimi"
+   ]
+  },
+  {
+   "id": "h0901",
+   "letter": "Y",
+   "zorluk": 2,
+   "question": "1402'de Ankara Savaşı'nda Timur'a yenilen padişah.",
+   "answer": "Yıldırım Bayezid",
+   "alternatives": [
+    "Yıldırım Beyazıt",
+    "Bayezid",
+    "Beyazıt"
+   ]
+  },
+  {
+   "id": "h0902",
+   "letter": "Y",
+   "zorluk": 2,
+   "question": "\"Sevelim sevilelim\" diyen 13-14. yüzyıl halk şairi.",
+   "answer": "Yunus Emre"
+  },
+  {
+   "id": "h0903",
+   "letter": "Y",
+   "zorluk": 2,
+   "question": "Kırmızı renkli değerli taş.",
+   "answer": "Yakut"
+  },
+  {
+   "id": "h0904",
+   "letter": "Y",
+   "zorluk": 2,
+   "question": "\"İnce Memed\"in yazarı.",
+   "answer": "Yaşar Kemal",
+   "alternatives": [
+    "Kemal"
+   ]
+  },
+  {
+   "id": "h0905",
+   "letter": "Y",
+   "zorluk": 2,
+   "question": "Mısır'ı alarak halifeliği Osmanlı'ya getiren padişah.",
+   "answer": "Yavuz Sultan Selim",
+   "alternatives": [
+    "Yavuz",
+    "I. Selim"
+   ]
+  },
+  {
+   "id": "h0906",
+   "letter": "Y",
+   "zorluk": 3,
+   "question": "\"Divan-ı Hikmet\"in yazarı Türkistanlı mutasavvıf.",
+   "answer": "Yesevi",
+   "alternatives": [
+    "Ahmet Yesevi",
+    "Hoca Ahmet Yesevi"
+   ]
+  },
+  {
+   "id": "h0907",
+   "letter": "Y",
+   "zorluk": 3,
+   "question": "\"Sessiz Gemi\" şiirinin şairi.",
+   "answer": "Yahya Kemal",
+   "alternatives": [
+    "Yahya Kemal Beyatlı"
+   ]
+  },
+  {
+   "id": "h0908",
+   "letter": "Y",
+   "zorluk": 3,
+   "question": "\"Kutadgu Bilig\"in yazarı.",
+   "answer": "Yusuf Has Hacib",
+   "alternatives": [
+    "Yusuf Has Hacip"
+   ]
+  },
+  {
+   "id": "h0909",
+   "letter": "Y",
+   "zorluk": 3,
+   "question": "Osmanlı'nın 1826'da kaldırılan piyade ocağı.",
+   "answer": "Yeniçeri",
+   "alternatives": [
+    "Yeniçeriler"
+   ]
+  },
+  {
+   "id": "h0910",
+   "letter": "Y",
+   "zorluk": 3,
+   "question": "İstanbul'da Medusa başlı sütunları olan antik sarnıç.",
+   "answer": "Yerebatan",
+   "alternatives": [
+    "Yerebatan Sarnıcı"
+   ]
+  },
+  {
+   "id": "h0911",
+   "letter": "Y",
+   "zorluk": 3,
+   "question": "Hattuşa yakınındaki, kabartmalı Hitit açık hava tapınağı.",
+   "answer": "Yazılıkaya"
+  },
+  {
+   "id": "h0912",
+   "letter": "Y",
+   "zorluk": 3,
+   "question": "Amasya ve Tokat'tan geçen Karadeniz nehri.",
+   "answer": "Yeşilırmak"
+  },
+  {
+   "id": "h0913",
+   "letter": "Y",
+   "zorluk": 3,
+   "question": "II. Abdülhamid'in yaşadığı Beşiktaş'taki saray.",
+   "answer": "Yıldız Sarayı",
+   "alternatives": [
+    "Yıldız"
+   ]
+  },
+  {
+   "id": "h0914",
+   "letter": "Y",
+   "zorluk": 3,
+   "question": "Sibirya'da yaşayan, Saha da denen Türk halkı.",
+   "answer": "Yakutlar",
+   "alternatives": [
+    "Yakut",
+    "Saha"
+   ]
+  },
+  {
+   "id": "h0915",
+   "letter": "Y",
+   "zorluk": 3,
+   "question": "İstanbul surlarındaki yedi kuleli hisar.",
+   "answer": "Yedikule"
+  },
+  {
+   "id": "h0916",
+   "letter": "Z",
+   "zorluk": 1,
+   "question": "Boynu en uzun hayvan.",
+   "answer": "Zürafa"
+  },
+  {
+   "id": "h0917",
+   "letter": "Z",
+   "zorluk": 1,
+   "question": "Siyah beyaz çizgili Afrika atı.",
+   "answer": "Zebra"
+  },
+  {
+   "id": "h0918",
+   "letter": "Z",
+   "zorluk": 1,
+   "question": "Yağı da çıkarılan, kahvaltının siyah ve yeşil tanesi.",
+   "answer": "Zeytin"
+  },
+  {
+   "id": "h0919",
+   "letter": "Z",
+   "zorluk": 1,
+   "question": "Okulda teneffüsü haber veren çalan alet.",
+   "answer": "Zil"
+  },
+  {
+   "id": "h0920",
+   "letter": "Z",
+   "zorluk": 1,
+   "question": "Tavlada atılan altı yüzlü küp.",
+   "answer": "Zar"
+  },
+  {
+   "id": "h0921",
+   "letter": "Z",
+   "zorluk": 1,
+   "question": "Mektubun konduğu kâğıt kılıf.",
+   "answer": "Zarf"
+  },
+  {
+   "id": "h0922",
+   "letter": "Z",
+   "zorluk": 1,
+   "question": "Çayı ve kurabiyesi yapılan acımsı kök baharat.",
+   "answer": "Zencefil"
+  },
+  {
+   "id": "h0923",
+   "letter": "Z",
+   "zorluk": 1,
+   "question": "Saniye, dakika ve saatle ölçülen kavram.",
+   "answer": "Zaman"
+  },
+  {
+   "id": "h0924",
+   "letter": "Z",
+   "zorluk": 1,
+   "question": "Beyaz ve kokulu iri çiçek.",
+   "answer": "Zambak"
+  },
+  {
+   "id": "h0925",
+   "letter": "Z",
+   "zorluk": 1,
+   "question": "Canlılara zarar veren, öldürücü madde.",
+   "answer": "Zehir",
+   "alternatives": [
+    "Ağı"
+   ]
+  },
+  {
+   "id": "h0926",
+   "letter": "Z",
+   "zorluk": 2,
+   "question": "Taş kömürüyle ünlü Karadeniz ili.",
+   "answer": "Zonguldak"
+  },
+  {
+   "id": "h0927",
+   "letter": "Z",
+   "zorluk": 2,
+   "question": "Hırvatistan'ın başkenti.",
+   "answer": "Zagreb"
+  },
+  {
+   "id": "h0928",
+   "letter": "Z",
+   "zorluk": 2,
+   "question": "Yeşil renkli değerli taş.",
+   "answer": "Zümrüt"
+  },
+  {
+   "id": "h0929",
+   "letter": "Z",
+   "zorluk": 2,
+   "question": "Yunan mitolojisinde tanrıların babası.",
+   "answer": "Zeus"
+  },
+  {
+   "id": "h0930",
+   "letter": "Z",
+   "zorluk": 2,
+   "question": "Yumurta ile spermin birleşmesiyle oluşan ilk hücre.",
+   "answer": "Zigot"
+  },
+  {
+   "id": "h0931",
+   "letter": "Z",
+   "zorluk": 2,
+   "question": "30 Ağustos'ta kutlanan bayram.",
+   "answer": "Zafer Bayramı",
+   "alternatives": [
+    "Zafer"
+   ]
+  },
+  {
+   "id": "h0932",
+   "letter": "Z",
+   "zorluk": 2,
+   "question": "Ege'nin \"sıvı altını\" olarak anılan yağ.",
+   "answer": "Zeytinyağı"
+  },
+  {
+   "id": "h0933",
+   "letter": "Z",
+   "zorluk": 2,
+   "question": "Victoria Şelalesi'ni Zambiya ile paylaşan Afrika ülkesi.",
+   "answer": "Zimbabve"
+  },
+  {
+   "id": "h0934",
+   "letter": "Z",
+   "zorluk": 2,
+   "question": "Savaşçıların giydiği koruyucu metal giysi.",
+   "answer": "Zırh"
+  },
+  {
+   "id": "h0935",
+   "letter": "Z",
+   "zorluk": 3,
+   "question": "\"Türkçülüğün Esasları\"nın yazarı.",
+   "answer": "Ziya Gökalp",
+   "alternatives": [
+    "Gökalp"
+   ]
+  },
+  {
+   "id": "h0936",
+   "letter": "Z",
+   "zorluk": 3,
+   "question": "\"Sanat Güneşi\" olarak anılan şarkıcı.",
+   "answer": "Zeki Müren",
+   "alternatives": [
+    "Müren"
+   ]
+  },
+  {
+   "id": "h0937",
+   "letter": "Z",
+   "zorluk": 3,
+   "question": "Antik İran'da Mazdeizm dinini kuran peygamber.",
+   "answer": "Zerdüşt",
+   "alternatives": [
+    "Zoroaster"
+   ]
+  },
+  {
+   "id": "h0938",
+   "letter": "Z",
+   "zorluk": 3,
+   "question": "Gaziantep'te ünlü \"Çingene Kızı\" mozaiğinin bulunduğu antik kent.",
+   "answer": "Zeugma"
+  },
+  {
+   "id": "h0939",
+   "letter": "Z",
+   "zorluk": 3,
+   "question": "Belli süre geçince bir hakkın düşmesi.",
+   "answer": "Zamanaşımı"
+  },
+  {
+   "id": "h0940",
+   "letter": "Z",
+   "zorluk": 3,
+   "question": "Trabzon ile Gümüşhane arasındaki dağ geçidi.",
+   "answer": "Zigana"
+  },
+  {
+   "id": "h0941",
+   "letter": "Z",
+   "zorluk": 3,
+   "question": "Aynı özellikteki kişilerin oluşturduğu topluluk.",
+   "answer": "Zümre"
+  },
+  {
+   "id": "h0942",
+   "letter": "Z",
+   "zorluk": 3,
+   "question": "Atatürk'ün annesi.",
+   "answer": "Zübeyde Hanım",
+   "alternatives": [
+    "Zübeyde"
+   ]
+  },
+  {
+   "id": "h0943",
+   "letter": "Z",
+   "zorluk": 3,
+   "question": "Sezar'ın \"Geldim, gördüm, yendim\" dediği Tokat ilçesi.",
+   "answer": "Zile"
+  },
+  {
+   "id": "h0944",
+   "letter": "Z",
+   "zorluk": 3,
+   "question": "Hareketin imkânsızlığına dair paradokslarıyla bilinen Elealı filozof.",
+   "answer": "Zenon"
+  },
+  {
+   "id": "h0945",
+   "letter": "I",
+   "zorluk": 2,
+   "question": "Bir mekânı ya da sahneyi ışıkla aydınlatma işi.",
+   "answer": "Işıklandırma",
+   "alternatives": [
+    "Aydınlatma"
+   ]
+  },
+  {
+   "id": "h0946",
+   "letter": "I",
+   "zorluk": 2,
+   "question": "Odayı ısıtmak için kullanılan elektrikli alet.",
+   "answer": "Isıtıcı",
+   "alternatives": [
+    "Soba"
+   ]
+  },
+  {
+   "id": "h0947",
+   "letter": "I",
+   "zorluk": 2,
+   "question": "İnsanları ırklarına göre ayırıp aşağılayan düşünce.",
+   "answer": "Irkçılık"
+  },
+  {
+   "id": "h0948",
+   "letter": "I",
+   "zorluk": 2,
+   "question": "Spordan önce kasları hazırlamak için yapılan hafif hareketler.",
+   "answer": "Isınma"
+  },
+  {
+   "id": "h0949",
+   "letter": "I",
+   "zorluk": 2,
+   "question": "Bir şeyi suyla nemlendirmek.",
+   "answer": "Islatmak"
+  },
+  {
+   "id": "h0950",
+   "letter": "I",
+   "zorluk": 3,
+   "question": "Sardunyaya benzeyen, yaprakları güzel kokan süs bitkisi.",
+   "answer": "Itır"
+  },
+  {
+   "id": "h0951",
+   "letter": "I",
+   "zorluk": 3,
+   "question": "Isparta'da yağı ve suyu üretilen, Türkiye'yi dünyada öne çıkaran gül türü.",
+   "answer": "Isparta gülü",
+   "alternatives": [
+    "Yağ gülü"
+   ]
+  },
+  {
+   "id": "h0952",
+   "letter": "I",
+   "zorluk": 3,
+   "question": "Işığın bir yılda aldığı yol; astronomide uzaklık birimi.",
+   "answer": "Işık yılı"
+  },
+  {
+   "id": "h0953",
+   "letter": "Ö",
+   "zorluk": 2,
+   "question": "\"Rubailer\"iyle tanınan İranlı şair ve matematikçi.",
+   "answer": "Ömer Hayyam",
+   "alternatives": [
+    "Hayyam"
+   ]
+  },
+  {
+   "id": "h0954",
+   "letter": "Ö",
+   "zorluk": 2,
+   "question": "Şişle ya da tığla yünden yapılan iş.",
+   "answer": "Örgü"
+  },
+  {
+   "id": "h0955",
+   "letter": "Ö",
+   "zorluk": 2,
+   "question": "Bir iş için ayrılan para.",
+   "answer": "Ödenek"
+  },
+  {
+   "id": "h0956",
+   "letter": "Ö",
+   "zorluk": 3,
+   "question": "Bir şeyi değerlendirmede kullanılan ölçü; kriter.",
+   "answer": "Ölçüt",
+   "alternatives": [
+    "Kriter"
+   ]
+  },
+  {
+   "id": "h0957",
+   "letter": "Ö",
+   "zorluk": 2,
+   "question": "Okulda ya da mutfakta giysinin üstüne giyilen koruyucu giysi.",
+   "answer": "Önlük"
+  },
+  {
+   "id": "h0958",
+   "letter": "Ö",
+   "zorluk": 1,
+   "question": "Sevgiyle yanağa kondurulan dudak dokunuşu.",
+   "answer": "Öpücük"
+  },
+  {
+   "id": "h0959",
+   "letter": "Ö",
+   "zorluk": 3,
+   "question": "Orta Asya'da yaşayan, başkenti Taşkent olan ülkenin Türk halkı.",
+   "answer": "Özbek",
+   "alternatives": [
+    "Özbekler"
+   ]
+  },
+  {
+   "id": "h0960",
+   "letter": "Ü",
+   "zorluk": 2,
+   "question": "Okul, ordu ya da kurumlarda herkesin giydiği aynı tip giysi.",
+   "answer": "Üniforma"
+  },
+  {
+   "id": "h0961",
+   "letter": "Ü",
+   "zorluk": 2,
+   "question": "Aynı anda doğan üç kardeş.",
+   "answer": "Üçüz"
+  },
+  {
+   "id": "h0962",
+   "letter": "Ü",
+   "zorluk": 2,
+   "question": "Mum söndürmek için yapılan nefes verme hareketi.",
+   "answer": "Üflemek"
+  },
+  {
+   "id": "h0963",
+   "letter": "Ü",
+   "zorluk": 3,
+   "question": "Türkçede sözcüklerdeki sesli harflerin kalınlık-incelik bakımından uyumu.",
+   "answer": "Ünlü uyumu",
+   "alternatives": [
+    "Büyük ünlü uyumu"
+   ]
+  },
+  {
+   "id": "h0964",
+   "letter": "Ü",
+   "zorluk": 3,
+   "question": "Birinci Dünya Savaşı'nda İngiltere, Fransa ve Rusya'nın oluşturduğu blok.",
+   "answer": "Üçlü İtilaf",
+   "alternatives": [
+    "İtilaf"
+   ]
+  },
+  {
+   "id": "h0965",
+   "letter": "Ü",
+   "zorluk": 2,
+   "question": "At binerken ayağın konduğu, eyerden sarkan halka.",
+   "answer": "Üzengi"
+  },
+  {
+   "id": "h0966",
+   "letter": "Ü",
+   "zorluk": 3,
+   "question": "Thomas More'un kusursuz toplum düzenini anlatan eseri; hayalî ideal yer.",
+   "answer": "Ütopya"
+  },
+  {
+   "id": "h0967",
+   "letter": "V",
+   "zorluk": 2,
+   "question": "Bir ili devlet adına yöneten en yüksek yönetici.",
+   "answer": "Vali"
+  },
+  {
+   "id": "h0968",
+   "letter": "V",
+   "zorluk": 2,
+   "question": "Başka bir ülkeye giriş izni; aynı zamanda ara sınav.",
+   "answer": "Vize"
+  },
+  {
+   "id": "h0969",
+   "letter": "V",
+   "zorluk": 3,
+   "question": "Namık Kemal'in ünlü tiyatro oyunu.",
+   "answer": "Vatan Yahut Silistre",
+   "alternatives": [
+    "Vatan"
+   ]
+  },
+  {
+   "id": "h0970",
+   "letter": "V",
+   "zorluk": 2,
+   "question": "Devletin kamu giderleri için vatandaştan aldığı para.",
+   "answer": "Vergi"
+  },
+  {
+   "id": "h0971",
+   "letter": "V",
+   "zorluk": 2,
+   "question": "Bir hecenin ya da sözcüğün diğerlerinden daha baskılı söylenmesi.",
+   "answer": "Vurgu"
+  },
+  {
+   "id": "h0972",
+   "letter": "V",
+   "zorluk": 3,
+   "question": "Dünyanın en yüksek şelalesi Angel'in bulunduğu Güney Amerika ülkesi.",
+   "answer": "Venezuela"
+  },
+  {
+   "id": "h0973",
+   "letter": "Z",
+   "zorluk": 2,
+   "question": "Belediye kurallarına uyulmasını denetleyen görevli.",
+   "answer": "Zabıta"
+  },
+  {
+   "id": "h0974",
+   "letter": "Z",
+   "zorluk": 2,
+   "question": "Düşünme ve anlama gücü.",
+   "answer": "Zihin",
+   "alternatives": [
+    "Akıl"
+   ]
+  },
+  {
+   "id": "h0975",
+   "letter": "Z",
+   "zorluk": 1,
+   "question": "Çocukların zıplayarak oynadığı küçük top.",
+   "answer": "Zıpzıp",
+   "alternatives": [
+    "Zıp zıp"
+   ]
+  },
+  {
+   "id": "h0976",
+   "letter": "Z",
+   "zorluk": 2,
+   "question": "Osmanlı'da jandarma görevi yapan kolluk.",
+   "answer": "Zaptiye"
+  },
+  {
+   "id": "h0977",
+   "letter": "Z",
+   "zorluk": 3,
+   "question": "Tanzanya'ya bağlı, baharatlarıyla ünlü ada.",
+   "answer": "Zanzibar"
+  },
+  {
+   "id": "h0978",
+   "letter": "Z",
+   "zorluk": 3,
+   "question": "Depremin eski adı.",
+   "answer": "Zelzele",
+   "alternatives": [
+    "Deprem"
+   ]
+  },
+  {
+   "id": "h0979",
+   "letter": "Z",
+   "zorluk": 2,
+   "question": "Korku filmlerinde ölüp dirilen yaratık.",
+   "answer": "Zombi"
+  },
+  {
+   "id": "h0980",
+   "letter": "Z",
+   "zorluk": 3,
+   "question": "İstanbul'da Panorama 1453 Tarih Müzesi'nin bulunduğu ilçe.",
+   "answer": "Zeytinburnu"
+  },
+  {
+   "id": "h0981",
+   "letter": "U",
+   "zorluk": 2,
+   "question": "Bağımlılık yapan, sağlığa zararlı madde.",
+   "answer": "Uyuşturucu"
+  },
+  {
+   "id": "h0982",
+   "letter": "U",
+   "zorluk": 2,
+   "question": "Bir işi yapma yolu; yöntem.",
+   "answer": "Usul",
+   "alternatives": [
+    "Yöntem"
+   ]
+  },
+  {
+   "id": "h0983",
+   "letter": "U",
+   "zorluk": 2,
+   "question": "Bir gezegenin çevresinde dolanan gök cismi.",
+   "answer": "Uydu"
+  },
+  {
+   "id": "h0984",
+   "letter": "U",
+   "zorluk": 3,
+   "question": "NASA'nın 1981-2011 arasında kullandığı yeniden kullanılabilir uzay aracı.",
+   "answer": "Uzay Mekiği",
+   "alternatives": [
+    "Mekik"
+   ]
+  },
+  {
+   "id": "h0985",
+   "letter": "U",
+   "zorluk": 1,
+   "question": "Kısa olmayan.",
+   "answer": "Uzun"
+  },
+  {
+   "id": "h0986",
+   "letter": "R",
+   "zorluk": 2,
+   "question": "Gezilerde yol gösteren, bilgi veren kişi.",
+   "answer": "Rehber"
+  },
+  {
+   "id": "h0987",
+   "letter": "R",
+   "zorluk": 2,
+   "question": "Azgın sularda botla yapılan doğa sporu; Köprülü Kanyon'da yaygındır.",
+   "answer": "Rafting"
+  },
+  {
+   "id": "h0988",
+   "letter": "R",
+   "zorluk": 2,
+   "question": "Para karşılığı yemek yenen yer.",
+   "answer": "Restoran",
+   "alternatives": [
+    "Lokanta"
+   ]
+  },
+  {
+   "id": "h0989",
+   "letter": "R",
+   "zorluk": 3,
+   "question": "İstanbul Hasköy'de, Türkiye'nin ilk sanayi müzesi.",
+   "answer": "Rahmi Koç Müzesi",
+   "alternatives": [
+    "Rahmi M. Koç Müzesi"
+   ]
+  },
+  {
+   "id": "h0990",
+   "letter": "R",
+   "zorluk": 2,
+   "question": "Kemiklerin görüntüsünü almaya yarayan ışın ve cihaz.",
+   "answer": "Röntgen",
+   "alternatives": [
+    "X ışını"
+   ]
+  },
+  {
+   "id": "h0991",
+   "letter": "Ş",
+   "zorluk": 2,
+   "question": "Vatan uğruna hayatını kaybeden kişi.",
+   "answer": "Şehit"
+  },
+  {
+   "id": "h0992",
+   "letter": "Ş",
+   "zorluk": 2,
+   "question": "Toplu eğlence; festival.",
+   "answer": "Şenlik",
+   "alternatives": [
+    "Festival"
+   ]
+  },
+  {
+   "id": "h0993",
+   "letter": "Ş",
+   "zorluk": 3,
+   "question": "Bezi ve feneriyle ünlü İstanbul ilçesi.",
+   "answer": "Şile"
+  },
+  {
+   "id": "h0994",
+   "letter": "Ş",
+   "zorluk": 3,
+   "question": "Âşık Garip hikâyesindeki sevgili.",
+   "answer": "Şahsenem"
+  },
+  {
+   "id": "h0995",
+   "letter": "Ş",
+   "zorluk": 2,
+   "question": "Elektrik ya da su dağıtım ağı.",
+   "answer": "Şebeke"
+  },
+  {
+   "id": "h0996",
+   "letter": "Y",
+   "zorluk": 2,
+   "question": "İnsan gibi öğrenip karar verebilen bilgisayar sistemleri.",
+   "answer": "Yapay zeka",
+   "alternatives": [
+    "Yapay zekâ"
+   ]
+  },
+  {
+   "id": "h0997",
+   "letter": "Y",
+   "zorluk": 2,
+   "question": "Doğanın ve çimenin rengi.",
+   "answer": "Yeşil"
+  },
+  {
+   "id": "h0998",
+   "letter": "Y",
+   "zorluk": 3,
+   "question": "Türk sinemasının 1950-80 dönemine verilen ad.",
+   "answer": "Yeşilçam"
+  },
+  {
+   "id": "h0999",
+   "letter": "Y",
+   "zorluk": 2,
+   "question": "2005'te kurulan, dünyanın en büyük video paylaşım platformu.",
+   "answer": "YouTube",
+   "alternatives": [
+    "Youtube"
+   ]
+  },
+  {
+   "id": "h1000",
+   "letter": "Y",
+   "zorluk": 3,
+   "question": "\"Delikanlım\" şarkısıyla bilinen şarkıcı.",
+   "answer": "Yıldız Tilbe",
+   "alternatives": [
+    "Tilbe"
+   ]
+  },
+  {
+   "id": "h1001",
+   "letter": "O",
+   "zorluk": 2,
+   "question": "Kurallara uymayıp oyunu bozan kimse.",
+   "answer": "Oyunbozan"
+  },
+  {
+   "id": "h1002",
+   "letter": "O",
+   "zorluk": 2,
+   "question": "İğne ya da tığla yapılan ince dantel süsleme.",
+   "answer": "Oya"
+  },
+  {
+   "id": "h1003",
+   "letter": "O",
+   "zorluk": 3,
+   "question": "Erzurum'da çıkarılan, tespih yapımında kullanılan siyah taş.",
+   "answer": "Oltu taşı",
+   "alternatives": [
+    "Oltu"
+   ]
+  },
+  {
+   "id": "h1004",
+   "letter": "O",
+   "zorluk": 3,
+   "question": "Bursa'yı fethedip Osmanlı'nın başkenti yapan padişah.",
+   "answer": "Orhan Gazi",
+   "alternatives": [
+    "Orhan Bey",
+    "Orhan"
+   ]
+  },
+  {
+   "id": "h1005",
+   "letter": "C",
+   "zorluk": 2,
+   "question": "Korkuya rağmen harekete geçebilme gücü.",
+   "answer": "Cesaret",
+   "alternatives": [
+    "Yüreklilik"
+   ]
+  },
+  {
+   "id": "h1006",
+   "letter": "C",
+   "zorluk": 2,
+   "question": "Şanlıurfa'da, Türkiye'nin en büyük tarım işletmesinin bulunduğu ilçe.",
+   "answer": "Ceylanpınar"
+  },
+  {
+   "id": "h1007",
+   "letter": "C",
+   "zorluk": 3,
+   "question": "1924'te Yunus Nadi tarafından kurulan gazete.",
+   "answer": "Cumhuriyet Gazetesi",
+   "alternatives": [
+    "Cumhuriyet"
+   ]
+  },
+  {
+   "id": "h1008",
+   "letter": "C",
+   "zorluk": 2,
+   "question": "Kuş sesleriyle dolu, neşeli ve canlı.",
+   "answer": "Cıvıl cıvıl"
+  },
+  {
+   "id": "h1009",
+   "letter": "A",
+   "zorluk": 2,
+   "question": "1920'de Milli Mücadele sırasında kurulan haber ajansı.",
+   "answer": "Anadolu Ajansı",
+   "alternatives": [
+    "AA"
+   ]
+  },
+  {
+   "id": "h1010",
+   "letter": "A",
+   "zorluk": 3,
+   "question": "NASA'nın insanları yeniden Ay'a göndermeyi amaçlayan programının adı.",
+   "answer": "Artemis"
+  },
+  {
+   "id": "h1011",
+   "letter": "B",
+   "zorluk": 2,
+   "question": "Canlıları kullanarak ürün geliştiren teknoloji alanı.",
+   "answer": "Biyoteknoloji"
+  },
+  {
+   "id": "h1012",
+   "letter": "B",
+   "zorluk": 3,
+   "question": "Türkiye'nin ürettiği ve pek çok ülkeye ihraç ettiği silahlı insansız hava aracı.",
+   "answer": "Bayraktar TB2",
+   "alternatives": [
+    "Bayraktar",
+    "TB2"
+   ]
+  },
+  {
+   "id": "h1013",
+   "letter": "E",
+   "zorluk": 2,
+   "question": "Benzin yerine bataryayla çalışan otomobil.",
+   "answer": "Elektrikli araç",
+   "alternatives": [
+    "Elektrikli otomobil"
+   ]
+  },
+  {
+   "id": "h1014",
+   "letter": "G",
+   "zorluk": 3,
+   "question": "Güneş ışığını elektriğe dönüştüren düzenek.",
+   "answer": "Güneş paneli",
+   "alternatives": [
+    "Güneş paneli",
+    "Fotovoltaik panel"
+   ]
+  },
+  {
+   "id": "h1015",
+   "letter": "H",
+   "zorluk": 3,
+   "question": "1990'da fırlatılan ünlü uzay teleskobu.",
+   "answer": "Hubble"
+  },
+  {
+   "id": "h1016",
+   "letter": "K",
+   "zorluk": 3,
+   "question": "6 Şubat 2023'te iki büyük depremin merkez üssü olan il.",
+   "answer": "Kahramanmaraş",
+   "alternatives": [
+    "Maraş"
+   ]
+  },
+  {
+   "id": "h1017",
+   "letter": "K",
+   "zorluk": 2,
+   "question": "Bir kişinin ya da ürünün neden olduğu sera gazı miktarı.",
+   "answer": "Karbon ayak izi"
+  },
+  {
+   "id": "h1018",
+   "letter": "N",
+   "zorluk": 3,
+   "question": "ABD'nin havacılık ve uzay ajansı.",
+   "answer": "NASA"
+  },
+  {
+   "id": "h1019",
+   "letter": "P",
+   "zorluk": 2,
+   "question": "İnternetten dinlenen sesli yayın dizisi.",
+   "answer": "Podcast"
+  },
+  {
+   "id": "h1020",
+   "letter": "P",
+   "zorluk": 2,
+   "question": "COVID-19 gibi dünya genelinde yayılan salgın.",
+   "answer": "Pandemi",
+   "alternatives": [
+    "Salgın"
+   ]
+  },
+  {
+   "id": "h1021",
+   "letter": "S",
+   "zorluk": 2,
+   "question": "İnsanların paylaşım yaptığı çevrim içi platformların genel adı.",
+   "answer": "Sosyal medya"
+  },
+  {
+   "id": "h1022",
+   "letter": "T",
+   "zorluk": 2,
+   "question": "Dokunmatik ekranlı, telefondan büyük taşınabilir bilgisayar.",
+   "answer": "Tablet"
+  },
+  {
+   "id": "h1023",
+   "letter": "T",
+   "zorluk": 3,
+   "question": "Türkiye'nin yerli elektrikli otomobil markası.",
+   "answer": "Togg",
+   "alternatives": [
+    "TOGG"
+   ]
+  },
+  {
+   "id": "h1024",
+   "letter": "T",
+   "zorluk": 3,
+   "question": "Türkiye'nin haberleşme uydularının ortak adı.",
+   "answer": "Türksat"
+  },
+  {
+   "id": "h1025",
+   "letter": "T",
+   "zorluk": 3,
+   "question": "Türkiye'nin havacılık, uzay ve teknoloji festivali.",
+   "answer": "TEKNOFEST",
+   "alternatives": [
+    "Teknofest"
+   ]
+  }
+ ]
+}
