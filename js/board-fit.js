@@ -94,6 +94,7 @@
     var area = areaEl();
     if (!area) return;
     var tbl = area.querySelector('.okey-table');
+    okeyGenis(!!tbl);
     if (!tbl) { unwrapOrphan(); return; }
 
     var availW = Math.max(240, area.clientWidth || window.innerWidth);
@@ -122,10 +123,17 @@
       return;
     }
 
-    // KÜÇÜLTME modu: alt sınır tuvaline sabitle, orantılı ölçekle.
-    var DW = Math.max(MIN_W, availW);
-    var DH = Math.max(MIN_H, availH);
-    var s = Math.min(availW / DW, availH / DH, 1);
+    /* KÜÇÜLTME modu: orantılı ölçekle — ama tuvali alanın EN-BOY ORANINA
+       göre kur ki masa TÜM alanı doldursun. Kullanıcı raporu (101 okey,
+       yatay telefon, tam ekran): "oyun dashboard'ı tam ekrana yayılmamış".
+       Ölçülen eski durum (915×412): masa 805×362'lik alanda 670×358 kalıyor,
+       sağda solda ~135 px boşluk vardı — tuval hep MIN_W×MIN_H (560×430)
+       oranındaydı, yükseklik dar gelince genişlik de aynı oranda küçülüyordu.
+       Artık ölçek yalnız gereken kadar (alt sınıra göre) küçülür ve tuval
+       alanın oranına genişletilir: taşlar aynı boyda, masa kenardan kenara. */
+    var s = Math.min(availW / MIN_W, availH / MIN_H, 1);
+    var DW = Math.max(MIN_W, availW / s);
+    var DH = Math.max(MIN_H, availH / s);
     var wrap = ensureWrap(tbl);
     tbl.style.width = DW + 'px';
     tbl.style.height = DH + 'px';
@@ -195,6 +203,14 @@
      alıyor ve masaya yalnız 260 px kalıyordu (ölçüldü). Yalnız bu durumda
      şerit gizlenir — oyuncu ve skor bilgisi zaten bilardo HUD'unda var.
      Geniş ekranlarda yan panel (süre + sohbet) korunur. */
+  /* OKEY / 101 OKEY: oyuncu adları, süreleri ve butonlar MASANIN ÜSTÜNDE.
+     Tam ekranda yan panel şeridi (86-240 px) bu oyunlarda boş kalıyor ve
+     masayı daraltıyordu → okey masasında yan panel tam ekranda gizlenir,
+     masa ekranın tüm genişliğini alır. */
+  function okeyGenis(acik) {
+    var oda = document.getElementById('pg-room');
+    if (oda && oda.classList.contains('gv-okey-genis') !== !!acik) oda.classList.toggle('gv-okey-genis', !!acik);
+  }
   function odaBilGenis(acik) {
     var oda = document.getElementById('pg-room');
     if (oda) oda.classList.toggle('gv-bil-genis', !!acik);

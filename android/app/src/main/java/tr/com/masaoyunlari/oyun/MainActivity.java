@@ -2,6 +2,7 @@ package tr.com.masaoyunlari.oyun;
 
 import android.annotation.SuppressLint;
 import android.content.Intent;
+import android.content.pm.ActivityInfo;
 import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.net.Uri;
@@ -27,6 +28,7 @@ import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowCompat;
 import androidx.core.view.WindowInsetsCompat;
+import androidx.core.view.WindowInsetsControllerCompat;
 
 /**
  * Masa Oyunları — tek ekranlı, tam ekran WebView uygulaması.
@@ -307,11 +309,39 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
+    /* OYUN TAM EKRANI (kullanıcı isteği: "Tüm oyunlarda tam ekran açılırsa
+       mobilde, direkt yatay otomatik döndür (kullanıcıya sormadan)").
+       Açıkken: ekran YATAYA döner (sensöre göre iki yatay yönden hangisi
+       tutuluyorsa) ve durum/gezinme çubukları gizlenir — kenardan çekince
+       geçici olarak görünürler. Kapanınca: yön serbest, çubuklar geri.
+       Sayfa her yüklenişte (onPageStarted) güvenli tarafa sıfırlanır. */
+    private boolean oyunTamEkran = false;
+    private void oyunTamEkranUygula(final boolean acik) {
+        runOnUiThread(() -> {
+            if (acik == oyunTamEkran && !acik) return;
+            oyunTamEkran = acik;
+            setRequestedOrientation(acik ? ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+                                         : ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED);
+            WindowInsetsControllerCompat c =
+                    WindowCompat.getInsetsController(getWindow(), getWindow().getDecorView());
+            if (acik) {
+                c.setSystemBarsBehavior(WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
+                c.hide(WindowInsetsCompat.Type.systemBars());
+            } else {
+                c.show(WindowInsetsCompat.Type.systemBars());
+            }
+        });
+    }
+
     /** Sayfanın çağırabildiği küçük köprü. Bilerek dar tutuldu. */
     private class WebAppBridge {
         /** Masaya oturulduğunda true, lobiye dönüldüğünde false. */
         @JavascriptInterface
         public void setKeepScreenOn(boolean acik) { ekraniAcikTut(acik); }
+
+        /** Oyun odası tam ekrana girince true (yatay + çubuklar gizli), çıkınca false. */
+        @JavascriptInterface
+        public void setFullscreen(boolean acik) { oyunTamEkranUygula(acik); }
 
         /** Uygulama kipini JS tarafında kesin olarak doğrulamak için. */
         @JavascriptInterface
@@ -336,6 +366,8 @@ public class MainActivity extends AppCompatActivity {
             loadFailed = false;
             // Yeni belge: değişkenler sıfırlandı, dolguyu güvenli tarafa al.
             if (sayfaInsetleriUyguluyor) { sayfaInsetleriUyguluyor = false; dolguUygula(); }
+            // Yeni belgede oyun tam ekranı yok: yön ve çubuklar normale dönsün.
+            if (oyunTamEkran) oyunTamEkranUygula(false);
         }
 
         @Override

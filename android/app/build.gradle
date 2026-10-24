@@ -32,8 +32,8 @@ android {
         // (sitenin güncellenmesini beklemiyor). Kabuk kodu her
         // değiştiğinde versionCode artar — Play aynı numarayı iki kez
         // kabul etmez.
-        versionCode 3
-        versionName "1.0.2"
+        versionCode 4
+        versionName "1.0.3"
     }
 
     signingConfigs {

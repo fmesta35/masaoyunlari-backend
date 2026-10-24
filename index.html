@@ -195,6 +195,28 @@ button,input,select{font-family:var(--font)}
   grid-template-rows:auto minmax(0,1fr);column-gap:12px;row-gap:8px
 }
 #pg-room.gv-fs-sahte{position:fixed;left:0;top:0;right:0;bottom:0;z-index:3000;margin:0}
+/* TAM EKRAN BAŞLIĞI TEK SATIR: başlık + düğmeler iki satıra kırılınca
+   (ölçüldü: 740×360'ta 79 px, tablette 110 px) tahtadan yer çalıyordu.
+   Tam ekranda başlık kısalır (…), düğmeler tek satırda kayar. */
+#pg-room.gv-fs .gr-header{flex-wrap:nowrap;gap:8px;min-width:0}
+#pg-room.gv-fs .gr-header #grTitle{flex:0 1 auto;min-width:0;margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:1.05em}
+#pg-room.gv-fs .gr-actions{flex:0 1 auto;min-width:0;flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+#pg-room.gv-fs .gr-actions::-webkit-scrollbar{display:none}
+#pg-room.gv-fs .gr-actions .btn{white-space:nowrap;flex:none}
+@media (max-height:600px),(pointer:coarse){
+  #pg-room.gv-fs .gr-header #grTitle{font-size:.92em}
+  #pg-room.gv-fs .gr-actions{gap:4px}
+  #pg-room.gv-fs .gr-actions .btn{padding:3px 8px;font-size:.72em;min-height:26px}
+}
+/* UYGULAMA: oda sabit katmanda — telefonun durum/gezinme çubukları ve
+   kamera çentiği masanın üstüne binmesin (kullanıcı ekran görüntüsünde
+   saat/pil simgeleri "Pes Et" düğmesinin üstündeydi). Kabuk tam ekranda
+   çubukları gizler; gizleyemezse bu paylar devrededir. */
+body.gv-app #pg-room.gv-fs{
+  padding-top:calc(6px + var(--gv-ust,0px));padding-bottom:calc(6px + var(--gv-alt,0px));
+  padding-left:calc(8px + var(--gv-sol,0px));padding-right:calc(8px + var(--gv-sag,0px))}
+/* "Masa boş — açan olmadı" yazısı tam ekranda TAŞ AT bölgesine biniyordu. */
+#pg-room.gv-fs .okey-table .ok101-bos{display:none}
 html.gv-fs-kilit,html.gv-fs-kilit body{overflow:hidden}
 #pg-room.gv-fs .gr-header{grid-column:1/-1;grid-row:1;margin:0}
 #pg-room.gv-fs .game-layout{display:contents}
@@ -298,6 +320,16 @@ html.gv-fs-kilit,html.gv-fs-kilit body{overflow:hidden}
 #pg-room.gv-fs.gv-bil-genis{grid-template-columns:minmax(0,1fr)}
 #pg-room.gv-fs.gv-bil-genis .game-side{display:none}
 #pg-room.gv-fs.gv-bil-genis .game-board-area{grid-column:1}
+/* Okey ailesi: oyuncu/süre bilgisi masanın üstünde — tam ekranda yan panel
+   gizlenir, masa tüm genişliği alır (sınıfı js/board-fit.js verir). */
+#pg-room.gv-fs.gv-okey-genis{grid-template-columns:minmax(0,1fr)!important}
+#pg-room.gv-fs.gv-okey-genis .game-side{display:none!important}
+#pg-room.gv-fs.gv-okey-genis .game-board-area{grid-column:1!important}
+/* Yatay telefonda tam ekran: masa artık kenardan kenara — ıstaka da büyüsün
+   (taşlar daha iri ve okunaklı; 520 px sınırı standart düzen içindi). */
+@media (max-height:560px) and (orientation:landscape){
+  #pg-room.gv-fs .okey-table{--ok-rack-max:min(56%,760px)}
+}
 
 /* MOBİL TAM EKRAN: süre kartları yine DİKEY (dar bir şerit), tahta
    kalan tüm alanı alır. Yan panelin GERİ KALANI (puan panosu, hamleler,
@@ -2129,6 +2161,10 @@ body.gv-app input,body.gv-app textarea,body.gv-app .chat-msgs,body.gv-app .moves
 @media (max-height:520px) and (orientation:landscape){
   .okey-table .ok-disc-zone[data-pos="0"]{right:84px;bottom:calc(var(--ok-rack-h) + 2px)}
   .okey-table .ok-disc-zone[data-pos="2"]{top:34px}
+  /* Alçak yatay ekranda "Masa boş" yazısı TAŞ AT bölgesinin üstüne
+     biniyordu (kullanıcı ekran görüntüsü) — bilgi zaten masanın boşluğundan
+     anlaşılıyor, yazı gizlenir. */
+  .okey-table .ok101-bos{display:none}
 }
 .ok101-per{display:flex;align-items:center;gap:2px;padding:4px 6px;border-radius:9px;
   background:rgba(0,0,0,.28);border:1px solid rgba(255,255,255,.14)}
@@ -5420,6 +5456,10 @@ function toggleFullscreen(){
      içi tarayıcı, izin reddi) oda tüm görünür alanı kaplayan sabit bir
      katmana alınır; düzen gerçek tam ekranla aynıdır. */
   if(el.classList.contains('gv-fs-sahte')){ _gvSahteTamEkran(false); return; }
+  /* ANDROID UYGULAMASI: WebView'in gerçek tam ekranı güvenilir değil; oda
+     sabit katmana alınır, sistem çubuklarını gizleme + yataya döndürme işini
+     uygulama kabuğu yapar (MasaOyunlariApp.setFullscreen — bkz. _gvYatayModu). */
+  if(_gvAppKopru()){ _gvSahteTamEkran(true); return; }
   if(!_gvFsSupported()){ _gvSahteTamEkran(true); return; }
   if(_gvFsEl()){
     const exit = document.exitFullscreen || document.webkitExitFullscreen || document.mozCancelFullScreen || document.msExitFullscreen;
@@ -5428,23 +5468,65 @@ function toggleFullscreen(){
     const req = el.requestFullscreen || el.webkitRequestFullscreen || el.mozRequestFullScreen || el.msRequestFullscreen;
     if(req) {
       const r = req.call(el);
-      /* METROPOL / TELEFON: tam ekrana geçince ekran YATAYA kilitlenir —
-         tahta masaüstündeki gibi geniş görünsün (kullanıcı isteği). Kilit
-         yalnız tam ekranda izinlidir; desteklemeyen tarayıcıda (iOS) sessizce
-         geçilir. Tam ekrandan çıkınca tarayıcı kilidi kendisi kaldırır. */
-      const yatayaKilitle = () => {
-        try {
-          const dokunmatik = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
-          if (!dokunmatik || !document.querySelector('#boardArea .mp-wrap')) return;
-          const o = screen.orientation;
-          if (o && o.lock) { const k = o.lock('landscape'); if (k && k.catch) k.catch(() => {}); }
-        } catch (_) {}
-      };
+      /* Yataya döndürme artık TÜM oyunlarda ve tek yerden yapılır:
+         bkz. _gvYatayModu (tam ekran sınıfını izler). */
+      const yatayaKilitle = () => {};
       if (r && r.then) r.then(yatayaKilitle).catch(() => _gvSahteTamEkran(true));
       else yatayaKilitle();
     } else _gvSahteTamEkran(true);
   }
 }
+function _gvAppKopru(){
+  try { const k = window.MasaOyunlariApp; return (k && typeof k.setFullscreen === 'function') ? k : null; }
+  catch(_) { return null; }
+}
+/* TAM EKRAN = YATAY (kullanıcı isteği: "Tüm oyunlarda tam ekran açılırsa
+   mobilde, direkt yatay otomatik döndür (kullanıcıya sormadan) ve en iyi
+   geniş ekranda oyun deneyimi sağla").
+   Tam ekran düzeni hangi yoldan açılırsa açılsın (gerçek Fullscreen API,
+   uyumlu/sahte katman, uygulama) #pg-room'a 'gv-fs' sınıfı eklenir; bu
+   sınıf İZLENİR ve tek yerden:
+     • Android uygulamasında kabuk ekranı yataya alır + sistem çubuklarını
+       gizler (MasaOyunlariApp.setFullscreen),
+     • tarayıcıda (Chrome/Android) ekran yataya KİLİTLENİR
+       (screen.orientation.lock — yalnız gerçek tam ekranda izinli; iOS gibi
+       desteklemeyenlerde sessizce geçilir),
+     • tam ekrandan çıkınca kilit bırakılır, telefon serbest döner.
+   Masaüstünde (fare/dokunmatik olmayan) hiçbir şey yapılmaz. */
+(function(){
+  let son = null;
+  function dokunmatik(){
+    try { return window.matchMedia('(pointer: coarse)').matches || window.matchMedia('(hover: none)').matches; }
+    catch(_) { return false; }
+  }
+  function uygula(){
+    const oda = document.getElementById('pg-room');
+    if (!oda) return;
+    const ac = oda.classList.contains('gv-fs') && oda.classList.contains('active');
+    if (ac === son) return;
+    son = ac;
+    const k = _gvAppKopru();
+    if (k) { try { k.setFullscreen(!!ac); } catch(_) {} }
+    else if (dokunmatik()) {
+      try {
+        const o = screen.orientation;
+        if (o && ac && o.lock) { const r = o.lock('landscape'); if (r && r.catch) r.catch(() => {}); }
+        else if (o && !ac && o.unlock) o.unlock();
+      } catch(_) {}
+    }
+    /* Döndükten sonra düzen birkaç kare içinde oturur — tahtalar yeniden ölçülsün. */
+    [120, 450, 900].forEach(ms => setTimeout(() => { try { window.dispatchEvent(new Event('resize')); } catch(_) {} }, ms));
+  }
+  window._gvYatayModu = uygula;
+  function kur(){
+    const oda = document.getElementById('pg-room');
+    if (!oda) { setTimeout(kur, 400); return; }
+    try { new MutationObserver(uygula).observe(oda, { attributes: true, attributeFilter: ['class'] }); } catch(_) {}
+    uygula();
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', kur, { once: true });
+  else kur();
+})();
 function _gvSahteTamEkran(ac){
   const oda = document.getElementById('pg-room');
   if(!oda) return;
@@ -7265,7 +7347,7 @@ GV.init();
 }
 </script>
 <script src="js/no-bots.js?v=20261017a" defer></script>
-<script src="js/board-fit.js?v=20260927a" defer></script>
+<script src="js/board-fit.js?v=20261024a" defer></script>
 <!-- Pes et + rövanş/yeniden oyna: dört bitiş ekranının ortak mantığı -->
 <script src="js/rematch.js?v=20261018c" defer></script>
 <!-- İZLEYİCİ SİSTEMİ: koltuk seçerek izleme pop-up'ı + oyuncunun
