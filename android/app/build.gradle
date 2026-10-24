@@ -21,8 +21,10 @@ android {
 
     defaultConfig {
         applicationId "tr.com.masaoyunlari.oyun"
-        // Android 5.0 ve üstü: WebView'de modern JS/WebAudio/WebSocket var.
-        minSdkVersion 21
+        // Android 7.0 ve üstü. Google Play "otomatik koruma" (Automatic
+        // Protection) en az API 24 istiyor; 21 ile yüklenen paket Play
+        // Console'da REDDEDİLDİ (1.0.3 yükleme hatası).
+        minSdkVersion 24
         // Google Play 31 Ağustos 2026'dan beri API 36 hedefini zorunlu tutuyor.
         targetSdkVersion 36
         // versionCode HER yüklemede artmalı; aynı değer iki kez yüklenemez ve
@@ -32,8 +34,8 @@ android {
         // (sitenin güncellenmesini beklemiyor). Kabuk kodu her
         // değiştiğinde versionCode artar — Play aynı numarayı iki kez
         // kabul etmez.
-        versionCode 4
-        versionName "1.0.3"
+        versionCode 5
+        versionName "1.0.4"
     }
 
     signingConfigs {
