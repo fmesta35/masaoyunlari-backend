@@ -195,6 +195,15 @@ button,input,select{font-family:var(--font)}
   grid-template-rows:auto minmax(0,1fr);column-gap:12px;row-gap:8px
 }
 #pg-room.gv-fs-sahte{position:fixed;left:0;top:0;right:0;bottom:0;z-index:3000;margin:0}
+/* Dik telefonda tam ekran: "yan çevir" ekranı (bkz. _gvYatayModu / ipucu) */
+.gv-dondur{position:fixed;inset:0;z-index:3500;background:rgba(8,8,20,.96);display:flex;
+  align-items:center;justify-content:center;padding:24px;text-align:center}
+.gv-dondur-ic{display:flex;flex-direction:column;align-items:center;gap:12px;max-width:320px;color:var(--text,#fff)}
+.gv-dondur-ic b{font-size:1.25em}
+.gv-dondur-ic span{color:var(--text2,#bbb);font-size:.92em;line-height:1.45}
+.gv-dondur-tel{font-size:64px;line-height:1;animation:gvDondurAnim 1.8s ease-in-out infinite}
+@keyframes gvDondurAnim{0%,20%{transform:rotate(0)}45%,75%{transform:rotate(-90deg)}100%{transform:rotate(0)}}
+@media (orientation:landscape){.gv-dondur{display:none}}
 /* TAM EKRAN BAŞLIĞI TEK SATIR: başlık + düğmeler iki satıra kırılınca
    (ölçüldü: 740×360'ta 79 px, tablette 110 px) tahtadan yer çalıyordu.
    Tam ekranda başlık kısalır (…), düğmeler tek satırda kayar. */
@@ -5545,11 +5554,51 @@ function _gvAppKopru(){
     [120, 450, 900].forEach(ms => setTimeout(() => { try { window.dispatchEvent(new Event('resize')); } catch(_) {} }, ms));
   }
   window._gvYatayModu = uygula;
+  /* DİK TUTULAN TELEFON — YEDEK: ekran kendiliğinden dönemiyorsa (eski
+     uygulama sürümü, iPhone Safari, yön kilidi reddedildi) tam ekran düzeni
+     dikey ekrana sıkışıp "saçma" görünüyordu (kullanıcı ekran görüntüsü).
+     Bu durumda masanın üstüne net bir "telefonu yan çevir" ekranı gelir;
+     telefon yan çevrilince kendiliğinden kaybolur. Yeni uygulama ve Chrome
+     ekranı zaten yataya çevirdiği için orada bu ekran hiç görünmez
+     (dönüş için 900 ms beklenir). */
+  let ipucuZaman = null;
+  function dikMi(){
+    try { return window.matchMedia('(orientation: portrait)').matches && window.innerWidth < 900; }
+    catch(_) { return false; }
+  }
+  function ipucu(){
+    const oda = document.getElementById('pg-room');
+    if (!oda) return;
+    const ac = oda.classList.contains('gv-fs') && oda.classList.contains('active') && dokunmatik() && dikMi();
+    let el = document.getElementById('gvDondur');
+    if (!ac) {
+      if (ipucuZaman) { clearTimeout(ipucuZaman); ipucuZaman = null; }
+      if (el) el.remove();
+      return;
+    }
+    if (el || ipucuZaman) return;
+    ipucuZaman = setTimeout(function(){
+      ipucuZaman = null;
+      const o = document.getElementById('pg-room');
+      if (!o || !o.classList.contains('gv-fs') || !dikMi() || document.getElementById('gvDondur')) return;
+      const d = document.createElement('div');
+      d.id = 'gvDondur'; d.className = 'gv-dondur'; d.setAttribute('role', 'dialog');
+      d.innerHTML = '<div class="gv-dondur-ic">' +
+        '<div class="gv-dondur-tel" aria-hidden="true">📱</div>' +
+        '<b>Telefonunu yan çevir</b>' +
+        '<span>Tam ekran oyun yatay ekranda, masanın tamamı görünecek şekilde açılır.</span>' +
+        '<button type="button" class="btn btn-o btn-sm">⛶ Standart görünüme dön</button></div>';
+      d.querySelector('button').addEventListener('click', function(){ try { GV.toggleFullscreen(); } catch(_) {} });
+      o.appendChild(d);
+    }, 900);
+  }
+  window.addEventListener('resize', ipucu);
+  window.addEventListener('orientationchange', function(){ setTimeout(ipucu, 200); });
   function kur(){
     const oda = document.getElementById('pg-room');
     if (!oda) { setTimeout(kur, 400); return; }
-    try { new MutationObserver(uygula).observe(oda, { attributes: true, attributeFilter: ['class'] }); } catch(_) {}
-    uygula();
+    try { new MutationObserver(function(){ uygula(); ipucu(); }).observe(oda, { attributes: true, attributeFilter: ['class'] }); } catch(_) {}
+    uygula(); ipucu();
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', kur, { once: true });
   else kur();
