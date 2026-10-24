@@ -3044,6 +3044,25 @@ body.gv-app input,body.gv-app textarea,body.gv-app .chat-msgs,body.gv-app .moves
    ("Hoş Geldin, Ziyaretçi#753" 320px'de kırpılıyordu). Başlık ekran
    genişliğiyle ölçekleniyor ve gerekirse kelime ortasından bölünüyor;
    böylece hiçbir ad kesilmiyor, yatay kaydırma da oluşmuyor. */
+/* Karşılama başlığı + solunda Google Play rozeti. Rozet başlığı itmez:
+   geniş ekranda solda sabit, başlık ortada kalır; dar ekranda rozet
+   başlığın üstüne, ortaya geçer. */
+.hero-bas{position:relative;display:flex;align-items:center;justify-content:center;gap:14px;
+  padding:0 calc(clamp(130px,13vw,180px) + 16px)}   /* başlık rozetin altına girmesin, ortada kalsın */
+.hero-bas #welcomeHeading{margin:0 0 8px}
+.gp-rozet{display:inline-block;line-height:0;border-radius:10px;transition:transform .15s,filter .15s;flex:none}
+.gp-rozet img{display:block;height:auto;width:100%}
+.gp-rozet:hover{transform:translateY(-1px);filter:brightness(1.08)}
+.gp-rozet:focus-visible{outline:2px solid #fff;outline-offset:3px}
+.gp-hero{position:absolute;left:0;top:50%;transform:translateY(-50%);width:clamp(130px,13vw,180px)}
+.gp-hero:hover{transform:translateY(calc(-50% - 1px))}
+.gp-foot{width:170px;margin-top:4px}
+@media (max-width:1100px){
+  .hero-bas{flex-direction:column;gap:10px;padding:0}
+  .gp-hero{position:static;transform:none;width:150px;order:-1}
+  .gp-hero:hover{transform:translateY(-1px)}
+}
+body.gv-app .gp-rozet{display:none!important}
 #welcomeHeading{font-size:clamp(1.25em,6.2vw,2.5em);line-height:1.2;
   overflow-wrap:anywhere;word-break:break-word;hyphens:auto}
 
@@ -3218,7 +3237,14 @@ body.gv-app input,body.gv-app textarea,body.gv-app .chat-msgs,body.gv-app .moves
     <!-- ANA SAYFA (HOME) -->
     <div class="page active" id="pg-home">
       <div style="background: linear-gradient(135deg, var(--primary3), var(--primary)); padding: 25px; border-radius: var(--r2); margin-bottom: 20px; text-align: center;">
-        <h1 style="color: white; margin-bottom: 8px;" id="welcomeHeading">🎮 Masa Oyunları'na Hoş Geldiniz</h1>
+        <!-- GOOGLE PLAY ROZETİ — karşılama başlığının SOLUNDA (kullanıcı isteği).
+             Uygulama içinde (body.gv-app) gizlenir: zaten kurulu. -->
+        <div class="hero-bas">
+          <a class="gp-rozet gp-hero" href="https://play.google.com/store/apps/details?id=tr.com.masaoyunlari.oyun" target="_blank" rel="noopener" aria-label="Google Play'den indirin">
+            <img src="assets/google-play-badge.png" alt="Google Play'den alın" width="180" height="54" loading="eager" decoding="async">
+          </a>
+          <h1 style="color: white; margin-bottom: 8px;" id="welcomeHeading">🎮 Masa Oyunları'na Hoş Geldiniz</h1>
+        </div>
         <p style="color: rgba(255,255,255,0.9); font-size: 0.95em;">Ziyaretçi olarak oynayabilir veya üye olarak puan kazanabilir, arkadaş ekleyebilir ve turnuvalara katılabilirsiniz!</p>
         <!-- CANLI SAYAÇLAR: sunucudan gelir (/api/live-stats). Eskiden ana
              sayfada sabit, uydurma rakamlar yazıyordu (3.421 çevrimiçi gibi). -->
@@ -3430,10 +3456,11 @@ body.gv-app input,body.gv-app textarea,body.gv-app .chat-msgs,body.gv-app .moves
             <span class="gv-chip">🛡️ Üye Güvencesi</span>
             <span class="gv-chip">✅ KVKK Uyumlu</span>
           </div>
-          <button class="gv-play" id="gvInstallBtn" type="button" onclick="window.GVApp&&GVApp.installOrStore()">
-            <span class="gv-play-ico" aria-hidden="true"></span>
-            <span class="gv-play-txt"><small>Mobil uygulama</small><b id="gvInstallLabel">Google Play'de edinin</b></span>
-          </button>
+          <!-- Uygulama Google Play'de yayında: resmî rozet doğrudan mağaza
+               sayfasına gider. id korunur — js/webview.js uygulama içinde gizler. -->
+          <a class="gp-rozet gp-foot" id="gvInstallBtn" href="https://play.google.com/store/apps/details?id=tr.com.masaoyunlari.oyun" target="_blank" rel="noopener" aria-label="Google Play'den indirin">
+            <img src="assets/google-play-badge.png" alt="Google Play'den alın" width="180" height="54" loading="lazy" decoding="async">
+          </a>
         </div>
         <div class="gv-foot-cols">
           <div class="gv-foot-col">
@@ -7265,7 +7292,7 @@ GV.init();
 </script>
 
 <!-- External JavaScript Files -->
-<script src="js/config.js?v=20261017a"></script>
+<script src="js/config.js?v=20261024a"></script>
 <script src="js/socket.io.min.js?v=20261017a"></script>
 <script src="js/app.js?v=20261017a" defer></script>
 <script src="js/games.js?v=20261017a" defer></script>

@@ -140,9 +140,14 @@ async function main() {
   assert.ok(kur, 'mobil uygulama düğmesi DOM\'da bulunmalı');
   assert.ok(kur.closest('.gv-footer'), 'düğme alt menüde (footer) durmalı');
   assert.ok(!kur.hidden, 'tarayıcıda düğme görünür olmalı');
-  assert.ok(kur.classList.contains('soon'), 'mağaza adresi yokken "yakında" durumunda olmalı');
-  assert.ok(/Yakında|Google Play/i.test(win.document.getElementById('gvInstallLabel').textContent),
-    'etiket ne yapılacağını söylemeli, görülen: ' + win.document.getElementById('gvInstallLabel').textContent);
+  /* Uygulama Google Play'de YAYINDA: düğme artık resmî rozet ve doğrudan
+     mağaza sayfasına gider ("yakında" durumu kalktı). */
+  const PLAY = 'https://play.google.com/store/apps/details?id=tr.com.masaoyunlari.oyun';
+  assert.strictEqual(win.GV_PLAY_URL, PLAY, 'mağaza adresi tanımlı olmalı (js/config.js)');
+  assert.ok(!kur.classList.contains('soon'), 'mağaza adresi varken "yakında" durumunda OLMAMALI');
+  assert.strictEqual(kur.getAttribute('href'), PLAY, 'footer rozeti Google Play sayfasına gitmeli');
+  const ust = win.document.querySelector('#pg-home .gp-hero');
+  assert.ok(ust && ust.getAttribute('href') === PLAY, 'karşılama başlığının solunda Google Play rozeti olmalı');
   try { win.close(); } catch (_) {}
   console.log('  ✓ 5) index.html uygulama katmanını yüklüyor; tarayıcıda davranış değişmiyor');
 

@@ -10,6 +10,10 @@
 //  Geliştirme için ?dev=1 veya location.hostname=localhost kullanıldığında
 //  yerel backend'e yönlenir (server.js tek process'te hem statik dosyaları
 //  hem üyelik API'sini aynı porttan sunar).
+/* GOOGLE PLAY — uygulama yayında (tr.com.masaoyunlari.oyun). Footer ve
+   ana sayfadaki "Google Play'den indirin" rozetleri bu adrese gider. */
+window.GV_PLAY_URL = 'https://play.google.com/store/apps/details?id=tr.com.masaoyunlari.oyun';
+
 (function () {
   var h = window.location.hostname;
   var isLocal = h === 'localhost' || h === '127.0.0.1' || /[?&]dev=1\b/.test(window.location.search);
