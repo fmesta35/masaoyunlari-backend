@@ -244,6 +244,14 @@
           height:min(540px,calc(100dvh - 56px - var(--gv-ust,0px) - var(--gv-alt,0px) - 90px));
           width:min(360px,88vw);max-width:88vw;padding:0;
           border:1px solid rgba(255,255,255,.14);border-right:none;border-radius:16px 0 0 16px}
+        /* KLAVYE AÇIKKEN: pencere görünen alanın (klavyenin üstü) tamamına
+           yerleşir — başlık + ✕ üstte, yazı kutusu klavyenin hemen üstünde.
+           Kural notu yer kazanmak için gizlenir. Ölçüleri klavyeYerlesim()
+           visualViewport'tan satır içi verir. */
+        #gvChatPanel.gc-klavye{transition:none}
+        #gvChatPanel.gc-klavye .gc-note{display:none}
+        #gvChatPanel.gc-klavye .gc-head{min-height:40px;padding:6px 10px}
+        html.gv-klavye #gvChatFab{display:none!important}
       }
       #gvChatPanel .gc-head{padding:10px 12px;background:rgba(255,255,255,.05);display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid rgba(255,255,255,.08)}
       #gvChatPanel .gc-head b{font-size:.95em}
@@ -282,6 +290,7 @@
       open = !open;
       panel().classList.toggle('open', open);
       if (open) { unread = 0; paintBadge(); scrollEnd(); reloadHistory(true); }
+      klavyeYerlesim();
     });
     document.body.appendChild(fab);
 
@@ -293,13 +302,59 @@
       '<div class="gc-input"><input id="gvChatText" type="text" maxlength="240" placeholder="Mesajınızı yazın..."><button id="gvChatSend" type="button">➤</button></div>' +
       '<div class="gc-note">💡 Mesajlar 1 dk sonra silinir • ard arda en az 5 sn bekleyin • link ve küfür yasaktır. Yalnızca üyeler yazabilir.</div>';
     document.body.appendChild(p);
-    p.querySelector('#gvChatClose').addEventListener('click', () => { open = false; p.classList.remove('open'); });
+    p.querySelector('#gvChatClose').addEventListener('click', () => {
+      open = false; p.classList.remove('open');
+      try { document.getElementById('gvChatText').blur(); } catch (_) {}
+      klavyeYerlesim();
+    });
     const send = () => sendNow();
     p.querySelector('#gvChatSend').addEventListener('click', send);
     p.querySelector('#gvChatText').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); send(); } });
   }
 
   const panel = () => document.getElementById('gvChatPanel');
+
+  /* KLAVYE UYUMU (kullanıcı raporu: "genel sohbeti açınca klavye çıkıyor ve
+     ekranda kayma oluyor"). Telefonda klavye açılınca görünen alan
+     (visualViewport) küçülür ve tarayıcı sayfayı yukarı kaydırır; sabit
+     konumlu pencere ise eski yerinde kalıp başlığı ekranın üstünden,
+     yazı kutusu klavyenin altından taşıyordu. Klavye açıkken pencere
+     GÖRÜNEN alana göre yeniden yerleştirilir; kapanınca CSS ölçülerine
+     döner. Android uygulaması (1.0.5+) klavyeyi ayrıca bildirir
+     (html.gv-klavye) ve WebView'i klavyenin üstüne küçültür. */
+  function klavyeYerlesim() {
+    const p = panel();
+    if (!p) return;
+    const vv = window.visualViewport;
+    const dar = window.matchMedia && window.matchMedia('(max-width:760px)').matches;
+    const yazarken = document.activeElement && document.activeElement.id === 'gvChatText';
+    const klavye = !!vv && (window.innerHeight - vv.height > 120 ||
+                   (document.documentElement.classList.contains('gv-klavye') && yazarken));
+    if (!vv || !dar || !p.classList.contains('open') || !klavye) {
+      if (p.classList.contains('gc-klavye')) {
+        p.classList.remove('gc-klavye');
+        p.style.top = ''; p.style.height = '';
+      }
+      return;
+    }
+    p.classList.add('gc-klavye');
+    const pay = 6;
+    p.style.top = Math.round(vv.offsetTop + pay) + 'px';
+    p.style.height = Math.max(160, Math.round(vv.height - 2 * pay)) + 'px';
+    const list = document.getElementById('gvChatList');
+    if (list) list.scrollTop = list.scrollHeight;
+  }
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener('resize', klavyeYerlesim);
+    window.visualViewport.addEventListener('scroll', klavyeYerlesim);
+  }
+  window.addEventListener('resize', klavyeYerlesim);
+  document.addEventListener('focusin', function (e) {
+    if (e.target && e.target.id === 'gvChatText') { setTimeout(klavyeYerlesim, 60); setTimeout(klavyeYerlesim, 350); }
+  });
+  document.addEventListener('focusout', function (e) {
+    if (e.target && e.target.id === 'gvChatText') setTimeout(klavyeYerlesim, 250);
+  });
 
   function paintBadge() {
     const b = document.getElementById('gvChatBadge');

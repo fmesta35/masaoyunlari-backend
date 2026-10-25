@@ -65,6 +65,9 @@ public class MainActivity extends AppCompatActivity {
        değişkeni olarak alıp ÜST BARI durum çubuğunun ALTINA kadar boyayınca
        native dolgu kalkar; sayfa bunu yapamazsa dolgu yerinde kalır. */
     private int insetSol, insetUst, insetSag, insetAlt;
+    /* KLAVYE (IME) yüksekliği. Kenardan kenara çizimde sistem pencereyi
+       klavyeye göre KÜÇÜLTMÜYOR; bunu biz dolguyla yapıyoruz. */
+    private int klavyeAlt = 0;
     private boolean sayfaInsetleriUyguluyor = false;
 
     private boolean loadFailed = false;
@@ -162,6 +165,14 @@ public class MainActivity extends AppCompatActivity {
             Insets bars = insets.getInsets(WindowInsetsCompat.Type.systemBars());
             insetSol = bars.left; insetUst = bars.top;
             insetSag = bars.right; insetAlt = bars.bottom;
+            /* KLAVYE (kullanıcı raporu: "genel sohbeti açınca klavye çıkıyor
+               ve ekranda kayma oluyor"). Klavye açılınca pencere bütünüyle
+               yukarı itiliyordu (pan): üst bar ve sohbet başlığı ekranın
+               dışına kayıyordu. Artık WebView klavyenin ÜSTÜNDE biten bir
+               alana küçülür; sayfa (sohbet penceresi dahil) bu alana kendini
+               yeniden yerleştirir, hiçbir şey ekrandan taşmaz. */
+            Insets ime = insets.getInsets(WindowInsetsCompat.Type.ime());
+            klavyeAlt = (ime.bottom > insetAlt) ? ime.bottom : 0;
             dolguUygula();
             insetleriSayfayaYolla();
             return insets;
@@ -174,8 +185,9 @@ public class MainActivity extends AppCompatActivity {
     private void dolguUygula() {
         if (contentRoot == null) return;
         boolean s = sayfaInsetleriUyguluyor;
+        int alt = klavyeAlt > 0 ? klavyeAlt : (s ? 0 : insetAlt);
         contentRoot.setPadding(s ? 0 : insetSol, s ? 0 : insetUst,
-                               s ? 0 : insetSag, s ? 0 : insetAlt);
+                               s ? 0 : insetSag, alt);
     }
 
     /* Sistem çubuğu ölçülerini sayfaya geçir VE gereken CSS'i kendimiz kur.
@@ -210,7 +222,8 @@ public class MainActivity extends AppCompatActivity {
                 + "var e=document.documentElement;if(!e||!e.style)return '0';"
                 + "var s=e.style;"
                 + "s.setProperty('--gv-ust'," + (insetUst / d) + "+'px');"
-                + "s.setProperty('--gv-alt'," + (insetAlt / d) + "+'px');"
+                + "s.setProperty('--gv-alt'," + ((klavyeAlt > 0 ? 0 : insetAlt) / d) + "+'px');"
+                + "e.classList.toggle('gv-klavye'," + (klavyeAlt > 0) + ");"
                 + "s.setProperty('--gv-sol'," + (insetSol / d) + "+'px');"
                 + "s.setProperty('--gv-sag'," + (insetSag / d) + "+'px');"
                 + "var b=document.body;if(!b)return '0';"
