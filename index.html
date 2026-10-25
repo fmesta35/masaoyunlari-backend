@@ -224,6 +224,16 @@ button,input,select{font-family:var(--font)}
 body.gv-app #pg-room.gv-fs{
   padding-top:calc(6px + var(--gv-ust,0px));padding-bottom:calc(6px + var(--gv-alt,0px));
   padding-left:calc(8px + var(--gv-sol,0px));padding-right:calc(8px + var(--gv-sag,0px))}
+/* DİK TELEFON (standart görünüm): oda düğmeleri iki satıra kırılıp
+   tahtadan ~75 px çalıyordu (kullanıcı raporu: "dikeyde ekrana sığmıyor").
+   Düğmeler tek satırda yatay kayar; başlık üstte kendi satırında kalır. */
+@media (max-width:760px) and (orientation:portrait){
+  #pg-room:not(.gv-fs) .gr-actions{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;
+    -webkit-overflow-scrolling:touch;max-width:100%;padding-bottom:2px}
+  #pg-room:not(.gv-fs) .gr-actions::-webkit-scrollbar{display:none}
+  #pg-room:not(.gv-fs) .gr-actions .btn{white-space:nowrap;flex:none}
+  #pg-room:not(.gv-fs) .gr-header{margin-bottom:6px}
+}
 /* "Masa boş — açan olmadı" yazısı tam ekranda TAŞ AT bölgesine biniyordu. */
 #pg-room.gv-fs .okey-table .ok101-bos{display:none}
 html.gv-fs-kilit,html.gv-fs-kilit body{overflow:hidden}
@@ -7423,7 +7433,7 @@ GV.init();
 }
 </script>
 <script src="js/no-bots.js?v=20261017a" defer></script>
-<script src="js/board-fit.js?v=20261024a" defer></script>
+<script src="js/board-fit.js?v=20261025a" defer></script>
 <!-- Pes et + rövanş/yeniden oyna: dört bitiş ekranının ortak mantığı -->
 <script src="js/rematch.js?v=20261018c" defer></script>
 <!-- İZLEYİCİ SİSTEMİ: koltuk seçerek izleme pop-up'ı + oyuncunun

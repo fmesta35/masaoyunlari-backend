@@ -47,7 +47,33 @@
   function gorunurYukseklik() {
     var vv = window.visualViewport;
     var h = (vv && vv.height) ? vv.height : (window.innerHeight || 600);
-    return Math.max(160, Math.round(h));
+    return Math.max(160, Math.round(h - altCubuk()));
+  }
+  /* ALT SİSTEM ÇUBUĞU (kullanıcı raporu: "dikey görünümde ekrana sığmıyor,
+     aşağı kaydırmak gerekiyor").
+     KÖK NEDEN: Android uygulaması kenardan kenara çizer — WebView ekranın
+     TAMAMINI kaplar, alttaki gezinme çubuğu (◁ ○ □) sayfanın ÜSTÜNE biner.
+     visualViewport bu çubuğun arkasını da "görünür" sayıyordu; masa çubuğun
+     yüksekliği kadar (≈48 px) aşağı taşıyor, ıstakanın alt sırası çubuğun
+     altında kalıyordu. Kabuk çubuk yüksekliğini --gv-alt olarak yollar;
+     iPhone'da ana ekran çizgisi için safe-area payı kullanılır. Tam ekranda
+     çubuklar gizlenince kabuk 0 yollar, pay kendiliğinden kalkar. */
+  var olcuKutusu = null;
+  function altCubuk() {
+    try {
+      var pay = 0;
+      if (document.body && document.body.classList.contains('gv-app')) {
+        pay = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--gv-alt')) || 0;
+      }
+      if (!olcuKutusu && document.body) {
+        olcuKutusu = document.createElement('div');
+        olcuKutusu.setAttribute('aria-hidden', 'true');
+        olcuKutusu.style.cssText = 'position:fixed;left:-9px;bottom:0;width:1px;visibility:hidden;pointer-events:none;height:env(safe-area-inset-bottom,0px)';
+        document.body.appendChild(olcuKutusu);
+      }
+      var guvenli = olcuKutusu ? (olcuKutusu.offsetHeight || 0) : 0;
+      return Math.max(0, Math.min(120, Math.max(pay, guvenli)));
+    } catch (_) { return 0; }
   }
   function gorunurGenislik() {
     var vv = window.visualViewport;
