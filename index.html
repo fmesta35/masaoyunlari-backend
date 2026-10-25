@@ -83,7 +83,7 @@ button,input,select{font-family:var(--font)}
 .avatar.sm{width:24px;height:24px;font-size:.65em}
 .online-dot{width:8px;height:8px;background:var(--success);border-radius:50%;display:inline-block}
 .offline-dot{width:8px;height:8px;background:var(--text3);border-radius:50%;display:inline-block}
-.layout{display:flex;height:calc(100vh - 56px)}
+.layout{display:flex;height:calc(100vh - 56px);height:calc(100dvh - 56px)}  /* dvh: telefon adres çubuğu açıkken de belge taşmasın */
 /* Soldaki "Oyunlar" menüsü (arama + oyun listesi) kaldırıldı — kullanıcı
    isteği: zaten üst menüde "Oyunlar" var, arama oraya taşındı (bkz.
    #pg-games içindeki .sb-search). Bu <aside> artık YALNIZ mobilde
@@ -2138,6 +2138,19 @@ body.gv-app .header{
 /* Üst bara göre konumlanan katmanlar da aynı kadar aşağı kaysın. */
 body.gv-app .toast-wrap{top:calc(70px + var(--gv-pay-ust))}
 body.gv-app .notif-panel{top:calc(58px + var(--gv-pay-ust))}
+/* ÇİFT KAYDIRMA HATASI (kullanıcı raporu: "tam ekrana alıp standarda
+   dönünce masa sohbeti görünmüyor, aşağı kaydırılamıyor").
+   KÖK NEDEN: .layout yüksekliği "100vh - 56px" idi; uygulamada üst bar
+   durum çubuğu kadar UZUYOR (--gv-pay-ust) ve gövdeye alt gezinme payı
+   (--gv-pay-alt) ekleniyor. Bu ikisi düşülmediği için sayfanın KENDİSİ de
+   ~85 px kayabiliyordu: içerik (.content) ve belge iki ayrı kaydırıcıydı.
+   Tam ekran belgeyi kilitleyip (overflow:hidden) kaydırmayı başa alınca,
+   geri dönüşte o son 85 px'e — masa sohbetinin olduğu yere — parmakla
+   ulaşılamıyordu. Artık yükseklik payları düşüyor: tek kaydırıcı
+   (.content) var ve sonuna kadar iniyor. */
+body.gv-app .layout{
+  height:calc(100vh - 56px - var(--gv-pay-ust) - var(--gv-pay-alt));
+  height:calc(100dvh - 56px - var(--gv-pay-ust) - var(--gv-pay-alt))}
 /* Yan panel YALNIZ geniş ekranda üst barın altından başlar. Dar ekranda
    (<=800px) aynı eleman TAM EKRAN menü olarak kullanılıyor; orada top:0
    kalmalı, üst payı kendi padding-top'u veriyor (bkz. 9d). */
