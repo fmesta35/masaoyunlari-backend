@@ -219,6 +219,22 @@
          kapanır. Kapalıyken ekranın dışında durur; hiçbir şeyin üstünü örtmez. */
       #gvChatPanel{position:fixed;right:0;top:0;bottom:0;height:100vh;height:100dvh;z-index:2147482001;width:340px;max-width:94vw;background:#12122b;border-left:1px solid rgba(255,255,255,.14);border-radius:0;box-shadow:-18px 0 50px rgba(0,0,0,.65);display:flex;flex-direction:column;overflow:hidden;transform:translateX(106%);visibility:hidden;transition:transform .28s ease,visibility 0s linear .28s}
       #gvChatPanel.open{transform:translateX(0);visibility:visible;transition:transform .28s ease}
+      /* MOBİL UYGULAMA (kullanıcı raporu: "sohbet ekranı tam gözükmüyor,
+         uyarısı ve kapatma düğmesi ekrana sığmıyor"). Uygulama kenardan
+         kenara çizer: panelin başlığı (✕ kapat) durum çubuğunun, uyarı
+         notu ve yazı kutusu da alttaki gezinme çubuğunun ALTINDA
+         kalıyordu. Kabuğun yolladığı çubuk payları (--gv-ust / --gv-alt)
+         ve iPhone çentik payları panelin içine dolgu olarak eklenir. */
+      #gvChatPanel{box-sizing:border-box;
+        padding-top:max(var(--gv-ust,0px),env(safe-area-inset-top,0px));
+        padding-bottom:max(var(--gv-alt,0px),env(safe-area-inset-bottom,0px));
+        padding-right:max(var(--gv-sag,0px),env(safe-area-inset-right,0px))}
+      #gvChatPanel .gc-head{flex:none;min-height:46px}
+      #gvChatPanel .gc-head span{display:flex;align-items:center;justify-content:center;
+        width:40px;height:40px;margin:-6px -6px -6px 0;border-radius:10px;font-size:1.25em;color:#c9cde0}
+      #gvChatPanel .gc-head span:hover{background:rgba(255,255,255,.08);color:#fff}
+      #gvChatPanel .gc-input,#gvChatPanel .gc-note{flex:none}
+      @media (max-width:480px){#gvChatPanel{width:100vw;max-width:100vw;border-left:none}}
       #gvChatPanel .gc-head{padding:10px 12px;background:rgba(255,255,255,.05);display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid rgba(255,255,255,.08)}
       #gvChatPanel .gc-head b{font-size:.95em}
       #gvChatPanel .gc-head span{cursor:pointer;color:#9aa0b4;font-size:1.1em}

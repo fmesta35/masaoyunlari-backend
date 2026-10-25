@@ -36,8 +36,8 @@
     "sha": "1ede65f9d8d3"
   },
   "js/chat.js": {
-    "v": "20260821c",
-    "sha": "ec4de5b4940c"
+    "v": "20261025a",
+    "sha": "38e398784dfb"
   },
   "js/chess-online.js": {
     "v": "20261018a",
@@ -174,6 +174,10 @@
   "js/scores.js": {
     "v": "20260912a",
     "sha": "c835dd6bc38c"
+  },
+  "js/sifre-goster.js": {
+    "v": "20261025a",
+    "sha": "bb3b788000d9"
   },
   "js/social.js": {
     "v": "20260823e",
