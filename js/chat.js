@@ -234,7 +234,17 @@
         width:40px;height:40px;margin:-6px -6px -6px 0;border-radius:10px;font-size:1.25em;color:#c9cde0}
       #gvChatPanel .gc-head span:hover{background:rgba(255,255,255,.08);color:#fff}
       #gvChatPanel .gc-input,#gvChatPanel .gc-note{flex:none}
-      @media (max-width:480px){#gvChatPanel{width:100vw;max-width:100vw;border-left:none}}
+      /* TELEFON (kullanıcı isteği: "Genel Sohbet ekranın tamamını kaplamasın,
+         alt ve üst bar arasında orta büyüklükte açılır-kapanır pencere
+         olsun"). Çekmece üst barın hemen altından başlar, alttaki gezinme
+         çubuğuna kadar inmez; sağdan kayarak açılıp kapanır. Bu kipte
+         çubuk payları dolgu olarak gerekmez — pencere çubuklardan uzakta. */
+      @media (max-width:760px){
+        #gvChatPanel{top:calc(56px + var(--gv-ust,0px) + 10px);bottom:auto;
+          height:min(540px,calc(100dvh - 56px - var(--gv-ust,0px) - var(--gv-alt,0px) - 90px));
+          width:min(360px,88vw);max-width:88vw;padding:0;
+          border:1px solid rgba(255,255,255,.14);border-right:none;border-radius:16px 0 0 16px}
+      }
       #gvChatPanel .gc-head{padding:10px 12px;background:rgba(255,255,255,.05);display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid rgba(255,255,255,.08)}
       #gvChatPanel .gc-head b{font-size:.95em}
       #gvChatPanel .gc-head span{cursor:pointer;color:#9aa0b4;font-size:1.1em}
