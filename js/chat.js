@@ -214,6 +214,11 @@
          tıklamayı engelliyordu; 42px'lik kenar sekmesi bu sorunu bitirir. */
       #gvChatFab{position:fixed;right:0;bottom:96px;z-index:2147482000;background:linear-gradient(135deg,#6c5ce7,#4834d4);color:#fff;border:none;border-radius:13px 0 0 13px;width:42px;height:48px;padding:0;font-size:19px;font-weight:800;cursor:pointer;box-shadow:0 6px 18px rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;opacity:.95;transition:transform .18s ease,opacity .18s ease}
       #gvChatFab:hover{opacity:1;transform:translateX(-3px)}
+      #gvChatFab.gc-sol{border-radius:0 13px 13px 0}
+      #gvChatFab.gc-sol:hover{transform:translateX(3px)}
+      #gvChatFab.gc-suruk{transition:none;opacity:.8;border-radius:13px;transform:scale(1.08)}
+      /* Tam ekranda daha küçük ve yarı saydam: oyun alanını kapatmasın */
+      html.gv-fs-kilit #gvChatFab{width:34px;height:40px;font-size:16px;opacity:.72}
       #gvChatFab .gv-chat-badge{position:absolute;top:-7px;left:-7px;background:#e74c3c;border:2px solid #12122b;border-radius:20px;padding:1px 6px;font-size:.62em;line-height:1.35;display:none}
       /* SAĞDAN ÇEKMECE PANEL: sağ kenara dayalı, x ekseninde kayarak açılır/
          kapanır. Kapalıyken ekranın dışında durur; hiçbir şeyin üstünü örtmez. */
@@ -276,6 +281,71 @@
     document.head.appendChild(s);
   }
 
+  /* TAŞINABİLİR SOHBET BALONCUĞU (kullanıcı isteği: "Genel Sohbet
+     taşınabilir olsun; oyunlarda, özellikle mobil uygulamada oyun sahasının
+     içine geliyor ve tıklamayı engelliyor").
+     Baloncuk basılı tutulup sürüklenir; bırakınca en yakın SOL ya da SAĞ
+     kenara yapışır (yarısı ekranın dışına taşmaz). Konum yatay ve dikey
+     ekran için ayrı ayrı hatırlanır. Kısa dokunuş eskisi gibi paneli açar. */
+  function tasinabilir(fab) {
+    const ANAHTAR = () => 'gv-chat-fab-' + ((window.innerWidth > window.innerHeight) ? 'yatay' : 'dikey');
+    const uygula = () => {
+      let k = null;
+      try { k = JSON.parse(localStorage.getItem(ANAHTAR()) || 'null'); } catch (_) { k = null; }
+      if (!k || typeof k.y !== 'number') {
+        fab.style.top = ''; fab.style.bottom = ''; fab.style.left = ''; fab.style.right = '';
+        fab.classList.remove('gc-sol');
+        return;
+      }
+      const h = fab.offsetHeight || 48;
+      const y = Math.max(4, Math.min(window.innerHeight - h - 4, k.y * window.innerHeight));
+      fab.style.top = Math.round(y) + 'px';
+      fab.style.bottom = 'auto';
+      if (k.sol) { fab.style.left = '0'; fab.style.right = 'auto'; } else { fab.style.right = '0'; fab.style.left = 'auto'; }
+      fab.classList.toggle('gc-sol', !!k.sol);
+    };
+    let bas = null;
+    fab.style.touchAction = 'none';
+    fab.addEventListener('pointerdown', (e) => {
+      if (e.button != null && e.button !== 0) return;
+      const r = fab.getBoundingClientRect();
+      bas = { x: e.clientX, y: e.clientY, ox: e.clientX - r.left, oy: e.clientY - r.top, hareket: false, id: e.pointerId };
+    });
+    window.addEventListener('pointermove', (e) => {
+      if (!bas || e.pointerId !== bas.id) return;
+      if (!bas.hareket && Math.hypot(e.clientX - bas.x, e.clientY - bas.y) < 8) return;
+      if (!bas.hareket) {
+        bas.hareket = true;
+        try { fab.setPointerCapture(e.pointerId); } catch (_) {}
+        fab.classList.add('gc-suruk');
+      }
+      const w = fab.offsetWidth || 42, h = fab.offsetHeight || 48;
+      const x = Math.max(0, Math.min(window.innerWidth - w, e.clientX - bas.ox));
+      const y = Math.max(4, Math.min(window.innerHeight - h - 4, e.clientY - bas.oy));
+      fab.style.left = x + 'px'; fab.style.right = 'auto';
+      fab.style.top = y + 'px'; fab.style.bottom = 'auto';
+      e.preventDefault();
+    }, { passive: false });
+    const birak = (e) => {
+      if (!bas || (e && e.pointerId !== bas.id)) return;
+      const tasidi = bas.hareket;
+      bas = null;
+      fab.classList.remove('gc-suruk');
+      if (!tasidi) return;
+      fab.__surukledi = true;
+      setTimeout(() => { fab.__surukledi = false; }, 400);
+      const r = fab.getBoundingClientRect();
+      const sol = (r.left + r.width / 2) < window.innerWidth / 2;
+      try { localStorage.setItem(ANAHTAR(), JSON.stringify({ y: r.top / Math.max(1, window.innerHeight), sol })); } catch (_) {}
+      uygula();
+    };
+    window.addEventListener('pointerup', birak);
+    window.addEventListener('pointercancel', birak);
+    window.addEventListener('resize', uygula);
+    window.addEventListener('orientationchange', () => setTimeout(uygula, 250));
+    uygula();
+  }
+
   function els() {
     if (built) return;
     built = true;
@@ -286,13 +356,15 @@
     fab.innerHTML = '💬<span class="gv-chat-badge" id="gvChatBadge"></span>';
     fab.title = 'Sohbeti aç/kapat';
     fab.setAttribute('aria-label', 'Sohbet panelini aç/kapat');
-    fab.addEventListener('click', () => {
+    fab.addEventListener('click', (e) => {
+      if (fab.__surukledi) { fab.__surukledi = false; e.preventDefault(); e.stopPropagation(); return; }
       open = !open;
       panel().classList.toggle('open', open);
       if (open) { unread = 0; paintBadge(); scrollEnd(); reloadHistory(true); }
       klavyeYerlesim();
     });
     document.body.appendChild(fab);
+    tasinabilir(fab);
 
     const p = document.createElement('div');
     p.id = 'gvChatPanel';
@@ -493,8 +565,17 @@
   }
 
   // ---------- Soket ----------
+  /* BAĞLI soket önceliklidir (kullanıcı raporu: "Sunucuya bağlanılıyor —
+     birkaç saniye sonra tekrar deneyin" uyarısı oyun sırasında sürekli
+     çıkıyordu). Masadan çıkış akışları lobi/oda soketini BİLEREK kapatıyor
+     (disconnect); kapatılmış soket kendiliğinden yeniden bağlanmaz ve
+     sohbet hep o ölü sokete yazmaya çalışıyordu. */
   function pickSocket() {
-    return window.__gvLobbySocket || window.__gvRoomSocket || window.__gvChessSocket || null;
+    const l = [window.__gvLobbySocket, window.__gvRoomSocket, window.__gvChessSocket].filter(Boolean);
+    return l.find(s => s.connected) || l[0] || null;
+  }
+  function uyandir(s) {
+    try { if (s && !s.connected && s.active === false && typeof s.connect === 'function') s.connect(); } catch (_) {}
   }
 
   /* İki kanal iki FARKLI soketten gelebilir: masa mesajları oda soketine,
@@ -557,7 +638,7 @@
   }
   function ensureSocket() {
     const varOlan = pickSocket();
-    if (varOlan) { attach(varOlan); selamla(varOlan); return varOlan; }
+    if (varOlan) { uyandir(varOlan); attach(varOlan); selamla(varOlan); return varOlan; }
     if (kurulumBasladi || !window.io) return null;
     kurulumBasladi = true;
     try {
@@ -666,6 +747,24 @@
     }
     const sock = ensureSocket();
     if (!sock || !sock.connected) {
+      /* Bağlantı birkaç saniye içinde gelirse mesaj KAYBOLMAZ: bekletilip
+         bağlanınca gönderilir. Uyarı yalnız gerçekten gecikirse çıkar. */
+      if (sock && typeof sock.once === 'function') {
+        inp.value = '';
+        let gitti = false;
+        sock.once('connect', () => {
+          if (gitti) return;
+          gitti = true;
+          sock.emit('chatMessage', { scope: 'global', roomId: null, text, name: myName(), memberKey: memberKey() });
+        });
+        setTimeout(() => {
+          if (gitti) return;
+          gitti = true;
+          inp.value = inp.value || text;
+          toast('💬 Sunucuya ulaşılamadı — mesajın kutuda duruyor, birazdan tekrar gönder.', 'warning');
+        }, 8000);
+        return;
+      }
       toast('💬 Sunucuya bağlanılıyor — birkaç saniye sonra tekrar deneyin.', 'warning');
       return;
     }

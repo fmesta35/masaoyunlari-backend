@@ -28,7 +28,7 @@ const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 
-const IZINLI = new Set(['scoreWrite', 'recordMatch', 'tournamentSave', 'tournamentDelete', 'chatLog']);
+const IZINLI = new Set(['scoreWrite', 'recordMatch', 'tournamentSave', 'tournamentDelete', 'chatLog', 'wordsSave']);
 const OMUR_MS = 13 * 24 * 3600 * 1000;     // PHP 14 gün kabul eder
 const DAGITIM_ARALIK_MS = 15000;           // aynı kayıt en sık 15 sn'de bir dağıtılır
 
@@ -132,11 +132,14 @@ function kur(ayar) {
   }
 
   /* PHP'nin imzaladığı turnuva listesi (social.php?action=tournamentListSigned). */
-  function turnuvaListesiDogrula(p) {
+  function turnuvaListesiDogrula(p) { return imzaliListe(p, 'tlist'); }
+  /* PHP'nin imzaladığı kelime ekleri (social.php?action=wordsListSigned). */
+  function kelimeListesiDogrula(p) { return imzaliListe(p, 'klist'); }
+  function imzaliListe(p, onek) {
     if (!KEY || !p || typeof p.veri !== 'string' || typeof p.sig !== 'string') return null;
     const ts = Number(p.ts);
     if (!(ts > 0) || Math.abs(Date.now() - ts) > 10 * 60 * 1000) return null;
-    const b = hmac('tlist|' + ts + '|' + p.veri);
+    const b = hmac(onek + '|' + ts + '|' + p.veri);
     let ok = false;
     try { ok = p.sig.length === b.length && crypto.timingSafeEqual(Buffer.from(p.sig), Buffer.from(b)); } catch (_) {}
     if (!ok) return null;
@@ -151,7 +154,7 @@ function kur(ayar) {
   }, 60000);
   if (tekrar.unref) tekrar.unref();
 
-  return { ekle, dagit, onayla, turnuvaListesiDogrula, boyut: () => kuyruk.size,
+  return { ekle, dagit, onayla, turnuvaListesiDogrula, kelimeListesiDogrula, boyut: () => kuyruk.size,
            _hmac: hmac, _kuyruk: kuyruk };
 }
 

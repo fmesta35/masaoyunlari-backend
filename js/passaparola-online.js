@@ -23,7 +23,12 @@
   if (window.__gvPassaparolaLoaded) return;
   window.__gvPassaparolaLoaded = true;
 
-  var taslakCevap = '';          // kutuya yazılan ama gönderilmeyen metin
+  var taslakCevap = '';
+  var odakta = false;          // cevap kutusu odakta mıydı (yeniden çizimde korunur)
+  var sonSoruImza = '';
+  function dokunmatik() {
+    try { return window.matchMedia('(pointer: coarse)').matches; } catch (_) { return false; }
+  }          // kutuya yazılan ama gönderilmeyen metin
   var sonOlay = null;
 
   function esc(s) {
@@ -48,20 +53,42 @@
   }
 
   /* Bir oyuncunun çarkı: 27 harf, durumuna göre renkli. */
-  function carkHtml(s, seat) {
+  /* CEVAP KUTUSU NEDEN BOZULUYORDU (kullanıcı raporu: "yazı yazacağım
+     noktada imleç sürekli aktif oluyor, sürekli tıklama döngüsü var, yazı
+     düzgün yazılmıyor"): çarkın HTML'i saati ve RAKİBİN ilerlemesini de
+     içeriyordu. Saat her saniye, rakip her cevapta değiştiği için ortak
+     yaşam döngüsü bütün masayı — cevap kutusu dahil — yeniden yazıyor ve
+     kutuya tekrar odaklanıyordu: klavye kapanıp açılıyor, yazılan harf ve
+     klavyenin kelime önerisi kayboluyordu. Artık HTML yalnız SİZİN
+     durumunuzdan oluşur; saat ve rakibin çarkı yerinde (DOM üzerinden)
+     tazelenir, kutu yalnız sizin cevabınız işlendiğinde yeniden kurulur. */
+  function carkIc(s, seat) {
     var d = (s.durum || {})[seat] || {};
     var aktif = (s.aktifHarf || {})[seat];
     var sirada = !!(s.oynuyor && s.oynuyor[seat]) && s.status === 'playing';
-    return '<div class="pp-cark' + (seat === s.seat ? ' benim' : '') + (sirada ? ' sirada' : '') + '">' +
-      '<div class="pp-cark-bas">' +
-        '<span class="pp-ad">' + esc(adOf(seat)) + (seat === s.seat ? ' (Siz)' : '') + '</span>' +
-        '<span class="pp-dogru">✅ ' + ((s.dogru || {})[seat] || 0) + '</span>' +
-        '<span class="pp-saat" data-seat="' + seat + '">' + sureYaz((s.saat || {})[seat]) + '</span>' +
-      '</div>' +
-      '<div class="pp-harfler">' + (s.harfler || []).map(function (h) {
+    return {
+      sirada: sirada,
+      dogru: (s.dogru || {})[seat] || 0,
+      harfler: (s.harfler || []).map(function (h) {
         var durum = d[h] || 'bos';
         return '<span class="pp-h ' + durum + (h === aktif && sirada ? ' aktif' : '') + '">' + h + '</span>';
-      }).join('') + '</div></div>';
+      }).join('')
+    };
+  }
+  function carkHtml(s, seat, yalin) {
+    var c = carkIc(s, seat);
+    if (yalin) {                     // rakip: içerik bind'de yerinde yazılır
+      c.harfler = (s.harfler || []).map(function (h) { return '<span class="pp-h bos">' + h + '</span>'; }).join('');
+      c.dogru = '';
+    }
+    return '<div class="pp-cark' + (seat === s.seat ? ' benim' : '') + (c.sirada && !yalin ? ' sirada' : '') +
+      '" data-seat="' + seat + '"' + (yalin ? ' data-yalin="1"' : '') + '>' +
+      '<div class="pp-cark-bas">' +
+        '<span class="pp-ad">' + esc(adOf(seat)) + (seat === s.seat ? ' (Siz)' : '') + '</span>' +
+        '<span class="pp-dogru">✅ ' + c.dogru + '</span>' +
+        '<span class="pp-saat" data-seat="' + seat + '"></span>' +
+      '</div>' +
+      '<div class="pp-harfler">' + c.harfler + '</div></div>';
   }
 
   function maskeHtml(s) {
@@ -143,7 +170,9 @@
       return (s.status || '') + '#' + JSON.stringify(s.oynuyor || {}) + '#' + (s.soru || '') + '#' +
         (s.ozet ? 'Z' : '') + '#' + (s.winner == null ? '' : s.winner) + '#' +
         (s.maske || []).join('') + '#' +
-        (s.seats || []).map(function (q) {
+        (s.seats || []).filter(function (q) {
+          return m.isSpectator || s.status !== 'playing' || q === s.seat;
+        }).map(function (q) {
           var d = (s.durum || {})[q] || {};
           return q + ':' + (s.harfler || []).map(function (h) { return (d[h] || 'b')[0]; }).join('') +
                  ':' + ((s.aktifHarf || {})[q] || '');
@@ -156,7 +185,10 @@
       window.__gvPassaparolaSeat = m.isSpectator ? null : s.seat;
       var oynuyorum = s.status === 'playing' && !m.isSpectator && !!(s.oynuyor && s.oynuyor[s.seat]);
       var h = '<div class="pp-wrap">';
-      h += '<div class="pp-carklar">' + s.seats.map(function (q) { return carkHtml(s, q); }).join('') + '</div>';
+      var canli = s.status === 'playing' && !m.isSpectator;
+      h += '<div class="pp-carklar">' + s.seats.map(function (q) {
+        return carkHtml(s, q, canli && q !== s.seat);
+      }).join('') + '</div>';
       h += sonOlayHtml(s);
       h += '<div class="pp-panel">';
       var durumYazi = s.status !== 'playing' ? '🏁 Yarışma bitti'
@@ -164,7 +196,9 @@
         : oynuyorum ? '🎯 Yarışma sürüyor — rakibiniz de aynı anda cevaplıyor'
         : '✅ Bitirdiniz — rakibinizin bitirmesi bekleniyor';
       h += '<div class="pp-ust"><span class="pp-set">📚 ' + esc(s.setAdi || '') + '</span>' +
-        '<span class="pp-sira">' + durumYazi + '</span></div>';
+        '<span class="pp-sira">' + durumYazi + '</span>' +
+        (oynuyorum ? '<span class="pp-yaz-saat">⏱ <span class="pp-saat" data-seat="' + s.seat + '"></span>' +
+          ' · <b>' + esc(((s.aktifHarf || {})[s.seat]) || '') + '</b></span>' : '') + '</div>';
       if (s.status !== 'playing') {
         h += ozetHtml(s, m);
         h += '</div></div>';
@@ -220,13 +254,34 @@
           if (gs.saat && typeof gs.saat[t] === 'number' && gs.saat[t] > 0) gs.saat[t] -= 1;
         });
         saatYaz();
+        rakipYaz();
       }, 1000);
+      rakipYaz();
+
+      /* --- rakibin çarkı: yerinde tazelenir (HTML yeniden yazılmaz) --- */
+      function rakipYaz() {
+        var gs = m.state || {};
+        root.querySelectorAll('.pp-cark[data-yalin]').forEach(function (el) {
+          var c = carkIc(gs, Number(el.dataset.seat));
+          el.classList.toggle('sirada', c.sirada);
+          var hk = el.querySelector('.pp-harfler');
+          if (hk && hk.__ppSon !== c.harfler) { hk.innerHTML = c.harfler; hk.__ppSon = c.harfler; }
+          var dk = el.querySelector('.pp-dogru');
+          var dt = '✅ ' + c.dogru;
+          if (dk && dk.textContent !== dt) dk.textContent = dt;
+        });
+      }
 
       /* --- cevap kutusu --- */
       var kutu = root.querySelector('.pp-giris');
       if (kutu && !kutu.disabled) {
         kutu.value = taslakCevap;
         kutu.addEventListener('input', function () { taslakCevap = this.value; });
+        kutu.addEventListener('focus', function () { odakta = true; });
+        kutu.addEventListener('blur', function () { setTimeout(function () {
+          if (!document.activeElement || !document.activeElement.classList ||
+              !document.activeElement.classList.contains('pp-giris')) odakta = false;
+        }, 0); });
         var gonder = function () {
           var v = (kutu.value || '').trim();
           if (!v) return;
@@ -236,7 +291,47 @@
         kutu.addEventListener('keydown', function (e) { if (e.key === 'Enter') gonder(); });
         var gb = root.querySelector('.pp-gonder');
         if (gb) gb.addEventListener('click', gonder);
-        setTimeout(function () { try { kutu.focus(); } catch (_) {} }, 60);
+        /* Düğmeye basmak kutudan odağı almasın: telefonda klavye kapanıp
+           açılmasın, oyuncu yazmayı kesintisiz sürdürsün. */
+        root.querySelectorAll('.pp-gonder,.pp-pas,.pp-harf').forEach(function (b) {
+          b.addEventListener('pointerdown', function (e) { if (odakta) e.preventDefault(); });
+          b.addEventListener('mousedown', function (e) { if (odakta) e.preventDefault(); });
+        });
+        /* YAZMA KİPİ: kutu odakta ve görünen alan alçaksa (klavye açık) */
+        var wrap = root.querySelector('.pp-wrap');
+        var yazKipi = function () {
+          if (!wrap) return;
+          var vv = window.visualViewport;
+          var gy = vv && vv.height ? vv.height : window.innerHeight;
+          var ac = (document.activeElement === kutu) && gy < 480;
+          if (wrap.classList.contains('pp-yaz') !== ac) {
+            wrap.classList.toggle('pp-yaz', ac);
+            if (ac) setTimeout(function () {
+              try { kutu.scrollIntoView({ block: 'center' }); } catch (_) {}
+            }, 60);
+          }
+        };
+        kutu.addEventListener('focus', function () { setTimeout(yazKipi, 250); });
+        kutu.addEventListener('blur', function () { setTimeout(yazKipi, 120); });
+        if (root.__ppYazVV && window.visualViewport) window.visualViewport.removeEventListener('resize', root.__ppYazVV);
+        root.__ppYazVV = yazKipi;
+        if (window.visualViewport) window.visualViewport.addEventListener('resize', yazKipi);
+        setTimeout(yazKipi, 300);
+        /* Odak YALNIZ kutu zaten odaktaysa (yazmaya devam) ya da bu sorunun
+           ilk çiziminde geri verilir — her çizimde zorla odaklamak telefonda
+           klavyeyi kapatıp açıyordu. İmleç sona konur. */
+        var soruImza = String(s.soru || '') + '#' + ((s.aktifHarf || {})[s.seat] || '');
+        var ilkCizim = soruImza !== sonSoruImza;
+        sonSoruImza = soruImza;
+        if (odakta || (ilkCizim && !dokunmatik())) {
+          setTimeout(function () {
+            try {
+              kutu.focus({ preventScroll: true });
+              var n = kutu.value.length;
+              kutu.setSelectionRange(n, n);
+            } catch (_) {}
+          }, 30);
+        }
       }
       var pb = root.querySelector('.pp-pas');
       if (pb && !pb.disabled) pb.addEventListener('click', function () {
@@ -278,7 +373,7 @@
     }
   });
 
-  window.addEventListener('gv:roomLeft', function () { taslakCevap = ''; sonOlay = null; });
+  window.addEventListener('gv:roomLeft', function () { taslakCevap = ''; sonOlay = null; odakta = false; sonSoruImza = ''; });
 
   /* Test/teşhis köprüsü */
   window.__gvPassaparola = { taslak: function () { return taslakCevap; } };

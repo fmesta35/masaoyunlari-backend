@@ -207,6 +207,9 @@
   var OYUN_SARMAL = '.chess-wrapper,.dama-wrap,.tdama-wrap,.rv-wrap,.gm-wrap,' +
                     '.c4-wrap,.bil-wrap,.card-wrap,.bs-wrap,.tavla-wrap';
   var sigdirmaKilit = false;
+  var FS_KENDI = '.dama-wrap,.tdama-wrap,.rv-wrap,.gm-wrap,.c4-wrap,.tavla-wrap';
+  /* Telefonda tam ekranda (gv-fs-yan) Amiral Battı da kendi ızgara düzenine geçer. */
+  var FS_KENDI_YAN = '.bs-wrap';
 
   /* ==========================================================================
      BİLARDO: ORANTILI KÜÇÜLTME YERİNE GERÇEK DÜZEN DEĞİŞİKLİĞİ
@@ -322,6 +325,18 @@
       if (bilardo) bilardoNormal(el);
       if (area.style.minHeight) area.style.minHeight = '';
       return;
+    }
+    /* Tam ekranda bu tahtalar CSS container ölçüsüyle (cqw/cqh) KENDİLERİ
+       sığar (bkz. js/fs-duzen.js). Üstüne bir de ölçek uygulamak tahtayı
+       iki kez küçültüyordu (tavla tam ekranda 157 px'e düşüyordu). */
+    if (tamEkran && (el.matches(FS_KENDI) || (oda.classList.contains('gv-fs-yan') && el.matches(FS_KENDI_YAN)))) {
+      if (el.style.transform) { el.style.transform = ''; el.style.transformOrigin = ''; }
+      if (area.style.minHeight) area.style.minHeight = '';
+      /* Oda tam ekran katmanındaysa (gerçek tam ekran ya da sabit katman)
+         tahta kendi ölçüsüyle sığar. Değilse (oda sayfa akışında kaldı) eski
+         orantılı küçültmeye düşülür — tahta yine de ekrandan taşmaz. */
+      var kb = el.getBoundingClientRect();
+      if (kb.bottom <= gorunurYukseklik() + 2 && kb.top >= -2) return;
     }
     sigdirmaKilit = true;
     if (bilardo) {

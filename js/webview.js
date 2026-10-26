@@ -126,6 +126,7 @@
       if (!kapandi) {
         var oda = document.getElementById('pg-room');
         if (oda && oda.classList.contains('active') && window.GV && typeof GV.leaveRoom === 'function') {
+          window.__gvGeriTusu = Date.now();   // bekçi: geri tuşu kullanıcı isteğidir
           try { GV.leaveRoom(); kapandi = true; } catch (_) {}
         }
       }

@@ -51,7 +51,7 @@ $now = round(microtime(true) * 1000);
  * ========================================================================== */
 if ($action === 'relay') {
     $r = isset($in['r']) && is_array($in['r']) ? $in['r'] : null;
-    $izinli = array('scoreWrite', 'recordMatch', 'tournamentSave', 'tournamentDelete', 'chatLog');
+    $izinli = array('scoreWrite', 'recordMatch', 'tournamentSave', 'tournamentDelete', 'chatLog', 'wordsSave');
     if (!$r) gv_json(array('ok' => false, 'error' => 'kayıt yok'));
     $rid = substr(strval($r['id'] ?? ''), 0, 64);
     $ra = strval($r['a'] ?? '');
@@ -733,6 +733,49 @@ if ($action === 'tournamentList' || $action === 'tournamentListSigned') {
             'sig' => hash_hmac('sha256', 'tlist|' . $tsl . '|' . $veri, GV_SERVER_KEY)));
     }
     gv_json(array('ok' => true, 'liste' => $liste));
+}
+
+/* ==========================================================================
+   KELİME SÖZLÜĞÜ EKLERİ — Kurucu Paneli'nde onaylanan kelimeler
+   (Kelimelik + Adam Asmaca ortak). Render'ın diski geçici olabildiği için
+   kalıcı kopya burada (gv_settings / 'kelime_ek') durur.
+     wordsSave        : Render (imzalı köprü) — listenin tamamını yazar;
+                        yalnız daha yeni (ts) liste eskisinin yerini alır.
+     wordsListSigned  : HERKESE AÇIK + İMZALI; tarayıcı Render'a iletir.
+   ========================================================================== */
+if ($action === 'wordsSave') {
+    gv_require_server_key();
+    $pdo = gv_pdo();
+    $liste = isset($in['kelimeler']) && is_array($in['kelimeler']) ? $in['kelimeler'] : array();
+    $ts = intval($in['ts'] ?? $now);
+    $temiz = array();
+    foreach ($liste as $x) {
+        $k = is_array($x) ? strval($x['kelime'] ?? '') : strval($x);
+        if (!preg_match('/^[A-ZÇĞİÖŞÜ]{2,15}$/u', $k)) continue;
+        $temiz[] = array('kelime' => $k, 'hedef' => is_array($x) ? strval($x['hedef'] ?? 'ortak') : 'ortak',
+                         'ts' => is_array($x) ? intval($x['ts'] ?? 0) : 0);
+        if (count($temiz) >= 5000) break;
+    }
+    $r = $pdo->query("SELECT value FROM gv_settings WHERE skey = 'kelime_ek'")->fetch();
+    if ($r && $r['value']) {
+        $eski = json_decode(strval($r['value']), true);
+        if (is_array($eski) && intval($eski['ts'] ?? 0) > $ts) gv_json(array('ok' => true, 'eski' => true));
+    }
+    $json = json_encode(array('ts' => $ts, 'kelimeler' => $temiz), JSON_UNESCAPED_UNICODE);
+    $pdo->prepare("INSERT INTO gv_settings(skey, value, updated_at) VALUES('kelime_ek', ?, ?)
+                   ON DUPLICATE KEY UPDATE value = VALUES(value), updated_at = VALUES(updated_at)")
+        ->execute(array($json, $now));
+    gv_json(array('ok' => true, 'adet' => count($temiz)));
+}
+if ($action === 'wordsListSigned') {
+    $pdo = gv_pdo();
+    $r = $pdo->query("SELECT value FROM gv_settings WHERE skey = 'kelime_ek'")->fetch();
+    $d = ($r && $r['value']) ? json_decode(strval($r['value']), true) : null;
+    $liste = (is_array($d) && isset($d['kelimeler']) && is_array($d['kelimeler'])) ? $d['kelimeler'] : array();
+    $veri = json_encode($liste, JSON_UNESCAPED_UNICODE);
+    $tsl = $now;
+    gv_json(array('ok' => true, 'veri' => $veri, 'ts' => $tsl,
+        'sig' => hash_hmac('sha256', 'klist|' . $tsl . '|' . $veri, GV_SERVER_KEY)));
 }
 
 if ($action === 'tournamentSave') {

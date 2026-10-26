@@ -178,7 +178,7 @@
         if (x.oynanan) satir.push(x.oynanan + ' masa oynanıyor');
         if (x.ozel) satir.push(x.ozel + ' özel masa');
         var dugme = x.bekleyen
-          ? '<button class="btn btn-p" type="button" data-katil="' + esc(x.gameId) + '">⚡ Katıl</button>'
+          ? '<button class="btn btn-p" type="button" data-oda-katil="' + esc(x.gameId) + '">⚡ Katıl</button>'
           : '<button class="btn btn-o" type="button" data-lobi="' + esc(x.gameId) + '">Lobiye Git</button>';
         return '<div class="gvc-oyun"><span class="ikon">' + o.icon + '</span>' +
           '<div class="bilgi"><b>' + esc(o.name) + '</b><span>' + satir.join(' · ') + '</span></div>' + dugme + '</div>';
@@ -186,9 +186,9 @@
     }
     h += '<div class="gvc-not">⚡ <b>Katıl</b>, o oyunda masada bekleyen oyuncunun yanına oturtur — Hızlı Eşleş ile aynı.</div>';
     g.innerHTML = h;
-    g.querySelectorAll('[data-katil]').forEach(function (b) {
+    g.querySelectorAll('[data-oda-katil]').forEach(function (b) {
       b.addEventListener('click', function () {
-        var gid = b.getAttribute('data-katil');
+        var gid = b.getAttribute("data-oda-katil");
         kapat('gvOdaModal');
         if (window.GV && GV.quickMatchFor) GV.quickMatchFor(gid, b);
         else if (window.GV && GV.openLobby) GV.openLobby(gid);

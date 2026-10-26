@@ -47,14 +47,18 @@ function ekle(kayit) {
   const sonuc = [];
   for (const k of kayit.kelimeler) {
     let v = kayitlar.find(x => x.kelime === k);
+    const oyun = kayit.oyun === 'adamasmaca' ? 'adamasmaca' : 'kelimelik';
     if (v) {
       v.adet++; v.sonTs = kayit.ts || Date.now();
+      v.oyunlar = Array.isArray(v.oyunlar) ? v.oyunlar : ['kelimelik'];
+      if (!v.oyunlar.includes(oyun)) v.oyunlar.push(oyun);
       if (kayit.not && !v.notlar.includes(kayit.not)) v.notlar.push(String(kayit.not).slice(0, 120));
       if (v.notlar.length > 5) v.notlar = v.notlar.slice(-5);
     } else {
       v = { kelime: k, adet: 1, durum: 'bekliyor', notlar: kayit.not ? [kayit.not] : [],
             ilkTs: kayit.ts || Date.now(), sonTs: kayit.ts || Date.now(),
-            oda: kayit.oda || null, kim: kayit.kim || null, uid: kayit.uid || null };
+            oda: kayit.oda || null, kim: kayit.kim || null, uid: kayit.uid || null,
+            oyunlar: [oyun], hedef: 'ortak' };
       kayitlar.push(v);
     }
     sonuc.push(v);
@@ -64,28 +68,76 @@ function ekle(kayit) {
   return sonuc;
 }
 
+function oyunlariOf(x) { return Array.isArray(x.oyunlar) && x.oyunlar.length ? x.oyunlar : ['kelimelik']; }
 function liste(opts) {
   const o = opts || {};
   let out = kayitlar.slice();
   if (o.durum) out = out.filter(x => x.durum === o.durum);
+  if (o.oyun) out = out.filter(x => oyunlariOf(x).includes(o.oyun));
   out.sort((a, b) => (b.adet - a.adet) || (b.sonTs - a.sonTs));
   const limit = Math.max(1, Math.min(500, Number(o.limit) || 200));
   return out.slice(0, limit);
 }
 
 /* durum: 'bekliyor' | 'eklendi' | 'reddedildi' */
+const dinleyiciler = [];
+function degisince(fn) { if (typeof fn === 'function') dinleyiciler.push(fn); }
+function haber(v, onceki) { dinleyiciler.forEach(fn => { try { fn(v, onceki); } catch (_) {} }); }
+
 function durumAta(kelime, durum) {
   const v = kayitlar.find(x => x.kelime === kelime);
   if (!v) return false;
   if (!['bekliyor', 'eklendi', 'reddedildi'].includes(durum)) return false;
-  v.durum = durum; yaz();
+  const onceki = v.durum;
+  v.durum = durum; v.kararTs = Date.now(); yaz();
+  if (onceki !== durum) haber(v, onceki);
   return true;
 }
 
+/* Kurucu kelimeyi doğrudan ekler (bildirim beklemeden). */
+function elleEkle(kelime, kim) {
+  let v = kayitlar.find(x => x.kelime === kelime);
+  if (!v) {
+    v = { kelime, adet: 0, durum: 'bekliyor', notlar: ['Kurucu tarafından eklendi'], ilkTs: Date.now(), sonTs: Date.now(),
+          oda: null, kim: kim || 'Kurucu', uid: null, oyunlar: ['kelimelik', 'adamasmaca'], hedef: 'ortak', elle: true };
+    kayitlar.push(v);
+  }
+  return durumAta(kelime, 'eklendi') || v.durum === 'eklendi';
+}
+
+function eklenenler() {
+  return kayitlar.filter(x => x.durum === 'eklendi').map(x => ({ kelime: x.kelime, hedef: x.hedef || 'ortak', ts: x.kararTs || x.sonTs || 0 }));
+}
+
+/* Yöncü'deki (MySQL) kalıcı kopyadan gelen eklenen kelimeler: Render'ın
+   diski geçici olabildiği için yeniden başlatmada liste buradan döner. */
+function disaridanBirlestir(liste) {
+  let n = 0;
+  (Array.isArray(liste) ? liste : []).forEach(x => {
+    const k = x && String(x.kelime || '');
+    if (!/^[A-ZÇĞİÖŞÜ]{2,15}$/.test(k)) return;
+    let v = kayitlar.find(y => y.kelime === k);
+    if (!v) {
+      v = { kelime: k, adet: 0, durum: 'eklendi', notlar: [], ilkTs: x.ts || Date.now(), sonTs: x.ts || Date.now(),
+            oda: null, kim: null, uid: null, oyunlar: ['kelimelik', 'adamasmaca'], hedef: x.hedef || 'ortak', kararTs: x.ts || Date.now() };
+      kayitlar.push(v); n++;
+      haber(v, null);
+    } else if (v.durum !== 'eklendi' && (Number(x.ts) || 0) > (Number(v.kararTs) || 0)) {
+      const onceki = v.durum; v.durum = 'eklendi'; v.kararTs = x.ts; n++;
+      haber(v, onceki);
+    }
+  });
+  if (n) yaz();
+  return n;
+}
+
 function sayilar() {
-  const s = { toplam: kayitlar.length, bekliyor: 0, eklendi: 0, reddedildi: 0 };
-  for (const k of kayitlar) if (s[k.durum] !== undefined) s[k.durum]++;
+  const s = { toplam: kayitlar.length, bekliyor: 0, eklendi: 0, reddedildi: 0, kelimelik: 0, adamasmaca: 0 };
+  for (const k of kayitlar) {
+    if (s[k.durum] !== undefined) s[k.durum]++;
+    oyunlariOf(k).forEach(o => { if (s[o] !== undefined) s[o]++; });
+  }
   return s;
 }
 
-module.exports = { ekle, liste, durumAta, sayilar, _dosya: FILE };
+module.exports = { ekle, liste, durumAta, elleEkle, eklenenler, disaridanBirlestir, degisince, sayilar, _dosya: FILE };

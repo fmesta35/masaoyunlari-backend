@@ -95,6 +95,40 @@ function sozluktekiMi(kelime) {
 }
 function sozlukBoyu() { sozlukYukle(); return SOZLUK.size; }
 
+/* KURUCU ONAYIYLA EKLENEN KELİMELER (Kurucu Paneli → Kelime Bildirimleri).
+   Kelimelik ve Adam Asmaca AYNI sözlüğü kullanır; onaylanan kelime ikisine
+   de anında geçer, sunucu yeniden başlatılmadan. Yalnız sonradan eklenenler
+   geri alınabilir — ana sözlük dosyası korunur. */
+const SONRADAN = new Set();
+function sozlugeEkle(kelime) {
+  sozlukYukle();
+  const b = trBuyuk(String(kelime || '').trim());
+  if (!/^[A-ZÇĞİÖŞÜ]{2,15}$/.test(b)) return false;
+  if (SOZLUK.has(b)) return true;
+  SOZLUK.add(b);
+  SONRADAN.add(b);
+  if (b.length <= ISTAKA) SOZLUK_LISTE.push(b);
+  if (UZUNLUK_DIZINI) {
+    const n = [...b].length;
+    (UZUNLUK_DIZINI[n] = UZUNLUK_DIZINI[n] || []).push(b);
+  }
+  return true;
+}
+function sozluktenCikar(kelime) {
+  const b = trBuyuk(String(kelime || '').trim());
+  if (!SONRADAN.has(b)) return false;
+  SONRADAN.delete(b);
+  SOZLUK.delete(b);
+  const i = SOZLUK_LISTE.indexOf(b);
+  if (i !== -1) SOZLUK_LISTE.splice(i, 1);
+  if (UZUNLUK_DIZINI) {
+    const d = UZUNLUK_DIZINI[[...b].length];
+    if (d) { const j = d.indexOf(b); if (j !== -1) d.splice(j, 1); }
+  }
+  return true;
+}
+function sonradanEklenenler() { return [...SONRADAN]; }
+
 /* ----------------------------------------------------------- RASTGELE KELİME
  * Adam Asmaca, gizleyen oyuncu süresini doldurduğunda ya da "öner" dediğinde
  * sözlükten kelime ister. Kelimelik'in SOZLUK_LISTE'si ıstaka boyuyla (7 harf)
@@ -572,6 +606,6 @@ function otomatikPasGerekli(st) {
 module.exports = {
   N, ISTAKA, BINGO, PAS_SINIRI, HARFLER, BONUS, MERKEZ,
   init, play, pas, takas, pesEt, hamleVarMi, otomatikPasGerekli,
-  sozluktekiMi, sozlukYukle, sozlukBoyu, benzerKelimeler, rastgeleKelime, harfPuani, trBuyuk, trKucuk,
+  sozluktekiMi, sozlukYukle, sozlukBoyu, sozlugeEkle, sozluktenCikar, sonradanEklenenler, benzerKelimeler, rastgeleKelime, harfPuani, trBuyuk, trKucuk,
   _hamleAra: hamleAra, _sozlukHamlesiAra: sozlukHamlesiAra, _kelimeleriTopla: kelimeleriTopla
 };

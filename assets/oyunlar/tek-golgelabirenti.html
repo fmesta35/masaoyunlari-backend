@@ -1,6 +1,23 @@
 <!DOCTYPE html>
 <html lang="tr">
 <head>
+<script id="gv-ses-kilidi">/* Masa Oyunları SES ANAHTARI (kullanıcı raporu: "ses kapat dediğimde hâlâ gaz sesi geliyor").
+Oyun sitesinin "🔇 Ses" düğmesi bu oyunun kendi seslerini de susturur: bütün AudioContext'ler askıya alınır,
+<audio>/<video> kısılır. Tercih sitenin 'gv-ses' anahtarındadır; değişince 'storage' olayı ve postMessage gelir. */
+(function(){var KEY='gv-ses';function kapali(){try{return localStorage.getItem(KEY)==='off'}catch(_){return false}}
+var liste=[];var A=window.AudioContext||window.webkitAudioContext;
+if(A&&!A.__gvSes){var Y=function(){var c=arguments.length?new A(arguments[0]):new A();liste.push(c);var asil=c.resume.bind(c);c.__gvResume=asil;
+c.resume=function(){if(kapali())return Promise.resolve();return asil();};if(kapali()){try{c.suspend()}catch(_){}}return c;};
+Y.prototype=A.prototype;Y.__gvSes=true;try{window.AudioContext=Y;if(window.webkitAudioContext)window.webkitAudioContext=Y;}catch(_){}}
+var P=window.HTMLMediaElement&&HTMLMediaElement.prototype.play;
+if(P&&!P.__gvSes){var Q=function(){if(kapali())this.muted=true;return P.apply(this,arguments);};Q.__gvSes=true;HTMLMediaElement.prototype.play=Q;}
+function uygula(){var k=kapali();liste.forEach(function(c){try{if(k)c.suspend();else c.__gvResume();}catch(_){}});
+try{document.querySelectorAll('audio,video').forEach(function(m){m.muted=k;});}catch(_){}}
+window.addEventListener('storage',function(e){if(!e||e.key===KEY)uygula();});
+window.addEventListener('message',function(e){if(e&&e.data&&e.data.gvSes!==undefined)uygula();});
+document.addEventListener('visibilitychange',function(){if(!document.hidden)uygula();});
+window.__gvSesUygula=uygula;})();</script>
+
 <script>/* TEK-KOPRU-BAS — site köprüsü (yalnız masaoyunlari.com.tr iframe'inde çalışır).
    Oyun kodundan ÖNCE yüklenir: requestAnimationFrame'i sarar ki izleyici
    varken her karenin hemen ardından oyun ekranından küçük bir görüntü alınabilsin. */
@@ -108,6 +125,44 @@
   }
   ::-webkit-scrollbar{ width:6px } ::-webkit-scrollbar-thumb{ background:rgba(154,107,255,.4); border-radius:3px }
 </style>
+<style id="gv-secim-kilidi">html,body,button,[role=button],canvas,div,span,a,label,p,h1,h2,h3,h4,b,i,svg{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent}input,textarea,[contenteditable],[contenteditable] *{-webkit-user-select:text;user-select:text;-webkit-touch-callout:default}</style>
+<script>/* Masa Oyunları: düğme yazısına uzun basınca "Kopyala / Tümünü seç" çıkıp oyunu bölmesin (kullanıcı raporu). */(function(){function yaziAlani(t){t=t&&t.nodeType===3?t.parentElement:t;return !!(t&&t.closest&&t.closest('input,textarea,[contenteditable]'));}document.addEventListener('contextmenu',function(e){if(!yaziAlani(e.target))e.preventDefault();},true);document.addEventListener('selectstart',function(e){if(!yaziAlani(e.target))e.preventDefault();},true);})();</script>
+<style id="gv-golge-dokunma">
+/* MOBİL KONTROLLER (yatay telefon / tam ekran):
+   · Sol alt: hareket kolu her zaman görünür (dokunulan yere de gelir).
+   · VUR / ATIL'ın solunda BAKIŞ KOLU: kaydırdıkça kamera döner.
+   · YOL İŞARETİ paneli sağ üstte küçük bir kutu (okunaklı). */
+#lookPad{right:212px;bottom:18px;width:96px;height:96px;border-radius:50%;touch-action:none;
+  border:2px solid rgba(88,232,255,.4);background:radial-gradient(circle,rgba(88,232,255,.14),rgba(10,9,22,.42));
+  box-shadow:0 0 18px rgba(88,232,255,.18)}
+#lookKnob{position:absolute;left:50%;top:50%;width:40px;height:40px;margin:-20px 0 0 -20px;border-radius:50%;
+  background:radial-gradient(circle at 35% 30%,#d9fbff,#3fb6d8);box-shadow:0 0 14px rgba(88,232,255,.55);pointer-events:none}
+#lookPad .lp-ok{position:absolute;top:50%;transform:translateY(-50%);font-size:13px;color:rgba(217,251,255,.75);pointer-events:none}
+#lookPad .lp-ok.sol{left:8px}#lookPad .lp-ok.sag{right:8px}
+#lookPad .lp-yazi{position:absolute;left:0;right:0;bottom:-15px;text-align:center;font:700 9px/1 system-ui;letter-spacing:.18em;color:rgba(255,255,255,.55);pointer-events:none}
+#stick.gv-bos{display:block!important;opacity:.45}
+/* Tailwind 4 'translate' özelliği satır içi transform ile ÜST ÜSTE biniyordu: topuz kolun dışında duruyordu. */
+#knob{translate:none!important}
+@media (pointer:coarse) and (orientation:landscape), (max-height:520px){
+  #markBox{left:auto!important;right:calc(112px + env(safe-area-inset-right))!important;top:max(8px,env(safe-area-inset-top))!important;bottom:auto!important;
+    width:176px!important;padding:6px 7px!important;border-radius:10px!important}
+  #markBox .mark-heading{margin-bottom:4px!important;font-size:9px!important}
+  #markBox .sw{min-height:30px!important;padding:2px 1px!important;gap:2px!important}
+  #markBox .sw span.w-4{width:12px!important;height:12px!important}
+  #markBox .sw span.text-\[8px\]{font-size:7.5px!important}
+  #markBox .flex.items-center.gap-1\.5.mt-1\.5{display:none!important}
+  #markBox .mark-directions{gap:3px!important;margin-top:4px!important}
+  #markBox .mark-option{min-height:28px!important;border-radius:6px!important}
+  #markBox .mark-option span{font-size:15px!important}
+  #markBox .mark-option small{display:none!important}
+  #markBox .mark-help,#markBox #markStatus{display:none!important}
+  #atkBtn{width:92px!important;height:92px!important}
+  #dashBtn{right:112px!important;width:72px!important;height:72px!important}
+  #lookPad{right:194px;bottom:16px;width:90px;height:90px}
+  #markBtn{bottom:118px!important}
+  #markUndoBtn,#markRotateBtn{bottom:124px!important}
+}
+</style>
 </head>
 <body class="no-sel">
 <div id="app" class="relative w-screen h-screen overflow-hidden bg-[#07060f]">
@@ -197,6 +252,12 @@
     <div id="stickZone" class="absolute left-0 bottom-0 w-1/2 h-[80%] pointer-events-auto"></div>
     <div id="stick" class="absolute w-[132px] h-[132px] rounded-full hidden" style="border:2px solid rgba(138,120,255,.35); background:radial-gradient(circle,rgba(88,232,255,.1),rgba(10,9,22,.3))">
       <div id="knob" class="absolute w-[58px] h-[58px] rounded-full left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2" style="background:radial-gradient(circle at 35% 30%,#8ef6ff,#6b4bff); box-shadow:0 0 22px rgba(88,232,255,.55)"></div>
+    </div>
+    <!-- BAKIŞ KOLU (kullanıcı isteği: "VUR / ATIL düğmelerinin soluna yön değiştirme
+         butonu olsun; oyuncu iki eliyle: sol el ileri-geri-sağ-sol hareket, sağ el ekranı
+         sağa sola çevirir"). Basılı tutup kaydırdıkça kamera o yöne SÜREKLİ döner. -->
+    <div id="lookPad" class="absolute pointer-events-auto" aria-label="Bakış yönünü çevir">
+      <div id="lookKnob"></div><span class="lp-ok sol">◀</span><span class="lp-ok sag">▶</span><span class="lp-yazi">BAK</span>
     </div>
     <button id="atkBtn" class="absolute right-4 bottom-6 w-[104px] h-[104px] rounded-full grid place-items-center ttl text-sm pointer-events-auto"
       style="background:radial-gradient(circle at 35% 30%,rgba(255,214,140,.95),rgba(255,120,60,.9)); color:#200a02; box-shadow:0 0 30px rgba(255,170,80,.45)">VUR</button>
@@ -776,6 +837,7 @@ let stickId=null,stickOrg={x:0,y:0},stickVec={x:0,y:0},lookId=null,lookLast={x:0
 const stickEl=$('#stick'),knobEl=$('#knob');
 $('#stickZone').addEventListener('touchstart',e=>{e.preventDefault();
   const t=e.changedTouches[0]; stickId=t.identifier; stickOrg={x:t.clientX,y:t.clientY};
+  stickEl.classList.remove('gv-bos');
   stickEl.style.left=(t.clientX-66)+'px'; stickEl.style.top=(t.clientY-66)+'px'; stickEl.classList.remove('hidden');
   knobEl.style.transform='translate(-50%,-50%)';},{passive:false});
 $('#stickZone').addEventListener('touchmove',e=>{e.preventDefault();
@@ -784,7 +846,7 @@ $('#stickZone').addEventListener('touchmove',e=>{e.preventDefault();
     if(d>R){dx=dx/d*R;dy=dy/d*R;}
     knobEl.style.transform=`translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
     stickVec={x:dx/R,y:dy/R}; }},{passive:false});
-const stickEnd=e=>{ for(const t of e.changedTouches){ if(t.identifier!==stickId) continue; stickId=null; stickVec={x:0,y:0}; stickEl.classList.add('hidden'); } };
+const stickEnd=e=>{ for(const t of e.changedTouches){ if(t.identifier!==stickId) continue; stickId=null; stickVec={x:0,y:0}; stickEl.classList.add('hidden'); setTimeout(()=>{ try{ stickBosKonum(); }catch(_){} },0); } };
 $('#stickZone').addEventListener('touchend',e=>{e.preventDefault(); stickEnd(e);},{passive:false});
 $('#stickZone').addEventListener('touchcancel',stickEnd,{passive:false});
 const lz=$('#lookZone');
@@ -799,6 +861,28 @@ lz.addEventListener('touchmove',e=>{e.preventDefault();
 const lookEnd=e=>{ for(const t of e.changedTouches){ if(t.identifier===lookId) lookId=null; } };
 lz.addEventListener('touchend',e=>{e.preventDefault(); lookEnd(e);},{passive:false});
 lz.addEventListener('touchcancel',lookEnd,{passive:false});
+// BAKIŞ KOLU: sürekli dönüş (sapma × hız), dikeyde hafif eğim
+let padId=null,padOrg={x:0,y:0},padVec={x:0,y:0};
+const lookPad=$('#lookPad'),lookKnob=$('#lookKnob');
+const padBirak=()=>{ padId=null; padVec={x:0,y:0}; if(lookKnob) lookKnob.style.transform=''; };
+if(lookPad){
+  lookPad.addEventListener('touchstart',e=>{e.preventDefault();e.stopPropagation();
+    const t=e.changedTouches[0]; padId=t.identifier; const r=lookPad.getBoundingClientRect();
+    padOrg={x:r.left+r.width/2,y:r.top+r.height/2};},{passive:false});
+  lookPad.addEventListener('touchmove',e=>{e.preventDefault();e.stopPropagation();
+    for(const t of e.changedTouches){ if(t.identifier!==padId) continue;
+      let dx=t.clientX-padOrg.x,dy=t.clientY-padOrg.y; const d=Math.hypot(dx,dy),R=38;
+      if(d>R){dx=dx/d*R;dy=dy/d*R;}
+      lookKnob.style.transform=`translate(${dx}px,${dy}px)`;
+      padVec={x:dx/R,y:dy/R}; }},{passive:false});
+  lookPad.addEventListener('touchend',e=>{e.preventDefault();for(const t of e.changedTouches){ if(t.identifier===padId) padBirak(); }},{passive:false});
+  lookPad.addEventListener('touchcancel',padBirak,{passive:false});
+}
+/* Hareket kolu boştayken sol altta görünür dursun (nereye basılacağı belli olsun) */
+function stickBosKonum(){ if(stickId!==null) return; stickEl.classList.add('gv-bos');
+  stickEl.style.left=(Math.max(14,(window.innerWidth||800)*0.04))+'px'; stickEl.style.top=((window.innerHeight||400)-150)+'px';
+  knobEl.style.transform='translate(-50%,-50%)'; }
+stickBosKonum(); window.addEventListener('resize',stickBosKonum);
 const dashBtn=$('#dashBtn'),atkBtn=$('#atkBtn');
 dashBtn.addEventListener('touchstart',e=>{e.preventDefault(); if(S.state==='playing') dashQ=true;},{passive:false});
 atkBtn.addEventListener('touchstart',e=>{e.preventDefault(); if(S.state==='playing') atkQ=true;},{passive:false});
@@ -836,6 +920,11 @@ function update(dt){
   if(keys['arrowright']) turn+=1;
   if(stickId!==null){ fwd=-stickVec.y; str=stickVec.x; }
   if(turn) P.a=(P.a+turn*2.6*dt)%TAU;
+  if(padId!==null && S.state==='playing'){
+    const px=Math.abs(padVec.x)<0.12?0:padVec.x, py=Math.abs(padVec.y)<0.2?0:padVec.y;
+    if(px) P.a=(P.a+px*Math.abs(px)*3.1*(S.sens||1)*dt)%TAU;
+    if(py) P.pitch=clamp(P.pitch-py*0.9*dt,-.85,.42);
+  }
   const mag=Math.min(1,Math.hypot(fwd,str));
   const rX=-dirY,rY=dirX;
   let mvX=0,mvY=0;
@@ -1038,7 +1127,7 @@ let markerInteraction={marker:null,target:null,message:'Duvar veya zemine nişan
 function resetMarkerInput(){
   for(const k of Object.keys(keys)) delete keys[k];
   dashQ=false; atkQ=false;
-  stickId=null; lookId=null; stickVec={x:0,y:0};
+  stickId=null; lookId=null; stickVec={x:0,y:0}; padId=null; padVec={x:0,y:0};
   stickEl.classList.add('hidden');
   mouseAim.inside=false;
   markerInteraction={marker:null,target:null,message:'Duvar veya zemine nişan al.',hint:''};

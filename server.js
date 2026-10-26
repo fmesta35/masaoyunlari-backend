@@ -136,6 +136,17 @@ app.get(['/', '/index.html'], (_req, res) => {
 });
 
 const server = http.createServer(app);
+/* ÇÖKME KORUMASI (kullanıcı raporu: "bazen sunucuya bağlanılamıyor,
+   çökmeler yaşanmasın"). Bir oyunun olay işleyicisinde yakalanmamış tek bir
+   hata bütün süreci düşürüyor, Render yeniden başlatana kadar HERKES
+   masadan kopuyordu. Hata kaydedilir, sunucu çalışmayı sürdürür. */
+process.on('uncaughtException', (e) => {
+  try { console.error('[YAKALANMAMIŞ HATA]', (e && e.stack) || e); } catch (_) {}
+});
+process.on('unhandledRejection', (e) => {
+  try { console.error('[YAKALANMAMIŞ SÖZ]', (e && e.stack) || e); } catch (_) {}
+});
+
 const io = new Server(server, {
   cors: { origin: true, credentials: true, methods: ['GET', 'POST'] },
   transports: ['websocket', 'polling']
@@ -4389,6 +4400,7 @@ function kopmaSayaciBaslat(room, player) {
   if (!room || !player) return false;
   if (!donusHakkiVarMi(room, player)) return false;
   player.disconnectedAt = now();
+  player.kopmaDuyuruldu = true;
   duraklatBaslat(room, player);
   room.players.forEach(p => {
     if (p === player) return;
@@ -4418,6 +4430,39 @@ function kopmaSayaciBaslat(room, player) {
   disconnectTimers.set(key, timer);
   return true;
 }
+const KOPMA_ERTELEME_MS = Number(process.env.GV_KOPMA_ERTELEME_MS) || 6000;
+function yumusakKopma(room, player) {
+  if (!room || !player) return;
+  player.disconnectedAt = now();
+  player.kopmaDuyuruldu = false;
+  const roomId = room.id;
+  const key = playerKey(roomId, player);
+  cancelDisconnectTimer(roomId, player);
+  const t = setTimeout(() => {
+    disconnectTimers.delete(key);
+    const cr = rooms.get(roomId);
+    if (!cr || !cr.players.includes(player) || !player.disconnectedAt) return;   // geri döndü
+    /* Aynı kişinin bu masada CANLI başka bir soketi varsa (yeni sekme,
+       yeniden bağlanmış ama joinRoom'u yolda) masada sayılır. */
+    try {
+      for (const sk of io.sockets.sockets.values()) {
+        if (sk && sk.connected && sk.roomId === roomId && sk.userKey && sk.userKey === player.userKey) {
+          player.id = sk.id; player.disconnectedAt = null; return;
+        }
+      }
+    } catch (_) {}
+    if (cr.status !== 'playing' || cr.solo) {
+      player.disconnectedAt = null;
+      removePlayerFromRoom(cr, player, 'Rakip odadan ayrıldı.');
+      return;
+    }
+    player.disconnectedAt = null;              // kopmaSayaciBaslat kendisi yazar
+    if (kopmaSayaciBaslat(cr, player)) return;
+    removePlayerFromRoom(cr, player, 'Rakip bağlantısı koptu (misafir — dönüş hakkı yok).');
+  }, KOPMA_ERTELEME_MS);
+  disconnectTimers.set(key, t);
+}
+
 /* Kopan oyuncu geri döndü: başka kopuk yoksa oyun devam eder. */
 function kopmaGeriDondu(room, player) {
   if (!room || !player) return;
@@ -5175,7 +5220,9 @@ io.on('connection', socket => {
       if (spectator) room.spectators = room.spectators.filter(s => s !== spectator);
       socket.role = 'player';
       // Kopan oyuncu geri döndü: bekleyen rakibe haber ver (geri sayım bitti).
-      if (kopuktu && room.status === 'playing') {
+      const duyurulmustu = !!player.kopmaDuyuruldu;
+      player.kopmaDuyuruldu = false;
+      if (kopuktu && room.status === 'playing' && duyurulmustu) {
         kopmaGeriDondu(room, player);
         room.players.forEach(p => {
           if (p === player) return;
@@ -5687,15 +5734,17 @@ io.on('connection', socket => {
       .map(x => kelimelikEngine.trBuyuk(String(x || '').trim()))
       .filter(x => /^[A-ZÇĞİÖŞÜ]{2,15}$/.test(x)).slice(0, 5);
     if (!kelimeler.length) return;
+    const oyun = (data && data.oyun === 'adamasmaca') ? 'adamasmaca' : 'kelimelik';
     kelimelikBildirim.ekle({
       kelimeler,
+      oyun,
       not: String((data && data.not) || '').slice(0, 120),
       oda: room ? room.id : null,
       kim: socket.userName || null,
       uid: socket.userId || null,
       ts: now()
     });
-    socket.emit('kelimelikReported', { ok: true, kelimeler });
+    socket.emit(oyun === 'adamasmaca' ? 'kelimeBildirAlindi' : 'kelimelikReported', { ok: true, kelimeler, oyun });
   });
 
   /* ===================================================================== */
@@ -5718,7 +5767,7 @@ io.on('connection', socket => {
     if (!p || room.status !== 'playing') return aaRed(room, 'not_in_room');
     const r = adamasmacaEngine.kelimeSec(room.adamasmaca, p.seat,
       (data && data.kelime) || '', (data && data.ipucu) || '');
-    if (!r.ok) return aaRed(room, r.reason, { oneriler: r.oneriler || [] });
+    if (!r.ok) return aaRed(room, r.reason, { oneriler: r.oneriler || [], kelime: r.kelime || null });
     /* Kelime kilitlendi: iki tarafa da duyurulur ama KELİME yollanmaz. */
     io.to(room.id).emit('adamasmacaWordLocked', {
       roomId: room.id, gizleyen: p.seat,
@@ -6415,10 +6464,15 @@ io.on('connection', socket => {
     // Oyun devam ediyorsa oyuncuya yeniden bağlanma süresi tanı (sayfa
     // yenileme, mobil ağ kopması, Render uyku/uyanma vb. durumlar için).
     if (room.status === 'playing' && !room.solo) {
-      /* KALAN OYUNCUYA HABER VER + OYUNU DURAKLAT: 45 sn dönüş süresi, bu
-         sürede bütün saatler durur (bkz. kopmaSayaciBaslat). */
-      if (kopmaSayaciBaslat(room, player)) return;
-      removePlayerFromRoom(room, player, 'Rakip bağlantısı koptu (misafir — dönüş hakkı yok).');
+      /* KISA KOPMALAR SESSİZCE ATLATILIR (kullanıcı raporu: "oyundan çıkan
+         olmadığı halde rakip oyundan çıkmış gibi uyarı veriyor, süre
+         saymaya devam ediyor"). Mobil ağ değişimi, ekranın bir an kararması
+         ya da sunucunun yeniden bağlanması soketi birkaç saniyeliğine
+         düşürür; oyuncu aslında masadadır ve hemen geri bağlanır. Bu yüzden
+         kopma anında DEĞİL, KOPMA_ERTELEME_MS sonra hâlâ yoksa duraklatılır
+         ve rakibe haber verilir. Bilerek "Ayrıl"a basan için (leaveRoom)
+         bekleme yoktur. */
+      yumusakKopma(room, player);
       return;
     }
 
@@ -6813,7 +6867,7 @@ const turnuvaKatmani = require('./tournament-server').kur({
 app.get('/api/kelimelik/reports', async (req, res) => {
   if (!(await requireAdmin(req, res))) return;
   res.json({ ok: true, sayilar: kelimelikBildirim.sayilar(),
-             kayitlar: kelimelikBildirim.liste({ durum: req.query.durum || null, limit: req.query.limit }) });
+             kayitlar: kelimelikBildirim.liste({ durum: req.query.durum || null, oyun: req.query.oyun || null, limit: req.query.limit }) });
 });
 app.post('/api/kelimelik/reports', async (req, res) => {
   if (!(await requireAdmin(req, res))) return;
@@ -6821,8 +6875,46 @@ app.post('/api/kelimelik/reports', async (req, res) => {
   const durum = String((req.body && req.body.durum) || '');
   if (!kelimelikBildirim.durumAta(kelime, durum))
     return res.status(400).json({ ok: false, error: 'Kelime ya da durum geçersiz.' });
+  res.json({ ok: true, sayilar: kelimelikBildirim.sayilar(), sozlukte: kelimelikEngine.sozluktekiMi(kelime) });
+});
+/* Kurucu sözlüğe doğrudan kelime ekler (bildirim beklemeden). */
+app.post('/api/kelimelik/ekle', async (req, res) => {
+  const u = await requireAdmin(req, res);
+  if (!u) return;
+  const kelime = kelimelikEngine.trBuyuk(String((req.body && req.body.kelime) || '').trim());
+  if (!/^[A-ZÇĞİÖŞÜ]{2,15}$/.test(kelime))
+    return res.status(400).json({ ok: false, error: 'Kelime 2-15 harf olmalı ve yalnız Türkçe harfler içermeli.' });
+  if (kelimelikEngine.sozluktekiMi(kelime) && !kelimelikEngine.sonradanEklenenler().includes(kelime))
+    return res.json({ ok: true, zaten: true, sayilar: kelimelikBildirim.sayilar() });
+  kelimelikBildirim.elleEkle(kelime, u.name || 'Kurucu');
   res.json({ ok: true, sayilar: kelimelikBildirim.sayilar() });
 });
+// Tarayıcı, PHP'nin imzaladığı kalıcı kelime listesini iletir.
+app.post('/api/kelimelik/sync', (req, res) => {
+  const k = kopruOrnegi();
+  const liste = k ? k.kelimeListesiDogrula(req.body || {}) : null;
+  if (!liste) return res.json({ ok: false, error: 'imza geçersiz' });
+  const eklenen = kelimelikBildirim.disaridanBirlestir(liste);
+  kelimelikBildirim.eklenenler().forEach(x => kelimelikEngine.sozlugeEkle(x.kelime));
+  res.json({ ok: true, eklenen });
+});
+
+/* Onay/iptal ANINDA sözlüğe yansır (Kelimelik + Adam Asmaca ortak) ve
+   kalıcı kopya Yöncü'ye yazılır. */
+let kelimeYazZaman = null;
+kelimelikBildirim.degisince((v, onceki) => {
+  if (v.durum === 'eklendi') kelimelikEngine.sozlugeEkle(v.kelime);
+  else if (onceki === 'eklendi') kelimelikEngine.sozluktenCikar(v.kelime);
+  if (v.durum !== 'eklendi' && onceki !== 'eklendi') return;
+  if (kelimeYazZaman) clearTimeout(kelimeYazZaman);
+  kelimeYazZaman = setTimeout(() => {
+    kelimeYazZaman = null;
+    const k = kopruOrnegi();
+    if (k) k.ekle('wordsSave', { ts: Date.now(), kelimeler: kelimelikBildirim.eklenenler() });
+  }, 1500);
+  if (kelimeYazZaman.unref) kelimeYazZaman.unref();
+});
+try { kelimelikBildirim.eklenenler().forEach(x => kelimelikEngine.sozlugeEkle(x.kelime)); } catch (_) {}
 
 // Kurucu Paneli — üye listesi (yalnız yerel modda Render; uzak modda
 // istemci Yöncü PHP'sine /api/admin.php?action=users gider):

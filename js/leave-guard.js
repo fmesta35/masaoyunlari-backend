@@ -60,7 +60,35 @@
       return !!(g && g.status === 'playing');
     } catch (_) { return false; }
   }
-  function active() { return (inGame || canliTahta()) && !isSpectator(); }
+  /* MAÇ GERÇEKTEN SÜRÜYOR MU? Kullanıcı raporu: "bazen hiçbir tuşa basmadan
+     'oyunu terk etmek istediğinize emin misiniz?' diye soruyor".
+     Ölçülen sebep: maç bitince bitiş ekranının geri sayımı oyuncuyu lobiye
+     kendiliğinden götürüyor; bayrak (inGame / arena durumu) o an hâlâ
+     "oynanıyor" kaldığı için bekçi bu otomatik geçişi terk sanıp soruyordu.
+     Sunucunun söylediği oda durumu ve ekrandaki bitiş paneli kesin
+     kaynaktır: maç bitmişse terk diye bir şey yoktur. */
+  function macBitti() {
+    try {
+      if (document.querySelector('.gv-end, .chess-end-overlay')) return true;
+      if (window.__gvRoomStatus === 'finished') return true;
+    } catch (_) {}
+    return false;
+  }
+  function active() { return (inGame || canliTahta()) && !isSpectator() && !macBitti(); }
+
+  /* KULLANICI MI İSTEDİ? Tarayıcı, gerçek bir dokunuş/tıklamadan sonraki
+     birkaç saniye "kullanıcı etkinliği" bayrağı tutar. Geri tuşu bu bayrağı
+     vermez; onu js/gezinti.js ve js/webview.js ayrıca işaretler. Bayrak
+     yoksa geçişi KOD başlatmıştır: maç sürerken oyuncuyu sormadan da
+     sorarak da masadan almayız — masada kalır. */
+  function kullaniciIstedi() {
+    try {
+      if (Date.now() - (Number(window.__gvGeriTusu) || 0) < 2000) return true;
+      const ua = navigator.userActivation;
+      if (ua && typeof ua.isActive === 'boolean') return ua.isActive;
+    } catch (_) {}
+    return true;          // tarayıcı bilmiyorsa eski davranış: sor
+  }
 
   // ---------- Soket izleme (ortak oda soketi) ----------
   function attach(sock) {
@@ -213,6 +241,10 @@
       if (typeof orig !== 'function' || orig.__gvLeaveGuard) return;
       const guarded = function () {
         if (!active()) return orig.apply(this, arguments);
+        if (!kullaniciIstedi()) {
+          try { console.warn('[leave-guard] maç sürerken kod kaynaklı ' + fn + ' çağrısı yok sayıldı'); } catch (_) {}
+          return undefined;
+        }
         const args = Array.prototype.slice.call(arguments);
         askLeave(() => { doLeaveNow(); orig.apply(GV, args); });
         return undefined;
@@ -227,6 +259,10 @@
       const origLeave = GV.leaveRoom;
       const guardedLeave = function () {
         if (!active()) return origLeave.apply(this, arguments);
+        if (!kullaniciIstedi()) {
+          try { console.warn('[leave-guard] maç sürerken kod kaynaklı leaveRoom çağrısı yok sayıldı'); } catch (_) {}
+          return undefined;
+        }
         const args = Array.prototype.slice.call(arguments);
         askLeave(() => {
           doLeaveNow();

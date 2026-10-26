@@ -20,7 +20,7 @@
    Dışarıya açılan arayüz:
      GVDeniz.oynat({tur, hedef, gemiKareleri, tohum, isBenim, bitince})
      GVDeniz.ses.acik() / .ayarla(bool) / .cal(ad)
-     GVDeniz.ses.calZorla(ad)   -> ses kapalı olsa da çalar (hamle süresi)
+     GVDeniz.ses.calZorla(ad)   -> hamle süresi tonu (ses kapalıyken o da susar)
      GVDeniz.sureler  -> {iska, isabet, batis}
    ========================================================================== */
 (function () {
@@ -424,7 +424,12 @@
      Sebebi: hamle süresi dolunca oyuncu hükmen mağlup olur; bu uyarı oyunun
      kuralıyla ilgilidir, keyfî bir efekt değildir. Kısılmayan ayrı bir
      çıkıştan (zorunluKazanc) çalar. */
+  /* KULLANICI KURALI DEĞİŞTİ: "Sesi kapat dediğinde hiçbir şekilde ses
+     gelmesin, hamle süresi azaldığında çıkan ses de dahil." Eskiden hamle
+     süresi tonu kapalıyken de çalıyordu; artık ses anahtarı her şeyi susturur.
+     (Adı geriye uyumluluk için korunur.) */
   function sesCalZorla(ad, siddet) {
+    if (!sesAcik()) return false;
     if (!SESLER[ad]) return false;
     if (!uyandir(true)) return false;
     var eski = cikis;
@@ -756,6 +761,13 @@
     e.preventDefault();
     sesAyarla(!sesAcik());
     dugmeYenile();
+    /* Çerçeve içindeki oyunlar (Apex Garage, AYLA, Gölge Labirenti, Langırt,
+       Hava Hokeyi, Cenga) kendi seslerini çalıyor: tercih onlara da iletilir. */
+    try {
+      document.querySelectorAll('iframe').forEach(function (f) {
+        try { f.contentWindow.postMessage({ gvSes: sesAcik() }, '*'); } catch (_) {}
+      });
+    } catch (_) {}
     if (sesAcik()) sesCal('ates');                 // açınca kısa bir örnek
     if (window.GV && GV.toast) GV.toast(sesAcik() ? '🔊 Oyun sesleri açık' : '🔇 Oyun sesleri kapalı', 'info');
   });

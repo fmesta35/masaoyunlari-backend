@@ -306,6 +306,7 @@
       toast('▶️ Oyun devam ediyor.', 'success');
     });
     s.on('playerReconnected', function (p) {
+      kopukTemizle();
       if (p) toast('🔌 ' + esc(p.name || 'Rakip') + ' oyuna geri döndü.', 'success');
     });
     s.on('kurucuDegisti', function (p) {
@@ -326,7 +327,12 @@
 
     // "Pes Et" düğmesinin ne zaman görüneceğini bilmek için oda durumunu
     // izle (istemciler bunu ortak bir yerde tutmuyordu).
-    s.on('roomUpdated', function (r) { if (r && r.status) window.__gvRoomStatus = r.status; });
+    s.on('roomUpdated', function (r) {
+      if (r && r.status) window.__gvRoomStatus = r.status;
+      /* Sunucu oyunu artık duraklatmıyorsa şerit kalmamalı (devam olayı
+         kaçsa bile — kullanıcı raporu: "süre saymaya devam ediyor"). */
+      if (r && kopukSayac && (r.duraklatildi === false || r.status !== 'playing')) kopukTemizle();
+    });
     s.on('gameStarted', function () { window.__gvRoomStatus = 'playing'; });
     s.on('gameEnded', function () { window.__gvRoomStatus = 'finished'; });
     s.on('rematchStarted', function () { window.__gvRoomStatus = 'playing'; });

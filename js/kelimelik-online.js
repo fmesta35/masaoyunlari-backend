@@ -816,7 +816,7 @@
       var sec = [].slice.call(ov.querySelectorAll('.kl-bdr')).filter(function (x) { return x.checked; })
                   .map(function (x) { return x.value; });
       if (!sec.length) { uyar('Hiç kelime seçmedin.', 'warning'); return; }
-      m.emit('kelimelikReport', { kelimeler: sec, not: (ov.querySelector('.kl-bdr-not').value || '').trim() });
+      m.emit('kelimelikReport', { kelimeler: sec, oyun: 'kelimelik', not: (ov.querySelector('.kl-bdr-not').value || '').trim() });
       sonRet = [];
       ov.remove();
       try { GVArena.repaint(); } catch (_) {}

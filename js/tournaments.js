@@ -322,7 +322,9 @@
     var t = e.target;
     if (!t || !t.closest) return;
 
-    var katil = t.closest('[data-katil]');
+    /* Yalnız turnuva kartlarındaki düğmeler (başka pencerelerdeki
+       benzer adlı öznitelikler "Turnuva bulunamadı" uyarısı doğuruyordu). */
+    var katil = t.closest('.tv-btn[data-katil]');
     if (katil) {
       e.preventDefault();
       if (window.st && window.st.isGuest) return uyeUyarisi();
@@ -339,7 +341,7 @@
       return;
     }
 
-    var ayril = t.closest('[data-ayril]');
+    var ayril = t.closest('.tv-btn[data-ayril]');
     if (ayril) {
       e.preventDefault();
       ayril.disabled = true;
@@ -351,7 +353,7 @@
       return;
     }
 
-    var masa = t.closest('[data-oda]');
+    var masa = t.closest('.tv-btn[data-oda]');
     if (masa) {
       e.preventDefault();
       var oda = masa.getAttribute('data-oda'), oyun = masa.getAttribute('data-oyun');

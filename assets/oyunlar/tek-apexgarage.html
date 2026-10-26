@@ -1,6 +1,23 @@
 <!DOCTYPE html>
 <html lang="tr">
 <head>
+<script id="gv-ses-kilidi">/* Masa Oyunları SES ANAHTARI (kullanıcı raporu: "ses kapat dediğimde hâlâ gaz sesi geliyor").
+Oyun sitesinin "🔇 Ses" düğmesi bu oyunun kendi seslerini de susturur: bütün AudioContext'ler askıya alınır,
+<audio>/<video> kısılır. Tercih sitenin 'gv-ses' anahtarındadır; değişince 'storage' olayı ve postMessage gelir. */
+(function(){var KEY='gv-ses';function kapali(){try{return localStorage.getItem(KEY)==='off'}catch(_){return false}}
+var liste=[];var A=window.AudioContext||window.webkitAudioContext;
+if(A&&!A.__gvSes){var Y=function(){var c=arguments.length?new A(arguments[0]):new A();liste.push(c);var asil=c.resume.bind(c);c.__gvResume=asil;
+c.resume=function(){if(kapali())return Promise.resolve();return asil();};if(kapali()){try{c.suspend()}catch(_){}}return c;};
+Y.prototype=A.prototype;Y.__gvSes=true;try{window.AudioContext=Y;if(window.webkitAudioContext)window.webkitAudioContext=Y;}catch(_){}}
+var P=window.HTMLMediaElement&&HTMLMediaElement.prototype.play;
+if(P&&!P.__gvSes){var Q=function(){if(kapali())this.muted=true;return P.apply(this,arguments);};Q.__gvSes=true;HTMLMediaElement.prototype.play=Q;}
+function uygula(){var k=kapali();liste.forEach(function(c){try{if(k)c.suspend();else c.__gvResume();}catch(_){}});
+try{document.querySelectorAll('audio,video').forEach(function(m){m.muted=k;});}catch(_){}}
+window.addEventListener('storage',function(e){if(!e||e.key===KEY)uygula();});
+window.addEventListener('message',function(e){if(e&&e.data&&e.data.gvSes!==undefined)uygula();});
+document.addEventListener('visibilitychange',function(){if(!document.hidden)uygula();});
+window.__gvSesUygula=uygula;})();</script>
+
 <script>/* TEK-KOPRU-BAS — site köprüsü (yalnız masaoyunlari.com.tr iframe'inde çalışır).
    Oyun kodundan ÖNCE yüklenir: requestAnimationFrame'i sarar ki izleyici
    varken her karenin hemen ardından oyun ekranından küçük bir görüntü alınabilsin. */
@@ -181,6 +198,78 @@
   .fb-hud{position:absolute;top:58px;left:16px;right:16px;display:none;justify-content:space-between;align-items:flex-start;pointer-events:none}.fb-box{background:#07111edb;border:1px solid #76d8f14a;border-radius:10px;padding:9px 12px;backdrop-filter:blur(8px);min-width:92px}.fb-label-small{font:9px Orbitron,sans-serif;color:#81a7ba;letter-spacing:.1em}.fb-value{font:900 22px Orbitron,sans-serif;color:#e9fbff;margin-top:3px}.fb-race-meta{position:absolute;top:54px;left:0;display:flex;align-items:center;gap:7px;padding:6px 8px;min-width:0;text-align:left!important}.fb-race-meta .fb-label-small{font-size:8px;white-space:nowrap}.fb-controls{position:absolute;bottom:max(14px,env(safe-area-inset-bottom));left:14px;right:14px;display:none;justify-content:space-between;align-items:flex-end;pointer-events:none}.fb-control-group{display:flex;gap:8px;pointer-events:auto}.fb-touch{pointer-events:auto;touch-action:none;width:67px;height:67px;border:1px solid #b3e9f777;border-radius:50%;background:#091728bb;color:white;font:700 11px Orbitron,sans-serif;display:grid;place-items:center;user-select:none}.fb-overlay{position:absolute;inset:0;display:none;place-items:center;background:#02050bc9;backdrop-filter:blur(8px)}.fb-dialog{width:min(400px,90vw);padding:24px;text-align:center;background:#0a1322;border:1px solid #50829588;border-radius:15px;box-shadow:0 25px 90px #000b}.fb-dialog h2{font:900 28px Orbitron,sans-serif;margin:5px 0}.fb-note{position:absolute;left:50%;bottom:110px;transform:translateX(-50%);padding:8px 12px;background:#100d15df;border:1px solid #fbbf2480;border-radius:7px;font:10px Orbitron,sans-serif;letter-spacing:.04em;white-space:nowrap;display:none}.fb-small{color:#98aebe;font-size:12px;margin:9px 0}
   @media(max-width:700px){.fb-top{padding:12px}.fb-home{left:5vw;top:46%;width:90vw;padding:22px}.fb-panel{left:12px;right:12px;top:auto;bottom:12px;width:auto;max-height:75dvh}.fb-hud{top:52px;left:8px;right:8px;gap:5px}.fb-race-meta{top:50px;gap:5px;padding:5px 6px}.fb-race-meta .fb-label-small{font-size:7px}.fb-box{min-width:0;padding:7px 8px}.fb-value{font-size:16px}.fb-controls{display:flex}.fb-note{bottom:100px;font-size:8px}.fb-status{font-size:8px}}
 </style>
+<style id="gv-secim-kilidi">html,body,button,[role=button],canvas,div,span,a,label,p,h1,h2,h3,h4,b,i,svg{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent}input,textarea,[contenteditable],[contenteditable] *{-webkit-user-select:text;user-select:text;-webkit-touch-callout:default}</style>
+<script>/* Masa Oyunları: düğme yazısına uzun basınca "Kopyala / Tümünü seç" çıkıp oyunu bölmesin (kullanıcı raporu). */(function(){function yaziAlani(t){t=t&&t.nodeType===3?t.parentElement:t;return !!(t&&t.closest&&t.closest('input,textarea,[contenteditable]'));}document.addEventListener('contextmenu',function(e){if(!yaziAlani(e.target))e.preventDefault();},true);document.addEventListener('selectstart',function(e){if(!yaziAlani(e.target))e.preventDefault();},true);})();</script>
+<style id="gv-parkur-duzen">
+/* PARKUR SEÇ tek bakışta (kullanıcı raporu: "giriş ekranındaki alan ve yazıları
+   aşağı kaydırmadan görelim"). Geniş ekranda iki sütun: solda kariyer + parkurlar,
+   sağda tur/trafik/hava ve YARIŞI BAŞLAT. Alçak ekranda (yatay telefon) yazılar
+   ve kutular sıkışır, açıklama ve ipucu satırları gizlenir. */
+@media (min-width:640px){
+  #raceSetup>.panel{width:min(97vw,1060px)!important}
+  #raceSetup .rs-izgara{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:14px;align-items:start}
+  #raceSetup .rs-sag{margin-top:12px}
+  #raceSetup #btnStartRace{width:100%}
+}
+@media (max-width:639px){
+  #raceSetup>.panel{padding:10px 12px!important;max-height:97dvh!important}
+  #raceSetup .ttl{font-size:1.3rem!important}
+  #raceSetup .rs-acik,#raceSetup .rs-ipucu,#raceSetup #campBox .text-xs,#raceSetup #mapChoices .map-meta{display:none!important}
+  #raceSetup #campBox>div{padding:8px!important}
+  #raceSetup #campBox .grid{margin-top:6px!important;gap:4px!important;grid-template-columns:repeat(8,minmax(0,1fr))!important}
+  #raceSetup #campInfo{font-size:.62rem!important;margin-top:4px!important}
+  #raceSetup .seg button,#raceSetup .seg>*{padding:4px 8px!important;font-size:.72rem!important;min-height:0!important}
+  #raceSetup .seg{gap:4px!important}
+  #raceSetup .lbl{font-size:.6rem!important}
+  #raceSetup #campBox button.camp-lv{padding:4px 0!important;min-height:0!important}
+  #raceSetup #mapChoices .map-choice{min-height:0!important;padding:8px 8px!important}
+  #raceSetup #mapChoices{gap:6px!important;margin-top:5px!important}
+  #raceSetup .rs-sag{margin-top:6px!important;gap:6px!important}
+  #raceSetup .rs-sag>div{padding:8px!important}
+  #raceSetup .rs-sag .space-y-3>*+*{margin-top:.4rem!important}
+  #raceSetup #btnStartRace{min-height:46px!important}
+  #raceSetup .rs-serbest{margin-top:6px!important}
+  #raceSetup #btnStartRace{min-height:42px!important}
+}
+@media (max-height:760px){
+  #raceSetup>.panel{padding:12px 14px!important;max-height:96dvh!important}
+  #raceSetup .ttl{font-size:1.45rem!important}
+  #raceSetup .rs-acik{font-size:.78rem!important;margin-top:4px!important}
+  #raceSetup .rs-ipucu{display:none}
+  #raceSetup #mapChoices>*{min-height:0!important;padding-top:10px!important;padding-bottom:10px!important}
+  #raceSetup .map-choice{min-height:0!important}
+  #raceSetup .rs-sag>div{padding:8px 10px!important}
+  #raceSetup .rs-sag .space-y-3>*+*{margin-top:.45rem!important}
+  #raceSetup #btnStartRace{min-height:46px!important;padding-top:.6rem!important;padding-bottom:.6rem!important}
+  #raceSetup #campBox{margin-top:8px!important}
+  #raceSetup .rs-serbest{margin-top:10px!important}
+}
+@media (max-height:480px){
+  #raceSetup>.panel{padding:8px 10px!important}
+  #raceSetup .ttl{font-size:1.15rem!important;margin-top:0!important}
+  #raceSetup .rs-acik{display:none}
+  #raceSetup .lbl{font-size:.58rem!important}
+  #raceSetup #mapChoices{gap:6px!important;margin-top:4px!important}
+  #raceSetup #mapChoices>*{padding:6px 8px!important}
+  #raceSetup #mapChoices>* *{font-size:.66rem!important;line-height:1.2!important}
+  #raceSetup .seg button,#raceSetup .seg>*{padding:3px 7px!important;font-size:.66rem!important;min-height:0!important}
+  #raceSetup #btnStartRace{min-height:34px!important;font-size:.88rem!important;padding-top:.4rem!important;padding-bottom:.4rem!important}
+  #raceSetup .seg{gap:3px!important}
+  #raceSetup #campBox *{font-size:.64rem}
+  #raceSetup #campBox button{padding:3px 4px!important;min-height:0!important}
+  #raceSetup #campBox>div{padding:6px 8px!important}
+  #raceSetup #campBox .text-xs{display:none}
+  #raceSetup #campBox .grid{grid-template-columns:repeat(15,minmax(0,1fr))!important;gap:3px!important;margin-top:5px!important}
+  #raceSetup #campInfo{margin-top:3px!important}
+  #raceSetup #mapChoices{grid-template-columns:repeat(4,minmax(0,1fr))!important}
+  #raceSetup #mapChoices .map-meta{display:none!important}
+  #raceSetup #mapChoices .map-choice{min-height:0!important;padding:8px 6px!important}
+  #raceSetup .rs-sag{margin-top:6px!important;gap:6px!important}
+  #raceSetup .rs-sag>div{padding:6px 8px!important}
+  #raceSetup .rs-sag .lbl.mb-1{margin-bottom:2px!important}
+  #raceSetup .ttl{display:inline}
+}
+</style>
 </head>
 <body>
 <canvas id="glcanvas"></canvas>
@@ -217,11 +306,14 @@
       <div><div class="lbl">Yüksek Hız Arcade Şampiyonası</div><h2 class="ttl font-t text-2xl sm:text-3xl mt-1">PARKUR SEÇ</h2></div>
       <button id="closeRaceSetup" class="btn sm">Kapat</button>
     </div>
-     <p class="text-sm text-slate-300 mt-2">Tek oyunculu yarış: virajlı pistte trafiği aş, nitro ve drift puanları topla. Trafik yoğunluğu zorluğa göre değişir.</p>
+     <p class="text-sm text-slate-300 mt-2 rs-acik">Tek oyunculu yarış: virajlı pistte trafiği aş, nitro ve drift puanları topla. Trafik yoğunluğu zorluğa göre değişir.</p>
+    <div class="rs-izgara">
+    <div class="rs-sol">
     <div id="campBox" class="mt-3"></div>
-    <div class="lbl mt-4">Serbest Yarış</div>
+    <div class="lbl mt-4 rs-serbest">Serbest Yarış</div>
     <div id="mapChoices" class="grid grid-cols-2 gap-2 mt-2"></div>
-    <div class="grid sm:grid-cols-1 gap-3 mt-4 items-start">
+    </div>
+    <div class="grid sm:grid-cols-1 gap-3 mt-4 items-start rs-sag">
       <div class="rounded-xl border border-white/10 bg-black/25 p-3 space-y-3">
         <div><div class="lbl mb-1">Tur Sayısı</div><div id="lapChoices" class="seg"></div></div>
         <div><div class="lbl mb-1">Trafik Yoğunluğu</div><div id="trafficChoices" class="seg"></div></div>
@@ -229,7 +321,8 @@
       </div>
       <button id="btnStartRace" class="btn pri shine py-4 px-7 min-h-[60px]">YARIŞI BAŞLAT ▶</button>
     </div>
-    <div class="mt-3 text-[.65rem] text-slate-500">İpucu: klavyede <b>sol/sağ</b>, <b>Space</b> nitro, fren + dönüş drift. Mobilde direksiyon, fren ve nitro butonlarını kullan.</div>
+    </div>
+    <div class="mt-3 text-[.65rem] text-slate-500 rs-ipucu">İpucu: klavyede <b>sol/sağ</b>, <b>Space</b> nitro, fren + dönüş drift. Mobilde direksiyon, fren ve nitro butonlarını kullan.</div>
   </div>
 </div>
 

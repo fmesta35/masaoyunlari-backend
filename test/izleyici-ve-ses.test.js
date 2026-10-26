@@ -170,29 +170,21 @@ function bolum3() {
   assert.strictEqual(ses.cal('tas'), false, 'ses kapalıyken normal ses çalmamalı');
   assert.strictEqual(kayit.baglantilar.length, 0, 'kapalıyken osilatör kurulmamalı');
 
-  // Hamle süresi tonu: kapalıyken de ÇALAR
-  assert.strictEqual(ses.calZorla('sure'), true, 'hamle süresi tonu kapalıyken de çalmalı');
-  assert.ok(kayit.baglantilar.length > 0, 'zorunlu ses gerçekten kurulmalı');
-
-  /* Ve KISILMAYAN çıkıştan çalmalı: iki gain düğümü var (ana + zorunlu);
-     ana düğümün kazancı 0 olmalı, zorunlu tonun bağlandığı düğüm 0 OLMAMALI. */
+  // Kullanıcı kuralı: ses KAPALIYKEN hamle süresi tonu da ÇALMAZ
+  assert.strictEqual(ses.calZorla('sure'), false, 'ses kapalıyken hamle süresi tonu da susmalı');
+  assert.strictEqual(kayit.baglantilar.length, 0, 'kapalıyken hiçbir ses kurulmamalı');
   const anaGain = kayit.gainler[0];
-  assert.strictEqual(anaGain.gain.value, 0, 'ses kapalıyken ana çıkış kısık olmalı');
-  const zorunluGain = kayit.gainler[1];
-  assert.ok(zorunluGain && zorunluGain.gain.value > 0, 'zorunlu çıkış kısılmamalı');
-  // ton()/gurultu() kendi zarf gain'ini ÇIKIŞA bağlar; o çıkış zorunlu olmalı
-  assert.ok(kayit.gainler.some(g => g.__hedef === zorunluGain),
-    'zorunlu ses zorunlu çıkışa bağlanmalı');
-  assert.ok(!kayit.gainler.some(g => g.__hedef === anaGain),
-    'ses kapalıyken kısık ana çıkışa bağlanmamalı');
+  if (anaGain) assert.strictEqual(anaGain.gain.value, 0, 'ses kapalıyken ana çıkış kısık olmalı');
 
   // Anahtar açılınca normal sesler de çalar ve ana çıkış açılır
   ses.ayarla(true);
   assert.strictEqual(ses.cal('tas'), true, 'ses açıkken normal ses çalmalı');
-  assert.ok(anaGain.gain.value > 0, 'ses açılınca ana çıkış açılmalı');
-  assert.ok(kayit.gainler.some(g => g.__hedef === anaGain),
+  assert.strictEqual(ses.calZorla('sure'), true, 'ses açıkken hamle süresi tonu çalmalı');
+  const ana2 = kayit.gainler[0];
+  assert.ok(ana2 && ana2.gain.value > 0, 'ses açılınca ana çıkış açılmalı');
+  assert.ok(kayit.gainler.some(g => g.__hedef === ana2),
     'normal ses ana çıkışa bağlanmalı');
-  console.log('  ✓ 3) ses anahtarı her sesi kapatıyor; hamle süresi tonu kapalıyken de çalıyor');
+  console.log('  ✓ 3) ses anahtarı hamle süresi tonu dahil her sesi kapatıyor');
   d.window.close();
 }
 

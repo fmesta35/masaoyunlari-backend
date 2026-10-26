@@ -157,6 +157,25 @@
       }).catch(function () {});
   }
 
+  /* Kurucunun onayladığı sözlük ekleri (Kelimelik + Adam Asmaca): Render
+     yeniden başladığında listeyi Yöncü'den okuyamaz; turnuvalarla aynı
+     yoldan, PHP'nin imzalı listesi iletilir. */
+  var kelimeSon = 0;
+  function kelimeSenkron(zorla) {
+    if (!KOPRU) return Promise.resolve();
+    if (!zorla && Date.now() - kelimeSon < 10 * 60 * 1000) return Promise.resolve();
+    kelimeSon = Date.now();
+    return fetch(PHP_SOCIAL + '?action=wordsListSigned', { cache: 'no-store', credentials: 'same-origin' })
+      .then(function (x) { return x.json(); })
+      .then(function (d) {
+        if (!d || !d.ok || !d.sig) return;
+        return fetch(BACKEND + '/api/kelimelik/sync', {
+          method: 'POST', cache: 'no-store', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ veri: d.veri, ts: d.ts, sig: d.sig })
+        });
+      }).catch(function () {});
+  }
+
   // Soket varsa kimliği oradan da bildir: soket açık olduğu sürece kişi
   // "sitede" sayılır, HTTP nabzı gecikse bile sayaç doğru kalır.
   function soketeBildir(sock) {
@@ -179,7 +198,8 @@
     getir();
     soketleriTara();
     setTimeout(function () { turnuvaSenkron(true); }, 1500);
-    if (!timer) timer = setInterval(function () { getir(); soketleriTara(); turnuvaSenkron(false); }, PERIYOT);
+    setTimeout(function () { kelimeSenkron(true); }, 4000);
+    if (!timer) timer = setInterval(function () { getir(); soketleriTara(); turnuvaSenkron(false); kelimeSenkron(false); }, PERIYOT);
     // Sekmeye dönünce anında tazele (uzun süre kapalı kalmış olabilir).
     document.addEventListener('visibilitychange', function () {
       if (!document.hidden) { getir(); soketleriTara(); }
@@ -203,6 +223,7 @@
   window.GVLiveStats = {
     refresh: getir,
     turnuvaSenkron: turnuvaSenkron,
+    kelimeSenkron: kelimeSenkron,
     data: function () { return son; },
     cihaz: cihazAnahtari,
     bildir: soketeBildir

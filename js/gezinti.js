@@ -136,6 +136,7 @@
            Geri tuşu zaten açık bir "geri dön" isteğidir; onay kutusu çıkınca
            kullanıcı masada kilitli kalıyordu (her GERİ bir kutu açıp hiçbir
            yere gitmiyordu). Maç sürüyorsa terk uyarısı yine çıkar. */
+        window.__gvGeriTusu = Date.now();     // bekçi: bunu kullanıcı istedi
         if (gv && typeof gv.leaveRoom === 'function') gv.leaveRoom({ sorma: true });
         else hedefeGit(hedef);
         /* Çıkış sunucuya bildiriliyorsa lobiye geçiş ASENKRONdur; bu yüzden

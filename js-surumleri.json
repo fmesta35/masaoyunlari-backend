@@ -1,11 +1,11 @@
 {
   "js/adamasmaca-online.js": {
-    "v": "20261011a",
-    "sha": "72c89cfda6c4"
+    "v": "20261027a",
+    "sha": "81c4b32c427a"
   },
   "js/admin-panel.js": {
-    "v": "20261018a",
-    "sha": "083065c4b05e"
+    "v": "20261027a",
+    "sha": "13d006e051e8"
   },
   "js/app.js": {
     "v": "20261017a",
@@ -24,24 +24,24 @@
     "sha": "a310b9591e7c"
   },
   "js/board-fit.js": {
-    "v": "20261025a",
-    "sha": "cb56b4844f77"
+    "v": "20261027b",
+    "sha": "c82f75202b70"
   },
   "js/canli-pencereler.js": {
-    "v": "20261026a",
-    "sha": "0c4609caff4b"
+    "v": "20261027a",
+    "sha": "a85574cedb48"
   },
   "js/card-online.js": {
     "v": "20260904b",
     "sha": "4556aadb6eb9"
   },
   "js/cenga-online.js": {
-    "v": "20261018a",
-    "sha": "1ede65f9d8d3"
+    "v": "20261027a",
+    "sha": "d976939d9640"
   },
   "js/chat.js": {
-    "v": "20261026b",
-    "sha": "e6fd29206b36"
+    "v": "20261027a",
+    "sha": "a3b3075fa22e"
   },
   "js/chess-online.js": {
     "v": "20261018a",
@@ -64,8 +64,8 @@
     "sha": "aabb2f30fe74"
   },
   "js/deniz-sinematik.js": {
-    "v": "20261012b",
-    "sha": "7ab0985a1cb9"
+    "v": "20261027a",
+    "sha": "81d3e1d2109d"
   },
   "js/fark-online.js": {
     "v": "20261023a",
@@ -75,45 +75,49 @@
     "v": "20261023a",
     "sha": "b1d5b6f26dc3"
   },
+  "js/fs-duzen.js": {
+    "v": "20261027a",
+    "sha": "ac2776892270"
+  },
   "js/games.js": {
     "v": "20261017a",
     "sha": "e14ee522775e"
   },
   "js/gezinti.js": {
-    "v": "20261011c",
-    "sha": "e6cf22fb4fcd"
+    "v": "20261027a",
+    "sha": "450318ac196f"
   },
   "js/gomoku-online.js": {
     "v": "20260904b",
     "sha": "b478e2dbeaaa"
   },
   "js/havahokeyi-online.js": {
-    "v": "20261018d",
-    "sha": "921e69d9a33e"
+    "v": "20261027a",
+    "sha": "7ad4d32e420d"
   },
   "js/izleyici.js": {
     "v": "20261018a",
     "sha": "0e15b6210156"
   },
   "js/kelimelik-online.js": {
-    "v": "20261003a",
-    "sha": "46d54c143594"
+    "v": "20261027a",
+    "sha": "39de0768f598"
   },
   "js/kizmabirader-online.js": {
     "v": "20261011b",
     "sha": "8c47a6385654"
   },
   "js/langirt-online.js": {
-    "v": "20261018d",
-    "sha": "ade9bbfe3f3e"
+    "v": "20261027a",
+    "sha": "18b8dab8f2bc"
   },
   "js/leave-guard.js": {
-    "v": "20261018c",
-    "sha": "dca7292eb366"
+    "v": "20261027b",
+    "sha": "9e1471e3caa2"
   },
   "js/live-stats.js": {
-    "v": "20261026a",
-    "sha": "b592d291c71e"
+    "v": "20261027a",
+    "sha": "3c61343a0520"
   },
   "js/lobby-sync.js": {
     "v": "20261026a",
@@ -151,17 +155,21 @@
     "v": "20261020a",
     "sha": "efe911599a36"
   },
+  "js/onay.js": {
+    "v": "20261026a",
+    "sha": "726fdd2276a3"
+  },
   "js/online-arena.js": {
-    "v": "20261012a",
-    "sha": "8273cd14b455"
+    "v": "20261027a",
+    "sha": "75c11db0a205"
   },
   "js/passaparola-online.js": {
-    "v": "20261023a",
-    "sha": "f259ff4259fa"
+    "v": "20261027a",
+    "sha": "6ab71005382e"
   },
   "js/rematch.js": {
-    "v": "20261018c",
-    "sha": "12313dc695c0"
+    "v": "20261027a",
+    "sha": "24cef0ce35fb"
   },
   "js/report.js": {
     "v": "20260920a",
@@ -200,16 +208,16 @@
     "sha": "a77fa253f40b"
   },
   "js/tek-kisilik-online.js": {
-    "v": "20261018d",
-    "sha": "6d25d2f3cbb5"
+    "v": "20261027a",
+    "sha": "8d0ab371af6f"
   },
   "js/tombala-online.js": {
     "v": "20261011a",
     "sha": "e8b722344794"
   },
   "js/tournaments.js": {
-    "v": "20261026a",
-    "sha": "6f1e83ad0ddd"
+    "v": "20261027a",
+    "sha": "85356ceafdb6"
   },
   "js/turkdamasi-online.js": {
     "v": "20260908b",
@@ -220,7 +228,7 @@
     "sha": "70df95b9c7ed"
   },
   "js/webview.js": {
-    "v": "20260908b",
-    "sha": "8971cd1a61c6"
+    "v": "20261027a",
+    "sha": "e10263a7eedd"
   }
 }

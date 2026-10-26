@@ -22,7 +22,7 @@
   if (window.__gvLangirtLoaded) return;
   window.__gvLangirtLoaded = true;
 
-  var SRC = 'assets/oyunlar/langirt.html?online=1&v=20261018c';
+  var SRC = 'assets/oyunlar/langirt.html?online=1&v=20261027a';
 
   /* OYUN DOSYASI KAYNAĞI: önce site ile aynı yerden (Yöncü) denenir; dosya
      orada yoksa (yüklenmemiş, ya da host 404/ana sayfa döndürüyor) Render'daki

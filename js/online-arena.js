@@ -272,6 +272,11 @@
   /* Reddedilen hamle: kullanıcıya KOD değil CÜMLE gösterilir.
      Eskiden ekranda "Hamle reddedildi: illegal_move" yazıyordu. */
   function onReject(p) {
+    /* Adaptör reddi kendisi gösterebilir (ör. Adam Asmaca'da "sözlükte yok
+       → Kelime Bildir"); true dönerse genel uyarı basılmaz. */
+    try {
+      if (active && active.def && typeof active.def.onReject === 'function' && active.def.onReject(p, active) === true) return;
+    } catch (_) {}
     var metin = window.GVMsg ? GVMsg.red(p && p.reason) : 'Bu işlem şu anda yapılamıyor.';
     if (window.GV && GV.toast) GV.toast(metin, 'warning');
   }

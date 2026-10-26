@@ -449,7 +449,15 @@ html.gv-fs-kilit,html.gv-fs-kilit body{overflow:hidden}
 .notif:hover{background:var(--card2)}
 .notif-i{width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0}
 .toast-wrap{position:fixed;top:70px;right:16px;z-index:3000;display:flex;flex-direction:column;gap:6px;pointer-events:none;max-height:70vh;overflow:hidden}
-.toast{padding:10px 16px;border-radius:var(--r);background:var(--bg2);border:1px solid var(--border);box-shadow:var(--shadow);display:flex;align-items:center;gap:8px;animation:tIn .3s;min-width:260px;pointer-events:auto;font-size:.88em}
+.toast{padding:10px 16px;border-radius:var(--r);background:var(--bg2);border:1px solid var(--border);box-shadow:var(--shadow);display:flex;align-items:center;gap:8px;animation:tIn .3s;min-width:260px;pointer-events:none;font-size:.88em}
+/* OYUN ODASINDA METİN SEÇİMİ YOK (kullanıcı raporu: düğmeye uzun basınca
+   "Kopyala / Tümünü seç" çıkıyor, oyun akışını bozuyordu). Yazı alanları ve
+   sohbet mesajları seçilebilir kalır. */
+#pg-room .gr-header,#pg-room .game-board-area,#pg-room .timers,#pg-room .score-panel,#gvFsYan,
+#pg-room .game-board-area *{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent}
+#pg-room input,#pg-room textarea,#pg-room [contenteditable],#pg-room .chat-msgs,#pg-room .chat-msgs *{-webkit-user-select:text;user-select:text;-webkit-touch-callout:default}
+/* Bildirimler tıklamayı YUTMAZ: oyun odasında sağ üstteki "Pes Et / Ayrıl"
+   düğmelerinin üstüne binip basılmalarını engelliyordu (ölçüldü). */
 .toast.success{border-color:var(--success)}.toast.error{border-color:var(--danger)}.toast.info{border-color:var(--primary)}.toast.warning{border-color:var(--warning)}
 @keyframes tIn{from{transform:translateX(110%);opacity:0}to{transform:translateX(0);opacity:1}}
 .spinner{border:2.5px solid var(--border);border-top-color:var(--primary);border-radius:50%;animation:spin .7s linear infinite}
@@ -2439,6 +2447,26 @@ body.gv-app input,body.gv-app textarea,body.gv-app .chat-msgs,body.gv-app .moves
    dar telefonda da tek çarkta okunaklı kalsın. */
 .pp-wrap{--pp-h:22px;width:100%;display:flex;flex-direction:column;gap:9px}
 .pp-carklar{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+/* YAZMA KİPİ (kullanıcı raporu: "tam ekranda ekran klavyesi çıkınca hiçbir
+   şey gözükmüyor"). Klavye açıkken görünen alan ~150-250 px'e iner; çarklar
+   ve açıklama gizlenir, soru + harf kalıbı + cevap kutusu + düğmeler kalır.
+   Kip, kutu odaktayken ve görünen yükseklik azken js/passaparola-online.js
+   tarafından açılır. */
+.pp-wrap.pp-yaz .pp-carklar,.pp-wrap.pp-yaz .pp-not,.pp-wrap.pp-yaz .pp-ust .pp-set{display:none}
+.pp-wrap.pp-yaz{gap:5px}
+.pp-wrap.pp-yaz .pp-panel{padding:8px 10px;gap:6px}
+.pp-wrap.pp-yaz .pp-soru{font-size:.95em;line-height:1.35;max-height:5.6em;overflow:auto}
+.pp-wrap.pp-yaz .pp-giris{padding:8px 10px}
+.pp-wrap.pp-yaz .pp-dugmeler .btn{padding:5px 10px;font-size:.8em;min-height:0}
+.pp-wrap.pp-yaz .pp-yaz-saat{display:inline-flex}
+.pp-yaz-saat{display:none;gap:8px;align-items:center;font-weight:800;font-family:var(--mono);font-size:.9em}
+#pg-room.gv-fs .pp-wrap.pp-yaz{height:auto;justify-content:flex-start}
+.pp-wrap.pp-yaz .pp-son{display:none}
+#pg-room.gv-fs:has(.pp-yaz) .gr-header{display:none}
+#pg-room.gv-fs:has(.pp-yaz){grid-template-rows:minmax(0,1fr)}
+#pg-room.gv-fs:has(.pp-yaz) .game-board-area,#pg-room.gv-fs:has(.pp-yaz) .game-side{grid-row:1}
+#pg-room.gv-fs:has(.pp-yaz) .game-board-area{align-items:flex-start;overflow-y:auto}
+html.gv-klavye #pg-room.gv-fs .gr-header{display:none}
 .pp-carklar.dar{grid-template-columns:minmax(0,1fr)}
 .pp-cark{min-width:0;padding:8px 10px;border-radius:13px;border:1px solid var(--border);background:var(--bg2)}
 .pp-cark.benim{border-color:var(--accent)}
@@ -7419,12 +7447,13 @@ GV.init();
 <!-- Kullanıcıya gösterilen mesajların tek kaynağı (kod değil cümle) -->
 <script src="js/messages.js?v=20261026a" defer></script>
 <!-- Ana sayfa ve İstatistikler sayfasındaki canlı sayaçlar -->
-<script src="js/live-stats.js?v=20261026a" defer></script>
+<script src="js/live-stats.js?v=20261027a" defer></script>
 <!-- Puan / istatistik: toplamlar SUNUCUDAN okunur, istemci hesap yapmaz -->
 <script src="js/scores.js?v=20261026a" defer></script>
 <!-- Yarım kalan maça dönüş: yapay zekânın tuttuğu koltuğu geri alma penceresi -->
 <script src="js/resume-match.js?v=20260912a" defer></script>
-<script src="js/webview.js?v=20260908b" defer></script>
+<script src="js/webview.js?v=20261027a" defer></script>
+<script src="js/onay.js?v=20261026a" defer></script>
 <script src="js/move-clock.js?v=20261012a" defer></script>
 <script src="js/chess-online.js?v=20261018a" defer></script>
 <script src="js/tavla-online.js?v=20261018a" defer></script>
@@ -7435,7 +7464,7 @@ GV.init();
 <!-- Masa oylaması: 3-4 kişilik masada biri çıkınca el sonunda
      "eksik kişiyle devam edelim mi" penceresi. -->
 <script src="js/masa-oylama.js?v=20261005a" defer></script>
-<script src="js/online-arena.js?v=20261012a" defer></script>
+<script src="js/online-arena.js?v=20261027a" defer></script>
 <script src="js/card-online.js?v=20260904b" defer></script>
 <script src="js/dama-online.js?v=20260908b" defer></script>
 <script src="js/turkdamasi-online.js?v=20260908b" defer></script>
@@ -7443,19 +7472,19 @@ GV.init();
 <script src="js/gomoku-online.js?v=20260904b" defer></script>
 <script src="js/connect4-online.js?v=20260904b" defer></script>
 <script src="js/bilardo-online.js?v=20260927d" defer></script>
-<script src="js/deniz-sinematik.js?v=20261012b" defer></script>
+<script src="js/deniz-sinematik.js?v=20261027a" defer></script>
 <script src="js/deniz-kopru.js?v=20260920a" defer></script>
-<script src="js/tournaments.js?v=20261026a" defer></script>
-<script src="js/canli-pencereler.js?v=20261026a" defer></script>
+<script src="js/tournaments.js?v=20261027a" defer></script>
+<script src="js/canli-pencereler.js?v=20261027a" defer></script>
 <script src="js/oda-sifre.js?v=20261026a" defer></script>
 <script src="js/battleship-online.js?v=20260920c" defer></script>
-<script src="js/kelimelik-online.js?v=20261003a" defer></script>
+<script src="js/kelimelik-online.js?v=20261027a" defer></script>
 <script src="js/tombala-online.js?v=20261011a" defer></script>
-<script src="js/adamasmaca-online.js?v=20261011a" defer></script>
-<script src="js/passaparola-online.js?v=20261023a" defer></script>
-<script src="js/cenga-online.js?v=20261018a" defer></script>
-<script src="js/langirt-online.js?v=20261018d" defer></script>
-<script src="js/havahokeyi-online.js?v=20261018d" defer></script>
+<script src="js/adamasmaca-online.js?v=20261027a" defer></script>
+<script src="js/passaparola-online.js?v=20261027a" defer></script>
+<script src="js/cenga-online.js?v=20261027a" defer></script>
+<script src="js/langirt-online.js?v=20261027a" defer></script>
+<script src="js/havahokeyi-online.js?v=20261027a" defer></script>
 <!-- Fark Bulmaca sahneleri: sunucu ile AYNI dosya (js/fark-sahneler.js).
      ⚠ KÖKTE DEĞİL js/ ALTINDA olmak ZORUNDA: sunucu güvenlik gereği yalnız
      js/, css/ ve assets/ klasörlerini yayınlıyor (bkz. server.js statik
@@ -7465,17 +7494,17 @@ GV.init();
 <script src="js/fark-online.js?v=20261023a" defer></script>
 <script src="js/kizmabirader-online.js?v=20261011b" defer></script>
 <script src="js/metropol-online.js?v=20261013b" defer></script>
-<script src="js/tek-kisilik-online.js?v=20261018d" defer></script>
-<script src="js/chat.js?v=20261026b" defer></script>
-<script src="js/leave-guard.js?v=20261018c" defer></script>
+<script src="js/tek-kisilik-online.js?v=20261027a" defer></script>
+<script src="js/chat.js?v=20261027a" defer></script>
+<script src="js/leave-guard.js?v=20261027b" defer></script>
 <!-- Tarayıcı GERİ/İLERİ tuşu: sayfa geçişleri geçmişe adım bırakır,
      GERİ önce sitenin içinde geri gider (bkz. js/gezinti.js). -->
-<script src="js/gezinti.js?v=20261011c" defer></script>
+<script src="js/gezinti.js?v=20261027a" defer></script>
 <script src="js/auth.js?v=20260912a" defer></script>
 <!-- Parola kutularına "şifreyi göster/gizle" göz düğmesi (tüm pencereler) -->
 <script src="js/sifre-goster.js?v=20261025a" defer></script>
 <script src="js/social.js?v=20261026a" defer></script>
-<script src="js/admin-panel.js?v=20261018a" defer></script>
+<script src="js/admin-panel.js?v=20261027a" defer></script>
 
 <!-- Yapısal veri (SEO).
      Eskiden burada da eski alan adı (gameverse.com) yazıyordu ve olmayan
@@ -7493,9 +7522,10 @@ GV.init();
 }
 </script>
 <script src="js/no-bots.js?v=20261017a" defer></script>
-<script src="js/board-fit.js?v=20261025a" defer></script>
+<script src="js/board-fit.js?v=20261027b" defer></script>
+<script src="js/fs-duzen.js?v=20261027a" defer></script>
 <!-- Pes et + rövanş/yeniden oyna: dört bitiş ekranının ortak mantığı -->
-<script src="js/rematch.js?v=20261018c" defer></script>
+<script src="js/rematch.js?v=20261027a" defer></script>
 <!-- İZLEYİCİ SİSTEMİ: koltuk seçerek izleme pop-up'ı + oyuncunun
      "İzleyiciye İzin Ver / İznini Kaldır" düğmesi (okey, 101 okey,
      pişti, batak, amiral battı). Oyundan bağımsız çalışır. -->

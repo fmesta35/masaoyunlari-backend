@@ -168,6 +168,26 @@
     id: 'adamasmaca',
     kinds: ['adamasmaca'],
     reject: ['adamasmacaRejected'],
+    /* Sözlükte olmayan kelime: oyuncu Kurucu Paneli'ne bildirebilir
+       (kullanıcı isteği: Kelimelik ve Adam Asmaca ortak sözlük; onaylanan
+       kelime ikisine birden eklenir). */
+    onReject: function (p, m) {
+      if (!p || p.reason !== 'sozlukte_yok' || !p.kelime) return false;
+      var hata = document.querySelector('#boardArea .aa-hata');
+      if (!hata) return false;
+      var k = String(p.kelime);
+      var oneri = (p.oneriler || []).slice(0, 3);
+      hata.innerHTML = '“' + esc(k) + '” sözlükte bulunamadı.' +
+        (oneri.length ? ' Bunu mu demek istediniz: <b>' + oneri.map(esc).join(', ') + '</b>?' : '') +
+        ' <button type="button" class="btn secondary aa-bildir" style="margin-left:6px;padding:3px 10px;font-size:.85em">📣 Kelime Bildir</button>';
+      var b = hata.querySelector('.aa-bildir');
+      if (b) b.addEventListener('click', function () {
+        b.disabled = true;
+        m.emit('kelimelikReport', { kelimeler: [k], oyun: 'adamasmaca', not: 'Adam Asmaca — sözlükte yok' });
+        b.textContent = '✅ Bildirildi';
+      });
+      return true;
+    },
     events: {
       /* Harf duyurusu: ses ve kısa uyarı. Çizimi durum paketi yapar. */
       adamasmacaLetter: function (p) {
@@ -195,6 +215,7 @@
         if (kutu) { kutu.value = taslakKelime; try { kutu.focus(); } catch (_) {} }
         ses('tasKoy');
       },
+      kelimeBildirAlindi: function () { uyar('📣 Bildirimin alındı, teşekkürler! Kurucu onaylarsa kelime sözlüğe eklenecek.', 'success'); },
       adamasmacaRoundEnd: function (p) {
         if (!p || !p.el) return;
         ses(p.el.tahminciKazandi ? 'kazandi' : 'hata');

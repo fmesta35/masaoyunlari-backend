@@ -27,7 +27,7 @@
   if (window.__gvTekKisilikLoaded) return;
   window.__gvTekKisilikLoaded = true;
 
-  var SURUM = '20261019a';
+  var SURUM = '20261027a';
   var OYUNLAR = {
     apexgarage:     { ad: 'Apex Garage',      ikon: '🏎️', dosya: 'assets/oyunlar/tek-apexgarage.html' },
     golgelabirenti: { ad: 'Gölge Labirenti',  ikon: '🌀', dosya: 'assets/oyunlar/tek-golgelabirenti.html' },

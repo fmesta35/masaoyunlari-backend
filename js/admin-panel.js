@@ -378,51 +378,105 @@
      doğrulayıp "Eklendi" ya da "Reddedildi" işaretler. Onaylananlar
      tools/kelimelik-sozluk.py içindeki EK_LISTE'ye yazılıp sözlük yeniden
      üretilir (sözlük sunucuda durur, istemciye hiç inmez). */
+  /* Kullanıcı isteği: "Kelimelik ve Adam Asmaca için 'Kullanıcılardan Kelime
+     Bildirimleri' alanı olsun; kurucu onayla derse kelime sözlüğe eklensin.
+     İkisi de aynı sözlüğü kullansın, ileride ayrı kelime eklenebilsin."
+     · Liste oyuna göre süzülür (Tümü / Kelimelik / Adam Asmaca).
+     · "Onayla ve Ekle" kelimeyi ORTAK sözlüğe ANINDA ekler (iki oyunda da
+       geçerli olur), "Reddet" bildirimi kapatır; eklenen kelime "Geri al"
+       ile sözlükten çıkarılabilir. Kalıcı kopya Yöncü'de durur.
+     · Kurucu bildirim beklemeden de kelime ekleyebilir. */
+  let sozlukSuzgec = '';
   function renderSozlukTab(body) {
     body.innerHTML = '<div style="color:var(--text2)">Yükleniyor…</div>';
-    api(BACKEND + '/api/kelimelik/reports', null, 'GET').then(r => {
+    const q = sozlukSuzgec ? ('?oyun=' + encodeURIComponent(sozlukSuzgec)) : '';
+    api(BACKEND + '/api/kelimelik/reports' + q, null, 'GET').then(r => {
       if (!r || !r.ok) { body.innerHTML = '<div style="color:var(--danger)">Bildirimler okunamadı.</div>'; return; }
       const s = r.sayilar || {};
       const kayitlar = r.kayitlar || [];
+      const OYUN_AD = { kelimelik: '🔤 Kelimelik', adamasmaca: '🪢 Adam Asmaca' };
+      const rozet = o => '<span style="display:inline-block;padding:1px 7px;border-radius:999px;font-size:.74em;' +
+        'margin:0 3px 2px 0;background:rgba(108,92,231,.18);border:1px solid rgba(108,92,231,.45)">' + (OYUN_AD[o] || esc(o)) + '</span>';
       const satir = k => {
         const renk = k.durum === 'eklendi' ? 'var(--success)'
                    : k.durum === 'reddedildi' ? 'var(--danger)' : 'var(--warning)';
-        const etiket = k.durum === 'eklendi' ? '✔ Eklendi'
+        const etiket = k.durum === 'eklendi' ? '✔ Sözlükte'
                      : k.durum === 'reddedildi' ? '✘ Reddedildi' : '⏳ Bekliyor';
-        return '<tr>' +
+        const oyunlar = (k.oyunlar && k.oyunlar.length) ? k.oyunlar : ['kelimelik'];
+        const dugmeler = k.durum === 'eklendi'
+          ? '<button type="button" class="btn btn-sm kl-geri" data-k="' + esc(k.kelime) + '">Geri al</button>'
+          : '<button type="button" class="btn btn-sm btn-p kl-ekle" data-k="' + esc(k.kelime) + '">✔ Onayla ve Ekle</button> ' +
+            (k.durum === 'reddedildi' ? '' : '<button type="button" class="btn btn-sm kl-red" data-k="' + esc(k.kelime) + '">Reddet</button>');
+        return '<tr style="border-top:1px solid var(--border)">' +
           '<td style="padding:7px 9px;font-weight:700">' + esc(k.kelime) + '</td>' +
-          '<td style="padding:7px 9px;text-align:center">' + Number(k.adet || 1) + '</td>' +
-          '<td style="padding:7px 9px;color:' + renk + '">' + etiket + '</td>' +
+          '<td style="padding:7px 9px">' + oyunlar.map(rozet).join('') + '</td>' +
+          '<td style="padding:7px 9px;text-align:center">' + Number(k.adet || 0) + '</td>' +
+          '<td style="padding:7px 9px;color:' + renk + ';white-space:nowrap">' + etiket + '</td>' +
           '<td style="padding:7px 9px;color:var(--text2);font-size:.86em">' + esc((k.notlar || []).join(' · ')) + '</td>' +
           '<td style="padding:7px 9px;white-space:nowrap">' +
-            '<a href="https://sozluk.gov.tr/?q=' + encodeURIComponent(String(k.kelime).toLowerCase()) +
+            '<a href="https://sozluk.gov.tr/?q=' + encodeURIComponent(String(k.kelime).toLocaleLowerCase('tr')) +
               '" target="_blank" rel="noopener" style="color:var(--accent);font-size:.85em;margin-right:8px">TDK ↗</a>' +
-            '<button type="button" class="btn btn-sm kl-ekle" data-k="' + esc(k.kelime) + '">Eklendi</button> ' +
-            '<button type="button" class="btn btn-sm kl-red" data-k="' + esc(k.kelime) + '">Reddet</button>' +
-          '</td></tr>';
+            dugmeler + '</td></tr>';
       };
+      const cip = (deger, ad, sayi) => '<button type="button" class="btn btn-sm kl-suz' + (sozlukSuzgec === deger ? ' btn-p' : '') +
+        '" data-o="' + deger + '" style="margin-right:6px">' + ad + (sayi != null ? ' (' + sayi + ')' : '') + '</button>';
       body.innerHTML =
+        '<h3 style="margin:0 0 6px;font-size:1.02em">📣 Kullanıcılardan Kelime Bildirimleri</h3>' +
+        '<div style="color:var(--text2);font-size:.84em;margin-bottom:10px;line-height:1.5">' +
+          'Kelimelik ve Adam Asmaca <b>ortak sözlüğü</b> kullanır. Onayladığın kelime iki oyunda da hemen geçerli olur.</div>' +
+        '<div style="margin-bottom:10px">' + cip('', 'Tümü', s.toplam) + cip('kelimelik', '🔤 Kelimelik', s.kelimelik) +
+          cip('adamasmaca', '🪢 Adam Asmaca', s.adamasmaca) + '</div>' +
         '<div style="margin-bottom:12px;color:var(--text2);font-size:.9em">' +
-          'Toplam <b>' + (s.toplam || 0) + '</b> · Bekleyen <b style="color:var(--warning)">' + (s.bekliyor || 0) + '</b>' +
+          'Bekleyen <b style="color:var(--warning)">' + (s.bekliyor || 0) + '</b>' +
           ' · Eklenen <b style="color:var(--success)">' + (s.eklendi || 0) + '</b>' +
           ' · Reddedilen <b style="color:var(--danger)">' + (s.reddedildi || 0) + '</b>' +
         '</div>' +
+        '<div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">' +
+          '<input type="text" id="klElleKelime" maxlength="15" placeholder="Sözlüğe kelime ekle (örn. ARABA)" ' +
+            'style="flex:1;min-width:180px;padding:8px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg3);color:var(--text)">' +
+          '<button type="button" class="btn btn-p btn-sm" id="klElleEkle">➕ Sözlüğe ekle</button>' +
+        '</div>' +
+        '<div id="klDurum" style="min-height:1.2em;font-size:.84em;margin:-6px 0 8px;color:var(--text2)"></div>' +
         (kayitlar.length
-          ? '<table style="width:100%;border-collapse:collapse;font-size:.92em">' +
+          ? '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:.92em">' +
             '<thead><tr style="color:var(--text2);font-size:.82em;text-align:left">' +
-            '<th style="padding:6px 9px">Kelime</th><th style="padding:6px 9px;text-align:center">Bildiren</th>' +
+            '<th style="padding:6px 9px">Kelime</th><th style="padding:6px 9px">Oyun</th>' +
+            '<th style="padding:6px 9px;text-align:center">Bildiren</th>' +
             '<th style="padding:6px 9px">Durum</th><th style="padding:6px 9px">Not</th>' +
             '<th style="padding:6px 9px">İşlem</th></tr></thead><tbody>' +
-            kayitlar.map(satir).join('') + '</tbody></table>'
+            kayitlar.map(satir).join('') + '</tbody></table></div>'
           : '<div style="color:var(--text2);padding:20px 0">Henüz kelime bildirimi yok.</div>') +
         '<div style="margin-top:14px;color:var(--text3);font-size:.8em;line-height:1.6">' +
-          'Onayladığın kelimeler sözlüğe <b>tools/kelimelik-sozluk.py</b> içindeki EK_LISTE\'ye ' +
-          'eklenip sözlük yeniden üretilerek yayına alınır. Sözlük sunucuda durur; istemciye hiç inmez.' +
+          'Oyuncular sözlükte bulunamayan bir kelimeyi Kelimelik\'te <b>📣 Kelime Bildir</b>, Adam Asmaca\'da ' +
+          'kelime reddedilince çıkan <b>📣 Kelime Bildir</b> düğmesiyle iletir. Sözlük sunucuda durur; istemciye hiç inmez.' +
         '</div>';
-      const isle = (kelime, durum) => api(BACKEND + '/api/kelimelik/reports', { kelime, durum }, 'POST')
-        .then(() => renderSozlukTab(body));
+      const durum = (t, renk) => { const d = body.querySelector('#klDurum'); if (d) { d.textContent = t; d.style.color = renk || 'var(--text2)'; } };
+      const isle = (kelime, d) => api(BACKEND + '/api/kelimelik/reports', { kelime, durum: d }, 'POST')
+        .then(x => {
+          if (!x || !x.ok) return durum('⚠️ ' + ((x && x.error) || 'İşlem yapılamadı.'), 'var(--danger)');
+          renderSozlukTab(body);
+        });
       body.querySelectorAll('.kl-ekle').forEach(b => b.addEventListener('click', () => isle(b.dataset.k, 'eklendi')));
       body.querySelectorAll('.kl-red').forEach(b => b.addEventListener('click', () => isle(b.dataset.k, 'reddedildi')));
+      body.querySelectorAll('.kl-geri').forEach(b => b.addEventListener('click', () => {
+        if (!window.confirm(b.dataset.k + ' sözlükten çıkarılsın mı?')) return;
+        isle(b.dataset.k, 'bekliyor');
+      }));
+      body.querySelectorAll('.kl-suz').forEach(b => b.addEventListener('click', () => { sozlukSuzgec = b.dataset.o; renderSozlukTab(body); }));
+      const elle = () => {
+        const inp = body.querySelector('#klElleKelime');
+        const k = String((inp && inp.value) || '').trim().toLocaleUpperCase('tr');
+        if (!k) return;
+        api(BACKEND + '/api/kelimelik/ekle', { kelime: k }, 'POST').then(x => {
+          if (!x || !x.ok) return durum('⚠️ ' + ((x && x.error) || 'Eklenemedi.'), 'var(--danger)');
+          if (x.zaten) return durum('ℹ️ ' + k + ' zaten sözlükte.', 'var(--text2)');
+          renderSozlukTab(body);
+        });
+      };
+      const eb = body.querySelector('#klElleEkle');
+      if (eb) eb.addEventListener('click', elle);
+      const ei = body.querySelector('#klElleKelime');
+      if (ei) ei.addEventListener('keydown', e => { if (e.key === 'Enter') elle(); });
     }).catch(() => { body.innerHTML = '<div style="color:var(--danger)">Bildirimler okunamadı.</div>'; });
   }
 
