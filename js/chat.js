@@ -241,7 +241,7 @@
          çubuk payları dolgu olarak gerekmez — pencere çubuklardan uzakta. */
       @media (max-width:760px){
         #gvChatPanel{top:calc(56px + var(--gv-ust,0px) + 10px);bottom:auto;
-          height:min(540px,calc(100dvh - 56px - var(--gv-ust,0px) - var(--gv-alt,0px) - 90px));
+          height:min(480px,calc(100dvh - 56px - var(--gv-ust,0px) - var(--gv-alt,0px) - 90px));
           width:min(360px,88vw);max-width:88vw;padding:0;
           border:1px solid rgba(255,255,255,.14);border-right:none;border-radius:16px 0 0 16px}
         /* KLAVYE AÇIKKEN: pencere görünen alanın (klavyenin üstü) tamamına
@@ -322,6 +322,19 @@
      GÖRÜNEN alana göre yeniden yerleştirilir; kapanınca CSS ölçülerine
      döner. Android uygulaması (1.0.5+) klavyeyi ayrıca bildirir
      (html.gv-klavye) ve WebView'i klavyenin üstüne küçültür. */
+  let ustOlcu = null;
+  function ustCubukPayi() {
+    try {
+      const v = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--gv-ust')) || 0;
+      if (!ustOlcu && document.body) {
+        ustOlcu = document.createElement('div');
+        ustOlcu.setAttribute('aria-hidden', 'true');
+        ustOlcu.style.cssText = 'position:fixed;left:-9px;top:0;width:1px;visibility:hidden;pointer-events:none;height:env(safe-area-inset-top,0px)';
+        document.body.appendChild(ustOlcu);
+      }
+      return Math.max(v, ustOlcu ? (ustOlcu.offsetHeight || 0) : 0);
+    } catch (_) { return 0; }
+  }
   function klavyeYerlesim() {
     const p = panel();
     if (!p) return;
@@ -338,9 +351,21 @@
       return;
     }
     p.classList.add('gc-klavye');
-    const pay = 6;
-    p.style.top = Math.round(vv.offsetTop + pay) + 'px';
-    p.style.height = Math.max(160, Math.round(vv.height - 2 * pay)) + 'px';
+    /* ÜST SINIR: görünen alanın üstü AMA durum çubuğunun (saat/pil) altı.
+       Uygulama kenardan kenara çizdiği için görünen alan çubuğun ARKASINDAN
+       başlıyor; eski sürümde başlık ve ✕ çubuğun altında kalıyordu
+       (kullanıcı ekran görüntüsü). Çubuk payı kabuktan (--gv-ust) ya da
+       iPhone çentiğinden (safe-area) okunur.
+       BOY: kalan alanın tamamı değil, en fazla 420 px — pencere klavyenin
+       hemen üstüne oturur, üstte sayfa görünmeye devam eder; küçük
+       telefonlarda kalan alana kendiliğinden küçülür. */
+    const pay = 8;
+    const ustCubuk = ustCubukPayi();
+    const ust = Math.max(vv.offsetTop, ustCubuk) + pay;
+    const alt = vv.offsetTop + vv.height - pay;
+    const boy = Math.max(150, Math.min(420, alt - ust));
+    p.style.top = Math.round(Math.max(ust, alt - boy)) + 'px';
+    p.style.height = Math.round(boy) + 'px';
     const list = document.getElementById('gvChatList');
     if (list) list.scrollTop = list.scrollHeight;
   }
