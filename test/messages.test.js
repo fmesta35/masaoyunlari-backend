@@ -28,7 +28,7 @@ function yukle() {
 const BITIS = new Set([
   'player_left', 'move_timeout', 'timeout', 'time_expired', 'finished',
   'checkmate', 'stalemate', 'draw', 'fifty_move', 'insufficient_material',
-  'threefold_repetition', 'round_over', 'fleet_sunk', 'placement_timeout'
+  'threefold_repetition', 'round_over', 'fleet_sunk', 'placement_timeout', 'bot_tur_sonu'
 ]);
 
 function sunucuKodlari() {

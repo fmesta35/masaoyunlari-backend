@@ -167,9 +167,17 @@ const gi = oku('android/.gitignore');
 for (const kural of ['keystore.properties', 'keystore/', '*.keystore', '*.jks']) {
   assert.ok(gi.includes(kural), '.gitignore kuralı eksik: ' + kural);
 }
-assert.ok(!fs.existsSync(path.join(AND, 'keystore.properties')), 'imza parolası depoda OLMAMALI');
-const keystoreVar = fs.existsSync(path.join(AND, 'keystore'));
-assert.ok(!keystoreVar, 'imza anahtarı klasörü depoda OLMAMALI');
+/* Dosya derleme için GELİŞTİRİCİNİN BİLGİSAYARINDA bulunmak ZORUNDA; önemli
+   olan git'e girmemesi. Git varsa izlenip izlenmediğine bakılır. */
+{
+  let izleniyor = null;
+  try {
+    izleniyor = require('child_process').execSync('git ls-files -- android/keystore.properties android/keystore',
+      { cwd: path.join(AND, '..'), stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim() !== '';
+  } catch (_) { izleniyor = null; }
+  if (izleniyor === null) izleniyor = fs.existsSync(path.join(AND, 'keystore.properties'));
+  assert.ok(!izleniyor, 'imza parolası / anahtar deposu git\'e GİRMEMELİ');
+}
 console.log('  ✓ 7) imza anahtarı ve parolası depo dışında');
 
 // ---------- 8) sürüm numaraları ----------

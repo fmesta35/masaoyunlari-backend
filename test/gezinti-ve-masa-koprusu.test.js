@@ -102,7 +102,16 @@ function kaynakTesti() {
   const arenaYeri = betikYeri('online-arena.js');
   assert.ok(arenaYeri > 0, 'arena betiği sayfaya bağlı olmalı');
   const kendiIstemcisi = ['chess', 'tavla', 'okey', 'okey101'];   // kendi istemcileri var
-  oyunlar.filter(g => !kendiIstemcisi.includes(g)).forEach(g => {
+  // Tek kişilik oyunlar (Apex Garage, Gölge Labirenti, AYLA) ORTAK adaptörü
+  // paylaşır: js/tek-kisilik-online.js — her biri orada tanımlı olmalı.
+  const tekKisilik = ['apexgarage', 'golgelabirenti', 'ayla'];
+  const tekKod = oku('js/tek-kisilik-online.js');
+  tekKisilik.filter(g => oyunlar.includes(g)).forEach(g => {
+    assert.ok(new RegExp('\\b' + g + '\\s*:').test(tekKod), g + ' ortak tek kişilik adaptörde tanımlı olmalı');
+  });
+  const tekYer = betikYeri('tek-kisilik-online.js');
+  assert.ok(tekYer > arenaYeri, 'tek kişilik ortak adaptör arena\'dan SONRA yüklenmeli');
+  oyunlar.filter(g => !kendiIstemcisi.includes(g) && !tekKisilik.includes(g)).forEach(g => {
     const yer = betikYeri(g + '-online.js');
     assert.ok(yer > 0, g + ' adaptörü sayfaya bağlı olmalı');
     assert.ok(yer > arenaYeri, g + ' adaptörü arena\'dan SONRA yüklenmeli (kuyrukta kalmasın)');

@@ -101,6 +101,8 @@ function olcuVer(el, w, h) {
 
 function surukleBasla(win, zone) {
   olcuVer(zone, 40, 56);
+  // Sürüklenen kopya artık bölgenin değil İÇİNDEKİ TAŞIN ölçüsünden üretilir.
+  zone.querySelectorAll('.ok-disc-tile, .ok-deck-t').forEach(t => olcuVer(t, 32, 46));
   const tbl = win.document.querySelector('.okey-table');
   if (tbl) olcuVer(tbl, 900, 560);
   win.__gvOkDragging = false;

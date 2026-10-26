@@ -337,8 +337,12 @@ async function main() {
   let hataAtildi = false;
   try { A.GV.toggleFullscreen(); } catch (_) { hataAtildi = true; }
   assert.ok(!hataAtildi, 'Fullscreen API desteklenmiyorsa bile hata fırlatılmamalı');
-  assert.strictEqual(fsBtn.classList.contains('is-full'), false, 'desteklenmiyorsa durum değişmemeli');
-  console.log('  ✓ 5) tarayıcı Fullscreen API\'sini desteklemiyorsa sessizce (hatasız) düşüyor');
+  // Fullscreen API yoksa (iPhone, uygulama içi tarayıcı) UYUMLU tam ekran
+  // devreye girer: oda görünür alanı kaplayan sabit katmana alınır.
+  assert.ok(pgRoom.classList.contains('gv-fs-sahte'), 'desteklenmiyorsa uyumlu (sahte) tam ekrana geçmeli');
+  try { A.GV.toggleFullscreen(); } catch (_) { hataAtildi = true; }
+  assert.ok(!hataAtildi && !pgRoom.classList.contains('gv-fs-sahte'), 'uyumlu tam ekrandan tekrar standarda dönülebilmeli');
+  console.log('  ✓ 5) Fullscreen API yoksa hatasız UYUMLU tam ekrana geçip geri dönebiliyor');
 
   try { A.close(); B.close(); } catch (_) {}
   serverModule.io.close();

@@ -177,7 +177,12 @@
     // ---- Pes etme / rövanş (yeniden oyna) ----
     resign:       '🏳️ Maç pes edilerek sonlandı.',
     declined:     '↩️ Rövanş teklifi reddedildi.',
-    no_opponent:  '👥 Masada rövanş yapacak rakip kalmadı.'
+    no_opponent:  '👥 Masada rövanş yapacak rakip kalmadı.',
+    /* 101 Okey */
+    islek_tas:             '🚫 İşlek taş atılamaz! Bu taş masadaki bir pere uyuyor — 101 ceza yazıldı, taş ıstakana döndü.',
+    cift_acan_per_koyamaz: '👯 Elini çift açtın — masaya artık seri/grup per koyamazsın, yalnız çift açabilirsin.',
+    per_acan_cift_koyamaz: '🀄 Elini perle açtın — masaya artık çift koyamazsın, yalnız per açabilirsin.',
+    bot_tur_sonu:          '🤖 Tur bitti — bot masadan kalktı, puanlama bu turun sonucuna göre yapıldı.'
   };
 
   // ---- Oyun bitiş sebepleri ----
@@ -245,6 +250,11 @@
       return o.youWon
         ? { ikon: '🏆', baslik: 'En zengin sizsiniz!', metin: 'Tur limiti doldu; en yüksek varlıkla masayı siz kazandınız.' }
         : { ikon: '🏦', baslik: 'Tur limiti doldu', metin: 'Masa tur limitinde bitti; en yüksek varlık rakibinizdeydi.' };
+    }
+    if (r === 'bot_tur_sonu') {
+      return o.youWon
+        ? { ikon: '🏆', baslik: 'Turu kazandınız', metin: 'Bot masadan kalktı; puanlama bu son turun sonucuna göre yapıldı ve turu siz kazandınız.' }
+        : { ikon: '🤖', baslik: 'Tur bitti', metin: 'Bot masadan kalktı; puanlama bu son turun sonucuna göre yapıldı. Bekleme odasına dönülüyor.' };
     }
     if (r === 'kule_devrildi') {
       return o.youWon
