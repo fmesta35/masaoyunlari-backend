@@ -29,6 +29,7 @@ function kur(ortam) {
   const { io, authApi, app, rooms, createRoom, emitRoom, requireAdmin } = ortam;
 
   let turnuvalar = [];            // bellekteki kopya (tek kaynak: authApi)
+  const silinenler = new Set();   // silinen kimlikler (eski kopyalar geri gelmesin)
   let hazirMi = false;
   let zamanlayici = null;
 
@@ -229,12 +230,27 @@ function kur(ortam) {
     }
   }
 
+  /* Üye kimliği: önce PHP'nin imzaladığı belge (X-GV-Attest başlığı —
+     Yöncü DDoS koruması Render'ın auth.php çağrısını engelleyebildiği için
+     Kurucu Paneli ile aynı yol), olmazsa oturum belirteci. */
+  async function uyeBul(req) {
+    try {
+      const raw = req.headers && req.headers['x-gv-attest'];
+      if (raw) {
+        const a = require('./server-auth').verifyAttestation(JSON.parse(decodeURIComponent(String(raw))));
+        if (a && a.uid) return { id: a.uid, name: a.name };
+      }
+    } catch (_) {}
+    try { const u = await authApi.userFromReqAsync(req); if (u && u.id) return u; } catch (_) {}
+    return null;
+  }
+
   /* ================================================================ UÇLAR */
   // Herkese açık: turnuva listesi (braket dâhil).
   app.get('/api/tournaments', async (req, res) => {
     if (!hazirMi) await yukle();
     let uid = null;
-    try { const u = await authApi.userFromReqAsync(req); uid = u ? u.id : null; } catch (_) {}
+    { const u = await uyeBul(req); uid = u ? u.id : null; }
     res.set('Cache-Control', 'no-store');
     res.json({ ok: true, liste: turnuvalar.map(t => disaVer(t, uid)) });
   });
@@ -243,7 +259,7 @@ function kur(ortam) {
   app.post('/api/tournaments/:id/katil', async (req, res) => {
     if (!hazirMi) await yukle();
     let u = null;
-    try { u = await authApi.userFromReqAsync(req); } catch (_) {}
+    u = await uyeBul(req);
     if (!u || !u.id) {
       return res.status(401).json({ ok: false, error: 'Turnuvaya yalnızca üyeler katılabilir. Giriş yapın.' });
     }
@@ -276,7 +292,7 @@ function kur(ortam) {
   // Üye kaydını geri çeker (turnuva başlamadan).
   app.post('/api/tournaments/:id/ayril', async (req, res) => {
     let u = null;
-    try { u = await authApi.userFromReqAsync(req); } catch (_) {}
+    u = await uyeBul(req);
     if (!u || !u.id) return res.status(401).json({ ok: false, error: 'Giriş gerekli.' });
     const t = bul(req.params.id);
     if (!t) return res.status(404).json({ ok: false, error: 'Turnuva bulunamadı.' });
@@ -348,6 +364,7 @@ function kur(ortam) {
       return res.status(400).json({ ok: false, error: 'Devam eden turnuva silinemez; önce iptal edin.' });
     }
     turnuvalar = turnuvalar.filter(x => x.id !== String(req.params.id));
+    silinenler.add(String(req.params.id));
     try { await authApi.turnuvaSil(req.params.id); } catch (_) {}
     try { io.emit('tournamentUpdated', { id: String(req.params.id), silindi: true }); } catch (_) {}
     res.json({ ok: true });
@@ -365,7 +382,30 @@ function kur(ortam) {
 
   basla();
 
-  return { macBitti, tik, dur, yukle, bul, _liste: () => turnuvalar };
+  /* İMZALI LİSTEYLE BİRLEŞTİR — Yöncü DDoS koruması Render'ın turnuva
+     listesini OKUMASINI da engelliyor (yeniden başlatmada liste boş
+     geliyordu). Tarayıcı, PHP'nin imzaladığı listeyi buraya iletir
+     (bkz. server.js /api/tournaments/sync); imza orada doğrulanır. Bellekte
+     daha YENİ olan kopya korunur, silinenler geri gelmez. */
+  function birlestir(liste) {
+    let n = 0;
+    (Array.isArray(liste) ? liste : []).forEach(t => {
+      if (!t || !t.id || silinenler.has(String(t.id))) return;
+      const i = turnuvalar.findIndex(x => x.id === String(t.id));
+      if (i < 0) { turnuvalar.push(t); n++; }
+      else if (Number(t.guncelleme || 0) > Number(turnuvalar[i].guncelleme || 0)) { turnuvalar[i] = t; n++; }
+    });
+    hazirMi = true;
+    if (n) { try { io.emit('tournamentUpdated', { senkron: true }); } catch (_) {} }
+    return n;
+  }
+  /* Ana sayfadaki "Aktif Turnuva" sayacı: kayıt açık / başlamayı bekleyen /
+     devam eden turnuvalar. */
+  function aktifSayisi() {
+    return turnuvalar.filter(t => ['kayit', 'hazir', 'devam'].includes(t.durum)).length;
+  }
+
+  return { macBitti, tik, dur, yukle, bul, birlestir, aktifSayisi, _liste: () => turnuvalar };
 }
 
 module.exports = { kur, TIK_MS };

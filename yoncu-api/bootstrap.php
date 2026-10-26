@@ -225,6 +225,16 @@ function gv_schema($pdo) {
         ts BIGINT NOT NULL,
         INDEX (user_id, game_id), INDEX (ts)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci");
+    // ---- İMZALI KÖPRÜ (röle) ----
+    // Yöncü DDoS koruması Render'ın sunucu-sunucu isteklerini (puan, maç,
+    // turnuva yazımı) engelliyor. Render bu yazımları SUNUCU ANAHTARIYLA
+    // İMZALAYIP tarayıcıya verir; tarayıcı (DDoS'u sorunsuz geçer) buraya
+    // iletir. Aynı kayıt iki kez işlenmesin diye kimlikler tutulur.
+    $pdo->exec("CREATE TABLE IF NOT EXISTS gv_relay(
+        id VARCHAR(64) PRIMARY KEY,
+        ts BIGINT NOT NULL,
+        INDEX (ts)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci");
     $pdo->exec("CREATE TABLE IF NOT EXISTS gv_score_resets(
         id INT AUTO_INCREMENT PRIMARY KEY,
         ts BIGINT NOT NULL,
@@ -376,6 +386,9 @@ function gv_score_reset_at() {
 }
 
 function gv_require_server_key() {
+    // İmzası doğrulanmış köprü kaydı (social.php?action=relay) sunucu
+    // anahtarıyla gelmiş sayılır — imzayı yalnız anahtarı bilen Render atabilir.
+    if (defined('GV_RELAY_OK')) return;
     $k = $_SERVER['HTTP_X_GV_KEY'] ?? '';
     if (!hash_equals(strval(GV_SERVER_KEY), strval($k))) {
         gv_json(array('ok' => false, 'error' => 'Yetkisiz (sunucu anahtarı).'), 403);
@@ -391,6 +404,7 @@ function gv_require_server_key() {
 // hem de tarayıcının doğrudan kurucu oturumunu (Bearer) kabul eder —
 // tarayıcı DDoS korumasını sorunsuz geçtiği için bu ikinci yol GÜVENİLİRDİR.
 function gv_require_server_key_or_admin() {
+    if (defined('GV_RELAY_OK')) return;
     $k = $_SERVER['HTTP_X_GV_KEY'] ?? '';
     if (hash_equals(strval(GV_SERVER_KEY), strval($k))) return;
     $u = gv_user_by_token(gv_bearer());

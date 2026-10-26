@@ -92,7 +92,9 @@
         ? `<button class="btn btn-sm btn-o" disabled title="Oyuncu izleyici iznini kapattı">🔒 İzlemeye Kapalı</button>`
         : !canTakeSeat
         ? `<button class="btn btn-sm btn-o" onclick="GV.joinRoom('${esc(r.id)}',{spectate:true})">👁️ İzle</button>`
-        : `<button class="btn btn-sm ${r.isPrivate ? 'btn-a' : 'btn-p'}" onclick="GV.joinRoom('${esc(r.id)}')">${r.isPrivate ? '🔒 Katıl' : 'Katıl'}</button>`;
+        : (r.sifreli && window.GVOdaSifre
+          ? `<button class="btn btn-sm btn-a" onclick="GVOdaSifre.sor('${esc(r.id)}','${esc(r.gameId||'')}')">🔐 Şifreyle Katıl</button>`
+          : `<button class="btn btn-sm ${r.isPrivate ? 'btn-a' : 'btn-p'}" onclick="GV.joinRoom('${esc(r.id)}')">${r.isPrivate ? '🔒 Katıl' : 'Katıl'}</button>`);
       const names = Array.isArray(r.playerList) && r.playerList.length
         ? r.playerList.map(p => Number(p.uid) > 0
             ? `<span data-uid="${Number(p.uid)}" class="gv-u">${esc(p.name || 'Oyuncu')}</span>`

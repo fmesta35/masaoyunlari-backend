@@ -698,14 +698,28 @@
   }
 
   // isimden istek gönder (üst penceredeki ekleme kutusu) — önce üye araması yapılır
+  /* ÜYE NUMARASI (kullanıcı isteği): her üyenin #0001 biçiminde bir numarası
+     vardır (= üyelik kimliği, 4 haneye tamamlanır). Çevrimiçi listesinde
+     gizlilik için üyeler "faz***#0008" diye görünür; o listeden görüp
+     eklemek isteyen #0008 yazarak, adı tam bilen ise adıyla istek gönderir. */
+  function uyeNo(id) { return '#' + String(Number(id) || 0).padStart(4, '0'); }
   async function addFriendByName(name) {
     if (!myId()) return showModal('guestPromptModal');
     name = String(name || '').trim();
-    if (name.length < 2) return toast('Kullanıcı adı en az 2 karakter olmalı.', 'warning');
-    const s = await api('/api/users/search?q=' + encodeURIComponent(name), null, 'GET');
-    if (!s.ok) return toast('⚠️ ' + (s.error || 'Arama başarısız.'), 'error');
-    const exact = (s.users || []).find(u => u.name.toLowerCase() === name.toLowerCase());
-    const target = exact || (s.users || [])[0];
+    const no = name.match(/^#?\s*0*(\d{1,7})$/);
+    let target = null;
+    if (no) {
+      const id = Number(no[1]);
+      const r = await api('/api/users/' + id + '/profile', null, 'GET');
+      if (!r || !r.ok || !r.user) return toast(`${uyeNo(id)} numaralı bir üye bulunamadı.`, 'warning');
+      target = { id: Number(r.user.id), name: r.user.name };
+    } else {
+      if (name.length < 2) return toast('Kullanıcı adı (en az 2 karakter) ya da üye numarası (örn: #0008) yazın.', 'warning');
+      const s = await api('/api/users/search?q=' + encodeURIComponent(name), null, 'GET');
+      if (!s.ok) return toast('⚠️ ' + (s.error || 'Arama başarısız.'), 'error');
+      const exact = (s.users || []).find(u => u.name.toLowerCase() === name.toLowerCase());
+      target = exact || (s.users || [])[0];
+    }
     if (!target) return toast(`"${name}" adında bir üye bulunamadı.`, 'warning');
     if (Number(target.id) === Number(myId())) return toast('Kendinize istek gönderemezsiniz. 🙂', 'warning');
     const rst = reqStateWith(target.id);
@@ -839,6 +853,10 @@
     const openFriendsReal = function () {
       if (!myId()) return showModal('guestPromptModal');
       window.GV.showModal('friendsModal');
+      try {
+        const no = document.getElementById('gvMyUyeNo');
+        if (no) no.innerHTML = 'Senin üye numaran: <b>' + uyeNo(myId()) + '</b> — arkadaşların seni bu numarayla da ekleyebilir.';
+      } catch (_) {}
       renderFriendsMember('');
       paintRequests();
       refreshFriends().then(() => renderFriendsMember(''));
@@ -847,6 +865,7 @@
     both('openFriends', openFriendsReal);
     // 🔔 bildirimine tıklayınca aynı pencere açılır (istekler bölümü üstte)
     both('openFriendRequests', openFriendsReal);
+    both('uyeNo', uyeNo);
     both('addFriendFromModal', function () {
       const inp = document.getElementById('friendsAddInput');
       const v = (inp && inp.value || '').trim();
@@ -912,7 +931,7 @@
 
     // Bağlanma anında üyeyse listeyi hemen doldur
     if (myId() && friendsCache === null) {
-      refreshFriends().then(() => paintFriends(''));
+      refreshFriends().then(() => { try { paintFriends(''); } catch (_) { /* sayfa kapanıyor */ } });
     }
 
     hook.done = true;

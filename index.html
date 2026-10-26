@@ -1011,6 +1011,24 @@ html.gv-fs-kilit,html.gv-fs-kilit body{overflow:hidden}
 
 /* Mobil: yalnız hücre ölçüsü küçülür — etkileşim ve görünüm aynıdır. */
 /* ===== TURNUVA SAYFASI (js/tournaments.js) ===== */
+/* Aktif turnuva penceresi + kayıtlı oyuncular + kura öncesi şema */
+.tv-pencere{max-width:780px;width:95%}
+.tv-pencere .tv-kart{margin-bottom:12px}
+.tv-yok{display:flex;flex-direction:column;align-items:center;gap:8px;text-align:center;padding:26px 12px;color:var(--text2)}
+.tv-yok b{color:var(--text);font-size:1.05em}.tv-yok span{font-size:.86em}
+.tv-katil-kutu{margin-top:12px;background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:10px 12px}
+.tv-katil-bas{display:flex;justify-content:space-between;align-items:center;font-size:.88em;margin-bottom:6px}
+.tv-katil-bas span{font-family:var(--mono);font-weight:800;color:var(--accent,#00cec9)}
+.tv-doluluk{height:6px;border-radius:6px;background:var(--bg3);overflow:hidden;margin-bottom:8px}
+.tv-doluluk i{display:block;height:100%;background:linear-gradient(90deg,#00b894,#6c5ce7);border-radius:6px}
+.tv-katil-liste{display:flex;flex-wrap:wrap;gap:6px}
+.tv-katil-ad{display:inline-flex;align-items:center;gap:6px;font-size:.82em;padding:4px 10px 4px 4px;border-radius:20px;background:var(--card);border:1px solid var(--border)}
+.tv-katil-ad em{font-style:normal;font-size:.8em;min-width:20px;height:20px;border-radius:50%;display:grid;place-items:center;background:var(--bg3);color:var(--text2)}
+.tv-katil-ad.ben{border-color:#00b894;color:#2ee6a8}
+.tv-katil-bos{font-size:.82em;color:var(--text3)}
+.tv-sema-not{margin-top:12px;font-size:.8em;color:var(--text2)}
+.tv-sema .tv-mac{opacity:.7}.tv-sema .tv-mac i{color:var(--text3)}
+.tv-kupa-kutu{display:grid!important;place-items:center;font-size:1.4em;min-height:36px}
 .tv-kart{background:var(--card);border:1px solid var(--border);border-radius:var(--r2);
   padding:16px;margin-bottom:14px}
 .tv-ust{display:flex;align-items:center;gap:12px;margin-bottom:12px;flex-wrap:wrap}
@@ -3338,6 +3356,7 @@ body.gv-app .gp-rozet{display:none!important}
         <div class="lobby-actions">
           <button class="btn btn-p" onclick="GV.openCreateRoomModal()">➕ Masa Oluştur</button>
           <button class="btn btn-a" onclick="GV.quickMatch()">⚡ Hızlı Eşleş</button>
+          <button class="btn btn-o" onclick="window.GVOdaSifre&&GVOdaSifre.sor(null,(window.st&&st.curGame)||null)" title="Kurucunun verdiği şifreyle özel masaya katıl">🔐 Şifreli Masaya Katıl</button>
         </div>
       </div>
       <div class="rooms-list" id="roomList"></div>
@@ -3609,9 +3628,10 @@ body.gv-app .gp-rozet{display:none!important}
     <button class="modal-x" onclick="GV.hideModal('friendsModal')">✕</button>
     <h2 style="margin:0 0 4px;">👥 Arkadaşlarım</h2>
     <div style="display:flex;gap:8px;margin:12px 0;">
-      <input type="text" id="friendsAddInput" placeholder="Kullanıcı adıyla istek gönder (örn: test2)" style="flex:1;padding:9px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg3);color:var(--text)">
+      <input type="text" id="friendsAddInput" placeholder="Kullanıcı adı ya da üye no (örn: #0008)" style="flex:1;padding:9px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg3);color:var(--text)">
       <button class="btn btn-p" onclick="GV.addFriendFromModal && GV.addFriendFromModal()">İstek Gönder</button>
     </div>
+    <div id="gvMyUyeNo" style="font-size:.78em;color:var(--text2);margin:-4px 0 12px"></div>
     <!-- Arkadaşlık İSTEKLERİ — arkadaş listesinden AYRI bölüm (kabul/red burada) -->
     <div id="gvFrReqSec" style="margin-bottom:12px;">
       <div style="font-weight:700;font-size:.85em;margin-bottom:6px;display:flex;align-items:center;gap:7px;">
@@ -4361,7 +4381,29 @@ function getRankByScore(score,gid){
   return RANKS[RANKS.length-1];
 }
 function getUserRankInfo(gid){gid=gid||st.curGame||'chess';const score=st.scores[gid]||0;const th=GAME_THRESHOLDS[gid]||GAME_THRESHOLDS.chess;if(score>=th.legend)return{pos:1,rank:RANKS[0]};if(score>=th.champion)return{pos:2,rank:RANKS[1]};if(score>=th.elite)return{pos:3,rank:RANKS[2]};if(score>=th.grandmaster)return{pos:4,rank:RANKS[3]};if(score>=th.master)return{pos:11,rank:RANKS[4]};if(score>=th.uzman)return{pos:101,rank:RANKS[5]};if(score>=th.tecrubeli)return{pos:1001,rank:RANKS[6]};if(score>=th.cirak)return{pos:5001,rank:RANKS[7]};return{pos:99999,rank:RANKS[9]};}
-function getOverallRankInfo(){const t=st.totalScore;if(t>=20000)return{pos:1,rank:RANKS[0]};if(t>=15000)return{pos:11,rank:RANKS[4]};if(t>=10000)return{pos:101,rank:RANKS[5]};if(t>=5000)return{pos:1001,rank:RANKS[6]};return{pos:5001,rank:RANKS[7]};}
+/* GENEL RÜTBE (kullanıcı isteği: "Rütbe sistemi tüm oyunlardaki başarısını
+   etkileyen puanların ORTALAMASI alınarak, oranında güncellensin").
+   Eskiden genel rütbe yalnız TOPLAM puana bakan sabit eşiklerle çıkıyordu ve
+   0 puanlı bir üye bile "UZMAN ÇIRAĞI" görünüyordu (en alttaki dal yanlış
+   rütbeyi döndürüyordu). Artık OYNANAN her oyun için o oyunun kendi
+   eşikleriyle bir seviye bulunur (Acemi=0 … Efsane=9) ve genel rütbe bu
+   seviyelerin ortalamasıdır: tek oyunda çok iyi olmak genel rütbeyi o
+   oranda yükseltir, oynanmayan oyunlar ortalamayı düşürmez. Hiç oynamamış
+   üye ACEMİ'dir. */
+function gvRutbeSeviye(r){ const i=RANKS.indexOf(r); return i<0?0:(RANKS.length-1-i); }
+function getOverallRankInfo(){
+  const veri=(window.GVScores&&GVScores.veri)?GVScores.veri():null;
+  const oyunlar=(veri&&Array.isArray(veri.oyunlar))?veri.oyunlar:[];
+  const oynanan=st.isGuest?[]:oyunlar.filter(o=>(Number(o.mac)||0)>0||(Number(o.puan)||0)>0);
+  let rank=RANKS[RANKS.length-1];
+  if(oynanan.length){
+    const ort=oynanan.reduce((a,o)=>a+gvRutbeSeviye(getRankByScore(Number(o.puan)||0,o.gameId)),0)/oynanan.length;
+    const sev=Math.max(0,Math.min(RANKS.length-1,Math.round(ort)));
+    rank=RANKS[RANKS.length-1-sev];
+  }
+  const sira=(veri&&veri.sira!=null)?Number(veri.sira):null;
+  return {pos:sira!=null?sira:(oynanan.length?1000:'—'),rank,ortalama:oynanan.length};
+}
 
 function awardPoints(gid,type,extra){
   if(st.isGuest) return 0;
@@ -5185,6 +5227,7 @@ function renderBoard(gid){
 }
 
 function updateScoreUI(){
+  try{ if(document.getElementById('allRanksList')) setTimeout(renderRanks,0); }catch(_){}
   const info=getOverallRankInfo();
   const rankEl=info.rank;
   const totalEl=document.getElementById('userScore');
@@ -5228,7 +5271,7 @@ function renderRanks(){
   const info=getOverallRankInfo();
   el.innerHTML=RANKS.map(r=>{
     const isC=r.id===info.rank.id;
-    return `<div class="rank-item ${isC?'current':''}"><div class="rank-item-icon">${r.name.split(' ')[0]}</div><div class="rank-item-info"><div class="rank-item-name">${r.name.replace(/^[^\s]+ /,'')}</div><div class="rank-item-range">${isC?'✅ Şu anki rütben':'Puan topla'}</div></div><span class="rank-badge ${r.cls}">${isC?'✓':'—'}</span></div>`;
+    return `<div class="rank-item ${isC?'current':''}"><div class="rank-item-icon">${r.name.split(' ')[0]}</div><div class="rank-item-info"><div class="rank-item-name">${r.name.replace(/^[^\s]+ /,'')}</div><div class="rank-item-range">${isC?'✅ Şu anki rütben — oynadığın oyunlardaki seviyelerinin ortalaması':'Oynadığın oyunlardaki ortalaman bu seviyeye çıkınca'}</div></div><span class="rank-badge ${r.cls}">${isC?'✓':'—'}</span></div>`;
   }).join('');
 }
 
@@ -7369,16 +7412,16 @@ GV.init();
 <script src="js/app.js?v=20261017a" defer></script>
 <script src="js/games.js?v=20261017a" defer></script>
 <script src="js/utils.js?v=20261017a" defer></script>
-<script src="js/lobby-sync.js?v=20261018b" defer></script>
+<script src="js/lobby-sync.js?v=20261026a" defer></script>
 <script src="js/room-waiting-fix.js?v=20261017a" defer></script>
 <!-- Hamle (sıra) saati: sırası gelen oyuncunun kendi kartında sayar -->
 <!-- Mobil uygulama katmanı: PWA kurulumu, Android geri tuşu, WebView uyarlamaları -->
 <!-- Kullanıcıya gösterilen mesajların tek kaynağı (kod değil cümle) -->
 <script src="js/messages.js?v=20261013c" defer></script>
 <!-- Ana sayfa ve İstatistikler sayfasındaki canlı sayaçlar -->
-<script src="js/live-stats.js?v=20260912a" defer></script>
+<script src="js/live-stats.js?v=20261026a" defer></script>
 <!-- Puan / istatistik: toplamlar SUNUCUDAN okunur, istemci hesap yapmaz -->
-<script src="js/scores.js?v=20260912a" defer></script>
+<script src="js/scores.js?v=20261026a" defer></script>
 <!-- Yarım kalan maça dönüş: yapay zekânın tuttuğu koltuğu geri alma penceresi -->
 <script src="js/resume-match.js?v=20260912a" defer></script>
 <script src="js/webview.js?v=20260908b" defer></script>
@@ -7402,7 +7445,9 @@ GV.init();
 <script src="js/bilardo-online.js?v=20260927d" defer></script>
 <script src="js/deniz-sinematik.js?v=20261012b" defer></script>
 <script src="js/deniz-kopru.js?v=20260920a" defer></script>
-<script src="js/tournaments.js?v=20260927a" defer></script>
+<script src="js/tournaments.js?v=20261026a" defer></script>
+<script src="js/canli-pencereler.js?v=20261026a" defer></script>
+<script src="js/oda-sifre.js?v=20261026a" defer></script>
 <script src="js/battleship-online.js?v=20260920c" defer></script>
 <script src="js/kelimelik-online.js?v=20261003a" defer></script>
 <script src="js/tombala-online.js?v=20261011a" defer></script>
@@ -7429,7 +7474,7 @@ GV.init();
 <script src="js/auth.js?v=20260912a" defer></script>
 <!-- Parola kutularına "şifreyi göster/gizle" göz düğmesi (tüm pencereler) -->
 <script src="js/sifre-goster.js?v=20261025a" defer></script>
-<script src="js/social.js?v=20260823e" defer></script>
+<script src="js/social.js?v=20261026a" defer></script>
 <script src="js/admin-panel.js?v=20261018a" defer></script>
 
 <!-- Yapısal veri (SEO).

@@ -32,6 +32,65 @@ $action = $_GET['action'] ?? '';
 $in = gv_input();
 $now = round(microtime(true) * 1000);
 
+/* ==========================================================================
+ * İMZALI KÖPRÜ (röle) — kullanıcı raporu: "maç geçmişi olduğu hâlde toplam
+ * puan 0, toplam maç 0; liderlik ve istatistiklerde veri yok".
+ * KÖK NEDEN: Yöncü DDoS koruması, Render'ın bu dosyaya yaptığı sunucu-sunucu
+ * isteklerine "Yoncu DDoS Protection" sayfası (303) döndürüyor; puan, maç ve
+ * turnuva yazımları HİÇ ulaşmıyordu. Tarayıcılar ise korumayı sorunsuz
+ * geçiyor. Render artık her yazımı GV_SERVER_KEY ile İMZALAYIP tarayıcıya
+ * veriyor; tarayıcı buraya iletiyor:
+ *   POST ?action=relay  { r: { id, a, ts, b, sig } }
+ *     a   : işlem (izin listesinde olmalı)
+ *     b   : işlemin JSON gövdesi (METİN olarak — imza bu metin üzerinden)
+ *     sig : hmac_sha256('relay|id|a|ts|b', GV_SERVER_KEY)
+ * İmza tutarsa kayıt Render'dan gelmiş gibi işlenir. Aynı kimlik ikinci kez
+ * gelirse işlenmez ("dup") — birden çok tarayıcı aynı kaydı iletebilir.
+ * Yanıttaki "fis" (hmac 'relayok|id') Render'a geri verilir; Render kaydı
+ * ancak bu fişle kuyruğundan düşer (sahte "ilettim" bildirimi işe yaramaz).
+ * ========================================================================== */
+if ($action === 'relay') {
+    $r = isset($in['r']) && is_array($in['r']) ? $in['r'] : null;
+    $izinli = array('scoreWrite', 'recordMatch', 'tournamentSave', 'tournamentDelete', 'chatLog');
+    if (!$r) gv_json(array('ok' => false, 'error' => 'kayıt yok'));
+    $rid = substr(strval($r['id'] ?? ''), 0, 64);
+    $ra = strval($r['a'] ?? '');
+    $rts = intval($r['ts'] ?? 0);
+    $rb = strval($r['b'] ?? '');
+    $rsig = strval($r['sig'] ?? '');
+    if ($rid === '' || !in_array($ra, $izinli, true)) gv_json(array('ok' => false, 'error' => 'geçersiz kayıt'));
+    if (abs($now - $rts) > 14 * 24 * 3600 * 1000) gv_json(array('ok' => false, 'error' => 'süresi dolmuş kayıt'));
+    $beklenen = hash_hmac('sha256', 'relay|' . $rid . '|' . $ra . '|' . $rts . '|' . $rb, GV_SERVER_KEY);
+    if (!hash_equals($beklenen, $rsig)) gv_json(array('ok' => false, 'error' => 'imza geçersiz'), 403);
+    $fis = hash_hmac('sha256', 'relayok|' . $rid, GV_SERVER_KEY);
+    $pdo = gv_pdo();
+    $ins = $pdo->prepare("INSERT IGNORE INTO gv_relay(id, ts) VALUES(?, ?)");
+    $ins->execute(array($rid, $now));
+    if ($ins->rowCount() === 0) gv_json(array('ok' => true, 'dup' => true, 'id' => $rid, 'fis' => $fis));
+    $govde = json_decode($rb, true);
+    if (!is_array($govde)) $govde = array();
+    // İşlem başarısız olursa kimlik geri alınır ki kayıt tekrar denenebilsin.
+    $GLOBALS['gv_relay_id'] = $rid;
+    $GLOBALS['gv_relay_fis'] = $fis;
+    ob_start(function ($cikti) {
+        $d = json_decode($cikti, true);
+        if (!is_array($d) || empty($d['ok'])) {
+            try { gv_pdo()->prepare("DELETE FROM gv_relay WHERE id = ?")->execute(array($GLOBALS['gv_relay_id'])); } catch (Exception $e) {}
+            return $cikti;
+        }
+        $d['id'] = $GLOBALS['gv_relay_id'];
+        $d['fis'] = $GLOBALS['gv_relay_fis'];
+        return json_encode($d, JSON_UNESCAPED_UNICODE);
+    });
+    // Eski kimlikleri arada bir temizle (30 gün).
+    if (mt_rand(1, 50) === 1) {
+        try { $pdo->prepare("DELETE FROM gv_relay WHERE ts < ?")->execute(array($now - 30 * 24 * 3600 * 1000)); } catch (Exception $e) {}
+    }
+    define('GV_RELAY_OK', 1);
+    $action = $ra;
+    $in = $govde;
+}
+
 function gv_friends_of($pdo, $uid) {
     $s = $pdo->prepare("
         SELECT u.id, u.name, f.created_at AS since FROM gv_friends f
@@ -298,8 +357,18 @@ if ($action === 'scoreWrite') {
 
 /* Bir üyenin puan özeti — OYUN TÜRÜNE GÖRE AYRI. */
 if ($action === 'scoreSummary') {
-    gv_require_server_key();
-    $uid = intval($_GET['uid'] ?? 0);
+    /* Render (sunucu anahtarı) HERHANGİ bir üyenin özetini; tarayıcı ise
+       (Bearer oturumu) YALNIZ KENDİ özetini alır. Tarayıcı yolu, DDoS
+       korumasının Render'ı engellediği durumda profil/istatistik ekranının
+       gerçek veriyi gösterebilmesi içindir. */
+    $kk = $_SERVER['HTTP_X_GV_KEY'] ?? '';
+    if (hash_equals(strval(GV_SERVER_KEY), strval($kk))) {
+        $uid = intval($_GET['uid'] ?? 0);
+    } else {
+        $ben = gv_user_by_token(gv_bearer());
+        if (!$ben) gv_json(array('ok' => false, 'error' => 'Üye girişi gerekli.'), 401);
+        $uid = intval($ben['id']);
+    }
     if ($uid <= 0) gv_json(array('ok' => false, 'error' => 'uid yok'));
     $pdo = gv_pdo();
     $t0 = gv_score_reset_at();
@@ -354,7 +423,8 @@ if ($action === 'scoreSummary') {
 
 /* Sıralama tablosu. */
 if ($action === 'scoreBoard') {
-    gv_require_server_key();
+    /* Sıralama tablosu HERKESE AÇIK (liderlik sayfası) — tarayıcı doğrudan
+       okur; Render'ın DDoS engeline takılmaz. */
     $limit = max(1, min(100, intval($_GET['limit'] ?? 20)));
     $game = isset($_GET['game']) && $_GET['game'] !== '' ? strval($_GET['game']) : null;
     $pdo = gv_pdo();
@@ -625,8 +695,12 @@ if ($action === 'chatHistory') {
    Katılımcı listesi ve braket "data" alanında JSON olarak durur; kayıt
    bir bütün olarak okunur ve yazılır.
    ========================================================================== */
-if ($action === 'tournamentList') {
-    gv_require_server_key();
+if ($action === 'tournamentList' || $action === 'tournamentListSigned') {
+    /* tournamentListSigned: HERKESE AÇIK + İMZALI. Tarayıcı bu listeyi alıp
+       Render'a iletir; Render imzayı doğrulayıp turnuvaları belleğine yükler
+       (DDoS koruması Render'ın kendisinin okumasını engelliyor). Katılımcı
+       adları zaten herkese açık braket tablosunda görünür. */
+    if ($action === 'tournamentList') gv_require_server_key();
     $pdo = gv_pdo();
     $st = $pdo->query("SELECT * FROM gv_tournaments ORDER BY start_at DESC, created_at DESC LIMIT 200");
     $liste = array();
@@ -651,6 +725,12 @@ if ($action === 'tournamentList') {
             'braket' => isset($d['braket']) ? $d['braket'] : null,
             'duyurular' => isset($d['duyurular']) && is_array($d['duyurular']) ? $d['duyurular'] : array()
         );
+    }
+    if ($action === 'tournamentListSigned') {
+        $veri = json_encode($liste, JSON_UNESCAPED_UNICODE);
+        $tsl = $now;
+        gv_json(array('ok' => true, 'veri' => $veri, 'ts' => $tsl,
+            'sig' => hash_hmac('sha256', 'tlist|' . $tsl . '|' . $veri, GV_SERVER_KEY)));
     }
     gv_json(array('ok' => true, 'liste' => $liste));
 }

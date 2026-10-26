@@ -1281,6 +1281,8 @@ function publicLobbyRoom(room) {
     spectatorsAllowed: !soloIzleyiciKapali(room),
     status: room.status,
     isPrivate: !!room.isPrivate,
+    /* Şifreli özel masa: lobide görünür, şifreyi bilen üye katılabilir. */
+    sifreli: !!(room.isPrivate && room.sifreHash),
     duration: room.durationMinutes,
     durationMinutes: room.durationMinutes,
     /* Masanın hamle süresi (sn). Kurucu paneli masa başına ayarlayabiliyor;
@@ -1296,7 +1298,7 @@ function listPublicRooms(gameId) {
   // yüzünden 0 oyunculu kalıcı masalar lobide görünmüyordu: "Henüz açık
   // masa yok" hatasının sebebi buydu).
   return [...rooms.values()]
-    .filter(r => (!gameId || r.gameId === gameId) && !r.isPrivate)
+    .filter(r => (!gameId || r.gameId === gameId) && (!r.isPrivate || r.sifreHash))
     .sort((a, b) => {
       if (a.status !== b.status) return a.status === 'waiting' ? -1 : 1;
       return String(a.id).localeCompare(String(b.id), undefined, { numeric: true });
@@ -4669,7 +4671,11 @@ io.on('connection', socket => {
   // sayılır. Giriş yapınca istemci bunu tekrar gönderir ve kayıt
   // ziyaretçiden üyeye taşınır.
   socket.on('gvPresence', payload => {
-    try { presenceSoketBagla(socket, payload && payload.uid, payload && payload.cihaz); } catch (_) {}
+    try {
+      const k = presenceKimlik(payload);
+      presenceSoketBagla(socket, k.uid, payload && payload.cihaz);
+      presenceAdYaz(k, payload && payload.cihaz);
+    } catch (_) {}
   });
   socket.on('disconnect', () => { try { presenceSoketKopar(socket); } catch (_) {} });
 
@@ -7094,6 +7100,45 @@ function presenceSupur() {
   }
 }
 
+/* ÇEVRİMİÇİ LİSTESİ İÇİN AD (kullanıcı isteği: "Çevrimiçi oyuncu kısmına
+   tıklayınca isimler küçük bir pencerede görünsün; ziyaretçi adları tam,
+   üyelerin ise ilk 3 harfi ve üye numarası — faz***#0008 — gizlilik için").
+   Üye adı ve numarası YALNIZ PHP'nin imzaladığı kimlik belgesinden
+   (attestation) alınır: tarayıcı başkasının adıyla görünemez. Ziyaretçi
+   adı ("Ziyaretçi#655") tarayıcının kendi bildirdiğidir. */
+function presenceKimlik(b) {
+  const o = b || {};
+  let att = null;
+  try { att = o.att ? require('./server-auth').verifyAttestation(o.att) : null; } catch (_) { att = null; }
+  if (att && att.uid) return { uid: att.uid, ad: att.name, dogru: true };
+  const uid = Number(o.uid);
+  const temiz = String(o.ad == null ? '' : o.ad).replace(/[<>"'`\\]/g, '').replace(/\s+/g, ' ').trim().slice(0, 24);
+  return { uid: Number.isInteger(uid) && uid > 0 ? uid : null, ad: temiz || null, dogru: false };
+}
+function presenceAdYaz(kim, cihaz) {
+  const key = presenceKey(kim.uid, cihaz);
+  const e = key ? presence.get(key) : null;
+  if (!e) return;
+  if (e.uye) { if (kim.dogru && kim.ad) e.ad = kim.ad; }
+  else if (kim.ad) e.ad = kim.ad;
+}
+function uyeNoMetni(uid) { return '#' + String(Number(uid) || 0).padStart(4, '0'); }
+function gizliAd(ad) {
+  const a = [...String(ad || 'Üye')];
+  return a.slice(0, 3).join('') + '***';
+}
+function presenceListe() {
+  presenceSupur();
+  const uyeler = [], ziyaretciler = [];
+  for (const e of presence.values()) {
+    if (e.uye) uyeler.push({ uye: true, ad: (e.ad ? gizliAd(e.ad) : 'Üye') + uyeNoMetni(e.uid), no: uyeNoMetni(e.uid) });
+    else ziyaretciler.push({ uye: false, ad: e.ad || 'Ziyaretçi' });
+  }
+  uyeler.sort((a, b) => a.no.localeCompare(b.no));
+  ziyaretciler.sort((a, b) => a.ad.localeCompare(b.ad, 'tr'));
+  return uyeler.concat(ziyaretciler);
+}
+
 function presenceSayim() {
   presenceSupur();
   let uye = 0, ziyaretci = 0;
@@ -7128,10 +7173,104 @@ function liveStatsGovde() {
     activeRooms: aktifOda,
     playingRooms: oynanan,
     seatedPlayers: masadaki,
-    tournaments: 0,            // turnuva motoru henüz yok — uydurma sayı vermiyoruz
+    // Kayıt açık / başlamayı bekleyen / devam eden turnuvalar (kurucu paneli).
+    tournaments: (typeof turnuvaKatmani !== 'undefined' && turnuvaKatmani && turnuvaKatmani.aktifSayisi)
+      ? turnuvaKatmani.aktifSayisi() : 0,
     now: Date.now()
   };
 }
+
+/* ==========================================================================
+   ŞİFRELİ ÖZEL MASA (kullanıcı isteği: "özel masalarda oda kurucusu şifre
+   belirleyebilir; şifreyi bilen diğer üyeler odaya şifreyle katılabilir —
+   ya kurucunun davetiyle ya da şifreyle").
+   · Kurucu şifreyi belirler/değiştirir/kaldırır (sifre-belirle).
+   · Üye şifreyi dener (sifre-dene); doğruysa DAVETLİ listesine eklenir ve
+     normal katılım akışı (özel oda kilidi) onu içeri alır. Atılmış (kick)
+     üye şifreyle geri giremez. Kimlik, PHP'nin imzaladığı belgeden gelir.
+   · Şifre düz metin tutulmaz (tuzlu SHA-256); deneme sayısı sınırlıdır.
+   ========================================================================== */
+const sifreDenemeleri = new Map();     // uid → [zaman damgaları]
+function odaSifreOzeti(room, sifre) {
+  if (!room.sifreTuz) room.sifreTuz = require('crypto').randomBytes(12).toString('hex');
+  return require('crypto').createHash('sha256').update(room.sifreTuz + '|' + String(sifre)).digest('hex');
+}
+function istekUyesi(b) {
+  try {
+    const att = b && b.att ? require('./server-auth').verifyAttestation(b.att) : null;
+    return att && att.uid ? att : null;
+  } catch (_) { return null; }
+}
+app.post('/api/rooms/:id/sifre-belirle', (req, res) => {
+  const b = req.body || {};
+  const u = istekUyesi(b);
+  if (!u) return res.json({ ok: false, error: 'Şifre belirlemek için üye girişi gerekli.' });
+  const room = rooms.get(String(req.params.id));
+  if (!room) return res.json({ ok: false, error: 'Masa bulunamadı.', bekle: true });
+  if (!room.isPrivate) return res.json({ ok: false, error: 'Şifre yalnız özel masalarda kullanılır.' });
+  if (Number(room.creatorId) !== Number(u.uid)) return res.json({ ok: false, error: 'Şifreyi yalnız masa kurucusu belirleyebilir.', bekle: !room.creatorId });
+  const sifre = String(b.sifre == null ? '' : b.sifre).trim();
+  if (!sifre) { room.sifreHash = null; room.sifreTuz = null; }
+  else {
+    if (sifre.length < 3 || sifre.length > 32) return res.json({ ok: false, error: 'Şifre 3-32 karakter olmalı.' });
+    room.sifreTuz = null;
+    room.sifreHash = odaSifreOzeti(room, sifre);
+  }
+  try { emitLobby(room.gameId); emitRoom(room); } catch (_) {}
+  res.json({ ok: true, sifreli: !!room.sifreHash, roomId: room.id });
+});
+app.post('/api/rooms/:id/sifre-dene', (req, res) => {
+  const b = req.body || {};
+  const u = istekUyesi(b);
+  if (!u) return res.json({ ok: false, uyeGerekli: true, error: 'Şifreli masalara yalnızca üyeler katılabilir.' });
+  const simdi = Date.now();
+  const l = (sifreDenemeleri.get(u.uid) || []).filter(t => simdi - t < 60000);
+  if (l.length >= 6) return res.json({ ok: false, error: 'Çok fazla deneme — 1 dakika sonra tekrar deneyin.' });
+  l.push(simdi); sifreDenemeleri.set(u.uid, l);
+  const room = rooms.get(String(req.params.id).replace(/^#/, ''));
+  if (!room || !room.isPrivate || !room.sifreHash) return res.json({ ok: false, error: 'Bu numarada şifreli bir masa yok.' });
+  if (room.kickBan && typeof room.kickBan.has === 'function' && room.kickBan.has(Number(u.uid))) {
+    return res.json({ ok: false, error: 'Bu masadan atıldınız — kurucu yeniden davet etmeden giremezsiniz.' });
+  }
+  if (odaSifreOzeti(room, String(b.sifre == null ? '' : b.sifre).trim()) !== room.sifreHash) {
+    return res.json({ ok: false, error: 'Şifre yanlış.' });
+  }
+  if (!room.invited || typeof room.invited.set !== 'function') room.invited = new Map();
+  room.invited.set(Number(u.uid), { ts: simdi, sifre: true });
+  sifreDenemeleri.delete(u.uid);
+  res.json({ ok: true, roomId: room.id, gameId: room.gameId, name: room.name || ('Masa #' + room.id) });
+});
+
+/* Çevrimiçi kişiler — sayaçla AYNI kaynaktan (sayı ve liste hep tutarlı). */
+app.get('/api/online-list', (_req, res) => {
+  res.set('Cache-Control', 'no-store');
+  const liste = presenceListe();
+  res.json({ ok: true, toplam: liste.length, liste: liste.slice(0, 300) });
+});
+
+/* AKTİF ODALAR — oyun oyun: masada BEKLEYEN oyuncu olan genel masalar
+   (katılınca oraya oturulur — Hızlı Eşleş mantığı), oynanan masalar ve
+   özel masalar. Ana sayfadaki "Aktif Oda" kutusu bunu açar. */
+app.get('/api/active-rooms', (_req, res) => {
+  const oyunlar = {};
+  for (const r of rooms.values()) {
+    const n = (r.players || []).length;
+    if (!n || !gameVisible(r.gameId)) continue;
+    const g = oyunlar[r.gameId] || (oyunlar[r.gameId] = { gameId: r.gameId, bekleyen: 0, bekleyenOyuncu: 0, oynanan: 0, ozel: 0, oyuncu: 0, enIyi: null, enIyiDolu: -1 });
+    g.oyuncu += n;
+    if (r.isPrivate) { g.ozel++; continue; }
+    if (r.status === 'playing') { g.oynanan++; continue; }
+    if (r.status === 'waiting' && n < (Number(r.maxPlayers) || 2) && !r.solo) {
+      g.bekleyen++; g.bekleyenOyuncu += n;
+      if (n > g.enIyiDolu) { g.enIyi = String(r.id); g.enIyiDolu = n; }
+    }
+  }
+  const liste = Object.values(oyunlar).map(g => {
+    const { enIyiDolu, ...k } = g; return k;
+  }).sort((a, b) => (b.bekleyen - a.bekleyen) || (b.oyuncu - a.oyuncu));
+  res.set('Cache-Control', 'no-store');
+  res.json({ ok: true, liste });
+});
 
 app.get('/api/live-stats', (_req, res) => {
   res.set('Cache-Control', 'no-store');
@@ -7459,9 +7598,41 @@ app.post('/api/presence-bye', (req, res) => {
 
 app.post('/api/live-stats', (req, res) => {
   const b = req.body || {};
-  presenceNabiz(b.uid, b.cihaz || b.k);
+  const kim = presenceKimlik(b);
+  presenceNabiz(kim.uid, b.cihaz || b.k);
+  presenceAdYaz(kim, b.cihaz || b.k);
   res.set('Cache-Control', 'no-store');
-  res.json(liveStatsGovde());
+  const govde = liveStatsGovde();
+  /* İMZALI KÖPRÜ: Yöncü'ye ulaşamayan yazımlar (puan, maç, turnuva) nabız
+     yanıtıyla tarayıcıya verilir; tarayıcı Yöncü'ye iletir (bkz. kopru.js).
+     Yalnız Yöncü sitesinden gelen tarayıcılar iletebilir (b.kopru=1). */
+  if (b.kopru) {
+    const k = kopruOrnegi();
+    if (k) { const l = k.dagit(3); if (l.length) govde.kopru = l; }
+  }
+  res.json(govde);
+});
+
+function kopruOrnegi() {
+  try {
+    const r = require('./auth-remote');
+    return (r.enabled() && r.kopru) ? r.kopru : null;
+  } catch (_) { return null; }
+}
+// Tarayıcı kaydı Yöncü'ye ilettiğini PHP'nin imzalı fişiyle bildirir.
+app.post('/api/kopru/onay', (req, res) => {
+  const k = kopruOrnegi();
+  const n = k ? k.onayla((req.body || {}).onaylar) : 0;
+  res.json({ ok: true, onaylanan: n, kalan: k ? k.boyut() : 0 });
+});
+// Tarayıcı, PHP'nin imzaladığı turnuva listesini iletir (Render kendisi
+// okuyamıyor — DDoS koruması).
+app.post('/api/tournaments/sync', (req, res) => {
+  const k = kopruOrnegi();
+  const liste = k ? k.turnuvaListesiDogrula(req.body || {}) : null;
+  if (!liste) return res.json({ ok: false, error: 'imza geçersiz' });
+  const n = (turnuvaKatmani && turnuvaKatmani.birlestir) ? turnuvaKatmani.birlestir(liste) : 0;
+  res.json({ ok: true, guncellenen: n });
 });
 
 // Çevrimiçi durum haritalaması (arkadaş listesi / profil bayrakları).
@@ -7611,7 +7782,7 @@ module.exports = { app, server, io, rooms, start, listPublicRooms, publicRoom, s
   // chatGlobal: şikayet dökümünün "son 1 dakika" süzgecini sınamak için —
   // test bir mesajın zaman damgasını geriye alıp süzgecin onu ELEDİĞİNİ
   // doğrular (gerçekte 1 dakika beklemek gerekirdi).
-  __test: { puanYaz, puanDonusYaz, scoring, presenceSayim, chatGlobal: () => chatGlobal, kurucuDevret, removePlayerFromRoom } };
+  __test: { rooms: () => rooms, puanYaz, puanDonusYaz, scoring, presenceSayim, chatGlobal: () => chatGlobal, kurucuDevret, removePlayerFromRoom } };
 // Eski test uyumluluğu: PRESET_TABLES artık yapılandırmadan üretilir.
 Object.defineProperty(module.exports, 'PRESET_TABLES', { get: () => presetTablesFromConfig(presetConfig) });
 Object.defineProperty(module.exports, 'popularConfig', { get: () => popularConfig });

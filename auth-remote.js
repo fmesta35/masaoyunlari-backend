@@ -16,6 +16,12 @@
 
 const REMOTE = (process.env.GV_AUTH_API || '').replace(/\/+$/, '');
 const KEY = process.env.GV_SERVER_KEY || '';
+/* Yöncü DDoS koruması Render'ın PHP'ye YAZMASINI engelliyor; tüm yazımlar
+   imzalı köprüden geçer (bkz. kopru.js). */
+const kopru = require('./kopru').kur({
+  key: KEY, remote: REMOTE,
+  dosya: require('path').join(process.env.GV_DATA_DIR || require('path').join(__dirname, 'data'), 'kopru-kuyruk.json')
+});
 
 function enabled() { return !!REMOTE; }
 
@@ -238,23 +244,18 @@ function isFriendPairOrNull(a, b) {
     .catch(() => null);
 }
 // yazma işlemleri ateş-unut (Render'ı bekletme)
-function recordMatch(p) {
-  callJson(REMOTE + '/social.php?action=recordMatch', { key: KEY, body: p }).then(r => {
-    if (!r.data || !r.data.ok) console.warn('maç kaydı Yöncü\'ye yazılamadı:', (r.data && r.data.error) || r.status);
-  }).catch(() => {});
-}
-function logChat(m) {
-  callJson(REMOTE + '/social.php?action=chatLog', { key: KEY, body: m }).catch(() => {});
-}
+function recordMatch(p) { kopru.ekle('recordMatch', p); }
+function logChat(m) { kopru.ekle('chatLog', m); }
 
 // ---------------- PUAN SİSTEMİ (uzak mod → Yöncü MySQL) ----------------
 // Kurallar Render'da (scoring.js) işler, KALICILIK Yöncü'dedir. Yazma
 // ateş-unut: puan yazımı maç bitişini bekletmemeli.
 function puanYaz(olaylar) {
   if (!Array.isArray(olaylar) || !olaylar.length) return;
-  callJson(REMOTE + '/social.php?action=scoreWrite', { key: KEY, body: { olaylar } }).then(r => {
-    if (!r.data || !r.data.ok) console.warn('puan Yöncü\'ye yazılamadı:', (r.data && r.data.error) || r.status);
-  }).catch(() => {});
+  // Misafir olayları PHP'de zaten atlanır; kuyruğu boşuna doldurmasın.
+  const uyeler = olaylar.filter(o => o && Number(o.uid) > 0);
+  if (!uyeler.length) return;
+  kopru.ekle('scoreWrite', { olaylar: uyeler });
 }
 // Okuma: istemci profil/istatistik ekranında bekler, o yüzden Promise döner.
 function puanOzet(uid) {
@@ -272,12 +273,12 @@ function turnuvaListe() {
     .then(r => (r.data && r.data.ok) ? (r.data.liste || []) : []).catch(() => []);
 }
 function turnuvaKaydet(t) {
-  return callJson(REMOTE + '/social.php?action=tournamentSave', { key: KEY, body: { turnuva: t } })
-    .then(r => r.data || { ok: false }).catch(() => ({ ok: false }));
+  kopru.ekle('tournamentSave', { turnuva: t });
+  return Promise.resolve({ ok: true, kopru: true });
 }
 function turnuvaSil(id) {
-  return callJson(REMOTE + '/social.php?action=tournamentDelete', { key: KEY, body: { id: String(id) } })
-    .then(r => r.data || { ok: false }).catch(() => ({ ok: false }));
+  kopru.ekle('tournamentDelete', { id: String(id) });
+  return Promise.resolve({ ok: true, kopru: true });
 }
 
 function puanSifirla(byUserId, mode) {
@@ -342,4 +343,4 @@ module.exports = { enabled, installProxy, me, meFull, userPublic, isFriendPair, 
   puanYaz, puanOzet, puanSiralama, puanSifirla, puanAyarOku, puanAyarYaz,
   yaptirimUygula, yaptirimKaldir, yaptirimAktif, yaptirimListe,
   yaptirimGecmis, raporEkle, raporListe,
-  turnuvaListe, turnuvaKaydet, turnuvaSil, REMOTE };
+  turnuvaListe, turnuvaKaydet, turnuvaSil, REMOTE, kopru };

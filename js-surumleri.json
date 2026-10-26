@@ -27,6 +27,10 @@
     "v": "20261025a",
     "sha": "cb56b4844f77"
   },
+  "js/canli-pencereler.js": {
+    "v": "20261026a",
+    "sha": "0c4609caff4b"
+  },
   "js/card-online.js": {
     "v": "20260904b",
     "sha": "4556aadb6eb9"
@@ -108,12 +112,12 @@
     "sha": "dca7292eb366"
   },
   "js/live-stats.js": {
-    "v": "20260912a",
-    "sha": "a6223fa6be5b"
+    "v": "20261026a",
+    "sha": "b592d291c71e"
   },
   "js/lobby-sync.js": {
-    "v": "20261018b",
-    "sha": "d95657eccfc4"
+    "v": "20261026a",
+    "sha": "51a0414f8401"
   },
   "js/masa-oylama.js": {
     "v": "20261005a",
@@ -134,6 +138,10 @@
   "js/no-bots.js": {
     "v": "20261017a",
     "sha": "d69bd88a9fee"
+  },
+  "js/oda-sifre.js": {
+    "v": "20261026a",
+    "sha": "71a5be1c7f66"
   },
   "js/okey-online.js": {
     "v": "20261023a",
@@ -172,16 +180,16 @@
     "sha": "550031998d4d"
   },
   "js/scores.js": {
-    "v": "20260912a",
-    "sha": "c835dd6bc38c"
+    "v": "20261026a",
+    "sha": "715435e08f32"
   },
   "js/sifre-goster.js": {
     "v": "20261025a",
     "sha": "bb3b788000d9"
   },
   "js/social.js": {
-    "v": "20260823e",
-    "sha": "07f1ffa38b66"
+    "v": "20261026a",
+    "sha": "ffaf5d8f5c9d"
   },
   "js/socket.io.min.js": {
     "v": "20261017a",
@@ -200,8 +208,8 @@
     "sha": "e8b722344794"
   },
   "js/tournaments.js": {
-    "v": "20260927a",
-    "sha": "e2b3e70b17bb"
+    "v": "20261026a",
+    "sha": "6f1e83ad0ddd"
   },
   "js/turkdamasi-online.js": {
     "v": "20260908b",

@@ -178,6 +178,18 @@ function startMockPhp() {
           const a = u.searchParams.get('a'), b = u.searchParams.get('b');
           return json(res, 200, { ok: true, friend: friends.has(a + '-' + b) || friends.has(b + '-' + a) });
         }
+        if (action === 'relay') {
+          // İmzalı köprü (kopru.js): Render yazımları imzalayıp tek uçtan yollar.
+          const cr = require('crypto');
+          const r = (inb && inb.r) || {};
+          const sig = cr.createHmac('sha256', KEY).update('relay|' + r.id + '|' + r.a + '|' + r.ts + '|' + r.b).digest('hex');
+          if (sig !== r.sig) return json(res, 403, { ok: false, error: 'imza geçersiz' });
+          const govde = JSON.parse(r.b || '{}');
+          state.seenKeys.push([r.a, KEY]);
+          if (r.a === 'recordMatch') state.matches.push(govde);
+          if (r.a === 'chatLog') state.chat.push(govde);
+          return json(res, 200, { ok: true, id: r.id, fis: cr.createHmac('sha256', KEY).update('relayok|' + r.id).digest('hex') });
+        }
         if (action === 'recordMatch') {
           state.seenKeys.push(['recordMatch', req.headers['x-gv-key']]);
           if (req.headers['x-gv-key'] !== KEY) return json(res, 403, { ok: false });

@@ -21,19 +21,34 @@
 
   function token() { try { return localStorage.getItem(TOK); } catch (_) { return null; } }
 
+  /* VERİ YOLU (kullanıcı raporu: "maç geçmişi var ama toplam puan 0, liderlik
+     ve istatistikte veri yok"): puanlar Yöncü MySQL'de duruyor ve Yöncü'nün
+     DDoS koruması oyun sunucusunun (Render) oraya ULAŞMASINI engelliyor —
+     Render'ın /api/scores/* uçları bu yüzden hep boş dönüyordu. Site Yöncü'de
+     açıldığında veri DOĞRUDAN Yöncü'den okunur (tarayıcı korumayı geçer);
+     başka bir adresten açıldıysa eski yol (Render) kullanılır. */
+  var YONCU = /(^|\.)masaoyunlari\.com\.tr$/i.test(location.hostname);
+  var PHP_SOCIAL = '/api/social.php';
+  function jsonAl(url, h) {
+    return fetch(url, { cache: 'no-store', headers: h || {} })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .catch(function () { return null; });
+  }
+
   function getir() {
     var t = token();
     if (!t) { veri = null; uygula(); return Promise.resolve(null); }
-    return fetch(BACKEND + '/api/scores/me', {
-      cache: 'no-store',
-      headers: { Authorization: 'Bearer ' + t, 'X-GV-Token': t }
-    })
-      .then(function (r) { return r.ok ? r.json() : null; })
-      .then(function (d) {
-        if (d && d.ok) { veri = d.ozet || null; uygula(); }
-        return veri;
-      })
-      .catch(function () { return null; });
+    var h = { Authorization: 'Bearer ' + t, 'X-GV-Token': t };
+    var once = YONCU
+      ? jsonAl(PHP_SOCIAL + '?action=scoreSummary&token=' + encodeURIComponent(t), h)
+      : Promise.resolve(null);
+    return once.then(function (d) {
+      if (d && d.ok && d.ozet) return d;
+      return jsonAl(BACKEND + '/api/scores/me', h);
+    }).then(function (d) {
+      if (d && d.ok) { veri = d.ozet || null; uygula(); }
+      return veri;
+    });
   }
 
   function kurallariGetir() {
@@ -49,7 +64,11 @@
     var s = window.st;
     if (!s) return;
     if (!veri) { if (typeof window.updateScoreUI === 'function') window.updateScoreUI(); return; }
-    s.totalScore = Number(veri.toplam) || 0;
+    /* st.totalScore salt-okunur bir HESAPLANAN alandır (oyun puanlarının
+       toplamı, bkz. index.html). Eskiden buraya doğrudan yazılıyordu; katı
+       kipte bu "only a getter" hatası fırlatıp uygula()'yı yarıda kesiyor,
+       ekran hiç güncellenmiyordu (veri ilk kez gerçekten gelince ortaya
+       çıktı). Toplam, aşağıda yazılan oyun puanlarından kendiliğinden çıkar. */
     s.scores = s.scores || {};
     // Önce hepsini sıfırla: sunucuda karşılığı olmayan eski yerel değerler
     // ekranda "hayalet puan" olarak kalmasın.
@@ -57,7 +76,7 @@
     (veri.oyunlar || []).forEach(function (o) {
       s.scores[o.gameId] = Math.max(0, Number(o.puan) || 0);
     });
-    if (typeof window.updateScoreUI === 'function') window.updateScoreUI();
+    try { if (typeof window.updateScoreUI === 'function') window.updateScoreUI(); } catch (_) { /* sayfa kapanıyor */ }
   }
 
   // İstatistikler sayfasındaki kart için oyun bazlı ayrıntı.
@@ -87,10 +106,13 @@
     var anahtar = gameId || 'genel';
     var c = sirCache[anahtar];
     if (c && (Date.now() - c.t) < 60000) return Promise.resolve(c.liste);
-    var url = BACKEND + '/api/scores/board?limit=15' +
-              (gameId ? '&game=' + encodeURIComponent(gameId) : '');
-    return fetch(url, { cache: 'no-store' })
-      .then(function (r) { return r.ok ? r.json() : null; })
+    var q = 'limit=15' + (gameId ? '&game=' + encodeURIComponent(gameId) : '');
+    var once = YONCU ? jsonAl(PHP_SOCIAL + '?action=scoreBoard&' + q) : Promise.resolve(null);
+    return once
+      .then(function (d) {
+        if (d && d.ok && Array.isArray(d.siralama)) return d;
+        return jsonAl(BACKEND + '/api/scores/board?' + q);
+      })
       .then(function (d) {
         var liste = (d && d.ok && Array.isArray(d.siralama)) ? d.siralama : [];
         sirCache[anahtar] = { t: Date.now(), liste: liste };

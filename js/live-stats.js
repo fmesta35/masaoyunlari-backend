@@ -48,6 +48,16 @@
     return null;
   }
 
+  /* Çevrimiçi listesinde görünecek kimlik: ziyaretçide kendi adı
+     ("Ziyaretçi#655"); üyede PHP'nin imzaladığı kimlik belgesi — sunucu adı
+     ve üye numarasını YALNIZ belgeden okur, gizlilik için kısaltır. */
+  function kimlik() {
+    var o = { uid: uid(), cihaz: cihazAnahtari() };
+    try { if (window.st && window.st.user && window.st.user.name) o.ad = String(window.st.user.name).slice(0, 24); } catch (_) {}
+    try { if (o.uid && window.GVAuth && GVAuth.attestation) { var a = GVAuth.attestation(); if (a) o.att = a; } } catch (_) {}
+    return o;
+  }
+
   function yaz(id, deger) {
     var el = document.getElementById(id);
     if (!el) return;
@@ -79,18 +89,79 @@
       method: 'POST',
       cache: 'no-store',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ uid: uid(), cihaz: cihazAnahtari() })
+      body: JSON.stringify(Object.assign(kimlik(), { kopru: KOPRU ? 1 : 0 }))
     })
       .then(function (r) { return r.ok ? r.json() : null; })
-      .then(function (d) { if (d && d.ok) { son = d; if (!document.hidden) boya(); } })
+      .then(function (d) {
+        if (d && d.ok) { son = d; if (!document.hidden) boya(); }
+        if (d && Array.isArray(d.kopru) && d.kopru.length) kopruIlet(d.kopru);
+      })
       .catch(function () { /* sunucu uykudaysa sayılar "—" kalır */ });
+  }
+
+  /* ------------------------------------------------------------------
+     İMZALI KÖPRÜ (bkz. kopru.js, social.php?action=relay)
+     Yöncü'nün DDoS koruması oyun sunucusunun (Render) Yöncü'ye yazmasını
+     engelliyor; puanlar, maç geçmişi ve turnuvalar bu yüzden hiç
+     kaydedilmiyordu. Oyun sunucusu her yazımı kendi anahtarıyla İMZALAYIP
+     nabız yanıtıyla buraya verir; bu sayfa (Yöncü'de açıldığı için korumayı
+     sorunsuz geçer) kaydı aynen Yöncü'ye iletir ve PHP'nin imzalı fişini
+     oyun sunucusuna geri yollar. İmza değiştirilemez: tarayıcı puan
+     uyduramaz, yalnız taşır.
+     ------------------------------------------------------------------ */
+  var KOPRU = /(^|\.)masaoyunlari\.com\.tr$/i.test(location.hostname) || /[?&]kopru=1\b/.test(location.search);
+  var PHP_SOCIAL = '/api/social.php';
+  var kopruMesgul = false;
+  function kopruIlet(liste) {
+    if (!KOPRU || kopruMesgul) return;
+    kopruMesgul = true;
+    var onaylar = [];
+    var sira = Promise.resolve();
+    liste.slice(0, 5).forEach(function (r) {
+      sira = sira.then(function () {
+        return fetch(PHP_SOCIAL + '?action=relay', {
+          method: 'POST', cache: 'no-store', credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ r: r })
+        }).then(function (x) { return x.json(); })
+          .then(function (d) { if (d && d.ok && d.fis) onaylar.push({ id: r.id, fis: d.fis }); })
+          .catch(function () {});
+      });
+    });
+    sira.then(function () {
+      if (!onaylar.length) return;
+      return fetch(BACKEND + '/api/kopru/onay', {
+        method: 'POST', cache: 'no-store',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ onaylar: onaylar })
+      }).catch(function () {});
+    }).then(function () { kopruMesgul = false; }, function () { kopruMesgul = false; });
+  }
+  /* Turnuvalar: oyun sunucusu yeniden başladığında listeyi Yöncü'den
+     OKUYAMIYOR. Bu sayfa PHP'nin imzaladığı listeyi alıp iletir. */
+  var turnuvaSon = 0;
+  function turnuvaSenkron(zorla) {
+    if (!KOPRU) return Promise.resolve();
+    if (!zorla && Date.now() - turnuvaSon < 5 * 60 * 1000) return Promise.resolve();
+    turnuvaSon = Date.now();
+    return fetch(PHP_SOCIAL + '?action=tournamentListSigned', { cache: 'no-store', credentials: 'same-origin' })
+      .then(function (x) { return x.json(); })
+      .then(function (d) {
+        if (!d || !d.ok || !d.sig) return;
+        return fetch(BACKEND + '/api/tournaments/sync', {
+          method: 'POST', cache: 'no-store', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ veri: d.veri, ts: d.ts, sig: d.sig })
+        }).then(function (y) { return y.json(); }).then(function (z) {
+          if (z && z.guncellenen) { try { window.dispatchEvent(new Event('gv:tournamentsSynced')); } catch (_) {} }
+        });
+      }).catch(function () {});
   }
 
   // Soket varsa kimliği oradan da bildir: soket açık olduğu sürece kişi
   // "sitede" sayılır, HTTP nabzı gecikse bile sayaç doğru kalır.
   function soketeBildir(sock) {
     if (!sock || !sock.emit) return;
-    try { sock.emit('gvPresence', { uid: uid(), cihaz: cihazAnahtari() }); } catch (_) {}
+    try { sock.emit('gvPresence', kimlik()); } catch (_) {}
   }
 
   // Sitede birden çok soket olabilir (lobi / masa / satranç). Hangisi açıksa
@@ -107,7 +178,8 @@
     if (y) y.textContent = String(new Date().getFullYear());
     getir();
     soketleriTara();
-    if (!timer) timer = setInterval(function () { getir(); soketleriTara(); }, PERIYOT);
+    setTimeout(function () { turnuvaSenkron(true); }, 1500);
+    if (!timer) timer = setInterval(function () { getir(); soketleriTara(); turnuvaSenkron(false); }, PERIYOT);
     // Sekmeye dönünce anında tazele (uzun süre kapalı kalmış olabilir).
     document.addEventListener('visibilitychange', function () {
       if (!document.hidden) { getir(); soketleriTara(); }
@@ -130,6 +202,7 @@
 
   window.GVLiveStats = {
     refresh: getir,
+    turnuvaSenkron: turnuvaSenkron,
     data: function () { return son; },
     cihaz: cihazAnahtari,
     bildir: soketeBildir
