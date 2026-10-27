@@ -34,8 +34,9 @@ android {
         // (sitenin güncellenmesini beklemiyor). Kabuk kodu her
         // değiştiğinde versionCode artar — Play aynı numarayı iki kez
         // kabul etmez.
-        versionCode 6
-        versionName "1.0.5"
+        // 7 (1.0.6): yeni uygulama simgesi (taç + zar, mor çerçeve).
+        versionCode 7
+        versionName "1.0.6"
     }
 
     signingConfigs {

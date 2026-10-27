@@ -1327,8 +1327,8 @@ html.gv-fs-kilit,html.gv-fs-kilit body{overflow:hidden}
 .ok-tile:hover{z-index:3}
 @media(hover:hover){ .ok-tile:hover{transform:translateY(-3px);box-shadow:inset 0 1px 0 rgba(255,255,255,.95),0 6px 10px rgba(0,0,0,.5)} }
 /* Yazı ve nokta taş genişliğiyle orantılı (board-fit --ok-tile-w yazar) */
-.ok-tile .ok-num{font-size:calc(var(--ok-tile-w) * .54);font-weight:900;line-height:1;letter-spacing:-.02em}
-.ok-tile .ok-dot{width:calc(var(--ok-tile-w) * .11);height:calc(var(--ok-tile-w) * .11);border-radius:50%;margin-top:calc(var(--ok-tile-w) * .06)}
+.ok-tile .ok-num{font-size:calc(var(--ok-tile-w) * .62);font-weight:900;line-height:1;letter-spacing:-.03em}
+.ok-tile .ok-dot{width:calc(var(--ok-tile-w) * .11);height:calc(var(--ok-tile-w) * .11);border-radius:50%;margin-top:calc(var(--ok-tile-w) * .05)}
 .ok-tile.t-red .ok-num{color:#c8102e}.ok-tile.t-red .ok-dot{background:#c8102e}
 .ok-tile.t-blue .ok-num{color:#0a4fe0}.ok-tile.t-blue .ok-dot{background:#0a4fe0}
 .ok-tile.t-black .ok-num{color:#000000}.ok-tile.t-black .ok-dot{background:#000000}
@@ -2235,7 +2235,7 @@ body.gv-app input,body.gv-app textarea,body.gv-app .chat-msgs,body.gv-app .moves
 .ok101-t{position:relative;display:inline-flex;align-items:center;justify-content:center;
   width:clamp(15px,2.1vw,24px);height:clamp(21px,3vw,34px);border-radius:4px;
   background:linear-gradient(145deg,#fdfbf3,#e8e2d0);box-shadow:0 1px 2px rgba(0,0,0,.45);
-  font-weight:800;font-size:clamp(9px,1.25vw,14px);line-height:1}
+  font-weight:800;font-size:clamp(12px,1.6vw,17px);line-height:1;letter-spacing:-.04em}
 .ok101-t>i{position:absolute;bottom:2px;width:3px;height:3px;border-radius:50%;background:currentColor}
 .ok101-t.t-red{color:#c8102e}.ok101-t.t-black{color:#000000}
 .ok101-t.t-blue{color:#0a4fe0}.ok101-t.t-yellow{color:#e06c00}
@@ -6648,8 +6648,10 @@ function _okPointerDown(e, type, sh, sl) {
   okDrag.w = rect.width; okDrag.h = rect.height;
   okDrag.scale = s;
   okDrag.touch = isTouch;
-  // Dokunmada taş parmağın üstünde dursun (kullanıcı ne bıraktığını görsün).
-  okDrag.lift = isTouch ? Math.min(52, rect.height * 0.85) : 0;
+  // Taş, dokunulan noktadan TAM parmağın altında hareket eder. Eskiden
+  // dokunmada taş ~30-50px yukarı kaldırılıyordu; kullanıcı raporu: "taşa
+  // dokunduğum nokta ile hareket eden nokta arasında fark var".
+  okDrag.lift = 0;
   okDrag.moved = false;
   okDrag.el = target;
 
@@ -7457,7 +7459,7 @@ GV.init();
 <script src="js/move-clock.js?v=20261012a" defer></script>
 <script src="js/chess-online.js?v=20261018a" defer></script>
 <script src="js/tavla-online.js?v=20261018a" defer></script>
-<script src="js/okey-online.js?v=20261027a" defer></script>
+<script src="js/okey-online.js?v=20261027b" defer></script>
 <!-- 101 Okey el açma penceresi: okey-online.js zaten büyük, açma akışı
      (çok adımlı per kurma) ayrı dosyada duruyor. -->
 <script src="js/okey101-ac.js?v=20261020a" defer></script>

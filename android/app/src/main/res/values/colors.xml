@@ -13,4 +13,6 @@
     <color name="headerColor">#111128</color>
     <color name="textColor">#EEF0F8</color>
     <color name="textMuted">#9AA0BF</color>
+    <!-- Uygulama simgesi zemini: yeni simgenin çerçeve moru (maske köşelerinde görünür). -->
+    <color name="iconBackground">#341E8C</color>
 </resources>
