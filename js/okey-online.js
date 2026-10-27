@@ -330,7 +330,7 @@
     const gs = ok._gs;
     const map = ok._map;
     const POS_LABEL = ['Sen', 'Sol', 'Karşı', 'Sağ'];
-    const iC = { 't-red': '#c8102e', 't-black': '#000000', 't-blue': '#0a4fe0', 't-yellow': '#e06c00' }[ok.indicator?.c] || '#c8102e';
+    const iC = { 't-red': '#c2185b', 't-black': '#000000', 't-blue': '#0a4fe0', 't-yellow': '#b88a00' }[ok.indicator?.c] || '#c2185b';
 
     let h = '<div class="okey-table">';
 
