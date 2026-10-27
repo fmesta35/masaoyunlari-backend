@@ -36,8 +36,8 @@
     "sha": "4556aadb6eb9"
   },
   "js/cenga-online.js": {
-    "v": "20261027a",
-    "sha": "d976939d9640"
+    "v": "20261027b",
+    "sha": "806d8ba8099c"
   },
   "js/chat.js": {
     "v": "20261027a",
@@ -64,8 +64,8 @@
     "sha": "aabb2f30fe74"
   },
   "js/deniz-sinematik.js": {
-    "v": "20261027a",
-    "sha": "81d3e1d2109d"
+    "v": "20261027b",
+    "sha": "9ad5db07a53f"
   },
   "js/fark-online.js": {
     "v": "20261023a",
@@ -76,8 +76,8 @@
     "sha": "b1d5b6f26dc3"
   },
   "js/fs-duzen.js": {
-    "v": "20261027a",
-    "sha": "ac2776892270"
+    "v": "20261027b",
+    "sha": "951ddcf9003e"
   },
   "js/games.js": {
     "v": "20261017a",
@@ -92,8 +92,8 @@
     "sha": "b478e2dbeaaa"
   },
   "js/havahokeyi-online.js": {
-    "v": "20261027a",
-    "sha": "7ad4d32e420d"
+    "v": "20261027b",
+    "sha": "57085d7d0c57"
   },
   "js/izleyici.js": {
     "v": "20261018a",
@@ -108,8 +108,8 @@
     "sha": "8c47a6385654"
   },
   "js/langirt-online.js": {
-    "v": "20261027a",
-    "sha": "18b8dab8f2bc"
+    "v": "20261027b",
+    "sha": "69e627e39411"
   },
   "js/leave-guard.js": {
     "v": "20261027b",
@@ -208,8 +208,8 @@
     "sha": "a77fa253f40b"
   },
   "js/tek-kisilik-online.js": {
-    "v": "20261027a",
-    "sha": "8d0ab371af6f"
+    "v": "20261027b",
+    "sha": "ec047de9117a"
   },
   "js/tombala-online.js": {
     "v": "20261011a",
@@ -224,8 +224,8 @@
     "sha": "8447076794f1"
   },
   "js/utils.js": {
-    "v": "20261017a",
-    "sha": "70df95b9c7ed"
+    "v": "20261027a",
+    "sha": "c80117c43b11"
   },
   "js/webview.js": {
     "v": "20261027a",

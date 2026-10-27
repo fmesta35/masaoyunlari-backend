@@ -383,6 +383,8 @@ const GVUtils = {
      * Vibration (mobil cihazlarda)
      */
     vibrate(pattern = 100) {
+        // Ses anahtarı kapalıyken titreşim de yok
+        try { if (localStorage.getItem('gv-ses') === 'off') return; } catch (_) {}
         if (navigator.vibrate) {
             navigator.vibrate(pattern);
         }

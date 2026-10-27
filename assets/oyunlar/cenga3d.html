@@ -16,7 +16,12 @@ try{document.querySelectorAll('audio,video').forEach(function(m){m.muted=k;});}c
 window.addEventListener('storage',function(e){if(!e||e.key===KEY)uygula();});
 window.addEventListener('message',function(e){if(e&&e.data&&e.data.gvSes!==undefined)uygula();});
 document.addEventListener('visibilitychange',function(){if(!document.hidden)uygula();});
-window.__gvSesUygula=uygula;})();</script>
+window.__gvSesUygula=uygula;
+/* Ses yeniden açıldıysa ilk dokunuşta askıdaki bağlamlar uyanır (tarayıcı izin ister). */
+['pointerdown','keydown','touchstart'].forEach(function(ev){document.addEventListener(ev,function(){if(kapali())return;liste.forEach(function(c){try{if(c.state==='suspended')c.__gvResume();}catch(_){}});},true);});
+/* Ses kapalıyken titreşim de yok (telefonda vızıltı duyuluyordu). */
+try{if(navigator.vibrate&&!navigator.vibrate.__gvSes){var V=navigator.vibrate.bind(navigator);var W=function(p){if(kapali())return false;return V(p);};W.__gvSes=true;navigator.vibrate=W;}}catch(_){}
+})();</script>
 
     <meta charset="UTF-8" />
     <meta

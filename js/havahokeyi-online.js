@@ -21,7 +21,7 @@
   if (window.__gvHavahokeyiLoaded) return;
   window.__gvHavahokeyiLoaded = true;
 
-  var SRC = 'assets/oyunlar/havahokeyi.html?online=1&v=20261027a';
+  var SRC = 'assets/oyunlar/havahokeyi.html?online=1&v=20261027b';
 
   /* OYUN DOSYASI KAYNAĞI: önce site ile aynı yerden (Yöncü) denenir; dosya
      orada yoksa (yüklenmemiş, ya da host 404/ana sayfa döndürüyor) Render'daki

@@ -74,9 +74,17 @@
     try { localStorage.setItem(SES_ANAHTAR, acik ? 'on' : 'off'); } catch (_) {}
     if (anaKazanc && ctx) {
       try { anaKazanc.gain.setTargetAtTime(acik ? 0.9 : 0, ctx.currentTime, 0.02); } catch (_) {}
+      try { if (zorunluKazanc) zorunluKazanc.gain.setTargetAtTime(acik ? 0.9 : 0, ctx.currentTime, 0.02); } catch (_) {}
+      /* Kapalıyken ses kartı tamamen durdurulur: çalmakta olan uzun bir ses
+         (sinematik, zar sesi) da o an kesilir. */
+      if (!acik) { try { setTimeout(function () { if (!sesAcik() && ctx.suspend) ctx.suspend(); }, 80); } catch (_) {} }
     }
     if (acik) uyandir();
   }
+  /* Başka sekmede/çerçevede değişirse burada da uygula */
+  window.addEventListener('storage', function (e) {
+    if (e && e.key === SES_ANAHTAR) { sesAcikOnbellek = null; sesAyarla(sesAcik()); try { dugmeYenile(); } catch (_) {} }
+  });
 
   // zorla=true: ses anahtarı kapalı olsa da bağlamı aç (hamle süresi uyarısı).
   function uyandir(zorla) {
@@ -94,7 +102,7 @@
         zorunluKazanc.connect(ctx.destination);
         cikis = anaKazanc;
       }
-      if (ctx.state === 'suspended' && ctx.resume) ctx.resume();
+      if (ctx.state === 'suspended' && ctx.resume && sesAcik()) ctx.resume();
       return ctx;
     } catch (_) { return null; }
   }
@@ -759,6 +767,11 @@
     var b = e.target && e.target.closest && e.target.closest('#gvSoundBtn');
     if (!b) return;
     e.preventDefault();
+    /* Odak düğmede KALMASIN: Apex Garage'da SPACE (nitro) ve klavyeyle
+       oynanan oyunlarda boşluk/enter tuşu odaktaki düğmeye "tıklayıp" sesi
+       kendiliğinden geri açıyordu (kullanıcı raporu: "sesi kapattım, hâlâ
+       ses geliyor"). */
+    try { b.blur(); } catch (_) {}
     sesAyarla(!sesAcik());
     dugmeYenile();
     /* Çerçeve içindeki oyunlar (Apex Garage, AYLA, Gölge Labirenti, Langırt,

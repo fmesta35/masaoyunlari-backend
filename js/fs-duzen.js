@@ -267,6 +267,12 @@
       if (t && t.closest && t.closest('input,textarea,[contenteditable],.chat-msgs')) return;
       e.preventDefault();
     });
+    /* Oda başlığındaki düğmeler (Ses, Tam Ekran, Kurallar...) tıklanınca
+       odak bırakılır: oyun tuşları (boşluk/enter) yanlışlıkla onlara basmasın. */
+    document.addEventListener('click', function (e) {
+      var b = e.target && e.target.closest ? e.target.closest('#pg-room .gr-actions button') : null;
+      if (b) setTimeout(function () { try { b.blur(); } catch (_) {} }, 0);
+    }, true);
     window.addEventListener('resize', planla);
     window.addEventListener('orientationchange', function () { setTimeout(planla, 200); });
     setInterval(uygula, 1000);

@@ -22,7 +22,7 @@
   if (window.__gvCengaLoaded) return;
   window.__gvCengaLoaded = true;
 
-  var SRC = 'assets/oyunlar/cenga3d.html?online=1&v=20261027a';
+  var SRC = 'assets/oyunlar/cenga3d.html?online=1&v=20261027b';
 
   /* OYUN DOSYASI KAYNAĞI: önce site ile aynı yerden (Yöncü) denenir; dosya
      orada yoksa (yüklenmemiş, ya da host 404/ana sayfa döndürüyor) Render'daki
