@@ -3186,12 +3186,17 @@ function endOkeyMatch(room, reason, loserSeat) {
   if (!ok || room.status !== 'playing') return;
   if (ok.between) { clearTimeout(ok.between); ok.between = null; }
   room.status = 'finished';
-  const leader = okeyLeaderAmong(room, (reason === 'player_left' || reason === 'timeout' || reason === 'disqualified') ? loserSeat : null);
+  /* PES EDEN asla kazanan olamaz (kullanıcı raporu: "pes eden mağlup
+     sayılır, diğer taraflar galip sayılır"). Eskiden 'resign' bu listede
+     yoktu; skorda öndeyken pes eden oyuncu maçı KAZANMIŞ görünüyordu. */
+  const pes = reason === 'resign' && loserSeat !== undefined && loserSeat !== null;
+  const leader = okeyLeaderAmong(room, (reason === 'player_left' || reason === 'timeout' || reason === 'disqualified' || pes) ? loserSeat : null);
   room.result = {
     reason,
     winner: leader ? leader.seat : null,
     winnerSeat: leader ? leader.seat : null,
-    winnerName: leader ? leader.name : null
+    winnerName: leader ? leader.name : null,
+    loserSeat: pes ? loserSeat : undefined
   };
   room.players.forEach(p => {
     emitToPlayer(p, 'gameEnded', {
@@ -3202,7 +3207,7 @@ function endOkeyMatch(room, reason, loserSeat) {
       winnerName: room.result.winnerName,
       loserSeat: loserSeat ?? null,
       seat: p.seat,
-      youWon: leader ? p.seat === leader.seat : false,
+      youWon: pes ? p.seat !== loserSeat : (leader ? p.seat === leader.seat : false),
       isSpectator: false,
       gameState: buildOkeyState(room, p.seat)
     });
@@ -4089,9 +4094,10 @@ function resignMatch(room, player) {
       room.bilardo ? bilardoState(room, seat) :
       room.battleship ? battleshipState(room, seat) :
       room.cardGame ? cardGameState(room, seat) : buildBoardState(room);
+    // Pes edenin dışındaki HERKES galip sayılır (3-4 kişilik masada da).
     room.players.forEach(p => emitToPlayer(p, 'gameEnded', {
       roomId: room.id, reason: 'resign', winnerSeat, loserSeat,
-      youWon: p.seat === winnerSeat,
+      youWon: p.seat !== loserSeat,
       resignedName: player.name || null,
       gameState: stateFor(p.seat)
     }));
@@ -4196,10 +4202,18 @@ function macSonucunuKaydet(room) {
             ? ((room.players.find(p => p.color === res.winner) || room.players.find(p => p.seat === res.winner) || {}).name || null)
             : null;
       if (!winnerName && res.winnerName) winnerName = res.winnerName;
+      /* PES: pes eden mağlup, masadaki DİĞER HERKES galip (kullanıcı kuralı).
+         Koltukla karar verilir; tek kazanan adına bakmak 3-4 kişilik masada
+         diğer oyuncuları da mağlup yazıyordu. */
+      const pesKoltugu = (res.reason === 'resign' && res.loserSeat !== undefined && res.loserSeat !== null)
+        ? Number(res.loserSeat) : null;
+      const kazandiMi = p => pesKoltugu !== null
+        ? Number(p.seat) !== pesKoltugu
+        : !!(winnerName && p.name === winnerName);
       const players = (room.players || []).map(p => ({
         id: p.userId || null,
         name: p.name,
-        won: !!(winnerName && p.name === winnerName)
+        won: kazandiMi(p)
       }));
       (room.__leftPlayers || []).forEach(lp => players.push({ id: lp.userId || null, name: lp.name, won: false }));
       authApi.recordMatch({
@@ -4230,10 +4244,10 @@ function macSonucunuKaydet(room) {
         // aiControlled değildir ve normal puanını alır.
         oyuncular: (room.players || []).filter(p => !p.aiControlled).map(p => ({
           uid: p.userId, ad: p.name,
-          kazandi: !!(winnerName && p.name === winnerName),
-          berabere,
+          kazandi: kazandiMi(p),
+          berabere: berabere && pesKoltugu === null,
           // Süre aşımı puanı YALNIZ kaybedene: kazanan tam galibiyet alır.
-          sureAsimi: sureAsimiNedeni && !(winnerName && p.name === winnerName)
+          sureAsimi: sureAsimiNedeni && !kazandiMi(p)
         }))
       }));
     } catch (e) { console.warn('maç kaydı atlandı:', e.message); }

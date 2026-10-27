@@ -44,8 +44,8 @@
     "sha": "a3b3075fa22e"
   },
   "js/chess-online.js": {
-    "v": "20261018a",
-    "sha": "59643c7586ac"
+    "v": "20261027a",
+    "sha": "2bdbaf98ad34"
   },
   "js/config.js": {
     "v": "20261024a",
@@ -148,8 +148,8 @@
     "sha": "71a5be1c7f66"
   },
   "js/okey-online.js": {
-    "v": "20261027b",
-    "sha": "9452680924b2"
+    "v": "20261027c",
+    "sha": "d6343fddeaba"
   },
   "js/okey101-ac.js": {
     "v": "20261020a",
@@ -204,8 +204,8 @@
     "sha": "857f6a627e51"
   },
   "js/tavla-online.js": {
-    "v": "20261018a",
-    "sha": "a77fa253f40b"
+    "v": "20261027a",
+    "sha": "976e66d4fdce"
   },
   "js/tek-kisilik-online.js": {
     "v": "20261027c",

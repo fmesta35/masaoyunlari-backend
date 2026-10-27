@@ -26,6 +26,7 @@
   // Score tracking per session (Starts 0 - 0)
   let myMatchScore = 0;
   let oppMatchScore = 0;
+  let bitisSayildi = false;   // bu maçın sonucu Sen–Rakip sayacına işlendi mi
 
   // Şah uyarısının aynı pozisyon için tekrar tekrar gösterilmemesi için
   let lastCheckFen = null;
@@ -355,11 +356,12 @@
       socket.on('gameEnded', payload => {
         pending = false;
         active = true;
-        if (payload?.gameState) apply(payload.gameState);
-        // Sunucu TÜM bitiş nedenlerinde kişiye özel youWon gönderir.
+        // Sunucu TÜM bitiş nedenlerinde kişiye özel youWon gönderir. apply()
+        // skoru ve bitiş penceresini buna göre çizdiği için ÖNCE yazılır.
         if (payload && typeof payload.youWon === 'boolean' && !isSpectator && !payload.isSpectator) {
           endYouWon = payload.youWon;
         }
+        if (payload?.gameState) apply(payload.gameState);
 
         // Terk / hükmen mağlubiyet / hamle süresi bitimi: üçü de AYRI
         // mesajlanır (hamle süresi ≠ terk ≠ ana süre). İki oyuncu da 5 sn
@@ -481,13 +483,20 @@
     }
     pending = false;
 
-    if (!isSpectator && gameState.status === 'finished' && gameState.result) {
-      if (gameState.result.winner === playerColor && !gameState._scoreCounted) {
-        gameState._scoreCounted = true;
-        myMatchScore++;
-      } else if (gameState.result.winner && gameState.result.winner !== playerColor && gameState.result.winner !== 'draw' && !gameState._scoreCounted) {
-        gameState._scoreCounted = true;
-        oppMatchScore++;
+    /* Sen–Rakip sayacı: maç başına YALNIZ BİR KEZ. Eskiden bayrak her yeni
+       durum nesnesine yazılıyordu; bitişten sonra sunucu durumu birkaç kez
+       yayınladığı için (gameEnded + gameState + oda yayını) tek maç 2 sayılıyordu
+       (kullanıcı raporu: rakip pes etti, sayaç "0 – 2"). Kazanan, sunucunun
+       kişiye özel youWon kararından alınır; yoksa renk karşılaştırılır. */
+    if (gameState.status === 'playing') bitisSayildi = false;
+    if (!isSpectator && gameState.status === 'finished' && gameState.result && !bitisSayildi) {
+      const w = gameState.result.winner;
+      const kazandim = endYouWon !== null ? endYouWon : (w && w === playerColor);
+      const kazanan = !!w && w !== 'draw';
+      if (kazanan || endYouWon !== null) {
+        bitisSayildi = true;
+        if (kazanan && kazandim) myMatchScore++;
+        else if (kazanan) oppMatchScore++;
       }
     }
 
@@ -664,6 +673,14 @@
           : (mtWon
             ? '🏆 Rakibiniz hamle süresini doldurdu — OYUNU KAZANDINIZ! Birazdan lobiye yönlendirileceksiniz...'
             : '💔 Hamle süreniz doldu — HÜKMEN KAYBETTİNİZ. Birazdan lobiye yönlendirileceksiniz...');
+      } else if (result.reason === 'resign') {
+        // PES: pes eden MAĞLUP, rakibi GALİP — asla berabere değildir.
+        title = '🏳️ PES EDİLDİ';
+        const pesKazandim = endYouWon !== null ? endYouWon : (result.winner === playerColor);
+        const kazananAd = result.winner === 'white' ? 'Beyaz' : result.winner === 'black' ? 'Siyah' : 'Rakibi';
+        desc = isSpectator
+          ? (kazananAd + ' kazandı. Rakibi pes etti.')
+          : (pesKazandim ? '🏆 Rakibiniz pes etti — OYUNU KAZANDINIZ!' : '💔 Pes ettiniz — maçı kaybettiniz.');
       } else if (result.reason === 'threefold_repetition') {
         title = '🤝 ÜÇLÜ TEKRAR';
         desc = 'Oyun berabere bitti.';

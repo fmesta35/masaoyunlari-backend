@@ -649,6 +649,11 @@
       title = iWon ? '🏆 MAÇI KAZANDINIZ!' : '🏁 MAÇ BİTTİ';
       desc = isSpectator ? `${esc(winnerName)} maçı kazandı.`
         : iWon ? (gercek101(gameState) ? '🎉 Tebrikler, en düşük puan sizde!' : '🎉 Tebrikler, en yüksek skoru siz yaptınız!') : `💔 ${esc(winnerName)} maçı kazandı.`;
+    } else if (reason === 'resign') {
+      // PES: pes eden MAĞLUP, masadaki diğer herkes GALİP.
+      title = iWon ? '🏆 MAÇI KAZANDINIZ!' : '🏳️ PES EDİLDİ';
+      desc = isSpectator ? 'Bir oyuncu pes etti — diğer oyuncular kazandı.'
+        : iWon ? '🏆 Rakibiniz pes etti — MAÇI KAZANDINIZ!' : '💔 Pes ettiniz — maçı kaybettiniz.';
     } else if (reason === 'player_left') {
       title = '🚪 OYUN TERK EDİLDİ';
       desc = isSpectator ? `Bir oyuncu ayrıldı. ${esc(winnerName)} kazandı.`

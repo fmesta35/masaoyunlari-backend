@@ -351,6 +351,12 @@
       desc = isSpectator
         ? (winnerName(winner) + ' kazandı (ana süre doldu).')
         : (iWon ? '🏆 Rakibin ana süresi doldu, KAZANDINIZ!' : '💔 Ana süreniz doldu.');
+    } else if (result.reason === 'resign') {
+      // PES: pes eden MAĞLUP, rakibi GALİP (eskiden nötr "Oyun Bitti" yazıyordu).
+      title = '🏳️ PES EDİLDİ';
+      desc = isSpectator
+        ? (winnerName(winner) + ' kazandı. Rakibi pes etti.')
+        : (iWon ? '🏆 Rakibiniz pes etti — OYUNU KAZANDINIZ!' : '💔 Pes ettiniz — maçı kaybettiniz.');
     } else if (result.reason === 'player_left' || result.reason === 'abandon') {
       title = '🚪 OYUN TERK EDİLDİ';
       desc = isSpectator
