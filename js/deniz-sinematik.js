@@ -83,7 +83,7 @@
   }
   /* Başka sekmede/çerçevede değişirse burada da uygula */
   window.addEventListener('storage', function (e) {
-    if (e && e.key === SES_ANAHTAR) { sesAcikOnbellek = null; sesAyarla(sesAcik()); try { dugmeYenile(); } catch (_) {} }
+    if (e && e.key === SES_ANAHTAR) { sesAcikOnbellek = null; sesAyarla(sesAcik()); try { dugmeYenile(); cerceveleBildir(); } catch (_) {} }
   });
 
   // zorla=true: ses anahtarı kapalı olsa da bağlamı aç (hamle süresi uyarısı).
@@ -776,16 +776,29 @@
     dugmeYenile();
     /* Çerçeve içindeki oyunlar (Apex Garage, AYLA, Gölge Labirenti, Langırt,
        Hava Hokeyi, Cenga) kendi seslerini çalıyor: tercih onlara da iletilir. */
-    try {
-      document.querySelectorAll('iframe').forEach(function (f) {
-        try { f.contentWindow.postMessage({ gvSes: sesAcik() }, '*'); } catch (_) {}
-      });
-    } catch (_) {}
+    cerceveleBildir();
     if (sesAcik()) sesCal('ates');                 // açınca kısa bir örnek
     if (window.GV && GV.toast) GV.toast(sesAcik() ? '🔊 Oyun sesleri açık' : '🔇 Oyun sesleri kapalı', 'info');
   });
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', dugmeYenile);
   else dugmeYenile();
+
+  /* ÇERÇEVE OYUNLARINA SES TERCİHİ (Apex Garage, AYLA, Gölge Labirenti,
+     Langırt, Hava Hokeyi, Cenga). Oyun dosyası çoğu zaman BAŞKA bir alan
+     adından (Render) açıldığı için sitenin tercihini kendi deposunda göremez;
+     tercih düzenli olarak iletilir (değiştiğinde de anında). */
+  function cerceveleBildir() {
+    try {
+      var acik = sesAcik();
+      document.querySelectorAll('iframe').forEach(function (f) {
+        try { if (f.contentWindow) f.contentWindow.postMessage({ gvSes: acik }, '*'); } catch (_) {}
+      });
+    } catch (_) {}
+  }
+  setInterval(cerceveleBildir, 1500);
+  document.addEventListener('load', function (e) {
+    if (e.target && e.target.tagName === 'IFRAME') setTimeout(cerceveleBildir, 50);
+  }, true);
 
   window.GVDeniz = {
     dugmeYenile: dugmeYenile,

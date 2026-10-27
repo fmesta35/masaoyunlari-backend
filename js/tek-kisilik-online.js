@@ -27,7 +27,7 @@
   if (window.__gvTekKisilikLoaded) return;
   window.__gvTekKisilikLoaded = true;
 
-  var SURUM = '20261027b';
+  var SURUM = '20261027c';
   var OYUNLAR = {
     apexgarage:     { ad: 'Apex Garage',      ikon: '🏎️', dosya: 'assets/oyunlar/tek-apexgarage.html' },
     golgelabirenti: { ad: 'Gölge Labirenti',  ikon: '🌀', dosya: 'assets/oyunlar/tek-golgelabirenti.html' },
@@ -195,7 +195,7 @@
       frame = root.querySelector('#tkFrame');
       if (frame && OYUNLAR[oyun] && !frame.getAttribute('src')) {
         var hedef = frame;
-        kaynakBul(oyun, function (u) { if (hedef.isConnected && !hedef.getAttribute('src')) hedef.setAttribute('src', u); });
+        kaynakBul(oyun, function (u) { if (hedef.isConnected && !hedef.getAttribute('src')) hedef.setAttribute('src', u + (u.indexOf('?') === -1 ? '?' : '&') + 'gvSes=' + ((window.GVDeniz && GVDeniz.ses && GVDeniz.ses.acik && !GVDeniz.ses.acik()) ? '0' : '1')); });
       }
       dinleyici = iframdenGelen;
       window.addEventListener('message', dinleyici);

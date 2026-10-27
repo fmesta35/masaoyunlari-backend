@@ -1,26 +1,33 @@
 <!doctype html>
 <html lang="tr">
   <head>
-<script id="gv-ses-kilidi">/* Masa Oyunları SES ANAHTARI (kullanıcı raporu: "ses kapat dediğimde hâlâ gaz sesi geliyor").
-Oyun sitesinin "🔇 Ses" düğmesi bu oyunun kendi seslerini de susturur: bütün AudioContext'ler askıya alınır,
-<audio>/<video> kısılır. Tercih sitenin 'gv-ses' anahtarındadır; değişince 'storage' olayı ve postMessage gelir. */
-(function(){var KEY='gv-ses';function kapali(){try{return localStorage.getItem(KEY)==='off'}catch(_){return false}}
+<script id="gv-ses-kilidi">/* Masa Oyunları SES ANAHTARI (kullanıcı raporu: "ses kapalı olduğu halde gaz sesi, puan sesi geliyor").
+KÖK NEDEN: oyun dosyası çoğu zaman Render'dan (BAŞKA bir alan adından) açılıyor; o zaman bu çerçevenin
+localStorage'ı sitenin 'gv-ses' tercihini GÖRMEZ ve ses hep açık sanılıyordu. Tercih artık siteden gelir:
+adres satırındaki gvSes=0/1 (açılışta) + sitenin postMessage'ı (her değişimde ve düzenli aralıkla).
+Kapalıyken bütün AudioContext'ler askıya alınır, <audio>/<video> kısılır, titreşim yapılmaz. */
+(function(){var KEY='gv-ses';var durum=null;
+try{var m=/[?&]gvSes=([01])/.exec(location.search)||/[#&]gvSes=([01])/.exec(location.hash);if(m)durum=(m[1]==='0');}catch(_){}
+function kapali(){if(durum!==null)return durum;try{return localStorage.getItem(KEY)==='off'}catch(_){return false}}
 var liste=[];var A=window.AudioContext||window.webkitAudioContext;
-if(A&&!A.__gvSes){var Y=function(){var c=arguments.length?new A(arguments[0]):new A();liste.push(c);var asil=c.resume.bind(c);c.__gvResume=asil;
-c.resume=function(){if(kapali())return Promise.resolve();return asil();};if(kapali()){try{c.suspend()}catch(_){}}return c;};
+if(A&&!A.__gvSes){var Y=function(){var c=arguments.length?new A(arguments[0]):new A();liste.push(c);var asil=c.resume.bind(c);var askiya=c.suspend.bind(c);c.__gvResume=asil;c.__gvSuspend=askiya;
+c.resume=function(){if(kapali())return Promise.resolve();return asil();};if(kapali()){try{askiya();c.__gvBiz=true;}catch(_){}}return c;};
 Y.prototype=A.prototype;Y.__gvSes=true;try{window.AudioContext=Y;if(window.webkitAudioContext)window.webkitAudioContext=Y;}catch(_){}}
 var P=window.HTMLMediaElement&&HTMLMediaElement.prototype.play;
 if(P&&!P.__gvSes){var Q=function(){if(kapali())this.muted=true;return P.apply(this,arguments);};Q.__gvSes=true;HTMLMediaElement.prototype.play=Q;}
-function uygula(){var k=kapali();liste.forEach(function(c){try{if(k)c.suspend();else c.__gvResume();}catch(_){}});
+var son=null;
+function uygula(zorla){var k=kapali();if(k===son&&!zorla)return;son=k;
+liste.forEach(function(c){try{if(k){c.__gvSuspend();c.__gvBiz=true;}else if(c.__gvBiz){c.__gvBiz=false;c.__gvResume();}}catch(_){}});
 try{document.querySelectorAll('audio,video').forEach(function(m){m.muted=k;});}catch(_){}}
-window.addEventListener('storage',function(e){if(!e||e.key===KEY)uygula();});
-window.addEventListener('message',function(e){if(e&&e.data&&e.data.gvSes!==undefined)uygula();});
-document.addEventListener('visibilitychange',function(){if(!document.hidden)uygula();});
-window.__gvSesUygula=uygula;
-/* Ses yeniden açıldıysa ilk dokunuşta askıdaki bağlamlar uyanır (tarayıcı izin ister). */
-['pointerdown','keydown','touchstart'].forEach(function(ev){document.addEventListener(ev,function(){if(kapali())return;liste.forEach(function(c){try{if(c.state==='suspended')c.__gvResume();}catch(_){}});},true);});
-/* Ses kapalıyken titreşim de yok (telefonda vızıltı duyuluyordu). */
+window.addEventListener('storage',function(e){if(e&&e.key===KEY&&durum===null)uygula();});
+window.addEventListener('message',function(e){if(e&&e.data&&typeof e.data.gvSes==='boolean'){durum=!e.data.gvSes;uygula();}});
+window.__gvSesUygula=uygula;window.__gvSesKapali=kapali;
+/* Ses açıldıysa, bizim askıya aldığımız bağlamlar ilk dokunuşta uyanır (tarayıcı izin ister). */
+['pointerdown','keydown','touchstart'].forEach(function(ev){document.addEventListener(ev,function(){if(kapali())return;liste.forEach(function(c){try{if(c.__gvBiz){c.__gvBiz=false;c.__gvResume();}}catch(_){}});},true);});
+/* Kapalıyken çalmaya çalışan her ses kaynağı da susturulur (oyun kendi bağlamını sonradan açsa bile). */
+try{var SS=window.AudioScheduledSourceNode&&AudioScheduledSourceNode.prototype.start;if(SS&&!SS.__gvSes){var S2=function(){if(kapali()){try{var cx=this.context;if(cx&&cx.state==='running'&&cx.__gvSuspend){cx.__gvSuspend();cx.__gvBiz=true;}}catch(_){}}return SS.apply(this,arguments);};S2.__gvSes=true;AudioScheduledSourceNode.prototype.start=S2;}}catch(_){}
 try{if(navigator.vibrate&&!navigator.vibrate.__gvSes){var V=navigator.vibrate.bind(navigator);var W=function(p){if(kapali())return false;return V(p);};W.__gvSes=true;navigator.vibrate=W;}}catch(_){}
+uygula(true);
 })();</script>
 
 <script>/* TEK-KOPRU-BAS — site köprüsü (yalnız masaoyunlari.com.tr iframe'inde çalışır).

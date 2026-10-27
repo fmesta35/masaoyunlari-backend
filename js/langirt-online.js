@@ -22,7 +22,7 @@
   if (window.__gvLangirtLoaded) return;
   window.__gvLangirtLoaded = true;
 
-  var SRC = 'assets/oyunlar/langirt.html?online=1&v=20261027b';
+  var SRC = 'assets/oyunlar/langirt.html?online=1&v=20261027c';
 
   /* OYUN DOSYASI KAYNAĞI: önce site ile aynı yerden (Yöncü) denenir; dosya
      orada yoksa (yüklenmemiş, ya da host 404/ana sayfa döndürüyor) Render'daki
@@ -140,7 +140,7 @@
       frame = root.querySelector('#lg3Frame');
       if (frame && !frame.getAttribute('src')) {
         var hedef = frame;
-        kaynakBul(function (u) { if (hedef.isConnected && !hedef.getAttribute('src')) hedef.setAttribute('src', u); });
+        kaynakBul(function (u) { if (hedef.isConnected && !hedef.getAttribute('src')) hedef.setAttribute('src', u + (u.indexOf('?') === -1 ? '?' : '&') + 'gvSes=' + ((window.GVDeniz && GVDeniz.ses && GVDeniz.ses.acik && !GVDeniz.ses.acik()) ? '0' : '1')); });
       }
       dinleyici = iframdenGelen;
       window.addEventListener('message', dinleyici);
