@@ -1,44 +1,37 @@
 'use strict';
 /* ============================================================================
- * HAVA HOKEYİ — SAF FİZİK MOTORU (sunucu yetkili)
+ * HAVA HOKEYİ — SAF FİZİK MOTORU (sunucu yetkili, görüş-zamanlı temas)
  * ============================================================================
- * Kullanıcı raporu: "hâlâ çok hızlı reaksiyonlar, olur olmadık fiziksel
- * kuvvetler, temas etmeden uçmalar devam ediyor — gerçekçi fiziksel kurallar
- * eşliğinde oynanabilir bir oyuna dönüştür."
+ * Kullanıcı istekleri (sırayla):
+ *  1) "olur olmadık fiziksel kuvvetler, temas etmeden uçmalar var"
+ *  2) "kayma etkisini yok etmişsin (buz hokeyi gibi) ve mouse hizasında
+ *     kontrol edilen tutamaçlar çok geriden geliyor — önceden %100 senkrondu"
  *
- * ÖNCEKİ MODELİN KUSURLARI (ölçüldü):
- *  1) Tokmak hedefe IŞINLANIR gibi gidiyordu: tek adımda 0 → 1500 birim/sn.
- *     Bu hız çarpışmaya girince disk "olur olmadık" fırlıyordu.
- *  2) Diski banda doğru bastırmak (sıkıştırmak) onu 1300 birim/sn ile
- *     fırlatıyordu: konum düzeltmesi bant içine itiyor, bant geri itiyor,
- *     her adımda yeni itme ekleniyordu.
- *  3) Yavaşlayan disk 1,25 sn sonra kimse dokunmadan kendiliğinden itiliyordu.
- *  4) Gecikme telafisi istemcinin "ekranda değdi" BEYANINI kabul ediyordu:
- *     sunucudaki tokmak diske değmeden (380 birim uzaktan bile) vuruş
- *     uygulanabiliyordu; rakip de diski "temas olmadan" uçarken görüyordu.
- *
- * YENİ MODEL (gerçek masa davranışı):
- *  · TOKMAK = elle tutulan ağır gövde. Hedefe hız ve İVME sınırıyla gider
- *    (el ağırlığı): anlık hız sıçraması yoktur, vuruş gücü salınımla kazanılır.
- *  · DİSK = hava yastığında kayan hafif gövde: çok az sürtünme, bantlarda
- *    enerji kaybı (esneklik 0.88), direklerde 0.85.
- *  · ÇARPIŞMA = yalnız GERÇEK temasta ve YALNIZ yaklaşırken itme. Tokmak elle
- *    tutulduğu için diskten çok ağırdır (itmenin %85'i diske geçer); esneklik
- *    0.75: durgun tokmağa çarpan disk yaklaşık yarı hızla seker, koşan tokmak
- *    diske hızının ~1.5 katını verir.
- *    Hız tavanı yumuşaktır (750 üstü sıkıştırılır, en çok 1000).
- *  · SIKIŞMA = bantla tokmak arasında kalan disk FIRLAMAZ: banda paralel
- *    kayar, enerji eklenmez.
- *  · Fizik 240 Hz alt adımla çözülür (120 Hz dış adımın iki katı): tünelleme
- *    ve derin iç içe geçme olmaz.
- *  · Kendiliğinden itme YOK. Servis gerçek kuraldaki gibi: gol yiyenin yarı
- *    sahasına disk DURGUN konur, oyuncu kendisi vurur.
- *  · Vuruşu YALNIZ sunucu, kendi tokmak konumuyla belirler. İstemci beyanı
- *    (gecikme telafisi) kaldırıldı: ekranda görülen her temas sunucuda da
- *    olmuş bir temastır — temassız uçuş olamaz.
+ * TASARIM
+ *  · TOKMAK = oyuncunun imleci/parmağı. Ekranda imlecin TAM altında çizilir
+ *    (gecikmesiz). Sunucu tokmağı "hedefe koşturmaz"; istemcinin bildirdiği
+ *    konumun KENDİSİDİR.
+ *  · Her konum bildirimi bir GÖRÜŞ ZAMANI (vt) taşır: "diskin bu anki
+ *    hâlini görürken tokmağım buradaydı". Sunucu son ~0,45 sn'lik disk
+ *    geçmişini saklar; tokmağın iki bildirim arasındaki yolu o zamanlardaki
+ *    diskle kesişiyorsa vuruşu O ANDA uygular ve diski bugüne yeniden
+ *    hesaplar. Böylece oyuncunun ekranda gördüğü temas, sunucudaki temasın
+ *    AYNISIDIR. Rakip de vuran tokmağı aynı görüş zamanından (iz akışı)
+ *    çizdiği için o da temassız uçuş görmez.
+ *  · Eski "gecikme telafisi"nin kusuru: istemci kendi TAHMİN ettiği tokmakla
+ *    vuruş beyan ediyor, sunucu 380 birim sapmayı bile kabul ediyordu ve
+ *    gerçek zamanlı sunucu tokmağı ayrıca çarpışıyordu. Artık tek kaynak var:
+ *    bildirilen imleç yolu.
+ *  · DİSK hava yastığında kayar (çok az sürtünme), bantlar ve direkler
+ *    enerjinin küçük bir kısmını alır.
+ *  · Banda/köşeye SIKIŞAN disk fırlamaz: bant boyunca, tokmaktan uzağa
+ *    ölçülü bir hızla kayar.
+ *  · Kimse dokunmadan disk hızlanmaz; gol, rakibin son anda kurtarışı
+ *    gelebilsin diye kale çizgisinden 0,25 sn sonra kesinleşir.
  *
  * MASA: 1000 × 600 birim. Koltuk 0 solda, koltuk 1 sağda.
  * ========================================================================= */
+
 const MASA_EN = 1000;
 const MASA_BOY = 600;
 const MERKEZ_X = MASA_EN / 2;
@@ -52,62 +45,48 @@ const TOKMAK_R = 43;
 const ADIM_SN = 1 / 120;          // dış adım (sunucu döngüsü)
 const ALT_ADIM_SN = 1 / 240;      // fizik alt adımı
 
-/* --- tokmak (el) --- */
-const TOKMAK_HIZI = 950;          // en yüksek tokmak hızı (birim/sn)
-const TOKMAK_IVME = 8000;         // en yüksek ivme (birim/sn²) — el ağırlığı (~1.6 g)
-const TOKMAK_TAKIP = 20;          // hedefe yaklaşma kazancı (1/sn); yakında yavaşlar
-
-/* --- disk --- */
-const DISK_TAVANI = 1000;         // mutlak hız tavanı (masayı ~1 sn’de geçer)
-const DISK_YUMUSAK = 750;         // bunun üstü sıkıştırılır (sert vuruşlar birbirine yaklaşır)
-const HAVA_SURTUNME = 0.2;        // 1/sn: hava yastığı (5 sn'de ~%37'ye iner)
-const BANT_ESNEKLIK = 0.88;
-const BANT_SURTUNME = 0.97;       // banda değerken teğet hız kaybı
-const DIREK_ESNEKLIK = 0.85;
-const TOKMAK_ESNEKLIK = 0.75;
-const KUTLE_PAYI = 0.85;          // tokmak (el + tokmak) ~6 kat ağır: itmenin 0.85'i diske geçer
-const TOKMAK_TEGET = 0.1;         // temasta teğet hız aktarımı (hafif "kesme")
+const DISK_TAVANI = 1250;         // mutlak hız tavanı
+const DISK_YUMUSAK = 950;         // bunun üstü sıkıştırılır
+const HAVA_SURTUNME = 0.05;       // 1/sn — hava yastığı: disk uzun süre kayar
+const BANT_ESNEKLIK = 0.95;
+const DIREK_ESNEKLIK = 0.9;
+const TOKMAK_ESNEKLIK = 0.88;
+const KUTLE_PAYI = 0.9;           // tokmak (el) diskten çok ağır
+const TOKMAK_TEGET = 0.08;        // yandan sıyırmanın diske verdiği açı
+const TOKMAK_HIZ_TAVANI = 2200;   // vuruşta hesaba katılan en yüksek tokmak hızı
 const VURUS_ARALIGI = 0.03;       // aynı tokmağın art arda itme aralığı (sn)
+const GECMIS_SN = 0.45;           // geri sarılabilecek en uzun süre
+const IZ_SESSIZ_SN = 0.1;         // bu kadar bildirim gelmezse tokmak "duran engel" sayılır
+const GOL_ONAY_SN = 0.25;
+const IMLEC_HIZ_SINIRI = 6000;   // birim/sn — bildirimler arası en büyük imleç sıçrayışı
 const GERI_SAYIM_SN = 3;
-const SERVIS_UZAKLIGI = 170;      // servis diski orta çizgiden bu kadar içeride durur
+const TOKMAK_HIZI = TOKMAK_HIZ_TAVANI;   // geriye uyum (dışa aktarılan ad)
 
 function kirp(v, a, b) { return Math.max(a, Math.min(b, v)); }
 function tarafOf(seat) { return seat === 0 ? 0 : 1; }
 
 /* Tokmak kendi yarı sahasında kalır (prototiple aynı paylar). */
-function tokmakSiniri(oyuncu) {
-  const pay = 7;
-  return {
-    minX: oyuncu === 0 ? ALAN.sol + TOKMAK_R + pay : MERKEZ_X + TOKMAK_R + 8,
-    maxX: oyuncu === 0 ? MERKEZ_X - TOKMAK_R - 8 : ALAN.sag - TOKMAK_R - pay,
-    minY: ALAN.ust + TOKMAK_R + pay,
-    maxY: ALAN.alt - TOKMAK_R - pay
-  };
-}
 function tokmakKirp(t, oyuncu) {
-  const s = tokmakSiniri(oyuncu);
-  t.x = kirp(t.x, s.minX, s.maxX);
-  t.y = kirp(t.y, s.minY, s.maxY);
+  const pay = 7;
+  const minX = oyuncu === 0 ? ALAN.sol + TOKMAK_R + pay : MERKEZ_X + TOKMAK_R + 8;
+  const maxX = oyuncu === 0 ? MERKEZ_X - TOKMAK_R - 8 : ALAN.sag - TOKMAK_R - pay;
+  t.x = kirp(t.x, minX, maxX);
+  t.y = kirp(t.y, ALAN.ust + TOKMAK_R + pay, ALAN.alt - TOKMAK_R - pay);
 }
 function hizKirp(o, tavan) {
   const h = Math.hypot(o.vx, o.vy);
   if (h > tavan) { o.vx = o.vx / h * tavan; o.vy = o.vy / h * tavan; }
 }
-/* Yumuşak tavan: 750'ye kadar dokunulmaz, üstü %35'e sıkıştırılır, 1000 mutlak. */
 function diskTavani(d) {
   const h = Math.hypot(d.vx, d.vy);
   if (h <= DISK_YUMUSAK) return;
-  const yeni = Math.min(DISK_TAVANI, DISK_YUMUSAK + (h - DISK_YUMUSAK) * 0.35);
+  const yeni = Math.min(DISK_TAVANI, DISK_YUMUSAK + (h - DISK_YUMUSAK) * 0.4);
   d.vx = d.vx / h * yeni; d.vy = d.vy / h * yeni;
 }
 
 /* ------------------------------------------------------------------- MAÇ */
-function servisKonumu(st) {
-  /* servisYonu: 1 → disk koltuk 0'ın (sol) yarısında, -1 → koltuk 1'in. */
-  return { x: st.servisYonu === -1 ? MERKEZ_X + SERVIS_UZAKLIGI : MERKEZ_X - SERVIS_UZAKLIGI, y: MERKEZ_Y };
-}
 function tokmakBaslangic(i) {
-  return { x: i === 0 ? ALAN.sol + 110 : ALAN.sag - 110, y: MERKEZ_Y, vx: 0, vy: 0 };
+  return { x: i === 0 ? ALAN.sol + 150 : ALAN.sag - 150, y: MERKEZ_Y, vx: 0, vy: 0 };
 }
 function macBaslat(opts) {
   const o = opts || {};
@@ -117,53 +96,55 @@ function macBaslat(opts) {
     seats: (o.seats || [0, 1]).slice(0, 2),
     disk: { x: MERKEZ_X, y: MERKEZ_Y, vx: 0, vy: 0 },
     tokmak: [tokmakBaslangic(0), tokmakBaslangic(1)],
-    hedef: [{ x: tokmakBaslangic(0).x, y: MERKEZ_Y }, { x: tokmakBaslangic(1).x, y: MERKEZ_Y }],
-    skor: [0, 0],                  // bu setteki goller
-    setler: [0, 0],                // kazanılan setler
+    hedef: [{ x: ALAN.sol + 150, y: MERKEZ_Y }, { x: ALAN.sag - 150, y: MERKEZ_Y }],
+    iz: [[], []],                  // imleç bildirimleri {e, x, y} (e: görüş zamanı, motor sn)
+    izVaris: [-1e9, -1e9],         // son bildirimin VARIŞ anı (motor sn)
+    gecmis: [],                    // disk geçmişi {e, x, y, vx, vy}
+    golBekle: null,                // { atan, e } — kale çizgisi geçildi, onay bekliyor
+    duzeltE: null,                 // geri sarılıp yeniden hesaplanan ilk an (yayın için)
+    skor: [0, 0],
+    setler: [0, 0],
     maxSet: [1, 3, 5].includes(Number(o.maxSet)) ? Number(o.maxSet) : 3,
-    renk: ['#22d3ee', '#fb4d6d'],  // tokmak renkleri (oyuncu kendi rengini seçer)
+    renk: ['#22d3ee', '#fb4d6d'],
     golHedefi,
     faz: 'gerisayim',              // gerisayim | oyun | gol | bitti
     fazSn: GERI_SAYIM_SN,
-    servisYonu: 1,                 // ilk servis koltuk 0'da
+    oyunBasE: 0,
+    servisYonu: 1,
     gecenSn: 0,
-    bekle: [0, 0],                 // tokmak başına art arda itme engeli (sn)
+    bekle: [0, 0],
+    sonVurus: [-1e9, -1e9],        // seat başına son itmenin görüş zamanı
     sonGolAtan: null,
-    sonOlay: 'yok',                // yok | duvar | vurus | gol
+    sonOlay: 'yok',
     olayNo: 0,
     status: 'playing',
     winner: null,
     result: null
   };
-  const sk = servisKonumu(st);
-  st.disk.x = sk.x; st.disk.y = sk.y;
+  tokmakKirp(st.tokmak[0], 0);
+  tokmakKirp(st.tokmak[1], 1);
   return st;
 }
 function olay(st, ad) { st.sonOlay = ad; st.olayNo += 1; }
 
 function basaDon(st) {
-  const sk = servisKonumu(st);
-  st.disk.x = sk.x; st.disk.y = sk.y; st.disk.vx = 0; st.disk.vy = 0;
-  st.tokmak[0] = tokmakBaslangic(0);
-  st.tokmak[1] = tokmakBaslangic(1);
-  st.hedef[0] = { x: st.tokmak[0].x, y: MERKEZ_Y };
-  st.hedef[1] = { x: st.tokmak[1].x, y: MERKEZ_Y };
+  st.disk = { x: MERKEZ_X, y: MERKEZ_Y, vx: 0, vy: 0 };
   st.faz = 'gerisayim';
   st.fazSn = GERI_SAYIM_SN;
+  st.gecmis = [];
+  st.golBekle = null;
 }
 function golAt(st, atan) {
   st.skor[atan] += 1;
   st.sonGolAtan = atan;
-  st.disk.vx = 0; st.disk.vy = 0;
+  st.disk = { x: MERKEZ_X, y: MERKEZ_Y, vx: 0, vy: 0 };
+  st.gecmis = [];
+  st.golBekle = null;
   /* Gol yiyen servis atar — klasik hava hokeyi kuralı. */
   st.servisYonu = atan === 0 ? -1 : 1;
-  const sk = servisKonumu(st);
-  st.disk.x = sk.x; st.disk.y = sk.y;
   olay(st, 'gol');
   st.setSonu = false;
   if (st.skor[atan] >= st.golHedefi) {
-    /* Referans oyundaki gibi: tur golüne ulaşan seti alır, goller sıfırlanır;
-       gereken set sayısına (en çok setin yarısı + 1) ulaşan maçı alır. */
     st.setler[atan] += 1;
     st.setSonu = true;
     if (st.setler[atan] >= Math.ceil(st.maxSet / 2)) {
@@ -178,163 +159,148 @@ function golAt(st, atan) {
   }
 }
 
-/* TOKMAK: hedefe hız + ivme sınırıyla gider (el ağırlığı). Hedefe yaklaşırken
-   yavaşlar (takip kazancı), bu yüzden diskin önünde "titreyip" itmez. */
-function tokmagiTasi(st, i, dt) {
-  const t = st.tokmak[i];
-  const h = { x: st.hedef[i].x, y: st.hedef[i].y };
-  tokmakKirp(h, i);                       // hedef her zaman erişilebilir alanda
-  let ix = (h.x - t.x) * TOKMAK_TAKIP, iy = (h.y - t.y) * TOKMAK_TAKIP;   // istenen hız
-  const ih = Math.hypot(ix, iy);
-  if (ih > TOKMAK_HIZI) { ix = ix / ih * TOKMAK_HIZI; iy = iy / ih * TOKMAK_HIZI; }
-  let ax = ix - t.vx, ay = iy - t.vy;
-  const am = Math.hypot(ax, ay), amax = TOKMAK_IVME * dt;
-  if (am > amax) { ax = ax / am * amax; ay = ay / am * amax; }
-  t.vx += ax; t.vy += ay;
-  const nx = t.x + t.vx * dt, ny = t.y + t.vy * dt;
-  t.x = nx; t.y = ny;
-  tokmakKirp(t, i);
-  /* sınıra dayandıysa o yöndeki hız sıfırlanır (orta çizgiye "çarpıp" sekmez,
-     sınır düzeltmesi sahte hız üretmez) */
-  if (t.x !== nx) t.vx = 0;
-  if (t.y !== ny) t.vy = 0;
-}
-
-/* Disk bant içinde mi (kale ağzı hariç)? Bant normalini döndürür. */
-function bantNormali(d) {
+/* --------------------------------------------------------------- ÇARPIŞMA */
+/* Disk banda dayanmış mı? Dayandığı bantların iç normalleri. */
+function bantlar(d) {
+  const n = [];
   const kaleAgzi = d.y > KALE_UST && d.y < KALE_ALT;
-  if (d.y - DISK_R <= ALAN.ust + 0.01) return { x: 0, y: 1 };
-  if (d.y + DISK_R >= ALAN.alt - 0.01) return { x: 0, y: -1 };
-  if (!kaleAgzi && d.x - DISK_R <= ALAN.sol + 0.01) return { x: 1, y: 0 };
-  if (!kaleAgzi && d.x + DISK_R >= ALAN.sag - 0.01) return { x: -1, y: 0 };
-  return null;
+  if (d.y - DISK_R <= ALAN.ust + 0.5) n.push({ x: 0, y: 1 });
+  if (d.y + DISK_R >= ALAN.alt - 0.5) n.push({ x: 0, y: -1 });
+  if (!kaleAgzi && d.x - DISK_R <= ALAN.sol + 0.5) n.push({ x: 1, y: 0 });
+  if (!kaleAgzi && d.x + DISK_R >= ALAN.sag - 0.5) n.push({ x: -1, y: 0 });
+  return n;
 }
-function bantlaraSinirla(d) {
+function bantIcineAl(d) {
   const kaleAgzi = d.y > KALE_UST && d.y < KALE_ALT;
   d.y = kirp(d.y, ALAN.ust + DISK_R, ALAN.alt - DISK_R);
   if (!kaleAgzi) d.x = kirp(d.x, ALAN.sol + DISK_R, ALAN.sag - DISK_R);
 }
-
-/* Disk–tokmak çarpışması. Yalnız GERÇEK temas (iç içe geçme) varsa çalışır.
-   Dönüş: vuruş gücü 0..1 (itme yoksa 0). */
-function tokmaklaCarpis(st, i) {
-  const d = st.disk, t = st.tokmak[i];
-  const dx = d.x - t.x, dy = d.y - t.y;
+/* Disk ile tokmak (m: {x,y,vx,vy}). İtme yalnız GERÇEK temasta ve YAKLAŞIRKEN.
+   bekleyen: art arda itme engeli aktif mi. Dönüş: itme gücü (0 = yok). */
+function carp(d, m, bekleyen) {
+  const dx = d.x - m.x, dy = d.y - m.y;
   const enAz = DISK_R + TOKMAK_R;
   const k2 = dx * dx + dy * dy;
   if (k2 >= enAz * enAz) return 0;
   const uz = Math.sqrt(k2);
-  /* tam üst üste (pratikte olmaz): tokmağın hareket yönünün tersine ayır */
   let nx, ny;
   if (uz > 1e-6) { nx = dx / uz; ny = dy / uz; }
-  else { const th = Math.hypot(t.vx, t.vy) || 1; nx = t.vx / th || 1; ny = t.vy / th; }
-  /* 1) konum: diski tokmağın dışına al */
-  d.x = t.x + nx * enAz;
-  d.y = t.y + ny * enAz;
-  /* 2) hız: yalnız YAKLAŞIRKEN itme (normal boyunca) */
-  const bx = d.vx - t.vx, by = d.vy - t.vy;
+  else { const h = Math.hypot(m.vx, m.vy) || 1; nx = (m.vx / h) || 1; ny = m.vy / h; }
+  d.x = m.x + nx * enAz; d.y = m.y + ny * enAz;
+  const mvx = m.vx, mvy = m.vy;
+  const bx = d.vx - mvx, by = d.vy - mvy;
   const bn = bx * nx + by * ny;
   let guc = 0;
-  if (bn < 0 && !(st.bekle && st.bekle[i] > 0)) {
-    d.vx -= (1 + TOKMAK_ESNEKLIK) * KUTLE_PAYI * bn * nx;
-    d.vy -= (1 + TOKMAK_ESNEKLIK) * KUTLE_PAYI * bn * ny;
-    /* teğet: tokmağın yandan hareketi diske hafifçe aktarılır */
-    const tgx = -ny, tgy = nx;
-    const bt = bx * tgx + by * tgy;
-    d.vx -= bt * TOKMAK_TEGET * tgx; d.vy -= bt * TOKMAK_TEGET * tgy;
-    diskTavani(d);
-    if (st.bekle) st.bekle[i] = VURUS_ARALIGI;
-    guc = Math.min(1, Math.max(0.1, -bn / 900));
-  } else if (bn < 0) {
-    /* bekleme süresinde: disk tokmakla birlikte gider (taşıma), ek enerji yok */
-    d.vx -= bn * nx; d.vy -= bn * ny;
+  if (bn < 0) {
+    if (!bekleyen) {
+      d.vx -= (1 + TOKMAK_ESNEKLIK) * KUTLE_PAYI * bn * nx;
+      d.vy -= (1 + TOKMAK_ESNEKLIK) * KUTLE_PAYI * bn * ny;
+      const tgx = -ny, tgy = nx, bt = bx * tgx + by * tgy;
+      d.vx -= bt * TOKMAK_TEGET * tgx; d.vy -= bt * TOKMAK_TEGET * tgy;
+      guc = Math.min(1, Math.max(0.1, -bn / 900));
+    } else { d.vx -= bn * nx; d.vy -= bn * ny; }       // taşıma: ek enerji yok
     diskTavani(d);
   }
-  /* 3) SIKIŞMA: disk banda itildiyse fırlamaz — banda paralel kayar. */
-  const n = bantNormali(d);
-  bantlaraSinirla(d);
-  const dx2 = d.x - t.x, dy2 = d.y - t.y;
-  if (n && dx2 * dx2 + dy2 * dy2 < enAz * enAz - 1) {
-    const vn = d.vx * n.x + d.vy * n.y;
-    if (vn < 0) { d.vx -= vn * n.x; d.vy -= vn * n.y; }      // banda doğru hız yok
-    /* tokmağın yanından sıyrılacak şekilde teğete kaydır (enerji eklemeden) */
-    const tx = -n.y, ty = n.x;
-    const yan = (dx2 * tx + dy2 * ty) >= 0 ? 1 : -1;
-    const ic = Math.sqrt(Math.max(0, enAz * enAz - (dx2 * n.x + dy2 * n.y) ** 2));
-    const hedefT = (t.x * tx + t.y * ty) + yan * ic;
-    const simdiT = d.x * tx + d.y * ty;
-    d.x += (hedefT - simdiT) * tx; d.y += (hedefT - simdiT) * ty;
-    bantlaraSinirla(d);
-    /* sıyrılan disk yavaş çıkar: tokmak hızının en çok %35'i, en çok 320 */
-    hizKirp(d, Math.min(320, Math.max(60, Math.hypot(t.vx, t.vy) * 0.35)));
-    if (st.bekle) st.bekle[i] = Math.max(st.bekle[i], VURUS_ARALIGI);
+  /* SIKIŞMA: disk banda itildiyse bant boyunca, tokmaktan uzağa kayar. */
+  const bn2 = bantlar(d);
+  if (bn2.length) {
+    bantIcineAl(d);
+    const ex = d.x - m.x, ey = d.y - m.y;
+    if (ex * ex + ey * ey < enAz * enAz - 1) {
+      let en = null, enIyi = -Infinity;
+      for (const w of bn2) {
+        for (const yon of [1, -1]) {
+          const tx = -w.y * yon, ty = w.x * yon;
+          let serbest = true;
+          for (const w2 of bn2) if (w2 !== w && tx * w2.x + ty * w2.y < -0.5) serbest = false;
+          const skor = (tx * ex + ty * ey) + (serbest ? 0 : -1e6);
+          if (skor > enIyi) { enIyi = skor; en = { x: tx, y: ty }; }
+        }
+      }
+      /* bant boyunca tokmağın dışına çıkacağı noktaya kaydır (tekrar tekrar
+         iç içe geçip "takılı" kalmasın), sonra o yönde ölçülü hızla kaysın */
+      const px = d.x - m.x, py = d.y - m.y, B = 2 * (px * en.x + py * en.y), C = px * px + py * py - enAz * enAz;
+      const kay = (-B + Math.sqrt(Math.max(0, B * B - 4 * C))) / 2;
+      if (kay > 0 && kay < enAz * 2) { d.x += en.x * kay; d.y += en.y * kay; bantIcineAl(d); }
+      const hiz = kirp(Math.hypot(mvx, mvy) * 0.6, 150, 520);
+      d.vx = en.x * hiz; d.vy = en.y * hiz;
+      guc = guc || 0.2;
+    }
   }
-  if (guc) { st.temasKim = i; st.temasSn = st.gecenSn; }
   return guc;
 }
-
-/* Kale direği: köşeye gelen disk içeri girmeden sekiyor. */
-function direkleCarpis(st, x, y) {
-  const d = st.disk;
+function direkleCarpis(d, x, y) {
   const dx = d.x - x, dy = d.y - y;
   const enAz = DISK_R + DIREK_R;
   const k2 = dx * dx + dy * dy;
   if (k2 >= enAz * enAz) return false;
   const uz = Math.sqrt(k2) || 0.001;
   const nx = dx / uz, ny = dy / uz;
-  d.x = x + nx * enAz;
-  d.y = y + ny * enAz;
+  d.x = x + nx * enAz; d.y = y + ny * enAz;
   const vn = d.vx * nx + d.vy * ny;
   if (vn < 0) { d.vx -= (1 + DIREK_ESNEKLIK) * vn * nx; d.vy -= (1 + DIREK_ESNEKLIK) * vn * ny; return true; }
   return false;
 }
-
-/* --------------------------------------------------------------- FİZİK ADIMI */
-function diskIlerle(st, dt) {
-  const d = st.disk;
-  const direnc = Math.exp(-HAVA_SURTUNME * dt);
-  d.vx *= direnc; d.vy *= direnc;
-  if (Math.abs(d.vx) < 0.5 && Math.abs(d.vy) < 0.5) { d.vx = 0; d.vy = 0; }
-  d.x += d.vx * dt;
-  d.y += d.vy * dt;
-
-  let duvar = false;
-  if (d.y - DISK_R < ALAN.ust) {
-    d.y = ALAN.ust + DISK_R; if (d.vy < 0) { d.vy = -d.vy * BANT_ESNEKLIK; d.vx *= BANT_SURTUNME; duvar = Math.abs(d.vy) > 25; }
-  } else if (d.y + DISK_R > ALAN.alt) {
-    d.y = ALAN.alt - DISK_R; if (d.vy > 0) { d.vy = -d.vy * BANT_ESNEKLIK; d.vx *= BANT_SURTUNME; duvar = Math.abs(d.vy) > 25; }
-  }
+/* Diski dt kadar ilerlet (bant, direk, kale çizgisi). Dönüş: 'duvar' | 'cizgi0' | 'cizgi1' | null */
+function serbestIlerle(d, dt) {
+  const r = Math.exp(-HAVA_SURTUNME * dt);
+  d.vx *= r; d.vy *= r;
+  d.x += d.vx * dt; d.y += d.vy * dt;
+  let ses = null;
+  if (d.y - DISK_R < ALAN.ust) { d.y = ALAN.ust + DISK_R; if (d.vy < 0) { d.vy = -d.vy * BANT_ESNEKLIK; if (d.vy > 30) ses = 'duvar'; } }
+  else if (d.y + DISK_R > ALAN.alt) { d.y = ALAN.alt - DISK_R; if (d.vy > 0) { d.vy = -d.vy * BANT_ESNEKLIK; if (d.vy < -30) ses = 'duvar'; } }
   const kaleAgzi = d.y > KALE_UST && d.y < KALE_ALT;
-  if (!kaleAgzi && d.x - DISK_R < ALAN.sol) {
-    d.x = ALAN.sol + DISK_R; if (d.vx < 0) { d.vx = -d.vx * BANT_ESNEKLIK; d.vy *= BANT_SURTUNME; duvar = Math.abs(d.vx) > 25; }
-  } else if (!kaleAgzi && d.x + DISK_R > ALAN.sag) {
-    d.x = ALAN.sag - DISK_R; if (d.vx > 0) { d.vx = -d.vx * BANT_ESNEKLIK; d.vy *= BANT_SURTUNME; duvar = Math.abs(d.vx) > 25; }
-  }
-  if (direkleCarpis(st, ALAN.sol, KALE_UST) | direkleCarpis(st, ALAN.sol, KALE_ALT) |
-      direkleCarpis(st, ALAN.sag, KALE_UST) | direkleCarpis(st, ALAN.sag, KALE_ALT)) duvar = true;
-  if (duvar) olay(st, 'duvar');
-
-  const v0 = tokmaklaCarpis(st, 0);
-  const v1 = tokmaklaCarpis(st, 1);
-  if (v0 || v1) olay(st, 'vurus');
-
-  hizKirp(d, DISK_TAVANI);                 // güvenlik: hiçbir yoldan tavan aşılmaz
-  if (d.x < 4 - DISK_R) golAt(st, 1);
-  else if (d.x > MASA_EN - 4 + DISK_R) golAt(st, 0);
+  if (!kaleAgzi && d.x - DISK_R < ALAN.sol) { d.x = ALAN.sol + DISK_R; if (d.vx < 0) { d.vx = -d.vx * BANT_ESNEKLIK; if (d.vx > 30) ses = 'duvar'; } }
+  else if (!kaleAgzi && d.x + DISK_R > ALAN.sag) { d.x = ALAN.sag - DISK_R; if (d.vx > 0) { d.vx = -d.vx * BANT_ESNEKLIK; if (d.vx < -30) ses = 'duvar'; } }
+  if (direkleCarpis(d, ALAN.sol, KALE_UST) | direkleCarpis(d, ALAN.sol, KALE_ALT) |
+      direkleCarpis(d, ALAN.sag, KALE_UST) | direkleCarpis(d, ALAN.sag, KALE_ALT)) ses = 'duvar';
+  hizKirp(d, DISK_TAVANI);
+  if (d.x < 4 - DISK_R) return 'cizgi1';          // sol kale: koltuk 1'in golü
+  if (d.x > MASA_EN - 4 + DISK_R) return 'cizgi0';
+  return ses;
 }
 
+/* ------------------------------------------------------------- İMLEÇ İZİ */
+/* j koltuğunun e anındaki tokmağı (bildirimlerden ara değer). Bildirimler e'yi
+   kapsamıyorsa null. Hız: e çevresindeki ~30 ms'lik yoldan. */
+function izdeTokmak(st, j, e, uzatma) {
+  const iz = st.iz[j];
+  if (!iz.length) return null;
+  const son = iz[iz.length - 1];
+  if (e > son.e + (uzatma || 0) || e < iz[0].e) return null;
+  const konum = t => {
+    if (t >= son.e) return { x: son.x, y: son.y };
+    let k = iz.length - 1;
+    while (k > 0 && iz[k - 1].e > t) k--;
+    const a = iz[Math.max(0, k - 1)], b = iz[k];
+    if (b.e <= a.e) return { x: b.x, y: b.y };
+    const f = kirp((t - a.e) / (b.e - a.e), 0, 1);
+    return { x: a.x + (b.x - a.x) * f, y: a.y + (b.y - a.y) * f };
+  };
+  const p = konum(e);
+  const pencere = 0.03;
+  const q = konum(Math.max(iz[0].e, e - pencere));
+  const dt = Math.max(1e-3, Math.min(pencere, e - iz[0].e));
+  const m = { x: p.x, y: p.y, vx: (p.x - q.x) / dt, vy: (p.y - q.y) / dt };
+  if (e > son.e) { m.vx = 0; m.vy = 0; }
+  hizKirp(m, TOKMAK_HIZ_TAVANI);
+  return m;
+}
+
+/* Gerçek zamanlı alt adım: disk serbest ilerler; bildirimi kesilen (sessiz)
+   oyuncunun tokmağı son konumunda DURAN engel sayılır. */
 function altAdim(st, dt) {
   st.gecenSn += dt;
-  if (st.bekle) { st.bekle[0] = Math.max(0, st.bekle[0] - dt); st.bekle[1] = Math.max(0, st.bekle[1] - dt); }
-  tokmagiTasi(st, 0, dt);
-  tokmagiTasi(st, 1, dt);
-
+  st.bekle[0] = Math.max(0, st.bekle[0] - dt); st.bekle[1] = Math.max(0, st.bekle[1] - dt);
   if (st.faz === 'gerisayim') {
     st.fazSn = Math.max(0, st.fazSn - dt);
-    /* servis diski yerinde durur; tokmaklar onu itemez (henüz oyun yok) */
-    const sk = servisKonumu(st);
-    st.disk.x = sk.x; st.disk.y = sk.y; st.disk.vx = 0; st.disk.vy = 0;
-    if (st.fazSn === 0) { st.faz = 'oyun'; olay(st, 'servis'); }
+    st.disk.x = MERKEZ_X; st.disk.y = MERKEZ_Y;
+    if (st.fazSn === 0) {
+      st.faz = 'oyun'; st.oyunBasE = st.gecenSn; st.gecmis = [];
+      st.disk.vx = st.servisYonu * 430;
+      st.disk.vy = (st.olayNo % 3 === 0 ? 1 : -1) * 150;
+      olay(st, 'vurus');
+    }
     return;
   }
   if (st.faz === 'gol') {
@@ -343,7 +309,22 @@ function altAdim(st, dt) {
     return;
   }
   if (st.faz !== 'oyun') return;
-  diskIlerle(st, dt);
+  const d = st.disk;
+  const r = st.golBekle ? null : serbestIlerle(d, dt);
+  if (st.golBekle) { d.x += d.vx * dt; d.y += d.vy * dt; }
+  if (r === 'duvar') olay(st, 'duvar');
+  else if (r === 'cizgi0' || r === 'cizgi1') st.golBekle = { atan: r === 'cizgi0' ? 0 : 1, e: st.gecenSn };
+  if (!st.golBekle) {
+    for (const j of [0, 1]) {
+      if (st.gecenSn - st.izVaris[j] < IZ_SESSIZ_SN) continue;
+      const m = { x: st.tokmak[j].x, y: st.tokmak[j].y, vx: 0, vy: 0 };
+      const g = carp(d, m, st.bekle[j] > 0);
+      if (g) { st.bekle[j] = VURUS_ARALIGI; st.sonVurus[j] = st.gecenSn; olay(st, 'vurus'); }
+    }
+  }
+  st.gecmis.push({ e: st.gecenSn, x: d.x, y: d.y, vx: d.vx, vy: d.vy, gol: st.golBekle ? 1 : 0 });
+  while (st.gecmis.length && st.gecenSn - st.gecmis[0].e > GECMIS_SN) st.gecmis.shift();
+  if (st.golBekle && st.gecenSn - st.golBekle.e >= GOL_ONAY_SN) golAt(st, st.golBekle.atan);
 }
 
 function adim(st, dtSn) {
@@ -354,16 +335,132 @@ function adim(st, dtSn) {
   for (let k = 0; k < n && st.faz !== 'bitti'; k++) altAdim(st, h);
 }
 
-/* Tokmak hedefi (istemciden gelir): yalnız kendi yarı sahasına yazılır. */
-function hedefYaz(st, seat, x, y) {
+/* İMLEÇ BİLDİRİMİ: seat'in tokmağı, görüş zamanı e'de (x, y)'de.
+   e verilmezse "şimdi" kabul edilir (klavye/eski istemci/testler). */
+function izEkle(st, seat, x, y, eGorus) {
   const i = tarafOf(seat);
   const hx = Number(x), hy = Number(y);
   if (!Number.isFinite(hx) || !Number.isFinite(hy)) return { ok: false, reason: 'gecersiz_hamle' };
-  const gecici = { x: hx, y: hy };
-  tokmakKirp(gecici, i);
-  st.hedef[i] = gecici;
+  const p = { x: hx, y: hy };
+  tokmakKirp(p, i);
+  const zamanli = eGorus !== undefined && eGorus !== null && Number.isFinite(Number(eGorus));
+  let e = zamanli ? Number(eGorus) : st.gecenSn;
+  e = kirp(e, st.gecenSn - GECMIS_SN, st.gecenSn);
+  const iz = st.iz[i];
+  if (iz.length && e < iz[iz.length - 1].e) e = iz[iz.length - 1].e;     // zaman geri gitmez
+  /* ilk bildirimde önceki konum: tokmağın bilinen son yeri, bir adım önce */
+  if (!iz.length) iz.push({ e: e - ADIM_SN, x: st.tokmak[i].x, y: st.tokmak[i].y });
+  const onceki = iz[iz.length - 1];
+  /* ışınlanma sınırı: elle yapılamayacak sıçrayış (6000 birim/sn üstü) kırpılır */
+  const izin = IMLEC_HIZ_SINIRI * Math.max(ADIM_SN, e - onceki.e);
+  const sx = p.x - onceki.x, sy = p.y - onceki.y, sk = Math.hypot(sx, sy);
+  if (zamanli && sk > izin) { p.x = onceki.x + sx / sk * izin; p.y = onceki.y + sy / sk * izin; tokmakKirp(p, i); }
+  iz.push({ e, x: p.x, y: p.y });
+  while (iz.length > 2 && iz[iz.length - 1].e - iz[0].e > GECMIS_SN + 0.1) iz.shift();
+  st.izVaris[i] = st.gecenSn;
+  st.hedef[i] = { x: p.x, y: p.y };
+  const t = st.tokmak[i];
+  const dtT = Math.max(1e-3, e - onceki.e);
+  t.vx = (p.x - onceki.x) / dtT; t.vy = (p.y - onceki.y) / dtT;
+  hizKirp(t, TOKMAK_HIZ_TAVANI);
+  t.x = p.x; t.y = p.y;
+  if (st.faz === 'oyun') vurusAra(st, i, onceki, iz[iz.length - 1]);
   return { ok: true };
 }
+
+/* İki bildirim arasındaki imleç yolu, o zamanlardaki diskle kesişiyor mu?
+   Kesişiyorsa vuruşu o anda uygula ve diski bugüne yeniden hesapla. */
+function vurusAra(st, i, a, b) {
+  let g = st.gecmis;
+  /* geçmiş henüz yoksa (oyun yeni başladı) disk o aralıkta duruyor sayılır */
+  if (g.length < 2) {
+    const d = st.disk;
+    g = [{ e: b.e - ADIM_SN, x: d.x, y: d.y, vx: d.vx, vy: d.vy, gol: 0 }, { e: b.e, x: d.x, y: d.y, vx: d.vx, vy: d.vy, gol: 0 }];
+    st.gecmis = g;
+  }
+  /* imleç uzun süre durduysa (bildirim aralığı büyük) yolun yalnız son 80 ms'i */
+  const bas = Math.max(a.e, b.e - 0.08, st.oyunBasE - ADIM_SN, st.sonVurus[i] + VURUS_ARALIGI);
+  const enAz = DISK_R + TOKMAK_R;
+  for (let n = 1; n < g.length; n++) {
+    const s0 = g[n - 1], s1 = g[n];
+    if (s1.e <= bas || s0.e >= b.e || s0.gol || s1.gol) continue;
+    const t0 = Math.max(s0.e, bas), t1 = Math.min(s1.e, b.e);
+    if (t1 <= t0) continue;
+    const ds = s1.e - s0.e || 1e-6;
+    const disk = t => { const f = (t - s0.e) / ds; return { x: s0.x + (s1.x - s0.x) * f, y: s0.y + (s1.y - s0.y) * f,
+      vx: s0.vx + (s1.vx - s0.vx) * f, vy: s0.vy + (s1.vy - s0.vy) * f }; };
+    const ma = izdeTokmak(st, i, t0), mb = izdeTokmak(st, i, t1);
+    if (!ma || !mb) continue;
+    const da = disk(t0), db = disk(t1);
+    /* göreli konum doğrusal: |p0 + (p1-p0)u| = enAz → ilk u */
+    const p0x = da.x - ma.x, p0y = da.y - ma.y, p1x = db.x - mb.x, p1y = db.y - mb.y;
+    const qx = p1x - p0x, qy = p1y - p0y;
+    const A = qx * qx + qy * qy, B = 2 * (p0x * qx + p0y * qy), C = p0x * p0x + p0y * p0y - enAz * enAz;
+    let u;
+    if (C <= 0) u = 0;                                    // aralık başında zaten temas
+    else if (A < 1e-9) continue;
+    else {
+      const D = B * B - 4 * A * C;
+      if (D < 0) continue;
+      u = (-B - Math.sqrt(D)) / (2 * A);
+      if (u < 0 || u > 1) continue;
+    }
+    const tc = t0 + (t1 - t0) * u;
+    const dc = disk(tc), mc = izdeTokmak(st, i, tc);
+    const bn = (dc.vx - mc.vx) * (dc.x - mc.x) + (dc.vy - mc.vy) * (dc.y - mc.y);
+    if (bn >= 0) continue;                                // uzaklaşıyor / teğet
+    const j = 1 - i;
+    if (st.sonVurus[j] > tc) return false;               // rakibin sonraki vuruşu silinmez
+    yenidenHesapla(st, n, tc, dc, mc, i);
+    return true;
+  }
+  return false;
+}
+
+/* tc anında (geçmişin n. kaydından önce) i koltuğunun tokmağı diske vurur;
+   disk bugüne yeniden hesaplanır, sonrasında iki tokmak da izlerinden çarpışır. */
+function yenidenHesapla(st, n, tc, dc, mc, i) {
+  const g = st.gecmis;
+  const d = { x: dc.x, y: dc.y, vx: dc.vx, vy: dc.vy };
+  const bekle = [0, 0];
+  let e = tc;
+  const guc = carp(d, mc, false);
+  if (!guc) return;
+  bekle[i] = VURUS_ARALIGI;
+  st.sonVurus[i] = e;
+  const yeni = g.slice(0, n);
+  yeni.push({ e, x: d.x, y: d.y, vx: d.vx, vy: d.vy, gol: 0 });
+  let golBekle = null;
+  const simdi = st.gecenSn;
+  while (e < simdi - 1e-9) {
+    const dt = Math.min(ALT_ADIM_SN, simdi - e);
+    e += dt;
+    bekle[0] = Math.max(0, bekle[0] - dt); bekle[1] = Math.max(0, bekle[1] - dt);
+    if (!golBekle) {
+      const r = serbestIlerle(d, dt);
+      if (r === 'cizgi0' || r === 'cizgi1') golBekle = { atan: r === 'cizgi0' ? 0 : 1, e };
+    } else { d.x += d.vx * dt; d.y += d.vy * dt; }
+    if (!golBekle) {
+      for (const j of [0, 1]) {
+        const m = izdeTokmak(st, j, e, 0.02);
+        if (!m) continue;
+        if (carp(d, m, bekle[j] > 0) && bekle[j] <= 0) { bekle[j] = VURUS_ARALIGI; st.sonVurus[j] = e; }
+      }
+    }
+    yeni.push({ e, x: d.x, y: d.y, vx: d.vx, vy: d.vy, gol: golBekle ? 1 : 0 });
+  }
+  st.gecmis = yeni;
+  st.disk = d;
+  st.golBekle = golBekle;
+  st.bekle[0] = Math.max(st.bekle[0], bekle[0]); st.bekle[1] = Math.max(st.bekle[1], bekle[1]);
+  st.duzeltE = st.duzeltE === null || st.duzeltE === undefined ? tc : Math.min(st.duzeltE, tc);
+  olay(st, 'vurus');
+  if (golBekle && st.gecenSn - golBekle.e >= GOL_ONAY_SN) golAt(st, golBekle.atan);
+}
+
+/* Tokmak konumu (istemciden gelir): yalnız kendi yarı sahasına yazılır.
+   eGorus: istemcinin o an gördüğü disk zamanı (motor sn). */
+function hedefYaz(st, seat, x, y, eGorus) { return izEkle(st, seat, x, y, eGorus); }
 
 /* --------------------------------------------------------------- BİTİŞ */
 function macBitir(st, reason) {
@@ -431,6 +528,7 @@ function gorunum(st, seat, ekstra) {
 
 module.exports = {
   MASA_EN, MASA_BOY, ALAN, KALE_UST, KALE_ALT, DISK_R, TOKMAK_R, DIREK_R,
-  ADIM_SN, TOKMAK_HIZI, TOKMAK_IVME, DISK_TAVANI, GERI_SAYIM_SN, SERVIS_UZAKLIGI,
-  tarafOf, tokmakKirp, macBaslat, adim, hedefYaz, renkYaz, RENKLER, macBitir, pesEt, gorunum
+  ADIM_SN, ALT_ADIM_SN, TOKMAK_HIZI, DISK_TAVANI, GERI_SAYIM_SN, GECMIS_SN, GOL_ONAY_SN,
+  tarafOf, tokmakKirp, macBaslat, adim, hedefYaz, izEkle, izdeTokmak, carp, serbestIlerle,
+  renkYaz, RENKLER, macBitir, pesEt, gorunum
 };

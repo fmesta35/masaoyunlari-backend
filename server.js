@@ -2044,9 +2044,29 @@ function emitHavahokeyiState(room, event = 'gameStateUpdated') {
     roomId: room.id, seat: null, isSpectator: true, gameState: havahokeyiState(room, null)
   }));
 }
+/* Motor zamanı (sn) ↔ sunucu saati (ms). sonAdim: st.gecenSn'e karşılık gelen saat. */
+function hokeyMs(h, e) { return Math.round(((h.sonAdim || now()) - (h.st.gecenSn - e) * 1000) * 10) / 10; }
+function hokeyE(h, ms) { return h.st.gecenSn - ((h.sonAdim || now()) - ms) / 1000; }
 function havahokeyiKare(room) {
-  const st = room.havahokeyi.st;
+  const h = room.havahokeyi;
+  const st = h.st;
+  /* İMLEÇ İZİ: her oyuncunun son bildirimleri görüş zamanıyla — rakip, vuran
+     tokmağı diskle AYNI zamandan çizer (temassız uçuş görmez). */
+  if (!h.izYayin) h.izYayin = [-1e9, -1e9];
+  const iz = [0, 1].map(j => {
+    const yeni = st.iz[j].filter(k => k.e > h.izYayin[j]).slice(-12);
+    if (yeni.length) h.izYayin[j] = yeni[yeni.length - 1].e;
+    return yeni.map(k => ({ t: hokeyMs(h, k.e), x: Math.round(k.x * 10) / 10, y: Math.round(k.y * 10) / 10 }));
+  });
+  /* DÜZELTME: geç gelen bir vuruş geçmişi değiştirdiyse, o andan bugüne disk yolu */
+  let duzelt = null;
+  if (st.duzeltE !== null && st.duzeltE !== undefined) {
+    duzelt = st.gecmis.filter((k, n) => k.e >= st.duzeltE - 1e-9 && (n % 2 === 0 || n === st.gecmis.length - 1))
+      .map(k => ({ t: hokeyMs(h, k.e), x: Math.round(k.x * 10) / 10, y: Math.round(k.y * 10) / 10, vx: Math.round(k.vx), vy: Math.round(k.vy) }));
+    st.duzeltE = null;
+  }
   io.to(room.id).emit('hokeyFrame', {
+    iz, duzelt,
     /* t: karenin AİT OLDUĞU fizik anı (son adımın saati) — yayın anı değil;
        istemci ara değerlemeyi bu saate göre yapar. */
     roomId: room.id, t: room.havahokeyi.sonAdim || now(),
@@ -6010,12 +6030,14 @@ io.on('connection', socket => {
     const room = rooms.get(socket.roomId || String(data && data.roomId || ''));
     const p = room && room.havahokeyi && room.players.find(x => x.id === socket.id);
     if (!p || room.status !== 'playing') return;
-    const r = havahokeyiEngine.hedefYaz(room.havahokeyi.st, p.seat,
-      data && data.x, data && data.y);
+    /* vt: oyuncunun o an ekranda gördüğü diskin sunucu saati. Motor tokmağı
+       o görüş anına yazar; temas, oyuncunun gördüğü diskle aranır. vt yoksa
+       (eski istemci / klavye) "şimdi" sayılır. */
+    const h = room.havahokeyi;
+    const vt = data && Number(data.vt);
+    const e = Number.isFinite(vt) ? hokeyE(h, vt) : undefined;
+    const r = havahokeyiEngine.izEkle(h.st, p.seat, data && data.x, data && data.y, e);
     if (!r.ok) socket.emit('hokeyRejected', { roomId: room.id, reason: r.reason });
-    /* Vuruşu YALNIZ sunucu belirler: istemcinin "ekranda değdi" beyanı
-       (eski gecikme telafisi) kabul edilmez — sunucudaki tokmak diske
-       değmeden vuruş olamaz (kullanıcı raporu: "temas etmeden uçmalar"). */
   });
 
   socket.on('hokeyRenk', data => {
