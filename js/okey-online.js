@@ -1077,7 +1077,9 @@
     window.GV._okSurrender = function () {
       if (onlineActive()) {
         if (isSpectator) return toast('👁️ İzleyici modunda bu işlem yok.', 'info');
-        if (!confirm('🏳️ Pes etmek istediğinize emin misiniz?\n\nMaçı KAYBETMİŞ sayılacaksınız ve lobiye yönlendirileceksiniz.')) return;
+        var puanli = typeof window.__gvPuanliOyuncu === 'function' ? window.__gvPuanliOyuncu() : false;
+        if (!confirm('🏳️ Pes etmek istediğinize emin misiniz?\n\nMaçı KAYBETMİŞ sayılacaksınız' +
+            (puanli ? ', puan kaybedeceksiniz' : '') + ' ve lobiye yönlendirileceksiniz.')) return;
         if (typeof window.__gvRealChessLeave === 'function') window.__gvRealChessLeave();
         else if (typeof window.leaveRoom === 'function') window.leaveRoom();
         return;

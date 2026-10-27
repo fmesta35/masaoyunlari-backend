@@ -7,9 +7,9 @@
  *
  * ÇEVRİMİÇİ KÖPRÜ
  *   · Fizik SUNUCUDADIR (havahokeyi-engine.js, sabit 120 Hz); iki oyuncu da
- *     aynı anda oynar. Sunucudan ~20 Hz gelen 'hokeyFrame' paketleri aynen
- *     iframe'e iletilir; iframe aralarını yumuşatır, kendi tokmağınızı
- *     yerelde tahmin eder.
+ *     aynı anda oynar. Sunucudan ~60 Hz gelen 'hokeyFrame' paketleri aynen
+ *     iframe'e iletilir; iframe hepsini (iki tokmak + disk) sunucunun aynı
+ *     zaman çizelgesinden çizer — yerel vuruş tahmini yoktur.
  *   · iframe tokmak hedefini ('move') ve renk seçimini ('renk') yollar; bu
  *     sayfa bunları soketle ('hokeyMove', 'hokeyRenk') sunucuya iletir.
  *   · Maç sonu ekranı ve rövanş sitenin ortak katmanındadır.
@@ -21,7 +21,7 @@
   if (window.__gvHavahokeyiLoaded) return;
   window.__gvHavahokeyiLoaded = true;
 
-  var SRC = 'assets/oyunlar/havahokeyi.html?online=1&v=20261027c';
+  var SRC = 'assets/oyunlar/havahokeyi.html?online=1&v=20261027h';
 
   /* OYUN DOSYASI KAYNAĞI: önce site ile aynı yerden (Yöncü) denenir; dosya
      orada yoksa (yüklenmemiş, ya da host 404/ana sayfa döndürüyor) Render'daki

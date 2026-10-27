@@ -16,6 +16,7 @@
  *   Hamle süresi dolarak mağlubiyet ....... +2    ← oynamamak neredeyse kazandırmaz
  *   Rakibin terkiyle gelen galibiyet ...... +15   ← hak edilmiş ama tam galibiyet değil
  *   Masayı terk ........................... −20
+ *   Pes etme (masada kalır, maçı kaybeder) . −15   ← kullanıcı kuralı: pes eden puan kaybeder
  *   Terk edip geri dönme .................. +10   ← iyi niyet iadesi
  *
  * TERK EDEN OYUNCU NE YAŞAR (kullanıcının tarifi):
@@ -43,6 +44,7 @@ const PUAN = {
   timeout:     2,   // hamle süresi dolarak mağlubiyet
   win_left:   15,   // rakibin terkiyle gelen galibiyet
   leave:     -20,   // masayı terk
+  resign:    -15,   // pes etme: maçı kaybeder VE puan kaybeder (mağlubiyetin +5'i verilmez)
   rejoin:     10    // terk edip geri dönme
 };
 
@@ -54,6 +56,7 @@ const ETIKET = {
   timeout:  'Süre aşımı mağlubiyeti',
   win_left: 'Rakip terk etti — galibiyet',
   leave:    'Masayı terk',
+  resign:   'Pes etme',
   rejoin:   'Oyuna geri dönüş'
 };
 
@@ -66,7 +69,7 @@ function elCarpani(elSayisi) {
 }
 
 // Terk/dönüş sabittir; sonuç puanları el sayısına göre çarpılır.
-const CARPANSIZ = new Set(['leave', 'rejoin']);
+const CARPANSIZ = new Set(['leave', 'rejoin', 'resign']);
 
 function puanHesapla(tur, elSayisi) {
   const ham = PUAN[tur];
@@ -95,7 +98,8 @@ function macOlaylari(girdi) {
   (g.oyuncular || []).forEach(o => {
     if (!o || !(Number(o.uid) > 0)) return;      // misafir: puan yok
     let tur;
-    if (o.berabere) tur = 'draw';
+    if (o.pesEtti) tur = 'resign';               // pes eden: her zaman ceza
+    else if (o.berabere) tur = 'draw';
     else if (o.kazandi) tur = g.rakipTerkiyle ? 'win_left' : 'win';
     else if (o.sureAsimi) tur = 'timeout';
     else tur = 'loss';

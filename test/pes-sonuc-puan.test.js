@@ -58,6 +58,9 @@ async function main() {
   BASE = 'http://127.0.0.1:' + server.address().port;
   const A = await uyeAc('PesEden', 'pes@test.tr');
   const B = await uyeAc('Kazanan', 'kaz@test.tr');
+  /* Taban (toplam 0'ın altına düşmez) ölçümü bozmasın: pes edene başlangıç puanı. */
+  serverModule.__test.puanYaz([{ uid: A.id, gameId: 'baslangic', tur: 'win', puan: 2000, roomId: 'b0' }]);
+  await sleep(150);
   const hatalar = [];
   for (const oyun of OYUNLAR) {
     const once = [await ozet(A), await ozet(B)];
@@ -80,13 +83,15 @@ async function main() {
       const eb = await bekle(() => son(sb, 'gameEnded'), 8000, oyun + ' bitiş (B)');
       await sleep(400);
       const sonra = [await ozet(A), await ozet(B)];
+      const pa = (Number(sonra[0].toplam) || 0) - (Number(once[0].toplam) || 0);
+      const pb = (Number(sonra[1].toplam) || 0) - (Number(once[1].toplam) || 0);
       const fark = (i, k) => (Number(sonra[i].genel[k]) || 0) - (Number(once[i].genel[k]) || 0);
-      const durum = `youWon A=${ea.youWon} B=${eb.youWon}; A: mağlubiyet+${fark(0, 'maglubiyet')} galibiyet+${fark(0, 'galibiyet')} beraberlik+${fark(0, 'beraberlik')}; ` +
+      const durum = `youWon A=${ea.youWon} B=${eb.youWon}; puan A ${pa >= 0 ? '+' : ''}${pa} B +${pb}; A: mağlubiyet+${fark(0, 'maglubiyet')} galibiyet+${fark(0, 'galibiyet')} beraberlik+${fark(0, 'beraberlik')}; ` +
                     `B: galibiyet+${fark(1, 'galibiyet')} mağlubiyet+${fark(1, 'maglubiyet')} beraberlik+${fark(1, 'beraberlik')}`;
-      const dogru = ea.youWon === false && eb.youWon === true &&
+      const dogru = ea.youWon === false && eb.youWon === true && pa < 0 && pb > 0 &&
         fark(0, 'maglubiyet') === 1 && fark(0, 'galibiyet') === 0 && fark(0, 'beraberlik') === 0 &&
         fark(1, 'galibiyet') === 1 && fark(1, 'maglubiyet') === 0 && fark(1, 'beraberlik') === 0;
-      if (dogru) console.log('  ✓ ' + oyun + ': pes eden mağlup, rakibi galip (' + durum + ')');
+      if (dogru) console.log('  ✓ ' + oyun + ': pes eden mağlup ve puan kaybetti, rakibi galip (' + durum + ')');
       else { hatalar.push(oyun + ': ' + durum); console.log('  ✗ ' + oyun + ': ' + durum); }
     } catch (e) { hatalar.push(oyun + ': ' + e.message); console.log('  ✗ ' + oyun + ': ' + e.message); }
     sa.close(); sb.close();
@@ -116,7 +121,8 @@ async function main() {
         await sleep(400);
         const sonra = await Promise.all(kisi.map(ozet));
         const f = (i, k) => (Number(sonra[i].genel[k]) || 0) - (Number(once[i].genel[k]) || 0);
-        const dogru = e[0].youWon === false && e[1].youWon === true && e[2].youWon === true &&
+        const pk = (Number(sonra[0].toplam) || 0) - (Number(once[0].toplam) || 0);
+        const dogru = pk < 0 && e[0].youWon === false && e[1].youWon === true && e[2].youWon === true &&
           f(0, 'maglubiyet') === 1 && f(1, 'galibiyet') === 1 && f(2, 'galibiyet') === 1;
         const d = `youWon ${e.map(x => x.youWon).join('/')}; pes eden mağlubiyet+${f(0, 'maglubiyet')}, diğerleri galibiyet+${f(1, 'galibiyet')}/+${f(2, 'galibiyet')}`;
         if (dogru) console.log('  ✓ ' + oyun + ' (3 kişi): pes eden mağlup, diğer ikisi galip (' + d + ')');
@@ -125,6 +131,27 @@ async function main() {
       ss.forEach(s => s.close());
       await sleep(300);
     }
+  }
+  // ZİYARETÇİ: kazansa da kaybetse de puan/istatistik/sıralama kaydı OLUŞMAZ.
+  if (!process.env.OYUN) {
+    const { db } = require('../db');
+    const say = () => db.prepare('SELECT COUNT(*) n FROM score_events').get().n;
+    const once = say();
+    const ga = baglan(), gb = baglan();
+    await sleep(200);
+    ga.emit('joinRoom', { roomId: 'pes-misafir', gameId: 'chess', userName: 'Ziyaretci1', maxPlayers: 2 });
+    await sleep(150);
+    gb.emit('joinRoom', { roomId: 'pes-misafir', gameId: 'chess', userName: 'Ziyaretci2', maxPlayers: 2 });
+    await sleep(150);
+    [ga, gb].forEach(s => s.emit('setReady', { roomId: 'pes-misafir', ready: true }));
+    await bekle(() => son(ga, 'gameStarted') && son(gb, 'gameStarted'), 10000, 'misafir maçı');
+    ga.emit('gvResign', { roomId: 'pes-misafir' });
+    const eb = await bekle(() => son(gb, 'gameEnded'), 8000, 'misafir bitiş');
+    await sleep(400);
+    const sonra = say();
+    if (eb.youWon === true && sonra === once) console.log('  ✓ ziyaretçi maçı: sonuç doğru, hiçbir puan/istatistik kaydı yazılmadı');
+    else { hatalar.push('ziyaretçi: youWon=' + eb.youWon + ' yeni kayıt=' + (sonra - once)); console.log('  ✗ ziyaretçi: kayıt yazıldı ' + (sonra - once)); }
+    ga.close(); gb.close();
   }
   server.close();
   assert.deepStrictEqual(hatalar, [], 'pes sonucu hatalı oyunlar:\n' + hatalar.join('\n'));

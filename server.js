@@ -2047,7 +2047,9 @@ function emitHavahokeyiState(room, event = 'gameStateUpdated') {
 function havahokeyiKare(room) {
   const st = room.havahokeyi.st;
   io.to(room.id).emit('hokeyFrame', {
-    roomId: room.id, t: now(),
+    /* t: karenin AİT OLDUĞU fizik anı (son adımın saati) — yayın anı değil;
+       istemci ara değerlemeyi bu saate göre yapar. */
+    roomId: room.id, t: room.havahokeyi.sonAdim || now(),
     faz: st.faz, fazSn: Math.round(st.fazSn * 10) / 10,
     disk: { x: Math.round(st.disk.x * 10) / 10, y: Math.round(st.disk.y * 10) / 10,
             vx: Math.round(st.disk.vx), vy: Math.round(st.disk.vy) },
@@ -2082,10 +2084,6 @@ function havahokeyiDonguAdimi() {
     let n = 0;
     while (kalan >= HOKEY_ADIM_MS && n < 40) {
       havahokeyiEngine.adim(h.st, HOKEY_ADIM_MS / 1000);
-      /* Gecikme telafisi için disk geçmişi (son ~0.5 sn, adım sonu duvar saatiyle). */
-      if (!h.gecmis) h.gecmis = [];
-      h.gecmis.push({ t: adimBaslangic + (n + 1) * HOKEY_ADIM_MS, x: h.st.disk.x, y: h.st.disk.y, vx: h.st.disk.vx, vy: h.st.disk.vy });
-      if (h.gecmis.length > 64) h.gecmis.shift();
       kalan -= HOKEY_ADIM_MS;
       n++;
       if (h.st.status !== 'playing') break;
@@ -4245,6 +4243,8 @@ function macSonucunuKaydet(room) {
         oyuncular: (room.players || []).filter(p => !p.aiControlled).map(p => ({
           uid: p.userId, ad: p.name,
           kazandi: kazandiMi(p),
+          // PES EDEN puan KAYBEDER (kullanıcı kuralı) — mağlubiyetin +5'i değil −15.
+          pesEtti: pesKoltugu !== null && Number(p.seat) === pesKoltugu,
           berabere: berabere && pesKoltugu === null,
           // Süre aşımı puanı YALNIZ kaybedene: kazanan tam galibiyet alır.
           sureAsimi: sureAsimiNedeni && !kazandiMi(p)
@@ -6013,28 +6013,9 @@ io.on('connection', socket => {
     const r = havahokeyiEngine.hedefYaz(room.havahokeyi.st, p.seat,
       data && data.x, data && data.y);
     if (!r.ok) socket.emit('hokeyRejected', { roomId: room.id, reason: r.reason });
-    /* GECİKME TELAFİSİ: istemcinin ekranda gördüğü anda (vt) diske değen tokmak
-       konumu bildirildiyse vuruş o ana göre uygulanır. */
-    const h = room.havahokeyi;
-    if (data && data.vt !== undefined && data.px !== undefined && h.gecmis && h.gecmis.length > 2) {
-      const simdi = h.sonAdim || now();
-      const vt = Number(data.vt);
-      if (Number.isFinite(vt) && vt <= simdi && vt >= simdi - 260 &&
-          !(h.vurusT && h.vurusT[p.seat] && vt < h.vurusT[p.seat])) {
-        const g = h.gecmis; let k = g.length - 1;
-        while (k > 0 && g[k - 1].t > vt) k--;
-        const a = g[Math.max(0, k - 1)], b = g[k];
-        const f = b.t > a.t ? Math.max(0, Math.min(1, (vt - a.t) / (b.t - a.t))) : 1;
-        const disk0 = { x: a.x + (b.x - a.x) * f, y: a.y + (b.y - a.y) * f, vx: a.vx + (b.vx - a.vx) * f, vy: a.vy + (b.vy - a.vy) * f };
-        const vurdu = havahokeyiEngine.gecmisVurus(h.st, p.seat,
-          { x: data.px, y: data.py, vx: data.mvx, vy: data.mvy }, disk0, (simdi - vt) / 1000);
-        if (vurdu) {
-          if (!h.vurusT) h.vurusT = {};
-          h.vurusT[p.seat] = simdi;
-          h.gecmis.length = 0;
-        }
-      }
-    }
+    /* Vuruşu YALNIZ sunucu belirler: istemcinin "ekranda değdi" beyanı
+       (eski gecikme telafisi) kabul edilmez — sunucudaki tokmak diske
+       değmeden vuruş olamaz (kullanıcı raporu: "temas etmeden uçmalar"). */
   });
 
   socket.on('hokeyRenk', data => {

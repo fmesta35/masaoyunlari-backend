@@ -108,7 +108,9 @@ async function main() {
      yükseltildi — başarılı durumda beklemeyi uzatmaz, yalnız yüklü
      makinede nefes payı bırakır. */
   const t0 = Date.now();
-  while (!win.GVApp && Date.now() - t0 < 60000) await new Promise(r => setTimeout(r, 120));
+  /* app.js ve webview.js ikisi de GVApp'e yazar (ertelenmiş betikler); ikisi de
+     yüklenene kadar bekle. */
+  while (!(win.GVApp && win.GVApp.install && 'isApp' in win.GVApp) && Date.now() - t0 < 60000) await new Promise(r => setTimeout(r, 120));
   assert.ok(win.GVApp, 'window.GVApp kurulmalı (uygulama katmanı yüklendi)');
   assert.strictEqual(typeof win.GVApp.install, 'function', 'GVApp.install() kurulum çağrısı olmalı');
   assert.strictEqual(win.GVApp.isApp, false, 'normal tarayıcıda uygulama kipi KAPALI olmalı');

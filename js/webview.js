@@ -52,11 +52,14 @@
   if (nativeApp) webview = true;
   var uygulama = standalone || twa || webview;
 
-  var API = window.GVApp = {
+  /* js/app.js daha önce yüklenip GVApp'i (install(), init() vb.) kurmuş olabilir:
+     nesneyi DEĞİŞTİRME, alanları üzerine EKLE — aksi hâlde "Uygulamayı Yükle"
+     düğmesinin çağırdığı GVApp.install() kayboluyordu. */
+  var API = window.GVApp = Object.assign(window.GVApp || {}, {
     standalone: standalone, twa: twa, webview: webview, isApp: uygulama,
     nativeApp: nativeApp,
     platform: /Android/i.test(ua) ? 'android' : /iPhone|iPad|iPod/i.test(ua) ? 'ios' : 'web'
-  };
+  });
 
   /* NATIVE KABUĞA EL SIKIŞMA — insetDestegi.
      Android kabuğu (MainActivity.insetleriSayfayaYolla) sistem çubuklarının

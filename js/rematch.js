@@ -374,7 +374,11 @@
     var pes = e.target.closest && e.target.closest('.gv-resign-btn');
     if (pes) {
       e.preventDefault();
-      if (!confirm('🏳️ Pes etmek istediğinize emin misiniz?\n\nBu maçı KAYBETMİŞ sayılacaksınız. Masada kalırsınız; isterseniz rövanş talep edebilirsiniz.')) return;
+      /* Puan cümlesi yalnız üyeye: ziyaretçinin puanı/istatistiği yoktur. */
+      var puanli = typeof window.__gvPuanliOyuncu === 'function' ? window.__gvPuanliOyuncu() : false;
+      if (!confirm('🏳️ Pes etmek istediğinize emin misiniz?\n\nBu maçı KAYBETMİŞ sayılacaksınız' +
+          (puanli ? ' ve 15 puan kaybedeceksiniz' : '') +
+          '. Masada kalırsınız; isterseniz rövanş talep edebilirsiniz.')) return;
       var s2 = sock();
       if (!s2 || !s2.connected) return toast('Sunucuya bağlanılamadı.', 'warning');
       s2.emit('gvResign', { roomId: odaId() });

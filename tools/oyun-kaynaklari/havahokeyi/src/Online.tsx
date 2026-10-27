@@ -1,8 +1,9 @@
 /* NEON RINK — çevrimiçi mod.
  * Görünüm, çizim, efekt, ses ve HUD referans oyunla aynıdır (App.tsx'ten gelen
  * yardımcılar). Fizik sunucuda çalışır; bu bileşen sunucudan gelen kareleri
- * (üst pencere postMessage ile iletir) yumuşatıp çizer, kendi tokmağını
- * yerelde tahmin eder ve hedef noktasını üst pencereye yollar. */
+ * (üst pencere postMessage ile iletir) sunucu saatine göre ara değerleyip
+ * çizer ve el (hedef) noktasını üst pencereye yollar. Kendi tokmağı da
+ * sunucudan gelir; yerel tahmin ve yerel vuruş YOKTUR. */
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type PointerEvent as RPE } from "react";
 import {
   CENTER_X, CENTER_Y, COLOR_OPTIONS, ColorPicker, FIELD_BOTTOM, FIELD_LEFT, FIELD_RIGHT, FIELD_TOP,
@@ -59,56 +60,31 @@ function playSound(kind: "hit" | "wall" | "goal" | "tick" | "start", power = 1) 
 type G = {
   prev: Frame | null; cur: Frame | null; curAt: number; interval: number;
   /* ağ gecikmesine dayanıklı oynatma: sunucu saatiyle damgalı kare tamponu */
-  buf: Frame[]; offs: { a: number; v: number }[]; off: number; jit: number; hist: { t: number; x: number; y: number }[];
+  buf: Frame[]; offs: { a: number; v: number }[]; off: number; jit: number;
   seat: number | null; names: [string, string]; renk: [string, string];
   maxSet: number; golHedefi: number;
   olayNo: number | null; lastFaz: string; lastTick: number;
   particles: Particle[]; trail: { x: number; y: number }[];
   shake: number; flash: number; flashSide: number;
   banner: string; bannerTime: number;
-  me: { x: number; y: number } | null; meAt: number;
+  me: { x: number; y: number } | null;
   target: { x: number; y: number } | null; keyPos: { x: number; y: number } | null;
-  keys: Set<string>; pointer: number | null; lastSend: number; lastSent: string;
-  pred: { x: number; y: number; vx: number; vy: number; t0: number; h: number | null } | null; predBlock: number; delay: number;
-  vt: number; mvx: number; mvy: number; prevMe: { x: number; y: number; t: number } | null; lastClaim: number;
+  keys: Set<string>; pointer: number | null; lastSend: number; lastSent: string; delay: number;
 };
 
-/* Yerel vuruş tahmini: sunucudaki disk–tokmak çarpışmasının (havahokeyi-engine.js) birebir kopyası. */
-const DISK_TAVANI = 1300, ESNEKLIK = 0.88, TOKMAK_ETKISI = 0.82;
-function hitDisk(d: { x: number; y: number; vx: number; vy: number }, m: { x: number; y: number }, mvx: number, mvy: number) {
-  const R = MALLET_RADIUS + PUCK_RADIUS;
-  const dx = d.x - m.x, dy = d.y - m.y; const k2 = dx * dx + dy * dy;
-  if (k2 >= R * R) return null;
-  const u = Math.sqrt(k2) || 0.001; const nx = dx / u, ny = dy / u;
-  let vx = d.vx, vy = d.vy;
-  const bn = (vx - mvx) * nx + (vy - mvy) * ny;
-  if (bn >= 0) return null;                       // uzaklaşıyor / teğet: tahmin yok, sunucu karar versin
-  const vdn = vx * nx + vy * ny; const tn = (mvx * nx + mvy * ny) * TOKMAK_ETKISI;
-  const yeni = (1 + ESNEKLIK) * tn - ESNEKLIK * vdn;
-  vx += (yeni - vdn) * nx; vy += (yeni - vdn) * ny;
-  const tgv = mvx * -ny + mvy * nx; vx += -ny * tgv * 0.03; vy += nx * tgv * 0.03;
-  const h = Math.hypot(vx, vy); if (h > DISK_TAVANI) { vx = vx / h * DISK_TAVANI; vy = vy / h * DISK_TAVANI; }
-  return { x: m.x + nx * (R + 0.6), y: m.y + ny * (R + 0.6), vx, vy };
-}
-function advanceDisk(d: { x: number; y: number; vx: number; vy: number }, dt: number) {
-  const dr = Math.pow(0.9992, dt * 60); d.vx *= dr; d.vy *= dr; d.x += d.vx * dt; d.y += d.vy * dt;
-  if (d.y - PUCK_RADIUS < FIELD_TOP) { d.y = FIELD_TOP + PUCK_RADIUS; d.vy = Math.abs(d.vy) * 0.97; }
-  else if (d.y + PUCK_RADIUS > FIELD_BOTTOM) { d.y = FIELD_BOTTOM - PUCK_RADIUS; d.vy = -Math.abs(d.vy) * 0.97; }
-  const mouth = d.y > 205 && d.y < 395;
-  if (!mouth && d.x - PUCK_RADIUS < FIELD_LEFT) { d.x = FIELD_LEFT + PUCK_RADIUS; d.vx = Math.abs(d.vx) * 0.97; }
-  else if (!mouth && d.x + PUCK_RADIUS > FIELD_RIGHT) { d.x = FIELD_RIGHT - PUCK_RADIUS; d.vx = -Math.abs(d.vx) * 0.97; }
-}
+/* Bu bileşen HİÇBİR fizik işletmez ve vuruş TAHMİN ETMEZ. Eski sürüm kendi
+   tokmağını ileride tahmin edip diske "yerelde" vuruyordu; sunucu aynı temas
+   görmeyince disk geri sıçrıyor, rakip de diski temassız uçarken görüyordu.
+   Artık disk de iki tokmak da sunucunun AYNI zaman çizelgesinden çizilir:
+   ekranda görülen her temas sunucuda gerçekten olmuş bir temastır. */
 
 export default function Online() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const claimRef = useRef<(() => Record<string, number | undefined>) | null>(null);
   const g = useRef<G>({
-    prev: null, cur: null, curAt: 0, interval: 20, buf: [], offs: [], off: 0, jit: 0, hist: [], seat: null, names: ["Oyuncu 1", "Oyuncu 2"],
+    prev: null, cur: null, curAt: 0, interval: 16, buf: [], offs: [], off: 0, jit: 0, seat: null, names: ["Oyuncu 1", "Oyuncu 2"],
     renk: ["#22d3ee", "#fb4d6d"], maxSet: 3, golHedefi: 5, olayNo: null, lastFaz: "", lastTick: -1,
     particles: [], trail: [], shake: 0, flash: 0, flashSide: 0, banner: "FACE OFF", bannerTime: 0.65,
-    me: null, meAt: 0, target: null, keyPos: null, keys: new Set(), pointer: null, lastSend: 0, lastSent: "",
-    pred: null, predBlock: 0, delay: 60,
-    vt: 0, mvx: 0, mvy: 0, prevMe: null, lastClaim: 0,
+    me: null, target: null, keyPos: null, keys: new Set(), pointer: null, lastSend: 0, lastSent: "", delay: 60,
   });
   const [ready, setReady] = useState(false);
   const [seat, setSeat] = useState<number | null>(null);
@@ -210,7 +186,7 @@ export default function Online() {
         const init = d as Init & { t: string };
         s.seat = init.seat === 0 || init.seat === 1 ? init.seat : null;
         s.names = init.names; s.maxSet = init.state.maxSet || 3; s.golHedefi = init.state.golHedefi || 5;
-        s.cur = null; s.prev = null; s.buf = []; s.offs = []; s.hist = []; s.olayNo = null; s.me = null; s.target = null; s.keyPos = null;
+        s.cur = null; s.prev = null; s.buf = []; s.offs = []; s.olayNo = null; s.me = null; s.target = null; s.keyPos = null;
         setSeat(s.seat); setNames(init.names); setMaxSet(s.maxSet); setGolHedefi(s.golHedefi);
         if (init.state.renk) { s.renk = [init.state.renk[0], init.state.renk[1]]; setRenk(s.renk); }
         if (init.state.skor) setSkor([init.state.skor[0], init.state.skor[1]]);
@@ -255,19 +231,13 @@ export default function Online() {
       m.x = clamp(m.x, minX, maxX); m.y = clamp(m.y, FIELD_TOP + MALLET_RADIUS + pad, FIELD_BOTTOM - MALLET_RADIUS - pad);
     };
 
-    /* Gecikme telafisi: "ekranda gördüğüm an" + tokmağımın konumu/hızı */
-    const claim = () => {
-      const s = g.current;
-      return s.me && s.vt ? { vt: Math.round(s.vt * 10) / 10, px: Math.round(s.me.x * 10) / 10, py: Math.round(s.me.y * 10) / 10, mvx: Math.round(s.mvx), mvy: Math.round(s.mvy) } : {};
-    };
-    claimRef.current = claim;
     const send = (x: number, y: number, force = false) => {
       const s = g.current; const t = performance.now();
       if (!force && t - s.lastSend < 16) return;
       const k = Math.round(x) + "," + Math.round(y);
       if (!force && k === s.lastSent && t - s.lastSend < 250) return;
       s.lastSend = t; s.lastSent = k;
-      post({ t: "move", x: Math.round(x), y: Math.round(y), ...claim() });
+      post({ t: "move", x: Math.round(x), y: Math.round(y) });
     };
 
     const frame = (time: number) => {
@@ -280,9 +250,10 @@ export default function Online() {
       /* interpolasyon: sunucu saatiyle geriden oynat (jitter tamponu) */
       let disk = f ? f.disk : null; let mal: { x: number; y: number }[] = f ? f.tokmak.map((t) => ({ x: t.x, y: t.y })) : [];
       if (f && s.buf.length >= 2 && typeof f.t === "number") {
-        const delay = clamp(s.interval * 1.5 + s.jit * 2 + 14, 40, 150);
+        /* oynatma gecikmesi: kare aralığı + titreşim payı (60 Hz karede ~35-60 ms) */
+        const delay = clamp(s.interval * 1.2 + s.jit * 2 + 10, 28, 120);
         const rt = time - s.off - delay;           // gösterilecek sunucu zamanı
-        s.vt = rt; s.delay = delay;
+        s.delay = delay;
         const bf = s.buf; let i = -1;
         for (let n = bf.length - 1; n >= 0; n -= 1) { if ((bf[n].t as number) <= rt) { i = n; break; } }
         if (i < 0) { disk = bf[0].disk; mal = bf[0].tokmak.map((t) => ({ x: t.x, y: t.y })); }
@@ -311,78 +282,26 @@ export default function Online() {
         mal = b.tokmak.map((t, i) => { const o = a.tokmak[i]; return o ? { x: o.x + (t.x - o.x) * k, y: o.y + (t.y - o.y) * k } : t; });
       }
 
-      /* kendi tokmağım: yerel tahmin */
-      if (f && s.seat !== null && f.tokmak[s.seat]) {
-        const sv = f.tokmak[s.seat];
-        if (!s.me) s.me = { x: sv.x, y: sv.y };
+      /* kendi tokmağım: SUNUCUDAKİ konumundan çizilir (disk ile aynı zaman
+         çizelgesi). Parmağın/imlecin olduğu yer ayrıca ince bir halka olarak
+         gösterilir; tokmak oraya "el ağırlığıyla" gider. */
+      if (f && s.seat !== null && mal[s.seat]) {
+        s.me = { x: mal[s.seat].x, y: mal[s.seat].y };
         const playing = f.status === "playing";
-        /* klavye: ekran yönünde 710 u/s sanal hedef */
+        /* klavye: ekran yönünde 650 u/s sanal hedef */
         const kk = s.keys;
         let hx = Number(kk.has("KeyD") || kk.has("ArrowRight")) - Number(kk.has("KeyA") || kk.has("ArrowLeft"));
         let hy = Number(kk.has("KeyS") || kk.has("ArrowDown")) - Number(kk.has("KeyW") || kk.has("ArrowUp"));
         if (rotated) { hx = -hx; hy = -hy; }
         const mag = Math.hypot(hx, hy);
         if (mag > 0 && playing) {
-          if (!s.keyPos) s.keyPos = { x: s.me.x, y: s.me.y };
-          s.keyPos.x += (hx / mag) * 710 * dt; s.keyPos.y += (hy / mag) * 710 * dt;
+          if (!s.keyPos) s.keyPos = { x: (s.target || s.me).x, y: (s.target || s.me).y };
+          s.keyPos.x += (hx / mag) * 650 * dt; s.keyPos.y += (hy / mag) * 650 * dt;
           constrain(s.keyPos, s.seat);
           s.target = { x: s.keyPos.x, y: s.keyPos.y };
           send(s.target.x, s.target.y);
         } else if (s.keyPos) {
           s.keyPos = null;
-          if (s.pointer === null) { s.target = { x: s.me.x, y: s.me.y }; send(s.me.x, s.me.y, true); }
-        }
-        if (s.target) {
-          const dx = s.target.x - s.me.x, dy = s.target.y - s.me.y; const dist = Math.hypot(dx, dy);
-          const step = Math.min(dist, 1500 * dt);
-          if (dist > 0.001) { s.me.x += (dx / dist) * step; s.me.y += (dy / dist) * step; }
-        }
-        /* Uzlaşma: sunucudaki tokmak ağ gecikmesi kadar GERİDEDİR; şimdiki tahminle
-           kıyaslamak yerine yakın geçmişimdeki izle kıyasla. İz üzerindeyse
-           sapma yok (yalnız gecikme) → dokunma; gerçekten ayrıştıysa nazikçe çek. */
-        s.hist.push({ t: time, x: s.me.x, y: s.me.y });
-        while (s.hist.length && time - s.hist[0].t > 1100) s.hist.shift();
-        let best = Infinity;
-        for (const h of s.hist) { const dd = Math.hypot(h.x - sv.x, h.y - sv.y); if (dd < best) best = dd; }
-        if (!playing || best > 170) { s.me.x = sv.x; s.me.y = sv.y; s.hist = []; }
-        else if (best > 32) { const c = Math.min(1, dt * 5); s.me.x += (sv.x - s.me.x) * c; s.me.y += (sv.y - s.me.y) * c; }
-        constrain(s.me, s.seat);
-        mal[s.seat] = { x: s.me.x, y: s.me.y };
-        /* tokmak hızı (yumuşatılmış) + disk yakındaysa vuruş talebini sık yolla */
-        if (s.prevMe && time > s.prevMe.t) {
-          const ddt = (time - s.prevMe.t) / 1000;
-          s.mvx = s.mvx * 0.5 + ((s.me.x - s.prevMe.x) / ddt) * 0.5; s.mvy = s.mvy * 0.5 + ((s.me.y - s.prevMe.y) / ddt) * 0.5;
-        }
-        s.prevMe = { x: s.me.x, y: s.me.y, t: time };
-        if (playing && disk && s.vt && time - s.lastClaim >= 16 &&
-            Math.hypot(disk.x - s.me.x, disk.y - s.me.y) < MALLET_RADIUS + PUCK_RADIUS + 90) {
-          s.lastClaim = time;
-          const tg = s.target || s.me;
-          post({ t: "move", x: Math.round(tg.x), y: Math.round(tg.y), ...claim() });
-        }
-      }
-
-      /* YEREL VURUŞ TAHMİNİ: ekranda tokmağım diske değdiği an disk hemen tepki verir
-         (sunucu onayı ağ gecikmesi kadar sonra gelir; o zamana kadar tahmini gösteririz). */
-      if (s.seat !== null && s.me && disk && f && f.status === "playing" && f.faz === "oyun" && s.vt) {
-        if (!s.pred && time > s.predBlock) {
-          const c = hitDisk(disk, s.me, s.mvx, s.mvy);
-          if (c) {
-            let el = Math.min(0.25, (s.delay + 25) / 1000);
-            while (el > 1e-4) { const st2 = Math.min(1 / 120, el); advanceDisk(c, st2); el -= st2; }
-            s.pred = { ...c, t0: time, h: null }; s.predBlock = time + 380;
-          }
-        }
-      } else if (s.pred && (!f || f.faz !== "oyun")) s.pred = null;
-      if (s.pred && disk) {
-        const pr = s.pred; advanceDisk(pr, dt);
-        const age = time - pr.t0; const gap = Math.hypot(disk.x - pr.x, disk.y - pr.y);
-        if (pr.h === null && ((age > 150 && gap < 45) || (age > 260 && gap > 110) || age > 650)) pr.h = time;
-        if (pr.h === null) disk = { x: pr.x, y: pr.y, vx: pr.vx, vy: pr.vy };
-        else {
-          const k = Math.min(1, (time - pr.h) / 160);
-          disk = { x: pr.x + (disk.x - pr.x) * k, y: pr.y + (disk.y - pr.y) * k, vx: disk.vx, vy: disk.vy };
-          if (k >= 1) s.pred = null;
         }
       }
 
@@ -414,6 +333,12 @@ export default function Online() {
         const al = Math.max(0, p.life / p.maxLife);
         ctx.beginPath(); ctx.arc(p.x, p.y, p.size * al, 0, Math.PI * 2);
         ctx.fillStyle = rgba(p.color, Math.min(1, al * 1.4)); ctx.fill();
+      }
+      /* hedef halkası: elin (parmak/imleç) olduğu yer — tokmak oraya yetişir */
+      if (f && s.seat !== null && s.target && s.me && f.status === "playing" &&
+          Math.hypot(s.target.x - s.me.x, s.target.y - s.me.y) > 14) {
+        ctx.beginPath(); ctx.arc(s.target.x, s.target.y, MALLET_RADIUS * 0.55, 0, Math.PI * 2);
+        ctx.strokeStyle = rgba(s.renk[s.seat], 0.38); ctx.lineWidth = 2.5; ctx.setLineDash([7, 6]); ctx.stroke(); ctx.setLineDash([]);
       }
       if (f) {
         mal.forEach((m, i) => drawMallet(ctx, { x: m.x, y: m.y, vx: 0, vy: 0, radius: MALLET_RADIUS, cooldown: 0 } as Mallet, s.renk[i]));
@@ -470,7 +395,7 @@ export default function Online() {
     q.x = clamp(q.x, mn, mx); q.y = clamp(q.y, FIELD_TOP + MALLET_RADIUS + 7, FIELD_BOTTOM - MALLET_RADIUS - 7);
     s.target = q;
     const t = performance.now();
-    if (t - s.lastSend >= 16) { s.lastSend = t; post({ t: "move", x: Math.round(q.x), y: Math.round(q.y), ...(claimRef.current ? claimRef.current() : {}) }); }
+    if (t - s.lastSend >= 16) { s.lastSend = t; s.lastSent = Math.round(q.x) + "," + Math.round(q.y); post({ t: "move", x: Math.round(q.x), y: Math.round(q.y) }); }
   };
   const onDown = (e: RPE<HTMLCanvasElement>) => {
     const s = g.current; if (s.seat === null) return;

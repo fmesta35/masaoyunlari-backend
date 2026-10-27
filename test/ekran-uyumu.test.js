@@ -115,59 +115,41 @@ function konuKutusuRenk(im, zemin, tol) {
 const MOR = [108, 92, 231];
 
 // ---------- 1) SİMGE KADRAJI ----------
-/* Launcher maskesi neredeyse her zaman DAİREDİR. Ölçüt bu yüzden kare
-   sınır kutusu değil, merkeze olan EN UZAK DOLU PİKSELİN YARIÇAPI: zarın
-   köşeleri ve tacın ucu dairenin içinde kaldığı sürece konu istediği kadar
-   büyük olabilir. Kare kutuya bakmak, köşeleri boş olan bu logoda gereksiz
-   küçültme yapıyordu. */
-const YARICAP = {
-  ic_launcher:            { alt: 0.40, ust: 0.48 },   // tuval yarıçapı 0.5
-  ic_launcher_foreground: { alt: 0.26, ust: 0.3055 }  // 108dp'de 66dp güvenli daire
-};
-
-function enUzakYaricap(im, dolu) {
-  const cx = (im.en - 1) / 2, cy = (im.boy - 1) / 2;
-  let enb = 0;
-  for (let y = 0; y < im.boy; y++) {
-    for (let x = 0; x < im.en; x++) {
-      if (!dolu(im, x, y)) continue;
-      const d = Math.hypot(x - cx, y - cy);
-      if (d > enb) enb = d;
-    }
+/* 1.0.6'dan beri simge, kullanıcının seçtiği hazır tasarım (mor çerçeveli
+   taçlı zar; "Gemini_Generated_Image_i4u37li4u37li4u3"). Bu tasarımın KENDİ
+   yuvarlatılmış çerçevesi var, bu yüzden ölçüt artık "logo daireye sığsın"
+   değil:
+     · ön plan (uyarlanabilir katman, 108dp): çerçeveli tasarım 72dp görünür
+       alanı kaplar — kare yarı-genişliği 0.30–0.35 (launcher maskesi
+       çerçevenin dış ışımasını keser, iç kısım tam görünür);
+     · eski tip ic_launcher: kenardan kenara dolu (köşeler saydam DEĞİL);
+       kendi maskesini uygulamayan launcher'da siyah köşe görünmesin. */
+function alfaKutusu(im) {
+  let x0 = im.en, y0 = im.boy, x1 = -1, y1 = -1;
+  for (let y = 0; y < im.boy; y++) for (let x = 0; x < im.en; x++) {
+    if (im.px[(y * im.en + x) * 4 + 3] <= 24) continue;
+    if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y;
   }
-  return enb;
+  return { en: x1 - x0 + 1, boy: y1 - y0 + 1, cx: (x0 + x1) / 2, cy: (y0 + y1) / 2 };
 }
-
-const alfali = (im, x, y) => im.px[(y * im.en + x) * 4 + 3] > 24;
-const morDegil = (im, x, y) => {
-  const i = (y * im.en + x) * 4;
-  if (im.px[i + 3] < 8) return false;
-  return Math.abs(im.px[i] - MOR[0]) + Math.abs(im.px[i + 1] - MOR[1])
-       + Math.abs(im.px[i + 2] - MOR[2]) > 90;
-};
-
 for (const yog of ['mdpi', 'hdpi', 'xhdpi', 'xxhdpi', 'xxxhdpi']) {
-  for (const ad of Object.keys(YARICAP)) {
-    const yol = path.join(RES, 'mipmap-' + yog, ad + '.png');
-    assert.ok(fs.existsSync(yol), 'eksik simge: ' + yog + '/' + ad);
-    const im = pngOku(yol);
-    const dolu = ad === 'ic_launcher_foreground' ? alfali : morDegil;
-    const r = enUzakYaricap(im, dolu) / im.en;
-    const s = YARICAP[ad];
-    assert.ok(r <= s.ust, yog + '/' + ad + ': konu dışarı taşıyor (yarıçap ' +
-      r.toFixed(3) + ' > ' + s.ust + '). Daire maskesinde zarın köşesi/taç kesilir.');
-    assert.ok(r >= s.alt, yog + '/' + ad + ': konu gereğinden küçük (yarıçap ' +
-      r.toFixed(3) + ' < ' + s.alt + ') — boşuna yer harcanıyor');
+  for (const ad of ['ic_launcher', 'ic_launcher_foreground']) {
+    assert.ok(fs.existsSync(path.join(RES, 'mipmap-' + yog, ad + '.png')), 'eksik simge: ' + yog + '/' + ad);
   }
-  /* KÖŞELER SAYDAM OLMAMALI: kendi maskesini uygulamayan launcher'lar
-     köşelerden koyu zemini gösterir, simge "siyah çerçeveli" görünür.
-     Bir ara yuvarlatılmış maske uygulanmıştı; bu madde onu geri getirmez. */
+  const on = pngOku(path.join(RES, 'mipmap-' + yog, 'ic_launcher_foreground.png'));
+  const k = alfaKutusu(on);
+  const yari = Math.max(k.en, k.boy) / 2 / on.en;
+  assert.ok(yari >= 0.30 && yari <= 0.35, yog + '/ön plan: tasarım 72dp görünür alanı kaplamalı (yarı genişlik ' + yari.toFixed(3) + ')');
+  assert.ok(Math.abs(k.cx - (on.en - 1) / 2) <= on.en * 0.01 && Math.abs(k.cy - (on.boy - 1) / 2) <= on.boy * 0.01,
+    yog + '/ön plan: tasarım ortalanmış olmalı');
   const kim = pngOku(path.join(RES, 'mipmap-' + yog, 'ic_launcher.png'));
   for (const [x, y] of [[0, 0], [kim.en - 1, 0], [0, kim.boy - 1], [kim.en - 1, kim.boy - 1]]) {
     assert.strictEqual(kim.px[(y * kim.en + x) * 4 + 3], 255,
-      yog + '/ic_launcher: köşe saydam — zemin kenardan kenara mor olmalı');
+      yog + '/ic_launcher: köşe saydam — simge kenardan kenara dolu olmalı');
   }
 }
+assert.ok(/<background android:drawable="@color\/iconBackground"/.test(oku('android/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml')),
+  'uyarlanabilir simgenin zemini tasarımın çerçeve moru olmalı');
 /* Daire çizen launcher'lar artık ic_launcher'ı (API 26+ uyarlanabilir
    sürümünü) kullanıyor: ayrı yuvarlak simge mor DAİRE + saydam köşe
    demekti, kendi tepsisini çizen launcher'da köşeler koyu kalıyordu. */
@@ -177,7 +159,7 @@ for (const yog of ['mdpi', 'xxxhdpi']) {
   assert.ok(!fs.existsSync(path.join(RES, 'mipmap-' + yog, 'ic_launcher_round.png')),
     yog + ': ic_launcher_round.png artık üretilmemeli');
 }
-console.log('  ✓ 1) simge: daire maskesine tam oturuyor, köşeler mor, yuvarlak varyant yok');
+console.log('  ✓ 1) simge: yeni tasarım görünür alanı kaplıyor, ortalı, köşeler dolu, yuvarlak varyant yok');
 
 // ---------- 2) İNSET SÖZLEŞMESİ: üç parça da yerinde mi ----------
 const java = oku('android/app/src/main/java/tr/com/masaoyunlari/oyun/MainActivity.java');

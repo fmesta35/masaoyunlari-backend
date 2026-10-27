@@ -690,7 +690,7 @@ function installAuth(app, deps) {
         g.puan += Number(r.puan) || 0;
         if (r.kind === 'win' || r.kind === 'win_left') { g.galibiyet += adet; g.mac += adet; }
         else if (r.kind === 'draw') { g.beraberlik += adet; g.mac += adet; }
-        else if (r.kind === 'loss' || r.kind === 'timeout') { g.maglubiyet += adet; g.mac += adet; }
+        else if (r.kind === 'loss' || r.kind === 'timeout' || r.kind === 'resign') { g.maglubiyet += adet; g.mac += adet; }
         else if (r.kind === 'leave') g.terk += adet;
         else if (r.kind === 'rejoin') g.donus += adet;
       }

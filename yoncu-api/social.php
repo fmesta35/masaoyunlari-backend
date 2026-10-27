@@ -388,7 +388,7 @@ if ($action === 'scoreSummary') {
         $k = $r['kind'];
         if ($k === 'win' || $k === 'win_left') { $harita[$g]['galibiyet'] += $adet; $harita[$g]['mac'] += $adet; }
         elseif ($k === 'draw') { $harita[$g]['beraberlik'] += $adet; $harita[$g]['mac'] += $adet; }
-        elseif ($k === 'loss' || $k === 'timeout') { $harita[$g]['maglubiyet'] += $adet; $harita[$g]['mac'] += $adet; }
+        elseif ($k === 'loss' || $k === 'timeout' || $k === 'resign') { $harita[$g]['maglubiyet'] += $adet; $harita[$g]['mac'] += $adet; }
         elseif ($k === 'leave') $harita[$g]['terk'] += $adet;
         elseif ($k === 'rejoin') $harita[$g]['donus'] += $adet;
     }

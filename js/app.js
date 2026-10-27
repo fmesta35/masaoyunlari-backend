@@ -104,4 +104,7 @@ if (document.readyState === 'loading') {
   GVApp.init();
 }
 
+/* js/webview.js uygulama kipini (isApp, nativeApp, platform…) aynı nesneye
+   yazar; hangisi önce yüklenirse yüklensin alanlar kaybolmasın. */
+if (window.GVApp && window.GVApp !== GVApp) Object.assign(GVApp, window.GVApp);
 window.GVApp = GVApp;
