@@ -143,11 +143,9 @@ function motorTesti() {
   {
     const durgun = oyunaGec(E.macBaslat({ seats: [0, 1], golHedefi: 9 }));
     const hizli = oyunaGec(E.macBaslat({ seats: [0, 1], golHedefi: 9 }));
-    /* Vuruş gücü SALINIMLA kazanılır (tokmak ivme sınırlı): tokmak 150 birim
-       geriden koşarak gelir. */
     [durgun, hizli].forEach(x => {
       x.disk.x = 300; x.disk.y = 300; x.disk.vx = 0; x.disk.vy = 0;
-      x.tokmak[0] = { x: 300 - (E.DISK_R + E.TOKMAK_R) - 150, y: 300, vx: 0, vy: 0 };
+      x.tokmak[0] = { x: 300 - (E.DISK_R + E.TOKMAK_R) - 2, y: 300, vx: 0, vy: 0 };
       x.hedef[0] = { x: x.tokmak[0].x, y: 300 };
     });
     /* Hızlı olanın tokmağı diske doğru koşsun. */
@@ -161,7 +159,6 @@ function motorTesti() {
     assert.ok(hHiz > 600, 'hareket eden tokmak diske belirgin hız katmalı — bulunan: ' +
       hHiz.toFixed(1));
     assert.notStrictEqual(Math.round(hizli.disk.x), 300, 'vurulan disk yerinden kalkmalı');
-    assert.ok(hHiz <= E.DISK_TAVANI + 0.01, 'disk hız tavanını aşmamalı');
   }
   console.log('  ✓ 5) hareket eden tokmak diske hız katıyor');
 

@@ -2044,32 +2044,10 @@ function emitHavahokeyiState(room, event = 'gameStateUpdated') {
     roomId: room.id, seat: null, isSpectator: true, gameState: havahokeyiState(room, null)
   }));
 }
-/* Motor zamanı (sn) ↔ sunucu saati (ms). sonAdim: st.gecenSn'e karşılık gelen saat. */
-function hokeyMs(h, e) { return Math.round(((h.sonAdim || now()) - (h.st.gecenSn - e) * 1000) * 10) / 10; }
-function hokeyE(h, ms) { return h.st.gecenSn - ((h.sonAdim || now()) - ms) / 1000; }
 function havahokeyiKare(room) {
-  const h = room.havahokeyi;
-  const st = h.st;
-  /* İMLEÇ İZİ: her oyuncunun son bildirimleri görüş zamanıyla — rakip, vuran
-     tokmağı diskle AYNI zamandan çizer (temassız uçuş görmez). */
-  if (!h.izYayin) h.izYayin = [-1e9, -1e9];
-  const iz = [0, 1].map(j => {
-    const yeni = st.iz[j].filter(k => k.e > h.izYayin[j]).slice(-12);
-    if (yeni.length) h.izYayin[j] = yeni[yeni.length - 1].e;
-    return yeni.map(k => ({ t: hokeyMs(h, k.e), x: Math.round(k.x * 10) / 10, y: Math.round(k.y * 10) / 10 }));
-  });
-  /* DÜZELTME: geç gelen bir vuruş geçmişi değiştirdiyse, o andan bugüne disk yolu */
-  let duzelt = null;
-  if (st.duzeltE !== null && st.duzeltE !== undefined) {
-    duzelt = st.gecmis.filter((k, n) => k.e >= st.duzeltE - 1e-9 && (n % 2 === 0 || n === st.gecmis.length - 1))
-      .map(k => ({ t: hokeyMs(h, k.e), x: Math.round(k.x * 10) / 10, y: Math.round(k.y * 10) / 10, vx: Math.round(k.vx), vy: Math.round(k.vy) }));
-    st.duzeltE = null;
-  }
+  const st = room.havahokeyi.st;
   io.to(room.id).emit('hokeyFrame', {
-    iz, duzelt,
-    /* t: karenin AİT OLDUĞU fizik anı (son adımın saati) — yayın anı değil;
-       istemci ara değerlemeyi bu saate göre yapar. */
-    roomId: room.id, t: room.havahokeyi.sonAdim || now(),
+    roomId: room.id, t: now(),
     faz: st.faz, fazSn: Math.round(st.fazSn * 10) / 10,
     disk: { x: Math.round(st.disk.x * 10) / 10, y: Math.round(st.disk.y * 10) / 10,
             vx: Math.round(st.disk.vx), vy: Math.round(st.disk.vy) },
@@ -2104,6 +2082,10 @@ function havahokeyiDonguAdimi() {
     let n = 0;
     while (kalan >= HOKEY_ADIM_MS && n < 40) {
       havahokeyiEngine.adim(h.st, HOKEY_ADIM_MS / 1000);
+      /* Gecikme telafisi için disk geçmişi (son ~0.5 sn, adım sonu duvar saatiyle). */
+      if (!h.gecmis) h.gecmis = [];
+      h.gecmis.push({ t: adimBaslangic + (n + 1) * HOKEY_ADIM_MS, x: h.st.disk.x, y: h.st.disk.y, vx: h.st.disk.vx, vy: h.st.disk.vy });
+      if (h.gecmis.length > 64) h.gecmis.shift();
       kalan -= HOKEY_ADIM_MS;
       n++;
       if (h.st.status !== 'playing') break;
@@ -6030,14 +6012,37 @@ io.on('connection', socket => {
     const room = rooms.get(socket.roomId || String(data && data.roomId || ''));
     const p = room && room.havahokeyi && room.players.find(x => x.id === socket.id);
     if (!p || room.status !== 'playing') return;
-    /* vt: oyuncunun o an ekranda gördüğü diskin sunucu saati. Motor tokmağı
-       o görüş anına yazar; temas, oyuncunun gördüğü diskle aranır. vt yoksa
-       (eski istemci / klavye) "şimdi" sayılır. */
-    const h = room.havahokeyi;
-    const vt = data && Number(data.vt);
-    const e = Number.isFinite(vt) ? hokeyE(h, vt) : undefined;
-    const r = havahokeyiEngine.izEkle(h.st, p.seat, data && data.x, data && data.y, e);
+    const r = havahokeyiEngine.hedefYaz(room.havahokeyi.st, p.seat,
+      data && data.x, data && data.y);
+    /* görüş zamanlı bildirim yollayan oyuncunun vuruşları yalnız bu bildirimlerle işlenir */
+    if (data && data.vt !== undefined) {
+      const st0 = room.havahokeyi.st;
+      if (!st0.izSon) st0.izSon = [-9, -9];
+      st0.izSon[havahokeyiEngine.tarafOf(p.seat)] = st0.gecenSn;
+    }
     if (!r.ok) socket.emit('hokeyRejected', { roomId: room.id, reason: r.reason });
+    /* GECİKME TELAFİSİ: istemcinin ekranda gördüğü anda (vt) diske değen tokmak
+       konumu bildirildiyse vuruş o ana göre uygulanır. */
+    const h = room.havahokeyi;
+    if (data && data.vt !== undefined && data.px !== undefined && h.gecmis && h.gecmis.length > 2) {
+      const simdi = h.sonAdim || now();
+      const vt = Number(data.vt);
+      if (Number.isFinite(vt) && vt <= simdi && vt >= simdi - 260 &&
+          !(h.vurusT && h.vurusT[p.seat] && vt < h.vurusT[p.seat])) {
+        const g = h.gecmis; let k = g.length - 1;
+        while (k > 0 && g[k - 1].t > vt) k--;
+        const a = g[Math.max(0, k - 1)], b = g[k];
+        const f = b.t > a.t ? Math.max(0, Math.min(1, (vt - a.t) / (b.t - a.t))) : 1;
+        const disk0 = { x: a.x + (b.x - a.x) * f, y: a.y + (b.y - a.y) * f, vx: a.vx + (b.vx - a.vx) * f, vy: a.vy + (b.vy - a.vy) * f };
+        const vurdu = havahokeyiEngine.gecmisVurus(h.st, p.seat,
+          { x: data.px, y: data.py, vx: data.mvx, vy: data.mvy }, disk0, (simdi - vt) / 1000);
+        if (vurdu) {
+          if (!h.vurusT) h.vurusT = {};
+          h.vurusT[p.seat] = simdi;
+          h.gecmis.length = 0;
+        }
+      }
+    }
   });
 
   socket.on('hokeyRenk', data => {
