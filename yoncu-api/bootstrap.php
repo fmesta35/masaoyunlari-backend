@@ -385,6 +385,26 @@ function gv_score_reset_at() {
     return $r ? intval($r['ts']) : 0;
 }
 
+/* OTOMATİK PUAN SIFIRLAMA (tembel). Render'ın saatlik zamanlayıcısı
+   sıfırlamayı PHP'ye sunucu-sunucu yazıyordu; Yöncü'nün DDoS koruması bu
+   çağrıyı 303 ile geri çevirdiği için otomatik sıfırlama HİÇ uygulanmıyordu.
+   Artık sıralama/ayar her okunduğunda PHP periyodun dolup dolmadığına
+   kendisi bakar. Periyot süreleri scoring.js PERIYOTLAR ile aynıdır. */
+function gv_score_auto_reset($now) {
+    $ms = array('haftalik' => 7, 'aylik' => 30, 'ceyrek' => 90, 'yarim' => 180, 'yillik' => 365);
+    try {
+        $pdo = gv_pdo();
+        $r = $pdo->query("SELECT value FROM gv_settings WHERE skey = 'score_reset_period'")->fetch();
+        $p = $r ? strval($r['value']) : 'kapali';
+        if (!isset($ms[$p])) return;
+        $son = gv_score_reset_at();
+        // Hiç sıfırlanmadıysa ilk dönem ŞİMDİ başlar (geçmiş silinmez).
+        if ($son && ($now - $son) < $ms[$p] * 86400000) return;
+        $pdo->prepare("INSERT INTO gv_score_resets(ts,by_user,mode) VALUES(?,?,?)")
+            ->execute(array($now, null, 'otomatik'));
+    } catch (Exception $e) { /* sıralama okumayı asla bozmasın */ }
+}
+
 function gv_require_server_key() {
     // İmzası doğrulanmış köprü kaydı (social.php?action=relay) sunucu
     // anahtarıyla gelmiş sayılır — imzayı yalnız anahtarı bilen Render atabilir.

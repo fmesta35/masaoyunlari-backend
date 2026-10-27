@@ -425,6 +425,7 @@ if ($action === 'scoreSummary') {
 if ($action === 'scoreBoard') {
     /* Sıralama tablosu HERKESE AÇIK (liderlik sayfası) — tarayıcı doğrudan
        okur; Render'ın DDoS engeline takılmaz. */
+    gv_score_auto_reset($now);
     $limit = max(1, min(100, intval($_GET['limit'] ?? 20)));
     $game = isset($_GET['game']) && $_GET['game'] !== '' ? strval($_GET['game']) : null;
     $pdo = gv_pdo();
@@ -450,18 +451,24 @@ if ($action === 'scoreBoard') {
 }
 
 /* Kurucu: sıfırla. Veri SİLİNMEZ — yeni sıfırlama noktası işaretlenir. */
+/* Yetki: Render'ın sunucu anahtarı VEYA kurucunun kendi oturumu (Bearer).
+   Kurucu paneli artık bu ucu tarayıcıdan DOĞRUDAN çağırır: Render → Yöncü
+   çağrısı DDoS korumasına takılıp "boş cevap (HTTP 303)" dönüyordu. */
 if ($action === 'scoreReset') {
-    gv_require_server_key();
+    gv_require_server_key_or_admin();
     $pdo = gv_pdo();
+    $by = isset($in['by']) ? intval($in['by']) : null;
+    if ($by === null) { $u = gv_user_by_token(gv_bearer()); if ($u) $by = intval($u['id']); }
+    $mode = strval($in['mode'] ?? 'manuel');
+    if (!in_array($mode, array('manuel', 'otomatik'), true)) $mode = 'manuel';
     $pdo->prepare("INSERT INTO gv_score_resets(ts,by_user,mode) VALUES(?,?,?)")
-        ->execute(array($now, isset($in['by']) ? intval($in['by']) : null,
-                        strval($in['mode'] ?? 'manuel')));
+        ->execute(array($now, $by, $mode));
     gv_json(array('ok' => true, 'ts' => $now));
 }
 
 /* Kurucu: otomatik sıfırlama periyodu (oku/yaz). */
 if ($action === 'scoreSettings') {
-    gv_require_server_key();
+    gv_require_server_key_or_admin();
     $pdo = gv_pdo();
     if (isset($in['periyot'])) {
         $p = strval($in['periyot']);
@@ -472,6 +479,7 @@ if ($action === 'scoreSettings') {
             ->execute(array($p, $now));
         gv_json(array('ok' => true, 'periyot' => $p));
     }
+    gv_score_auto_reset($now);
     $r = $pdo->query("SELECT value FROM gv_settings WHERE skey = 'score_reset_period'")->fetch();
     gv_json(array('ok' => true, 'periyot' => $r ? strval($r['value']) : 'kapali',
                   'sonSifirlama' => gv_score_reset_at()));

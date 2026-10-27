@@ -1626,15 +1626,35 @@
     statsSection = null;
   }
   // ---- Puan sıfırlama denetimleri (İstatistikler başlığı altında) ----
+  // Kullanıcı raporu: "Şimdi Sıfırla → Üyelik sunucusundan boş cevap (HTTP 303)".
+  // KÖK NEDEN: Render bu işlemi Yöncü PHP'ye sunucu-sunucu iletiyordu; Yöncü'nün
+  // DDoS koruması Render'ın isteğini 303 ile engelleme sayfasına yönlendiriyor.
+  // Yöncü sayfasında kurucunun tarayıcısı PHP'yi DOĞRUDAN, kendi oturumuyla
+  // çağırır (social.php kurucu oturumunu kabul eder). Diğer ortamlarda Render.
+  const PUAN_PERIYOT_ETIKET = { kapali: 'Kapalı (yalnız elle sıfırlanır)', haftalik: 'Haftalık',
+    aylik: 'Aylık', ceyrek: '3 aylık', yarim: '6 aylık', yillik: 'Yıllık' };
+  const PUAN_PHP = '/api/social.php?action=';
+  function puanAyarOku() {
+    if (!isYoncuPage()) return api(BACKEND + '/api/admin/scores/settings', null, 'GET');
+    return api(PUAN_PHP + 'scoreSettings', null, 'GET');
+  }
+  function puanAyarYaz(periyot) {
+    if (!isYoncuPage()) return api(BACKEND + '/api/admin/scores/settings', { periyot }, 'POST');
+    return api(PUAN_PHP + 'scoreSettings', { periyot }, 'POST');
+  }
+  function puanSifirla() {
+    if (!isYoncuPage()) return api(BACKEND + '/api/admin/scores/reset', {}, 'POST');
+    return api(PUAN_PHP + 'scoreReset', { mode: 'manuel' }, 'POST');
+  }
   let scoreUISetup = false;
   async function refreshScoreReset() {
     const sel = document.getElementById('adminScorePeriod');
     const info = document.getElementById('adminScoreResetInfo');
     if (!sel) return;
     let r = null;
-    try { r = await api(BACKEND + '/api/admin/scores/settings', null, 'GET'); } catch (_) {}
+    try { r = await puanAyarOku(); } catch (_) {}
     if (!r || !r.ok) { if (info) info.textContent = '⚠️ Puan ayarları okunamadı.'; return; }
-    const sec = r.secenekler || {};
+    const sec = r.secenekler || PUAN_PERIYOT_ETIKET;
     sel.innerHTML = Object.keys(sec).map(k =>
       '<option value="' + k + '"' + (k === r.periyot ? ' selected' : '') + '>' + sec[k] + '</option>').join('');
     if (info) {
@@ -1647,14 +1667,14 @@
     const kaydet = document.getElementById('adminScorePeriodSave');
     const simdi = document.getElementById('adminScoreResetNow');
     if (kaydet) kaydet.addEventListener('click', async () => {
-      const r2 = await api(BACKEND + '/api/admin/scores/settings', { periyot: sel.value }, 'POST');
+      const r2 = await puanAyarYaz(sel.value);
       if (r2 && r2.ok) { toast('✅ Otomatik sıfırlama dönemi kaydedildi.', 'success'); refreshScoreReset(); }
       else toast('⚠️ ' + ((r2 && r2.error) || 'Kaydedilemedi.'), 'error');
     });
     if (simdi) simdi.addEventListener('click', async () => {
       // Geri alınamaz görünen bir işlem: tek tıkla olmasın.
       if (!window.confirm('Tüm oyuncuların puanları sıfırlanacak ve yeni bir dönem başlayacak.\n\nEski kayıtlar silinmez, yalnız sayım bu andan itibaren yapılır.\n\nOnaylıyor musunuz?')) return;
-      const r2 = await api(BACKEND + '/api/admin/scores/reset', {}, 'POST');
+      const r2 = await puanSifirla();
       if (r2 && r2.ok) {
         toast('✅ Puanlar sıfırlandı; yeni dönem başladı.', 'success');
         refreshScoreReset();
