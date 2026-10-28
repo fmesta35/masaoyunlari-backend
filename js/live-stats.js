@@ -116,6 +116,7 @@
     if (!KOPRU || kopruMesgul) return;
     kopruMesgul = true;
     var onaylar = [];
+    var puanTazele = false;
     var sira = Promise.resolve();
     liste.slice(0, 5).forEach(function (r) {
       sira = sira.then(function () {
@@ -124,7 +125,12 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ r: r })
         }).then(function (x) { return x.json(); })
-          .then(function (d) { if (d && d.ok && d.fis) onaylar.push({ id: r.id, fis: d.fis }); })
+          .then(function (d) {
+            if (d && d.ok && d.fis) {
+              onaylar.push({ id: r.id, fis: d.fis });
+              if (r.a === 'scoreWrite' || r.a === 'recordMatch') puanTazele = true;
+            }
+          })
           .catch(function () {});
       });
     });
@@ -135,7 +141,17 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ onaylar: onaylar })
       }).catch(function () {});
-    }).then(function () { kopruMesgul = false; }, function () { kopruMesgul = false; });
+    }).then(function () { kopruMesgul = false; puanlariTazele(puanTazele); },
+            function () { kopruMesgul = false; puanlariTazele(puanTazele); });
+  }
+  /* Puan yazımı Yöncü'ye ulaştıysa profil puanı ve liderlik tablosu HEMEN
+     yenilensin (kullanıcı raporu: "ziyaretçi pes etti, üye puan kazanmadı" —
+     puan aslında yazılıyordu ama köprü nabzını (20 sn) ve puan ekranının
+     60 sn'lik yenilemesini beklediği için maç sonunda değişmemiş görünüyordu). */
+  function puanlariTazele(gerekli) {
+    if (!gerekli || !window.GVScores) return;
+    try { if (typeof GVScores.siralamaTemizle === 'function') GVScores.siralamaTemizle(); } catch (_) {}
+    try { if (typeof GVScores.refresh === 'function') GVScores.refresh(); } catch (_) {}
   }
   /* Turnuvalar: oyun sunucusu yeniden başladığında listeyi Yöncü'den
      OKUYAMIYOR. Bu sayfa PHP'nin imzaladığı listeyi alıp iletir. */
@@ -207,6 +223,14 @@
     // Giriş/çıkış olunca kimlik değişir: sunucuya hemen bildir ki kişi
     // ziyaretçi kaydından üye kaydına taşınsın (çift sayım olmasın).
     window.addEventListener('gv:authChanged', function () { getir(); soketleriTara(); });
+    /* MAÇ BİTTİ: puan/maç kaydı sunucuda köprü kuyruğuna girdi. Bir sonraki
+       nabzı (20 sn) beklemeden hemen iste ki kayıt Yöncü'ye anında taşınsın
+       ve puan ekranı maç biter bitmez güncellensin. İkinci deneme, sunucunun
+       kaydı kuyruğa koymasının geciktiği durum içindir. */
+    window.addEventListener('gv:matchEnded', function () {
+      setTimeout(getir, 500);
+      setTimeout(getir, 4000);
+    });
     // Sayfa değişince (İstatistikler sekmesi) son veriyi hemen bas.
     setInterval(boya, 2000);
     // Sekme kapanırken sunucuya "gidiyorum" de: sayaç anında düzelsin.
