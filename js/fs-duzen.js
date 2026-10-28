@@ -36,7 +36,9 @@
   /* Oyun sarmalayıcısı → sol şeride taşınacak bilgi parçaları */
   var BILGI = [
     { kap: '.dama-wrap,.tdama-wrap,.rv-wrap,.gm-wrap,.c4-wrap', sec: ['.dama-status', '.tdama-info'] },
-    { kap: '.tavla-wrap', sec: ['.tavla-dice-area .tavla-info'] },
+    /* TAVLA: bilgi yazıları kopyalanır; zar + "Zar At" şeridi ise GERÇEK
+       düğüm olarak sol şeride TAŞINIR (düğmeleri çalışmalı — kopya olmaz). */
+    { kap: '.tavla-wrap', sec: ['.tavla-dice-area .tavla-info'], tasi: ['.tavla-dice-area'] },
     { kap: '.fk-wrap', sec: ['.fk-ust', '.fk-sahne-adi'] },
     { kap: '.kb-wrap', sec: ['.kb-oyuncular', '.kb-durum'] },
     { kap: '.card-wrap', sec: ['.card-score'] },
@@ -104,15 +106,43 @@
         '#pg-room.gv-fs.gv-fs-yan .game-side::-webkit-scrollbar{display:none}' +
       '}',
 
-      /* ---- 3) TAVLA: zar satırı ince bir şerit, tahta kalan tüm alanda ---- */
+      /* ---- 3) TAVLA (telefon tam ekran) — kullanıcı isteği (ekran görüntüsüyle):
+         "tavla oyun ekranını beyaz çerçeve boyutlarında genişlet ve görüntü
+         bozukluğu olmadan alana sığmasını sağla; zar atma alanını sol alttaki
+         skor tablosunun aşağısında göster". Zar şeridi sol şeride taşınır
+         (bkz. tasi), tahta sağdaki alanın TAMAMINI kaplar: genişlik alanın
+         eni, yükseklik alanın boyu; haneler esner, pullar daire kalır
+         (pul çapı en ve boydan küçük olana göre). */
       '#pg-room.gv-fs.gv-fs-yan .tavla-move-badge{display:none}',
-      '#pg-room.gv-fs.gv-fs-yan .tavla-wrap{gap:4px}',
-      '#pg-room.gv-fs.gv-fs-yan .tavla-dice-area{flex:none;flex-wrap:nowrap;margin:0;padding:3px 10px;gap:10px;border-width:1px}',
-      '#pg-room.gv-fs.gv-fs-yan .tavla-die{width:34px;height:34px;padding:4px;border-radius:7px}',
-      '#pg-room.gv-fs.gv-fs-yan .tavla-die-face{gap:1px}',
-      '#pg-room.gv-fs.gv-fs-yan .tavla-die-face .dot{width:6px;height:6px}',
-      '#pg-room.gv-fs.gv-fs-yan .tavla-btn{padding:5px 12px;font-size:.82em;min-height:0}',
-      '#pg-room.gv-fs.gv-fs-yan .tavla-board{--tv-avail-h:calc(100cqh - 52px);padding:6px;border-width:5px}',
+      '#pg-room.gv-fs.gv-fs-yan .tavla-wrap{gap:0;align-items:stretch;justify-content:stretch}',
+      '#pg-room.gv-fs.gv-fs-yan .tavla-wrap>.tavla-board{box-sizing:border-box;flex:1 1 auto;min-height:0;' +
+        'width:100%;max-width:none;height:100%;display:flex;flex-direction:column;padding:5px;border-width:4px;' +
+        '--tv-w:100cqw;--tv-checker:max(9px,min(calc(100cqw / 34),calc((100cqh - 66px) / 11.4)))}',
+      '#pg-room.gv-fs.gv-fs-yan .tavla-wrap>.tavla-board>.tavla-row{flex:1 1 0;min-height:0;height:auto;aspect-ratio:auto}',
+      '#pg-room.gv-fs.gv-fs-yan .tavla-wrap>.tavla-board>.tavla-num-row{flex:none}',
+      '#pg-room.gv-fs.gv-fs-yan .tavla-num-cell{padding:2px 0;font-size:clamp(8px,calc(100cqh / 34),13px)}',
+      /* sol şeritteki zar kutusu: zarlar yan yana, düğme altta tam genişlik */
+      '#gvFsTasi{display:none}',
+      '#pg-room.gv-fs.gv-fs-yan .game-side>#gvFsTasi{display:block!important;margin-top:6px;flex:none}',
+      '#pg-room.gv-fs.gv-fs-yan #gvFsTasi .tavla-dice-area{display:flex;flex-wrap:wrap;justify-content:center;align-items:center;' +
+        'gap:6px;margin:0;padding:6px;border-width:1px;border-radius:10px;box-sizing:border-box;width:100%}',
+      '#pg-room.gv-fs.gv-fs-yan #gvFsTasi .tavla-info{display:none}',
+      '#pg-room.gv-fs.gv-fs-yan #gvFsTasi .tavla-dice{gap:6px}',
+      '#pg-room.gv-fs.gv-fs-yan #gvFsTasi .tavla-die{width:34px;height:34px;padding:4px;border-radius:7px;box-sizing:border-box}',
+      '#pg-room.gv-fs.gv-fs-yan #gvFsTasi .tavla-die-face{gap:1px}',
+      '#pg-room.gv-fs.gv-fs-yan #gvFsTasi .tavla-die-face .dot{width:6px;height:6px}',
+      '#pg-room.gv-fs.gv-fs-yan #gvFsTasi .tavla-die-empty{font-size:1.3em}',
+      '#pg-room.gv-fs.gv-fs-yan #gvFsTasi .tavla-btn{flex:1 1 100%;padding:6px 4px;font-size:.8em;min-height:0;white-space:nowrap}',
+      /* alçak telefonlarda (≤380 px) sol şerit sığsın diye daha sıkı */
+      '@media (max-height:380px){' +
+        '#pg-room.gv-fs.gv-fs-yan .game-side>#gvFsTasi{margin-top:4px}' +
+        '#pg-room.gv-fs.gv-fs-yan #gvFsTasi .tavla-dice-area{gap:4px;padding:4px}' +
+        '#pg-room.gv-fs.gv-fs-yan #gvFsTasi .tavla-die{width:28px;height:28px;padding:3px}' +
+        '#pg-room.gv-fs.gv-fs-yan #gvFsTasi .tavla-die-face .dot{width:5px;height:5px}' +
+        '#pg-room.gv-fs.gv-fs-yan #gvFsTasi .tavla-btn{padding:4px;font-size:.76em}' +
+        '#pg-room.gv-fs.gv-fs-yan #gvFsYan{gap:4px;margin-top:4px}' +
+        '#pg-room.gv-fs.gv-fs-yan #gvFsYan .tavla-info{padding:4px 6px}' +
+      '}',
 
       /* ---- 3b) TAVLA dik telefon (standart görünüm): "Taş toplama alanı
          çok geniş, oyun alanı dar" — toplama ve kırık taş şeritleri
@@ -182,8 +212,50 @@
     return k;
   }
 
+  /* Taşınan GERÇEK düğümlerin (tavla zar şeridi) sol şeritteki yuvası:
+     bilgi kopyalarının hemen altında. */
+  function tasiKutu() {
+    var side = document.querySelector('#pg-room .game-side');
+    if (!side) return null;
+    var k = document.getElementById('gvFsTasi');
+    if (!k) {
+      k = document.createElement('div');
+      k.id = 'gvFsTasi';
+      var y = yanKutu();
+      if (y && y.parentNode === side) side.insertBefore(k, y.nextSibling); else side.appendChild(k);
+    }
+    return k;
+  }
+  /* Tam ekrandan çıkınca taşınan düğüm tahtaya (asıl yerine) geri döner;
+     oyun o arada yeniden çizdiyse eskisi atılır. */
+  function geriTasi() {
+    var k = document.getElementById('gvFsTasi');
+    if (!k || !k.firstChild) return;
+    var area = document.getElementById('boardArea');
+    var el = k.firstElementChild;
+    var wrap = area && area.querySelector('.tavla-wrap');
+    if (el && wrap && el.classList.contains('tavla-dice-area') && !wrap.querySelector('.tavla-dice-area')) {
+      el.querySelectorAll('.gv-fs-gizle').forEach(function (x) { x.classList.remove('gv-fs-gizle'); });
+      var tahta = wrap.querySelector('.tavla-board');
+      wrap.insertBefore(el, tahta || null);
+    }
+    k.innerHTML = '';
+  }
+  function tasi(kural, kok) {
+    if (!kural.tasi) { geriTasi(); return; }
+    var k = tasiKutu();
+    if (!k) return;
+    kural.tasi.forEach(function (sec) {
+      var el = kok.querySelector(sec);       // oyun yeniden çizdiyse YENİ düğüm
+      if (!el) return;
+      k.innerHTML = '';
+      k.appendChild(el);
+    });
+  }
+
   var sonHtml = '';
   function temizle() {
+    geriTasi();
     var area = document.getElementById('boardArea');
     if (area) area.querySelectorAll('.gv-fs-gizle').forEach(function (e) { e.classList.remove('gv-fs-gizle'); });
     var k = document.getElementById('gvFsYan');
@@ -208,12 +280,17 @@
       o.classList.toggle('gv-fs-yan', aktif);
       tetikle();
     }
-    if (!aktif) { if (sonHtml) temizle(); return; }
+    if (!aktif) { if (sonHtml || document.querySelector('#gvFsTasi>*')) temizle(); return; }
     var k = yanKutu();
     if (!k) return;
+    tasi(kural, kok);
+    var tk = document.getElementById('gvFsTasi');
     var html = '';
     kural.sec.forEach(function (sec) {
-      kok.querySelectorAll(sec).forEach(function (el) {
+      var bulunan = [].slice.call(kok.querySelectorAll(sec));
+      /* taşınmış şeridin içindeki bilgi yazıları da kaynaktır */
+      if (tk && kural.tasi) bulunan = bulunan.concat([].slice.call(tk.querySelectorAll(sec.replace(/^.*\s/, ''))));
+      bulunan.forEach(function (el) {
         if (!el.classList.contains('gv-fs-gizle')) el.classList.add('gv-fs-gizle');
         var c = el.cloneNode(true);
         c.classList.remove('gv-fs-gizle');
